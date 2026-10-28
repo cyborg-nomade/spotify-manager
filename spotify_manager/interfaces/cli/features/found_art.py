@@ -87,7 +87,7 @@ class FoundArtCLI:
             )
         console.print(table)
 
-    def _run_found_art(
+    async def _run_found_art(
         self,
         count: int | None,
         max_playlist_length: int | None,
@@ -107,7 +107,7 @@ class FoundArtCLI:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = found_art.parse_found_art_playlist_id(
                 configuration.found_art_playlist
@@ -129,8 +129,8 @@ class FoundArtCLI:
             with self._found_art_console.status(
                 "Preparing Found Art recommendations"
             ) as status:
-                summary = found_art.run_found_art(
-                    self.runtime.client(),
+                summary = await found_art.run_found_art(
+                    (await self.runtime.client()),
                     lastfm_client,
                     playlist_id,
                     count=effective_count,

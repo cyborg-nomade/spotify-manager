@@ -33,11 +33,11 @@ def test_calculate_stats() -> None:
     }
 
 
-def test_update_stats(mock_save_stats_file: Mock) -> None:
+async def test_update_stats(mock_save_stats_file: Mock) -> None:
     """Persist the complete calculated statistics exactly once.
 
     Args:
         mock_save_stats_file: Recording replacement for the stats writer.
     """
-    assert update_stats(*_inputs()) is True
+    assert (update_stats(*_inputs())) is True
     mock_save_stats_file.assert_called_once_with(calculate_stats(*_inputs()))

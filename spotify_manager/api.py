@@ -14,6 +14,7 @@ from spotify_manager.application.album_review import review_album
 from spotify_manager.bootstrap.listening import album_review_ports
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http import jobs
+from spotify_manager.interfaces.http.execution import ExecutionMiddleware
 from spotify_manager.interfaces.http.handlers import analysis as analysis_http
 from spotify_manager.interfaces.http.handlers import (
     daily_mind_radio as daily_mind_radio_http,
@@ -118,6 +119,7 @@ from spotify_manager.models.lookups import TrackScrobbleStatus as TrackScrobbleS
 
 
 app = FastAPI(title="Spotify Manager", version="0.1.0", lifespan=jobs._lifespan)
+app.add_middleware(ExecutionMiddleware)
 app.exception_handler(jobs.ArtistNotFoundError)(jobs._artist_not_found)
 app.exception_handler(jobs.AmbiguousArtistError)(jobs._ambiguous_artist)
 app.exception_handler(jobs.AlbumNotFoundError)(jobs._album_not_found)
@@ -276,7 +278,7 @@ def refresh_library() -> CommandResult:
     response_model=ArtistLibraryStats,
     description="Return live Liked Songs and Saved Albums counts for one artist.",
 )
-def artist_stats(
+async def artist_stats(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
     name: Annotated[str | None, Query()] = None,
@@ -293,7 +295,7 @@ def artist_stats(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return lookups_http.artist_stats(client, reference, name, artist_id)
+    return await lookups_http.artist_stats(client, reference, name, artist_id)
 
 
 @app.api_route(
@@ -304,7 +306,7 @@ def artist_stats(
         "Return a keep/remove decision from live Spotify album and liked state."
     ),
 )
-def album_evaluation(
+async def album_evaluation(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
     name: Annotated[str | None, Query()] = None,
@@ -331,7 +333,7 @@ def album_evaluation(
     request = lookups_http.album_request(reference, name, album_id, artist, threshold)
     catalog, membership = album_review_ports(client)
     try:
-        review = review_album(catalog, membership, request)
+        review = await review_album(catalog, membership, request)
     except RequestException as exc:
         raise HTTPException(
             status_code=502, detail=lookups_http.SPOTIFY_UNAVAILABLE
@@ -345,7 +347,7 @@ def album_evaluation(
     response_model=TrackScrobbleStatus,
     description="Return the latest Last.fm scrobble for one live Spotify track.",
 )
-def track_scrobble_status(
+async def track_scrobble_status(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
     name: Annotated[str | None, Query()] = None,
@@ -362,7 +364,7 @@ def track_scrobble_status(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return lookups_http.track_scrobble_status(client, reference, name, track_id)
+    return await lookups_http.track_scrobble_status(client, reference, name, track_id)
 
 
 @app.api_route(
@@ -371,7 +373,7 @@ def track_scrobble_status(
     response_model=CommandResult,
     description="Run the full monthly routine (compare, convert, monthly).",
 )
-def cmd_monthly_routines(client: ClientDep) -> CommandResult:
+async def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     """Run the full monthly routine (compare, convert, monthly).
 
     Args:
@@ -380,7 +382,7 @@ def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_monthly_routines(client)
+    return await library_commands_http.cmd_monthly_routines(client)
 
 
 @app.api_route(
@@ -389,7 +391,7 @@ def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     response_model=CommandResult,
     description="Update the total album list.",
 )
-def cmd_update_total_albums(
+async def cmd_update_total_albums(
     client: ClientDep, just_update: bool = False
 ) -> CommandResult:
     """Update the total album list.
@@ -401,7 +403,7 @@ def cmd_update_total_albums(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_update_total_albums(client, just_update)
+    return await library_commands_http.cmd_update_total_albums(client, just_update)
 
 
 @app.api_route(
@@ -410,7 +412,7 @@ def cmd_update_total_albums(
     response_model=CommandResult,
     description="Restore artists and tracks from the YourLibrary file.",
 )
-def cmd_restore_your_library(client: ClientDep) -> CommandResult:
+async def cmd_restore_your_library(client: ClientDep) -> CommandResult:
     """Restore artists and tracks from the YourLibrary file.
 
     Args:
@@ -419,7 +421,7 @@ def cmd_restore_your_library(client: ClientDep) -> CommandResult:
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_restore_your_library(client)
+    return await library_commands_http.cmd_restore_your_library(client)
 
 
 @app.api_route(
@@ -428,13 +430,13 @@ def cmd_restore_your_library(client: ClientDep) -> CommandResult:
     response_model=CommandResult,
     description="Create the comparison between YourLibrary and the total-albums file.",
 )
-def cmd_compare_lib_files() -> CommandResult:
+async def cmd_compare_lib_files() -> CommandResult:
     """Create the comparison between YourLibrary and the total-albums file.
 
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_compare_lib_files()
+    return await library_commands_http.cmd_compare_lib_files()
 
 
 @app.api_route(
@@ -443,7 +445,7 @@ def cmd_compare_lib_files() -> CommandResult:
     response_model=CommandResult,
     description="Analyse the saved comparison file against the live library.",
 )
-def cmd_analyse_comp(client: ClientDep) -> CommandResult:
+async def cmd_analyse_comp(client: ClientDep) -> CommandResult:
     """Analyse the saved comparison file against the live library.
 
     Args:
@@ -452,7 +454,7 @@ def cmd_analyse_comp(client: ClientDep) -> CommandResult:
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_analyse_comp(client)
+    return await library_commands_http.cmd_analyse_comp(client)
 
 
 @app.api_route(
@@ -461,7 +463,7 @@ def cmd_analyse_comp(client: ClientDep) -> CommandResult:
     response_model=CommandResult,
     description="Convert the YourLibrary file into the total-albums file.",
 )
-def cmd_convert_lib(client: ClientDep) -> CommandResult:
+async def cmd_convert_lib(client: ClientDep) -> CommandResult:
     """Convert the YourLibrary file into the total-albums file.
 
     Args:
@@ -470,7 +472,7 @@ def cmd_convert_lib(client: ClientDep) -> CommandResult:
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_convert_lib(client)
+    return await library_commands_http.cmd_convert_lib(client)
 
 
 @app.api_route(
@@ -479,13 +481,13 @@ def cmd_convert_lib(client: ClientDep) -> CommandResult:
     response_model=CountResult,
     description="Count the artists in the YourLibrary file.",
 )
-def cmd_count_artists() -> CountResult:
+async def cmd_count_artists() -> CountResult:
     """Count the artists in the YourLibrary file.
 
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return library_commands_http.cmd_count_artists()
+    return await library_commands_http.cmd_count_artists()
 
 
 @app.api_route(
@@ -495,7 +497,7 @@ def cmd_count_artists() -> CountResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a background Friday-routine playlist update.",
 )
-def cmd_blast_from_the_past(
+async def cmd_blast_from_the_past(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
     max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
@@ -512,7 +514,7 @@ def cmd_blast_from_the_past(
     Returns:
         A detached view of the registered job.
     """
-    return historical_http.cmd_blast_from_the_past(
+    return await historical_http.cmd_blast_from_the_past(
         client, count, max_playlist_length, dry_run
     )
 
@@ -575,7 +577,7 @@ def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an alphabetic dormant-artist recovery update.",
 )
-def cmd_blast_from_the_past_artists(
+async def cmd_blast_from_the_past_artists(
     client: InteractiveClientDep,
     count: Annotated[int, Query(ge=1)] = blast_from_past_artists.DEFAULT_COUNT,
     dry_run: bool = True,
@@ -590,7 +592,7 @@ def cmd_blast_from_the_past_artists(
     Returns:
         A detached view of the registered job.
     """
-    return dormant_http.cmd_blast_from_the_past_artists(client, count, dry_run)
+    return await dormant_http.cmd_blast_from_the_past_artists(client, count, dry_run)
 
 
 @app.api_route(
@@ -651,7 +653,7 @@ def cmd_cancel_blast_artist_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a background Daily Mind Radio anniversary update.",
 )
-def cmd_daily_mind_radio(
+async def cmd_daily_mind_radio(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a background Daily Mind Radio anniversary update.
@@ -663,7 +665,7 @@ def cmd_daily_mind_radio(
     Returns:
         A detached view of the registered job.
     """
-    return daily_mind_radio_http.cmd_daily_mind_radio(client, dry_run)
+    return await daily_mind_radio_http.cmd_daily_mind_radio(client, dry_run)
 
 
 @app.api_route(
@@ -724,7 +726,7 @@ def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a background Found Art recommendation update.",
 )
-def cmd_found_art(
+async def cmd_found_art(
     client: ClientDep, count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT
 ) -> BlastJobResult:
     """Start a background Found Art recommendation update.
@@ -736,7 +738,7 @@ def cmd_found_art(
     Returns:
         A detached view of the registered job.
     """
-    return found_art_http.cmd_found_art(client, count)
+    return await found_art_http.cmd_found_art(client, count)
 
 
 @app.api_route(
@@ -779,7 +781,7 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start reconnectable Last.fm album discovery for Sauvignon.",
 )
-def cmd_fill_sauvignon_from_lastfm(
+async def cmd_fill_sauvignon_from_lastfm(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
     max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
@@ -798,7 +800,7 @@ def cmd_fill_sauvignon_from_lastfm(
     Returns:
         A detached view of the registered job.
     """
-    return sauvignon_http.cmd_fill_sauvignon_from_lastfm(
+    return await sauvignon_http.cmd_fill_sauvignon_from_lastfm(
         client, count, max_playlist_length, seed_count, dry_run
     )
 
@@ -882,7 +884,7 @@ def cmd_cancel_sauvignon_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start reconnectable Last.fm artist discovery for The Queue.",
 )
-def cmd_fill_queue_from_lastfm(
+async def cmd_fill_queue_from_lastfm(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
     max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
@@ -901,7 +903,7 @@ def cmd_fill_queue_from_lastfm(
     Returns:
         A detached view of the registered job.
     """
-    return queue_fill_http.cmd_fill_queue_from_lastfm(
+    return await queue_fill_http.cmd_fill_queue_from_lastfm(
         client, count, max_playlist_length, seed_count, dry_run
     )
 
@@ -983,7 +985,7 @@ def cmd_cancel_queue_fill_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a reconnectable flush of the first ten Queue artists.",
 )
-def cmd_flush_queue(
+async def cmd_flush_queue(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable flush of the first ten Queue artists.
@@ -995,7 +997,7 @@ def cmd_flush_queue(
     Returns:
         A detached view of the registered job.
     """
-    return queue_flush_http.cmd_flush_queue(client, dry_run)
+    return await queue_flush_http.cmd_flush_queue(client, dry_run)
 
 
 @app.api_route(
@@ -1056,7 +1058,7 @@ def cmd_cancel_queue_flush_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an interactive New Kids flush with reconnectable web state.",
 )
-def cmd_flush_new_kids(
+async def cmd_flush_new_kids(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive New Kids flush with reconnectable web state.
@@ -1068,7 +1070,7 @@ def cmd_flush_new_kids(
     Returns:
         A detached view of the registered job.
     """
-    return discovery_http.cmd_flush_new_kids(client, dry_run)
+    return await discovery_http.cmd_flush_new_kids(client, dry_run)
 
 
 @app.api_route(
@@ -1150,7 +1152,7 @@ def cmd_cancel_new_kids_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an interactive Queue 2 flush with reconnectable web state.",
 )
-def cmd_flush_queue_2(
+async def cmd_flush_queue_2(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Queue 2 flush with reconnectable web state.
@@ -1162,7 +1164,7 @@ def cmd_flush_queue_2(
     Returns:
         A detached view of the registered job.
     """
-    return queue_2_http.cmd_flush_queue_2(client, dry_run)
+    return await queue_2_http.cmd_flush_queue_2(client, dry_run)
 
 
 @app.api_route(
@@ -1244,7 +1246,7 @@ def cmd_cancel_queue_2_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an interactive Queue 3 flush with reconnectable web state.",
 )
-def cmd_flush_queue_3(
+async def cmd_flush_queue_3(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Queue 3 flush with reconnectable web state.
@@ -1256,7 +1258,7 @@ def cmd_flush_queue_3(
     Returns:
         A detached view of the registered job.
     """
-    return queue_3_http.cmd_flush_queue_3(client, dry_run)
+    return await queue_3_http.cmd_flush_queue_3(client, dry_run)
 
 
 @app.api_route(
@@ -1266,7 +1268,7 @@ def cmd_flush_queue_3(
     status_code=status.HTTP_202_ACCEPTED,
     description="Start the annual Queue 3 import without advancing existing artists.",
 )
-def cmd_import_queue_3_previous_year(
+async def cmd_import_queue_3_previous_year(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start the annual Queue 3 import without advancing existing artists.
@@ -1278,7 +1280,7 @@ def cmd_import_queue_3_previous_year(
     Returns:
         A detached view of the registered job.
     """
-    return queue_3_http.cmd_import_queue_3_previous_year(client, dry_run)
+    return await queue_3_http.cmd_import_queue_3_previous_year(client, dry_run)
 
 
 @app.api_route(
@@ -1358,7 +1360,7 @@ def cmd_cancel_queue_3_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an interactive New Wine flush with reconnectable web state.",
 )
-def cmd_flush_new_wine(
+async def cmd_flush_new_wine(
     client: InteractiveClientDep,
     dry_run: bool = True,
     no_discovery: bool = False,
@@ -1375,7 +1377,7 @@ def cmd_flush_new_wine(
     Returns:
         A detached view of the registered job.
     """
-    return wine_http.cmd_flush_new_wine(
+    return await wine_http.cmd_flush_new_wine(
         client, dry_run, no_discovery, choose_album_endpoints
     )
 
@@ -1459,7 +1461,7 @@ def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an interactive Slow Listening flush with reconnectable state.",
 )
-def cmd_flush_slow_listening(
+async def cmd_flush_slow_listening(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Slow Listening flush with reconnectable state.
@@ -1471,7 +1473,7 @@ def cmd_flush_slow_listening(
     Returns:
         A detached view of the registered job.
     """
-    return slow_listening_http.cmd_flush_slow_listening(client, dry_run)
+    return await slow_listening_http.cmd_flush_slow_listening(client, dry_run)
 
 
 @app.api_route(
@@ -1555,7 +1557,7 @@ def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
         "Start an interactive Something Old selection with reconnectable state."
     ),
 )
-def cmd_something_old(
+async def cmd_something_old(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Something Old selection with reconnectable state.
@@ -1567,7 +1569,7 @@ def cmd_something_old(
     Returns:
         A detached view of the registered job.
     """
-    return something_old_http.cmd_something_old(client, dry_run)
+    return await something_old_http.cmd_something_old(client, dry_run)
 
 
 @app.api_route(
@@ -1649,7 +1651,7 @@ def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a reconnectable release check for Last.fm's top artists.",
 )
-def cmd_check_new_releases(
+async def cmd_check_new_releases(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable release check for Last.fm's top artists.
@@ -1661,7 +1663,7 @@ def cmd_check_new_releases(
     Returns:
         A detached view of the registered job.
     """
-    return releases_http.cmd_check_new_releases(client, dry_run)
+    return await releases_http.cmd_check_new_releases(client, dry_run)
 
 
 @app.api_route(
@@ -1672,7 +1674,7 @@ def cmd_check_new_releases(
         "Return restart state, omitting the payload when the browser is current."
     ),
 )
-def cmd_release_check_state(
+async def cmd_release_check_state(
     known_fingerprint: str | None = None,
 ) -> ReleaseCheckStateSnapshot:
     """Return restart state, omitting the payload when the browser is current.
@@ -1683,7 +1685,7 @@ def cmd_release_check_state(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return releases_http.cmd_release_check_state(known_fingerprint)
+    return await releases_http.cmd_release_check_state(known_fingerprint)
 
 
 @app.api_route(
@@ -1694,7 +1696,7 @@ def cmd_release_check_state(
         "Restore a newer browser mirror without overwriting concurrent progress."
     ),
 )
-def cmd_restore_release_check_state(
+async def cmd_restore_release_check_state(
     request: ReleaseCheckStateRestoreRequest,
 ) -> ReleaseCheckStateSnapshot:
     """Restore a newer browser mirror without overwriting concurrent progress.
@@ -1705,7 +1707,7 @@ def cmd_restore_release_check_state(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return releases_http.cmd_restore_release_check_state(request)
+    return await releases_http.cmd_restore_release_check_state(request)
 
 
 @app.api_route(
@@ -1787,7 +1789,7 @@ def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a reload-safe interactive discography planning job.",
 )
-def cmd_plan_discographies(
+async def cmd_plan_discographies(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reload-safe interactive discography planning job.
@@ -1799,7 +1801,7 @@ def cmd_plan_discographies(
     Returns:
         A detached view of the registered job.
     """
-    return discography_http.cmd_plan_discographies(client, dry_run)
+    return await discography_http.cmd_plan_discographies(client, dry_run)
 
 
 @app.api_route(
@@ -1881,7 +1883,7 @@ def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a reconnectable Requeue for a Dream transition.",
 )
-def cmd_flush_requeue_for_a_dream(
+async def cmd_flush_requeue_for_a_dream(
     client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable Requeue for a Dream transition.
@@ -1893,7 +1895,7 @@ def cmd_flush_requeue_for_a_dream(
     Returns:
         A detached view of the registered job.
     """
-    return requeue_http.cmd_flush_requeue_for_a_dream(client, dry_run)
+    return await requeue_http.cmd_flush_requeue_for_a_dream(client, dry_run)
 
 
 @app.api_route(
@@ -1954,7 +1956,7 @@ def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a reconnectable Palace fill or cursor-only adjustment.",
 )
-def cmd_fill_palace_of_memory(
+async def cmd_fill_palace_of_memory(
     client: InteractiveClientDep,
     dry_run: bool = True,
     alphabetical_start: str | None = None,
@@ -1971,7 +1973,7 @@ def cmd_fill_palace_of_memory(
     Returns:
         A detached view of the registered job.
     """
-    return palace_http.cmd_fill_palace_of_memory(
+    return await palace_http.cmd_fill_palace_of_memory(
         client, dry_run, alphabetical_start, set_alphabetical_cursor
     )
 
@@ -2034,7 +2036,7 @@ def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a background refresh of the shared Last.fm scrobble record.",
 )
-def cmd_update_scrobble_history(
+async def cmd_update_scrobble_history(
     dry_run: bool = True, full_rebuild: bool = False
 ) -> BlastJobResult:
     """Start a background refresh of the shared Last.fm scrobble record.
@@ -2046,7 +2048,7 @@ def cmd_update_scrobble_history(
     Returns:
         A detached view of the registered job.
     """
-    return history_http.cmd_update_scrobble_history(dry_run, full_rebuild)
+    return await history_http.cmd_update_scrobble_history(dry_run, full_rebuild)
 
 
 @app.api_route(
@@ -2122,13 +2124,13 @@ def cmd_cancel_scrobble_history_job(job_id: str) -> BlastJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start an export-only ``*_async`` library analysis.",
 )
-def cmd_analyse_library_async() -> AnalysisJobResult:
+async def cmd_analyse_library_async() -> AnalysisJobResult:
     """Start an export-only ``*_async`` library analysis.
 
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return analysis_http.cmd_analyse_library_async()
+    return await analysis_http.cmd_analyse_library_async()
 
 
 @app.api_route(
@@ -2138,7 +2140,7 @@ def cmd_analyse_library_async() -> AnalysisJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Start a live-only ``*_sync`` library analysis.",
 )
-def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
+async def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis.
 
     Args:
@@ -2147,7 +2149,7 @@ def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return analysis_http.cmd_analyse_library_sync(client)
+    return await analysis_http.cmd_analyse_library_sync(client)
 
 
 @app.api_route(
@@ -2157,7 +2159,7 @@ def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     status_code=status.HTTP_202_ACCEPTED,
     description="Refresh canonical saved-album and liked-track mirrors from Spotify.",
 )
-def cmd_refresh_library_mirrors(
+async def cmd_refresh_library_mirrors(
     client: AnalysisClientDep, full_rebuild: bool = False
 ) -> AnalysisJobResult:
     """Refresh canonical saved-album and liked-track mirrors from Spotify.
@@ -2169,7 +2171,7 @@ def cmd_refresh_library_mirrors(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return analysis_http.cmd_refresh_library_mirrors(client, full_rebuild)
+    return await analysis_http.cmd_refresh_library_mirrors(client, full_rebuild)
 
 
 @app.api_route(
@@ -2179,7 +2181,7 @@ def cmd_refresh_library_mirrors(
     status_code=status.HTTP_202_ACCEPTED,
     description="Refresh one canonical Spotify mirror with independent progress.",
 )
-def cmd_refresh_library_mirror_resource(
+async def cmd_refresh_library_mirror_resource(
     resource: library_analysis.ResourceName,
     client: AnalysisClientDep,
     full_rebuild: bool = False,
@@ -2194,7 +2196,7 @@ def cmd_refresh_library_mirror_resource(
     Returns:
         The named feature response in its original HTTP representation.
     """
-    return analysis_http.cmd_refresh_library_mirror_resource(
+    return await analysis_http.cmd_refresh_library_mirror_resource(
         resource, client, full_rebuild
     )
 
@@ -2259,7 +2261,7 @@ def cmd_cancel_library_analysis_job(job_id: str) -> AnalysisJobResult:
         "Start all New Year's Routines for the previous completed calendar year."
     ),
 )
-def cmd_new_year(
+async def cmd_new_year(
     client: ClientDep, dry_run: bool = True, year: int | None = None
 ) -> BlastJobResult:
     """Start all New Year's Routines for the previous completed calendar year.
@@ -2272,7 +2274,7 @@ def cmd_new_year(
     Returns:
         A detached view of the registered job.
     """
-    return new_year_http.cmd_new_year(client, dry_run, year)
+    return await new_year_http.cmd_new_year(client, dry_run, year)
 
 
 @app.api_route(

@@ -92,7 +92,7 @@ class FakeSpotify:
             "tracks": {"total": len(self.playlists.get(playlist_id, []))},
         }
 
-    def _get(self, path: str, *, limit: int, offset: int):
+    async def _get(self, path: str, *, limit: int, offset: int):
         playlist_id = path.split("/")[1]
         tracks = self.playlists[playlist_id]
         page = tracks[offset : offset + limit]
@@ -102,7 +102,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def _post(self, path: str, *, payload: dict[str, object]):
+    async def _post(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         raw_uris = payload["uris"]
         assert isinstance(raw_uris, list)
@@ -117,7 +117,7 @@ class FakeSpotify:
             self.mutations.append(("add", str(track["id"])))
         return {}
 
-    def _delete(self, path: str, *, payload: dict[str, object]):
+    async def _delete(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         raw_items = payload["items"]
         assert isinstance(raw_items, list)
@@ -131,7 +131,7 @@ class FakeSpotify:
         self.mutations.extend(("remove", str(track["id"])) for track in removed)
         return {}
 
-    def current_user_playlists(self, *, limit: int, offset: int):
+    async def current_user_playlists(self, *, limit: int, offset: int):
         page = self.user_playlists[offset : offset + limit]
         return {
             "items": page,
@@ -139,7 +139,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(self.user_playlists) else None,
         }
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -155,7 +155,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(releases) else None,
         }
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
         return {
@@ -163,16 +163,16 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def current_user_saved_albums_add(self, album_ids: list[str]):
+    async def current_user_saved_albums_add(self, album_ids: list[str]):
         self.saved_album_ids.update(album_ids)
 
-    def current_user_saved_albums_delete(self, album_ids: list[str]):
+    async def current_user_saved_albums_delete(self, album_ids: list[str]):
         self.saved_album_ids.difference_update(album_ids)
 
-    def current_user_saved_tracks_contains(self, track_ids: list[str]):
+    async def current_user_saved_tracks_contains(self, track_ids: list[str]):
         return [track_id in self.liked_track_ids for track_id in track_ids]
 
 
@@ -218,7 +218,7 @@ def test_load_state_migrates_pre_composer_state(tmp_path: Path) -> None:
     assert queue_3.load_state(state_path)["composer_routes"] == {}
 
 
-def test_saved_composer_route_is_revalidated_with_conservative_matcher() -> None:
+async def test_saved_composer_route_is_revalidated_with_conservative() -> None:
     """Queue 3 must discard routes created from a generic `band` match."""
     state = queue_3._default_state()
     routes = state["composer_routes"]
@@ -237,7 +237,7 @@ def test_saved_composer_route_is_revalidated_with_conservative_matcher() -> None
         ),
     )
 
-    selected, paused = queue_3._resolve_composer_playlist(
+    selected, paused = await queue_3._resolve_composer_playlist(
         "string-band",
         "The .357 String Band",
         "stillest-hour",
@@ -252,7 +252,7 @@ def test_saved_composer_route_is_revalidated_with_conservative_matcher() -> None
     assert "string-band" not in routes
 
 
-def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
+async def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
     """Verify flush advances only first ten unique artists.
 
     Args:
@@ -311,7 +311,9 @@ def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
     assert "track-1-2" in remaining_ids
 
 
-def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> None:
+async def test_release_boundary_prompts_once_and_saves_kept_album(
+    tmp_path: Path,
+) -> None:
     """Release boundary prompts once and saves kept album.
 
     Args:
@@ -358,7 +360,7 @@ def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> N
     assert albums[0]["uri"] == "spotify:album:first"
 
 
-def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
+async def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
     """Final track unsaves album and removes artist.
 
     Args:
@@ -405,7 +407,7 @@ def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
     assert (tmp_path / "removed.jsonl").exists()
 
 
-def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None:
+async def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None:
     """Ineligible marker moves to first studio release.
 
     Args:
@@ -456,7 +458,7 @@ def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None
     assert [track["id"] for track in spotify.playlists["queue3"]] == ["album-1"]
 
 
-def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
+async def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
     """Verify artist without eligible releases is completed.
 
     Args:
@@ -490,7 +492,7 @@ def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
     assert spotify.playlists["queue3"] == []
 
 
-def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
+async def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
     """Annual import is unique and persisted.
 
     Args:
@@ -511,15 +513,17 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
     existing_playlist_track = new_wine._playlist_track({"item": existing})
     assert existing_playlist_track is not None
 
-    tracks, results = queue_3._annual_import(
+    tracks, results = await queue_3._annual_import(
         spotify,  # type: ignore[arg-type]
         "queue3",
         [existing_playlist_track],
         state,
-        owned_playlists=queue_3.load_owned_playlists(
-            spotify,  # type: ignore[arg-type]
-            NoRetry(),
-            "queue3",
+        owned_playlists=(
+            queue_3.load_owned_playlists(
+                spotify,  # type: ignore[arg-type]
+                NoRetry(),
+                "queue3",
+            )
         ),
         active_year=2026,
         dry_run=False,
@@ -538,15 +542,17 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
     persisted = json.loads(state_path.read_text())
     assert persisted["annual_imports"]["2026"]["completed"] is True
 
-    _tracks, repeated = queue_3._annual_import(
+    _tracks, repeated = await queue_3._annual_import(
         spotify,  # type: ignore[arg-type]
         "queue3",
         tracks,
         state,
-        owned_playlists=queue_3.load_owned_playlists(
-            spotify,  # type: ignore[arg-type]
-            NoRetry(),
-            "queue3",
+        owned_playlists=(
+            queue_3.load_owned_playlists(
+                spotify,  # type: ignore[arg-type]
+                NoRetry(),
+                "queue3",
+            )
         ),
         active_year=2026,
         dry_run=False,
@@ -558,7 +564,9 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
     assert repeated == ()
 
 
-def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> None:
+async def test_previous_year_import_runs_without_advancing_queue(
+    tmp_path: Path,
+) -> None:
     """Previous year import runs without advancing queue.
 
     Args:
@@ -590,7 +598,7 @@ def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> No
     assert state["active_run"] is None
 
 
-def test_previous_year_import_reports_completed_year_without_api_mutation(
+async def test_previous_year_import_reports_completed_year_without_api(
     tmp_path: Path,
 ) -> None:
     """Previous year import reports completed year without api mutation.
@@ -619,7 +627,7 @@ def test_previous_year_import_reports_completed_year_without_api_mutation(
     assert messages == ["Great Discoveries 2025 was already imported into Queue 3."]
 
 
-def test_owned_composer_playlist_overrides_discography_and_survives_performer_credit(
+async def test_owned_composer_playlist_overrides_discography_and_survives(
     tmp_path: Path,
 ) -> None:
     """Verify owned composer playlist overrides discography and survives performer
@@ -725,7 +733,7 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
     assert [track["id"] for track in spotify.playlists["queue3"]] == ["bach-3"]
 
 
-def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
+async def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
     tmp_path: Path,
 ) -> None:
     """Multiple owned composer playlists are prompted and persisted.
@@ -789,7 +797,7 @@ def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
     assert persisted["composer_routes"]["glass"]["playlist_id"] == "glass-b"
 
 
-def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
+async def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
     """Verify final composer playlist track completes artist.
 
     Args:
@@ -835,7 +843,7 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
 class AutomaticTransitionResource:
     """Own the original fixed fixture observation."""
 
-    def choose_transition(self, *_args: object) -> str:
+    async def choose_transition(self, *_args: object) -> str:
         """Observe the original fixture boundary.
 
         Returns:
@@ -854,7 +862,7 @@ class TransitionChoices:
 
     transitions: list[tuple[str, str]]
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: queue_3.PlaylistTrack,
         current: slow_listening.DiscographyRelease,
@@ -884,7 +892,7 @@ class ComposerChoices:
 
     choices: list[tuple[str, tuple[str, ...]]]
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
     ) -> str:
         """Select the original second works playlist.

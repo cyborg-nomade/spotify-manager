@@ -55,7 +55,7 @@ class ReviewSession:
     playlist_cache: dict[str, PlaylistMembership] = field(default_factory=dict)
     summary_total: int = 0
 
-    def membership(self, playlist_id: str) -> PlaylistMembership:
+    async def membership(self, playlist_id: str) -> PlaylistMembership:
         """Retain the original lazy once-per-invocation membership read.
 
         Args:
@@ -65,12 +65,12 @@ class ReviewSession:
             Original mutable cached membership.
         """
         if playlist_id not in self.playlist_cache:
-            self.playlist_cache[playlist_id] = playlist_membership(
+            self.playlist_cache[playlist_id] = await playlist_membership(
                 playlist_id, self.spotify.pages(playlist_id)
             )
         return self.playlist_cache[playlist_id]
 
-    def placement(
+    async def placement(
         self, artist_id: str, liked_count: int
     ) -> tuple[str, str | None, bool]:
         """Retain existing queues or plan the original one-to-two promotion.
@@ -88,14 +88,14 @@ class ReviewSession:
             self.playlists.queue_3,
         )
         for existing in queue_check_order(queues, liked_count):
-            if artist_id not in self.membership(existing).primary_artist_ids:
+            if artist_id not in (await self.membership(existing)).primary_artist_ids:
                 continue
             if existing == self.playlists.queue_1 and liked_count >= 6:
                 return self.playlists.queue_2, self.playlists.queue_1, False
             return existing, None, True
         return self.playlists.for_liked_count(liked_count), None, False
 
-    def audit(self, name: str, **details: object) -> dict[str, object]:
+    async def audit(self, name: str, **details: object) -> dict[str, object]:
         """Append an original complete audit event before its state effect.
 
         Args:
@@ -106,10 +106,10 @@ class ReviewSession:
             Original appended event, also used as a pending decision.
         """
         event = self.storage.event(self.run_id, name, **details)
-        self.storage.append([event])
+        await self.storage.append([event])
         return event
 
-    def complete(
+    async def complete(
         self,
         artist: YourLibraryArtist,
         liked_count: int,
@@ -133,7 +133,7 @@ class ReviewSession:
             action=action,
             **details,
         )
-        record_completion(
+        await record_completion(
             self.state,
             self.counts,
             artist.spotify_id,
@@ -142,7 +142,7 @@ class ReviewSession:
             self.storage,
         )
 
-    def skip(self, artist: YourLibraryArtist, liked_count: int) -> None:
+    async def skip(self, artist: YourLibraryArtist, liked_count: int) -> None:
         """Record the original invocation-only skip without a progress checkpoint.
 
         Args:
@@ -150,7 +150,7 @@ class ReviewSession:
             liked_count: Original local liked count.
         """
         self.counts.skipped += 1
-        self.audit(
+        await self.audit(
             "artist_skipped_run",
             artist_id=artist.spotify_id,
             artist=artist.name,
@@ -188,7 +188,7 @@ def _count_action(counts: ReviewCounts, action: str) -> None:
 class ReviewAudit(Protocol):
     """Append complete ordered review decisions."""
 
-    def append(self, events: list[dict[str, object]]) -> None:
+    async def append(self, events: list[dict[str, object]]) -> None:
         """Accept audit events.
 
         Args:
@@ -197,7 +197,7 @@ class ReviewAudit(Protocol):
         ...
 
 
-def record_completion(
+async def record_completion(
     state: ArtistReviewState,
     counts: ReviewCounts,
     identity: str,
@@ -215,11 +215,11 @@ def record_completion(
         event: Complete timestamped decision from the original outer boundary.
         storage: Ordered audit writer.
     """
-    storage.append([event])
+    await storage.append([event])
     state.completed_artist_ids.add(identity)
     state.pending_unfollows.pop(identity, None)
     state.pending_queue_moves.pop(identity, None)
-    state.persist()
+    await state.persist()
     _count_action(counts, action)
 
 

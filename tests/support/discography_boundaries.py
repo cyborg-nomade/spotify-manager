@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.routines import blast_from_past
@@ -89,7 +89,7 @@ class CatalogReads:
     profile: str
     trace: list[list[object]] = field(default_factory=list)
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist: str,
         *,
@@ -122,7 +122,7 @@ class CatalogReads:
             "next": "next" if offset + len(page) < len(rows) else None,
         }
 
-    def current_user_saved_albums_contains(self, identities: list[str]) -> object:
+    async def current_user_saved_albums_contains(self, identities: list[str]) -> object:
         """Supply original tolerant saved-status values.
 
         Args:
@@ -184,7 +184,7 @@ def _catalog_rows(profile: str) -> list[object]:
     ]
 
 
-def catalog_outcome(profile: str) -> object:
+async def catalog_outcome(profile: str) -> object:
     """Capture original complete catalog and failure prefixes.
 
     Args:
@@ -196,7 +196,9 @@ def catalog_outcome(profile: str) -> object:
     edge = CatalogReads(profile)
     result: dict[str, object] = {}
     try:
-        releases = legacy.load_release_catalog(cast(Spotify, edge), "artist", edge)
+        releases = await legacy.async_load_release_catalog(
+            cast(Spotify, edge), "artist", edge
+        )
         result["result"] = [asdict(item) for item in releases]
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
@@ -204,7 +206,7 @@ def catalog_outcome(profile: str) -> object:
     return result
 
 
-def history_outcome(profile: str, second: int) -> object:
+async def history_outcome(profile: str, second: int) -> object:
     """Capture original history, cutoff, random and seconds behavior.
 
     Args:
@@ -217,16 +219,20 @@ def history_outcome(profile: str, second: int) -> object:
     edge = HistoryReads(profile, second)
     result: dict[str, object] = {}
     try:
-        result["result"] = _historical(edge)
+        result["result"] = await _historical(edge)
     except (RuntimeError, IndexError) as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
     return json.loads(json.dumps(result, default=str))
 
 
-def _historical(edge: HistoryReads) -> object:
-    with patch.object(blast_from_past, "load_scrobbles_by_date", edge.read):
-        selected = legacy.select_historical_artist(
+async def _historical(edge: HistoryReads) -> object:
+    with patch.object(
+        blast_from_past,
+        "async_load_scrobbles_by_date",
+        AsyncMock(side_effect=edge.read),
+    ):
+        selected = await legacy.async_select_historical_artist(
             path=FIXTURE.with_name("history"),
             today=date(2026, 8, 8),
             random_index_reader=edge,
@@ -289,7 +295,7 @@ class QueueReads:
         )
 
 
-def queue_outcome(extra: str | None, failure: str | None) -> object:
+async def queue_outcome(extra: str | None, failure: str | None) -> object:
     """Capture original complete queue and marker grouping.
 
     Args:
@@ -302,16 +308,18 @@ def queue_outcome(extra: str | None, failure: str | None) -> object:
     edge = QueueReads(failure)
     result: dict[str, object] = {}
     try:
-        result["result"] = _queues(edge, extra)
+        result["result"] = await _queues(edge, extra)
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
     return json.loads(json.dumps(result))
 
 
-def _queues(edge: QueueReads, extra: str | None) -> object:
-    with patch.object(new_wine, "load_playlist_tracks", edge.read):
-        queues, groups = legacy._load_artist_queues(
+async def _queues(edge: QueueReads, extra: str | None) -> object:
+    with patch.object(
+        new_wine, "async_load_playlist_tracks", AsyncMock(side_effect=edge.read)
+    ):
+        queues, groups = await legacy._load_artist_queues(
             cast(Spotify, edge),
             {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
             cast(legacy.RetryCall, None),

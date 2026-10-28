@@ -1,7 +1,7 @@
 """Retry scope iteration without capturing or invoking a supplied function."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Protocol
@@ -21,7 +21,7 @@ class AttemptPolicy(Protocol):
         """Observe acceptance after the operation completes successfully."""
         ...
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Classify a failed attempt and perform its existing wait or translation.
 
         Args:
@@ -34,7 +34,7 @@ class AttemptPolicy(Protocol):
 
 
 @dataclass
-class RetryAttempts(Iterator[AbstractContextManager[None]]):
+class RetryAttempts(Iterator[AbstractAsyncContextManager[None]]):
     """Iterate policy-owned attempt scopes without hiding the operation.
 
     Args:
@@ -55,7 +55,7 @@ class RetryAttempts(Iterator[AbstractContextManager[None]]):
         """
         return self
 
-    def __next__(self) -> AbstractContextManager[None]:
+    def __next__(self) -> AbstractAsyncContextManager[None]:
         """Begin another attempt unless an earlier attempt completed.
 
         Returns:
@@ -73,7 +73,7 @@ class RetryAttempts(Iterator[AbstractContextManager[None]]):
 
 
 @dataclass(frozen=True)
-class RetryAttempt(AbstractContextManager[None]):
+class RetryAttempt(AbstractAsyncContextManager[None]):
     """Report one direct operation's outcome to its existing retry policy.
 
     Args:
@@ -82,10 +82,10 @@ class RetryAttempt(AbstractContextManager[None]):
 
     attempts: RetryAttempts
 
-    def __enter__(self) -> None:
+    async def __aenter__(self) -> None:
         """Begin the operation directly inside the caller's with statement."""
 
-    def __exit__(
+    async def __aexit__(
         self,
         kind: type[BaseException] | None,
         error: BaseException | None,
@@ -102,14 +102,14 @@ class RetryAttempt(AbstractContextManager[None]):
             Whether a retryable failure was handled by the retry policy.
         """
         if error is not None:
-            return self.attempts.policy.failed(error)
+            return await self.attempts.policy.failed(error)
         self.attempts.complete = True
         self.attempts.policy.accepted()
         return False
 
 
 @dataclass
-class CheckedAttempts(Iterator[AbstractContextManager[None]]):
+class CheckedAttempts(Iterator[AbstractAsyncContextManager[None]]):
     """Keep the original post-success cancellation boundary around attempts.
 
     Args:
@@ -117,7 +117,7 @@ class CheckedAttempts(Iterator[AbstractContextManager[None]]):
         cancellation: Cancellation owner checked after acceptance.
     """
 
-    scopes: Iterator[AbstractContextManager[None]]
+    scopes: Iterator[AbstractAsyncContextManager[None]]
     cancellation: Cancellation
 
     def __iter__(self) -> Self:
@@ -128,7 +128,7 @@ class CheckedAttempts(Iterator[AbstractContextManager[None]]):
         """
         return self
 
-    def __next__(self) -> AbstractContextManager[None]:
+    def __next__(self) -> AbstractAsyncContextManager[None]:
         """Wrap the next original scope without executing its operation.
 
         Returns:
@@ -141,7 +141,7 @@ class CheckedAttempts(Iterator[AbstractContextManager[None]]):
 
 
 @dataclass(frozen=True)
-class CheckedAttempt(AbstractContextManager[None]):
+class CheckedAttempt(AbstractAsyncContextManager[None]):
     """Check cancellation after a successful scope, including a return statement.
 
     Args:
@@ -149,14 +149,14 @@ class CheckedAttempt(AbstractContextManager[None]):
         cancellation: Original cancellation owner.
     """
 
-    scope: AbstractContextManager[None]
+    scope: AbstractAsyncContextManager[None]
     cancellation: Cancellation
 
-    def __enter__(self) -> None:
+    async def __aenter__(self) -> None:
         """Enter the original request scope."""
-        self.scope.__enter__()
+        await self.scope.__aenter__()
 
-    def __exit__(
+    async def __aexit__(
         self,
         kind: type[BaseException] | None,
         error: BaseException | None,
@@ -172,7 +172,7 @@ class CheckedAttempt(AbstractContextManager[None]):
         Returns:
             The original scope's failure handling decision.
         """
-        handled = self.scope.__exit__(kind, error, traceback)
+        handled = await self.scope.__aexit__(kind, error, traceback)
         if error is None:
             self.cancellation.check()
         return handled

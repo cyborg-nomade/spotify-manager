@@ -9,7 +9,9 @@ from tests.support.queue_flush import original_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_original_queue_flush_contract(name: str, case: dict[str, object]) -> None:
+async def test_original_queue_flush_contract(
+    name: str, case: dict[str, object]
+) -> None:
     """Match the complete implementation recorded before coordinator extraction.
 
     Args:
@@ -18,10 +20,9 @@ def test_original_queue_flush_contract(name: str, case: dict[str, object]) -> No
     """
     assert name
     assert (
-        original_outcome(
+        await original_outcome(
             cast(str, case["scenario"]),
             cast(bool, case["preview"]),
             cast(str | None, case["failure"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

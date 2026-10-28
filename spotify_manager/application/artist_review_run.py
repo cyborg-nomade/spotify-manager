@@ -37,7 +37,7 @@ class ArtistReview:
     spotify: ReviewSpotify
     interaction: ReviewInteraction
 
-    def run(
+    async def run(
         self, refresh_cache: bool = False, limit: int | None = None
     ) -> ArtistReviewSummary:
         """Preserve recovery-before-review and quit-before-final-progress ordering.
@@ -49,24 +49,24 @@ class ArtistReview:
         Returns:
             Original complete or paused invocation summary.
         """
-        session = self._open(refresh_cache)
-        _started(session)
-        _recover(session)
+        session = await self._open(refresh_cache)
+        await _started(session)
+        await _recover(session)
         pending = _pending(session, limit)
         session.summary_total = session.counts.reviewed + len(pending)
         for position, artist in enumerate(pending, start=1):
             _present(session, artist, position, len(pending))
-            if not review_artist(session, artist):
-                return _finish(session, len(pending), True)
-        return _finish(session, len(pending), False)
+            if not (await review_artist(session, artist)):
+                return await _finish(session, len(pending), True)
+        return await _finish(session, len(pending), False)
 
-    def _open(self, refresh_cache: bool) -> ReviewSession:
-        artists = self.storage.artists()
-        tracks = self.storage.tracks()
+    async def _open(self, refresh_cache: bool) -> ReviewSession:
+        artists = await self.storage.artists()
+        tracks = await self.storage.tracks()
         counts = Counter(normalize_name(track.artist) for track in tracks)
         identities = {track.spotify_id for track in tracks}
-        state = self.storage.state()
-        self.storage.cache(refresh_cache)
+        state = await self.storage.state()
+        await self.storage.cache(refresh_cache)
         identity = self.storage.run_id()
         return ReviewSession(
             artists,
@@ -82,8 +82,8 @@ class ArtistReview:
         )
 
 
-def _started(session: ReviewSession) -> None:
-    session.audit(
+async def _started(session: ReviewSession) -> None:
+    await session.audit(
         "review_started",
         artists=len(session.artists),
         liked_tracks=sum(session.liked_counts.values()),
@@ -92,9 +92,9 @@ def _started(session: ReviewSession) -> None:
     )
 
 
-def _recover(session: ReviewSession) -> None:
-    flush_unfollows(session)
-    flush_moves(session)
+async def _recover(session: ReviewSession) -> None:
+    await flush_unfollows(session)
+    await flush_moves(session)
 
 
 def _pending(session: ReviewSession, limit: int | None) -> list[YourLibraryArtist]:
@@ -117,12 +117,14 @@ def _present(
     )
 
 
-def _finish(session: ReviewSession, total: int, paused: bool) -> ArtistReviewSummary:
-    _recover(session)
+async def _finish(
+    session: ReviewSession, total: int, paused: bool
+) -> ArtistReviewSummary:
+    await _recover(session)
     if paused:
-        session.audit("review_paused")
+        await session.audit("review_paused")
         return session.summary(True)
     if session.interaction.progress is not None:
         session.interaction.progress.progress(total, total, "Complete")
-    session.audit("review_completed", summary=asdict(session.summary(False)))
+    await session.audit("review_completed", summary=asdict(session.summary(False)))
     return session.summary(False)

@@ -4,7 +4,8 @@ The legacy checkpoint dictionaries remain permissive external boundaries. Inner
 stages use typed progress views without changing validation or persisted bytes.
 """
 
-import time
+import asyncio
+from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import Sequence
 from datetime import UTC
@@ -16,7 +17,7 @@ from typing import Protocol
 from typing import cast
 
 from pydantic import BaseModel
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import library_analysis_artists as analysis_artists
@@ -37,13 +38,12 @@ from spotify_manager.application.ports.runtime import AnalysisProgress
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.library_analysis import (
     analysis_files as analysis_storage,
 )
 from spotify_manager.bootstrap.library_analysis import analysis_publication
 from spotify_manager.bootstrap.library_analysis import analysis_session
-
-# UFI
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.domain import library_analysis as analysis_policy
 from spotify_manager.domain import library_analysis_values as analysis_values
@@ -96,12 +96,21 @@ from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
 )
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingAnalysisWait as LegacyAnalysisWait,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingWait as LegacyWait,
+)
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+
+
+# UFI
 
 
 type CancelCheck = CancellationState
@@ -132,7 +141,7 @@ LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
 class RetryWait(Protocol):
     """Own an operator's wait or pause decision after a scheduled retry."""
 
-    def wait(self, notice: RetryNotice) -> bool:
+    async def wait(self, notice: RetryNotice) -> bool:
         """Wait or request a clean pause using the original notice.
 
         Args:
@@ -440,7 +449,7 @@ def create_backup_manifest(
         Original complete result with unchanged source and recovery semantics.
     """
     return analysis_backups.create_backup_manifest(
-        paths, run_id, previous, current, report, summaries, analysis_storage()
+        paths, run_id, previous, current, report, summaries, analysis_storage().source
     )
 
 
@@ -459,7 +468,7 @@ def pre_analysis_stats_history(
         Original complete result with unchanged source and recovery semantics.
     """
     return analysis_backups.pre_analysis_stats_history(
-        paths, backup_dir, analysis_storage()
+        paths, backup_dir, analysis_storage().source
     )
 
 
@@ -482,7 +491,7 @@ def sort_resources(
     return analysis_records.sort_resources(albums, tracks, artists)
 
 
-def finalize_analysis(
+async def async_finalize_analysis(
     albums: list[YourLibraryAlbum],
     tracks: list[YourLibraryTrack],
     artists: list[YourLibraryArtist],
@@ -502,7 +511,7 @@ def finalize_analysis(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    return analysis_publication_owner.finalize_analysis(
+    return await analysis_publication_owner.finalize_analysis(
         analysis_session(paths, cast(Checkpoint, checkpoint)),
         analysis_publication(),
         albums,
@@ -532,11 +541,11 @@ def create_live_mirror_backup_manifest(
         Original complete result with unchanged source and recovery semantics.
     """
     return analysis_backups.create_live_mirror_backup_manifest(
-        paths, run_id, previous, current, summaries, analysis_storage()
+        paths, run_id, previous, current, summaries, analysis_storage().source
     )
 
 
-def finalize_live_mirrors(
+async def async_finalize_live_mirrors(
     albums: list[YourLibraryAlbum],
     tracks: list[YourLibraryTrack],
     paths: LibraryAnalysisPaths,
@@ -554,7 +563,7 @@ def finalize_live_mirrors(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    return analysis_publication_owner.finalize_mirrors(
+    return await analysis_publication_owner.finalize_mirrors(
         analysis_session(paths, cast(Checkpoint, checkpoint)),
         analysis_publication(),
         albums,
@@ -591,7 +600,7 @@ def _live_resource_config(
     return analysis_values_paths.resource_config(paths, resource)
 
 
-def finalize_live_mirror_resource(
+async def async_finalize_live_mirror_resource(
     resource: ResourceName,
     models: list[LibraryModel],
     paths: LibraryAnalysisPaths,
@@ -609,7 +618,7 @@ def finalize_live_mirror_resource(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    return analysis_publication_owner.finalize_resource(
+    return await analysis_publication_owner.finalize_resource(
         analysis_session(paths, cast(Checkpoint, checkpoint)),
         analysis_publication(),
         resource,
@@ -630,7 +639,7 @@ def export_fingerprint(path: Path) -> dict[str, int]:
     return analysis_files.export_fingerprint(path)
 
 
-def new_checkpoint(
+async def async_new_checkpoint(
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
 ) -> dict[str, Any]:
@@ -646,13 +655,15 @@ def new_checkpoint(
     """
     return cast(
         dict[str, Any],
-        analysis_checkpoints.new_checkpoint(
-            analysis_storage(), paths, mirror_refresh_mode
+        (
+            await analysis_checkpoints.new_checkpoint(
+                analysis_storage(), paths, mirror_refresh_mode
+            )
         ),
     )
 
 
-def load_or_create_checkpoint(
+async def async_load_or_create_checkpoint(
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
 ) -> dict[str, Any]:
@@ -668,13 +679,15 @@ def load_or_create_checkpoint(
     """
     return cast(
         dict[str, Any],
-        analysis_checkpoints.load_or_create_checkpoint(
-            analysis_storage(), paths, mirror_refresh_mode
+        (
+            await analysis_checkpoints.load_or_create_checkpoint(
+                analysis_storage(), paths, mirror_refresh_mode
+            )
         ),
     )
 
 
-def analyse_library_async_routine(
+async def async_analyse_library_async_routine(
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
@@ -696,7 +709,7 @@ def analyse_library_async_routine(
         analyse_library_async_routine as operation,
     )
 
-    return operation(echo, progress_callback, cancel_check, paths)
+    return await operation(echo, progress_callback, cancel_check, paths)
 
 
 def retry_delay(base: int, maximum: int, attempt: int) -> int:
@@ -714,9 +727,9 @@ def retry_delay(base: int, maximum: int, attempt: int) -> int:
     return analysis_policy.retry_delay(base, maximum, attempt)
 
 
-def _default_retry_wait(delay: int, sleep: Sleep) -> bool:
+async def _default_retry_wait(delay: int, sleep: Sleep) -> bool:
     """Wait for a retry when no interactive callback was supplied."""
-    sleep.sleep(delay)
+    await sleep.sleep(delay)
     return True
 
 
@@ -757,7 +770,7 @@ def followed_artist_page_items(page: object) -> tuple[list[object], dict[str, ob
     return analysis_files.followed_artist_page_items(page)
 
 
-def fetch_followed_artists_page(
+async def async_fetch_followed_artists_page(
     sp: Spotify,
     after: str | None,
 ) -> object:
@@ -772,7 +785,7 @@ def fetch_followed_artists_page(
         Original complete result with unchanged source and recovery semantics.
     """
     try:
-        return sp.current_user_followed_artists(
+        return await sp.current_user_followed_artists(
             limit=ARTIST_PAGE_LIMIT,
             after=after,
         )
@@ -784,7 +797,7 @@ def fetch_followed_artists_page(
         raise
 
 
-def sync_initial_offset_resource(
+async def async_sync_initial_offset_resource(
     sp: Spotify,
     resource: Literal["albums", "tracks"],
     paths: LibraryAnalysisPaths,
@@ -824,10 +837,10 @@ def sync_initial_offset_resource(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    analysis_offsets.scan_initial(session, resource)
+    await analysis_offsets.scan_initial(session, resource)
 
 
-def reconcile_offset_resource(
+async def async_reconcile_offset_resource(
     sp: Spotify,
     resource: Literal["albums", "tracks"],
     paths: LibraryAnalysisPaths,
@@ -867,10 +880,10 @@ def reconcile_offset_resource(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    analysis_offsets.reconcile(session, resource)
+    await analysis_offsets.reconcile(session, resource)
 
 
-def seed_incremental_offset_resource(
+async def async_seed_incremental_offset_resource(
     resource: Literal["albums", "tracks"],
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
@@ -889,7 +902,7 @@ def seed_incremental_offset_resource(
     session = analysis_session(
         paths, cast(Checkpoint, checkpoint), echo=echo, progress=progress_callback
     )
-    analysis_offsets.seed_incremental(session, resource)
+    await analysis_offsets.seed_incremental(session, resource)
 
 
 def artist_verification_candidates_path(paths: LibraryAnalysisPaths) -> Path:
@@ -918,7 +931,7 @@ def latest_export_artists(paths: LibraryAnalysisPaths) -> list[YourLibraryArtist
     return [] if not paths.your_library.exists() else load_your_library(paths).artists
 
 
-def prepare_artist_verification(
+async def async_prepare_artist_verification(
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
     *,
@@ -936,12 +949,12 @@ def prepare_artist_verification(
         reason: Original visible fallback explanation.
     """
     session = analysis_session(paths, cast(Checkpoint, checkpoint), echo=echo)
-    analysis_artists.prepare_verification(
+    await analysis_artists.prepare_verification(
         session, full_rebuild=full_rebuild, reason=reason
     )
 
 
-def verify_artist_candidates(
+async def async_verify_artist_candidates(
     sp: Spotify,
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
@@ -979,10 +992,10 @@ def verify_artist_candidates(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    analysis_artists.verify(session)
+    await analysis_artists.verify(session)
 
 
-def sync_initial_artists(
+async def async_sync_initial_artists(
     sp: Spotify,
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
@@ -1020,10 +1033,10 @@ def sync_initial_artists(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    analysis_artists.scan_initial(session)
+    await analysis_artists.scan_initial(session)
 
 
-def reconcile_artists(
+async def async_reconcile_artists(
     sp: Spotify,
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
@@ -1061,17 +1074,17 @@ def reconcile_artists(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    analysis_artists.reconcile(session)
+    await analysis_artists.reconcile(session)
 
 
-def analyse_library_sync_routine(
+async def async_analyse_library_sync_routine(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_SYNC_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
 ) -> LibrarySyncSummary:
@@ -1096,7 +1109,7 @@ def analyse_library_sync_routine(
         analyse_library_sync_routine as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         echo,
         progress_callback,
@@ -1109,14 +1122,14 @@ def analyse_library_sync_routine(
     )
 
 
-def refresh_live_library_mirrors_routine(
+async def async_refresh_live_library_mirrors_routine(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -1143,7 +1156,7 @@ def refresh_live_library_mirrors_routine(
         refresh_live_library_mirrors_routine as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         echo,
         progress_callback,
@@ -1157,7 +1170,7 @@ def refresh_live_library_mirrors_routine(
     )
 
 
-def refresh_live_library_resource_routine(
+async def async_refresh_live_library_resource_routine(
     sp: Spotify,
     resource: ResourceName,
     echo: Echo = STANDARD_OUTPUT,
@@ -1165,7 +1178,7 @@ def refresh_live_library_resource_routine(
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -1193,7 +1206,7 @@ def refresh_live_library_resource_routine(
         refresh_live_library_resource_routine as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         resource,
         echo,
@@ -1208,7 +1221,7 @@ def refresh_live_library_resource_routine(
     )
 
 
-def restore_library_sync(
+async def async_restore_library_sync(
     run_id: str,
     paths: LibraryAnalysisPaths | None = None,
 ) -> tuple[str, ...]:
@@ -1226,11 +1239,11 @@ def restore_library_sync(
         restore_library_sync as operation,
     )
 
-    return operation(run_id, paths)
+    return await operation(run_id, paths)
 
 
 # Compatibility alias for integrations that imported the old hybrid entry point.
-analyse_library_routine = analyse_library_sync_routine
+analyse_library_routine = async_analyse_library_sync_routine
 
 
 __all__ = [
@@ -1257,7 +1270,7 @@ __all__ = [
 
 def _initial_offset_reader(
     sp: Spotify, resource: ResourceName
-) -> Callable[..., object]:
+) -> Callable[..., Awaitable[object]]:
     return (
         sp.current_user_saved_albums
         if resource == "albums"
@@ -1267,7 +1280,7 @@ def _initial_offset_reader(
 
 def _reconcile_offset_reader(
     sp: Spotify, resource: ResourceName
-) -> Callable[..., object]:
+) -> Callable[..., Awaitable[object]]:
     return (
         sp.current_user_saved_albums
         if resource == "albums"
@@ -1275,12 +1288,12 @@ def _reconcile_offset_reader(
     )
 
 
-def _reconcile_artist_page(sp: Spotify, after: str | None) -> object:
-    return sp.current_user_followed_artists(limit=ARTIST_PAGE_LIMIT, after=after)
+async def _reconcile_artist_page(sp: Spotify, after: str | None) -> object:
+    return await sp.current_user_followed_artists(limit=ARTIST_PAGE_LIMIT, after=after)
 
 
-def _following_artists(sp: Spotify, identities: list[str]) -> object:
-    return sp.current_user_following_artists(identities)
+async def _following_artists(sp: Spotify, identities: list[str]) -> object:
+    return await sp.current_user_following_artists(identities)
 
 
 def _publish_restored(path: Path, source: str) -> None:
@@ -1329,3 +1342,621 @@ class _CompatibilityStorage:
             Current UTC timestamp.
         """
         return utc_now()
+
+
+def finalize_analysis(
+    albums: list[YourLibraryAlbum],
+    tracks: list[YourLibraryTrack],
+    artists: list[YourLibraryArtist],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+) -> LibrarySyncSummary:
+    """Publish completed staging data with an idempotent undo snapshot.
+
+    Args:
+        albums: Original complete saved-album facts.
+        tracks: Original complete liked-track facts.
+        artists: Original complete followed-artist facts.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_finalize_analysis(albums, tracks, artists, paths, checkpoint)
+    )
+
+
+def finalize_live_mirrors(
+    albums: list[YourLibraryAlbum],
+    tracks: list[YourLibraryTrack],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+) -> LibrarySyncSummary:
+    """Atomically publish canonical album and liked-track mirrors.
+
+    Args:
+        albums: Original complete saved-album facts.
+        tracks: Original complete liked-track facts.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_finalize_live_mirrors(albums, tracks, paths, checkpoint))
+
+
+def finalize_live_mirror_resource(
+    resource: ResourceName,
+    models: list[LibraryModel],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+) -> LibrarySyncSummary:
+    """Atomically publish exactly one canonical mirror with an undo snapshot.
+
+    Args:
+        resource: Original active library resource identity.
+        models: Original complete ordered model values.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_finalize_live_mirror_resource(resource, models, paths, checkpoint)
+    )
+
+
+def new_checkpoint(
+    paths: LibraryAnalysisPaths, mirror_refresh_mode: MirrorRefreshMode | None = None
+) -> dict[str, Any]:
+    """Create a fresh checkpoint for one mode.
+
+    Args:
+        paths: Original independent output family.
+        mirror_refresh_mode: Original explicit full-versus-incremental choice.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_new_checkpoint(paths, mirror_refresh_mode))
+
+
+def load_or_create_checkpoint(
+    paths: LibraryAnalysisPaths, mirror_refresh_mode: MirrorRefreshMode | None = None
+) -> dict[str, Any]:
+    """Resume a compatible incomplete checkpoint or start a fresh run.
+
+    Args:
+        paths: Original independent output family.
+        mirror_refresh_mode: Original explicit full-versus-incremental choice.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_load_or_create_checkpoint(paths, mirror_refresh_mode))
+
+
+def analyse_library_async_routine(
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_ASYNC_PATHS,
+) -> LibrarySyncSummary:
+    """Build ``*_async`` mirrors exclusively from ``YourLibrary.json``.
+
+    Args:
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_analyse_library_async_routine(
+            echo, progress_callback, cancel_check, paths
+        )
+    )
+
+
+def fetch_followed_artists_page(sp: LegacySpotify, after: str | None) -> object:
+    """Read one cursor page, surfacing Spotify's common 502 immediately.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        after: Original current or stored artist cursor.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(async_fetch_followed_artists_page(legacy_spotify(sp), after))
+
+
+def sync_initial_offset_resource(
+    sp: LegacySpotify,
+    resource: Literal["albums", "tracks"],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep | LegacyWait,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
+) -> None:
+    """Scan one offset resource monotonically without reacting to total changes.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_sync_initial_offset_resource(
+            legacy_spotify(sp),
+            resource,
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def reconcile_offset_resource(
+    sp: LegacySpotify,
+    resource: Literal["albums", "tracks"],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep | LegacyWait,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
+) -> None:
+    """Re-read the newest pages until two passes find no additions.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_reconcile_offset_resource(
+            legacy_spotify(sp),
+            resource,
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def seed_incremental_offset_resource(
+    resource: Literal["albums", "tracks"],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+) -> None:
+    """Seed resource staging from its mirror before scanning the recent edge.
+
+    Args:
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_seed_incremental_offset_resource(
+            resource, paths, checkpoint, echo, progress_callback
+        )
+    )
+
+
+def prepare_artist_verification(
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    *,
+    full_rebuild: bool,
+    echo: Echo,
+    reason: str,
+) -> None:
+    """Prepare a live batch verification fallback without losing checkpoints.
+
+    Args:
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        full_rebuild: Whether to rebuild complete original live authority.
+        echo: Original visible output callback.
+        reason: Original visible fallback explanation.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_prepare_artist_verification(
+            paths, checkpoint, full_rebuild=full_rebuild, echo=echo, reason=reason
+        )
+    )
+
+
+def verify_artist_candidates(
+    sp: LegacySpotify,
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep | LegacyWait,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
+) -> None:
+    """Verify fallback candidates in bounded, resumable live API batches.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_verify_artist_candidates(
+            legacy_spotify(sp),
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def sync_initial_artists(
+    sp: LegacySpotify,
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep | LegacyWait,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
+) -> None:
+    """Scan followed artists once with cursor pagination.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_sync_initial_artists(
+            legacy_spotify(sp),
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def reconcile_artists(
+    sp: LegacySpotify,
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep | LegacyWait,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
+) -> None:
+    """Fully rescan cursor-ordered artists until two passes find no additions.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_reconcile_artists(
+            legacy_spotify(sp),
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def analyse_library_sync_routine(
+    sp: LegacySpotify,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_SYNC_PATHS,
+    sleep: Sleep | LegacyWait = asyncio,
+    retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
+    retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+) -> LibrarySyncSummary:
+    """Build ``*_sync`` mirrors exclusively from the live Spotify API.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_analyse_library_sync_routine(
+            legacy_spotify(sp),
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            paths,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+    )
+
+
+def refresh_live_library_mirrors_routine(
+    sp: LegacySpotify,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
+    sleep: Sleep | LegacyWait = asyncio,
+    retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
+    retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+    full_rebuild: bool = False,
+) -> LibrarySyncSummary:
+    """Merge recent album and track additions or fully rebuild both mirrors.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+        full_rebuild: Whether to rebuild complete original live authority.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_refresh_live_library_mirrors_routine(
+            legacy_spotify(sp),
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            paths,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+            full_rebuild,
+        )
+    )
+
+
+def refresh_live_library_resource_routine(
+    sp: LegacySpotify,
+    resource: ResourceName,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_wait: RetryWait | None | LegacyAnalysisWait = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
+    sleep: Sleep | LegacyWait = asyncio,
+    retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
+    retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+    full_rebuild: bool = False,
+) -> LibrarySyncSummary:
+    """Refresh one canonical library mirror without reading or publishing others.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+        full_rebuild: Whether to rebuild complete original live authority.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonAnalysisWait
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_refresh_live_library_resource_routine(
+            legacy_spotify(sp),
+            resource,
+            echo,
+            progress_callback,
+            PythonAnalysisWait(retry_wait) if retry_wait is not None else None,
+            cancel_check,
+            paths,
+            PythonWait(sleep),
+            retry_base_seconds,
+            retry_max_seconds,
+            full_rebuild,
+        )
+    )
+
+
+def restore_library_sync(
+    run_id: str, paths: LibraryAnalysisPaths | None = None
+) -> tuple[str, ...]:
+    """Restore generated files from one completed async or sync backup.
+
+    Args:
+        run_id: Original sortable run identity.
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_restore_library_sync(run_id, paths))

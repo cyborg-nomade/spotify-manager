@@ -26,7 +26,7 @@ class MembershipRead:
     values: list[object]
     requests: list[list[str]] = field(default_factory=list)
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Observe one ordered membership batch.
 
         Args:
@@ -75,17 +75,17 @@ def no_artists(name: str) -> list[tuple[str, str]]:
     return []
 
 
-def test_lookup_reference_guards_precede_effects() -> None:
+async def test_lookup_reference_guards_precede_effects() -> None:
     """Reject missing original artist, album and track references before reads."""
     artist = MissingArtists()
     with pytest.raises(ValueError, match="name or artist_id"):
-        resolution.artist(artist, None, None)
+        (await resolution.artist(artist, None, None))
     with pytest.raises(SpotifyLookupResponseError, match="invalid artist"):
-        resolution.artist(artist, None, "artist")
+        (await resolution.artist(artist, None, "artist"))
     with pytest.raises(ValueError, match="name or album_id"):
-        resolution.album(UnavailableAlbums(), None, None, None)
+        (await resolution.album(UnavailableAlbums(), None, None, None))
     with pytest.raises(ValueError, match="name or track_id"):
-        resolution.track(UnavailableTracks(), None, None)
+        (await resolution.track(UnavailableTracks(), None, None))
 
 
 def unavailable_album(identifier: str) -> LiveAlbumCandidate:
@@ -138,7 +138,7 @@ def unavailable_tracks(name: str) -> list[ResolvedTrack]:
 
 
 @pytest.mark.parametrize("raw", [None, {}, [], [True, False]])
-def test_live_status_shape_is_preserved(raw: object) -> None:
+async def test_live_status_shape_is_preserved(raw: object) -> None:
     """Require one raw status per requested identity.
 
     Args:
@@ -146,18 +146,18 @@ def test_live_status_shape_is_preserved(raw: object) -> None:
     """
     source = MembershipRead([raw])
     with pytest.raises(SpotifyLookupResponseError, match="Liked Songs"):
-        resolution.liked_statuses(["one"], source, 20)
+        (await resolution.liked_statuses(["one"], source, 20))
 
 
-def test_membership_keeps_duplicates_and_last_observation() -> None:
+async def test_membership_keeps_duplicates_and_last_observation() -> None:
     """Preserve duplicate requests, truthy values and last-value identity overwrite."""
     source = MembershipRead([[True, ""], ["yes"]])
-    assert resolution.liked_statuses(["one", "two", "one"], source, 2) == {
+    assert (await resolution.liked_statuses(["one", "two", "one"], source, 2)) == {
         "one": True,
         "two": False,
     }
     assert source.requests == [["one", "two"], ["one"]]
-    assert resolution.liked_statuses([], source, 20) == {}
+    assert (await resolution.liked_statuses([], source, 20)) == {}
 
 
 def empty_cache() -> dict[str, list[LookupTrack]]:
@@ -193,10 +193,10 @@ def empty_tracks(identifier: str) -> list[LookupTrack]:
     return []
 
 
-def test_disabled_cache_does_not_publish() -> None:
+async def test_disabled_cache_does_not_publish() -> None:
     """Keep cache writes disabled after successful uncached fetching."""
     deps = DisabledCache()
-    assert workflow.tracklist(deps, "album", False, False) == ([], False)
+    assert (await workflow.tracklist(deps, "album", False, False)) == ([], False)
 
 
 def test_latest_history_ignores_older_matching_encounters() -> None:
@@ -211,7 +211,7 @@ def test_latest_history_ignores_older_matching_encounters() -> None:
 class MissingArtists:
     """Supply incomplete direct artist metadata and no search matches."""
 
-    def direct(self, identifier: str) -> tuple[str, str] | None:
+    async def direct(self, identifier: str) -> tuple[str, str] | None:
         """Observe direct at the recorded boundary.
 
         Args:
@@ -222,7 +222,7 @@ class MissingArtists:
         """
         return missing_artist(identifier)
 
-    def search(self, name: str) -> list[tuple[str, str]]:
+    async def search(self, name: str) -> list[tuple[str, str]]:
         """Observe search at the recorded boundary.
 
         Args:
@@ -237,7 +237,7 @@ class MissingArtists:
 class UnavailableAlbums:
     """Reject observations before reference validation."""
 
-    def direct(self, identifier: str) -> LiveAlbumCandidate:
+    async def direct(self, identifier: str) -> LiveAlbumCandidate:
         """Observe direct at the recorded boundary.
 
         Args:
@@ -248,7 +248,7 @@ class UnavailableAlbums:
         """
         return unavailable_album(identifier)
 
-    def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
+    async def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
         """Observe search at the recorded boundary.
 
         Args:
@@ -264,7 +264,7 @@ class UnavailableAlbums:
 class UnavailableTracks:
     """Reject observations before reference validation."""
 
-    def direct(self, identifier: str) -> ResolvedTrack:
+    async def direct(self, identifier: str) -> ResolvedTrack:
         """Observe direct at the recorded boundary.
 
         Args:
@@ -275,7 +275,7 @@ class UnavailableTracks:
         """
         return unavailable_track(identifier)
 
-    def search(self, name: str) -> list[ResolvedTrack]:
+    async def search(self, name: str) -> list[ResolvedTrack]:
         """Observe search at the recorded boundary.
 
         Args:
@@ -290,7 +290,7 @@ class UnavailableTracks:
 class DisabledCache:
     """Provide track facts while rejecting cache publication."""
 
-    def load(self) -> dict[str, list[LookupTrack]]:
+    async def load(self) -> dict[str, list[LookupTrack]]:
         """Observe load at the recorded boundary.
 
         Returns:
@@ -298,7 +298,7 @@ class DisabledCache:
         """
         return empty_cache()
 
-    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+    async def save(self, cache: dict[str, list[LookupTrack]]) -> None:
         """Observe save at the recorded boundary.
 
         Args:
@@ -306,7 +306,7 @@ class DisabledCache:
         """
         reject_cache_write(cache)
 
-    def fetch(self, identifier: str) -> list[LookupTrack]:
+    async def fetch(self, identifier: str) -> list[LookupTrack]:
         """Observe fetch at the recorded boundary.
 
         Args:

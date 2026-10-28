@@ -41,7 +41,7 @@ class AnnualImportReview:
     importer: AnnualDiscoveryImport
     presentation: ImportReviewPresentation
 
-    def run(
+    async def run(
         self,
         playlist_id: str,
         current: list[PlaylistTrack],
@@ -74,7 +74,7 @@ class AnnualImportReview:
             self.presentation.already_imported(year - 1)
             self.presentation.checked(year - 1, True)
             return AnnualImportSummary(year, year - 1, 0, 0, True, dry_run, ())
-        _tracks, results = self.importer.run(
+        _tracks, results = await self.importer.run(
             playlist_id, current, state, owned, year, dry_run
         )
         additions = sum(result.action in {"added", "would add"} for result in results)

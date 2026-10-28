@@ -49,7 +49,7 @@ class BatchMemory:
     events: list[Event] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
 
-    def search(self, play: Scrobble) -> Group:
+    async def search(self, play: Scrobble) -> Group:
         """Read one album-free candidate search.
 
         Args:
@@ -67,7 +67,7 @@ class BatchMemory:
             raise OSError(play.track)
         return self.groups.get(play.track, ())
 
-    def liked(self, groups: list[Group]) -> set[str]:
+    async def liked(self, groups: list[Group]) -> set[str]:
         """Read liked status after the complete batch.
 
         Args:
@@ -102,7 +102,7 @@ class BatchMemory:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_first_batch_is_fully_searched_and_later_batch_stops_at_capacity(
+async def test_first_batch_is_fully_searched_and_later_batch_stops_at(
     dry_run: bool,
 ) -> None:
     """Observe a full batch before selecting one artist and stop before the next read.
@@ -117,7 +117,7 @@ def test_first_batch_is_fully_searched_and_later_batch_stops_at_capacity(
         _candidate("missing", "missing"),
         _candidate("later", "later"),
     )
-    results, pending = memory.workflow().run(candidates, EMPTY, 1, dry_run)
+    results, pending = await memory.workflow().run(candidates, EMPTY, 1, dry_run)
     assert [result.action for result in results] == [
         "would add" if dry_run else "added",
         "artist already selected",
@@ -138,7 +138,7 @@ def test_first_batch_is_fully_searched_and_later_batch_stops_at_capacity(
     ]
 
 
-def test_prior_artist_skips_search_and_retains_empty_liked_group() -> None:
+async def test_prior_artist_skips_search_and_retains_empty_liked_group() -> None:
     """Later batches omit known artists while still observing liked status once."""
     memory = BatchMemory({"one": (_match("one"),), "other": (_match("other"),)})
     candidates = (
@@ -146,7 +146,9 @@ def test_prior_artist_skips_search_and_retains_empty_liked_group() -> None:
         _candidate("same", "two"),
         _candidate("other", "other"),
     )
-    results, pending = memory.workflow(batch_size=1).run(candidates, EMPTY, 2, False)
+    results, pending = await memory.workflow(batch_size=1).run(
+        candidates, EMPTY, 2, False
+    )
     assert [result.action for result in results] == [
         "added",
         "artist already selected",
@@ -157,7 +159,7 @@ def test_prior_artist_skips_search_and_retains_empty_liked_group() -> None:
     assert ("search", "two") not in memory.events
 
 
-def test_capacity_break_omits_next_eligible_and_remaining_batch_results() -> None:
+async def test_capacity_break_omits_next_eligible_and_remaining_batch() -> None:
     """Keep skipped outcomes until the next eligible addition breaks projection."""
     memory = BatchMemory(
         {
@@ -171,7 +173,7 @@ def test_capacity_break_omits_next_eligible_and_remaining_batch_results() -> Non
         _candidate("stop", "stop"),
         _candidate("later", "later"),
     )
-    results, pending = memory.workflow().run(candidates, EMPTY, 1, False)
+    results, pending = await memory.workflow().run(candidates, EMPTY, 1, False)
     assert len(results) == 1 and pending == (_match("one"),)
     assert memory.events[:-1] == [
         ("search", "one"),
@@ -180,11 +182,11 @@ def test_capacity_break_omits_next_eligible_and_remaining_batch_results() -> Non
     ]
 
 
-def test_existing_key_skips_search_but_entire_empty_batch_reads_liked_status() -> None:
+async def test_existing_key_skips_search_but_entire_empty_batch_reads_liked() -> None:
     """Destination-key exclusions produce empty groups without skipping liked reads."""
     memory = BatchMemory()
     item = _candidate("artist", "song")
-    results, pending = memory.workflow().run(
+    results, pending = await memory.workflow().run(
         (item,), PlaylistState(1, frozenset(), frozenset({item.key})), 1, False
     )
     assert results[0].action == "already present" and pending == ()
@@ -193,29 +195,35 @@ def test_existing_key_skips_search_but_entire_empty_batch_reads_liked_status() -
 
 
 @pytest.mark.parametrize("count", [0, -1])
-def test_nonpositive_helper_count_keeps_original_empty_tolerance(count: int) -> None:
+async def test_nonpositive_helper_count_keeps_original_empty_tolerance(
+    count: int,
+) -> None:
     """Helper inputs do not inherit full-run validation.
 
     Args:
         count: Original nonpositive request.
     """
     memory = BatchMemory()
-    assert memory.workflow().run(
-        (_candidate("artist", "song"),), EMPTY, count, False
+    assert (
+        await memory.workflow().run(
+            (_candidate("artist", "song"),), EMPTY, count, False
+        )
     ) == ((), ())
     assert memory.events == []
     assert memory.messages == []
 
 
-def test_empty_pool_does_not_read_liked_status() -> None:
+async def test_empty_pool_does_not_read_liked_status() -> None:
     """No candidate batches means no catalog or live-status observations."""
     memory = BatchMemory()
-    assert memory.workflow().run((), EMPTY, 1, False) == ((), ())
+    assert (await memory.workflow().run((), EMPTY, 1, False)) == ((), ())
     assert memory.events == []
 
 
 @pytest.mark.parametrize("failure", ["two", "liked"])
-def test_failed_batch_observation_has_no_returned_projection(failure: str) -> None:
+async def test_failed_batch_observation_has_no_returned_projection(
+    failure: str,
+) -> None:
     """Search and liked exceptions propagate after their accepted observation prefix.
 
     Args:
@@ -224,26 +232,30 @@ def test_failed_batch_observation_has_no_returned_projection(failure: str) -> No
     memory = BatchMemory(failure=failure)
     candidates = (_candidate("one", "one"), _candidate("two", "two"))
     with pytest.raises(OSError, match=failure):
-        memory.workflow().run(candidates, EMPTY, 1, False)
+        (await memory.workflow().run(candidates, EMPTY, 1, False))
     assert memory.events[:2] == [("search", "one"), ("search", "two")]
     assert len(memory.events) == (3 if failure == "liked" else 2)
 
 
-def test_final_slice_preserves_candidates_beyond_nondivisible_maximum() -> None:
+async def test_final_slice_preserves_candidates_beyond_nondivisible_maximum() -> None:
     """Configured search maxima limit batch starts rather than truncate final slices."""
     memory = BatchMemory()
     candidates = tuple(_candidate(str(index), str(index)) for index in range(5))
-    results, pending = memory.workflow(multiplier=1).run(candidates, EMPTY, 4, False)
+    results, pending = await memory.workflow(multiplier=1).run(
+        candidates, EMPTY, 4, False
+    )
     assert len(results) == 5 and pending == ()
     assert memory.messages[-2] == "Searching Spotify candidate 5/4"
 
 
-def test_zero_batch_size_retains_original_range_error_before_observations() -> None:
+async def test_zero_batch_size_retains_range_error_before_observations() -> None:
     """Invalid mutable batch configuration keeps the original error boundary."""
     memory = BatchMemory()
     with pytest.raises(ValueError, match="range"):
-        memory.workflow(batch_size=0).run(
-            (_candidate("artist", "song"),), EMPTY, 1, False
+        (
+            await memory.workflow(batch_size=0).run(
+                (_candidate("artist", "song"),), EMPTY, 1, False
+            )
         )
     assert memory.events == []
 

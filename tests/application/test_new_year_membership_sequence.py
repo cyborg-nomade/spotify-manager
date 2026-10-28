@@ -12,7 +12,7 @@ from tests.support.new_year_boundaries import reconcile_outcome
 from tests.support.new_year_run import AnnualObservations
 
 
-def _outcome(case: dict[str, object]) -> object:
+async def _outcome(case: dict[str, object]) -> object:
     edge = AnnualObservations(
         "normal", cast(str | None, case["failure"]), bool(case["automatic"])
     )
@@ -25,7 +25,7 @@ def _outcome(case: dict[str, object]) -> object:
     ]
     result: dict[str, object] = {}
     try:
-        owner.run("destination", uris, bool(case["top"]))
+        (await owner.run("destination", uris, bool(case["top"])))
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result.update(trace=edge.trace, contents=edge.contents["destination"])
@@ -33,7 +33,7 @@ def _outcome(case: dict[str, object]) -> object:
 
 
 @pytest.mark.parametrize("case", cases("new_year_reconciliation.json"))
-def test_injected_annual_reconciliation_matches_original_retry_attempts(
+async def test_injected_annual_reconciliation_matches_original_retry_attempts(
     case: dict[str, object],
 ) -> None:
     """Retain original batches and recalculated membership/reorder positions.
@@ -41,13 +41,12 @@ def test_injected_annual_reconciliation_matches_original_retry_attempts(
     Args:
         case: Original immutable reconciliation and response-loss inputs.
     """
-    assert _outcome(case) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]
     assert (
-        reconcile_outcome(
+        await reconcile_outcome(
             bool(case["top"]),
             cast(str | None, case["failure"]),
             bool(case["automatic"]),
             cast(int, case["size"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

@@ -11,10 +11,10 @@ from datetime import tzinfo
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
@@ -258,7 +258,7 @@ class FlushObservations:
         self.playlists[playlist] = retained
         self.record("remove", playlist, uris)
 
-    def current_user_following_artists(self, artists: list[str]) -> list[bool]:
+    async def current_user_following_artists(self, artists: list[str]) -> list[bool]:
         """Observe original follow status even during preview.
 
         Args:
@@ -321,23 +321,35 @@ class FlushObservations:
 
 def _patches(edge: FlushObservations) -> tuple[tuple[object, str, object], ...]:
     return (
-        (new_wine, "load_playlist_tracks", edge.playlist),
+        (new_wine, "async_load_playlist_tracks", AsyncMock(side_effect=edge.playlist)),
         (QueuePlanning, "record", partialmethod(_plan, edge)),
-        (review_artists, "add_playlist_item", edge.append),
-        (review_artists, "remove_playlist_items", edge.remove),
-        (review_artists, "remove_library_artists", edge.unfollow),
-        (new_kids, "remove_local_artist", edge.remove_local),
+        (review_artists, "async_add_playlist_item", AsyncMock(side_effect=edge.append)),
+        (
+            review_artists,
+            "async_remove_playlist_items",
+            AsyncMock(side_effect=edge.remove),
+        ),
+        (
+            review_artists,
+            "async_remove_library_artists",
+            AsyncMock(side_effect=edge.unfollow),
+        ),
+        (
+            new_kids,
+            "async_remove_local_artist",
+            AsyncMock(side_effect=edge.remove_local),
+        ),
         (legacy, "append_event", edge.audit),
         (legacy, "datetime", edge),
     )
 
 
-def _run(edge: FlushObservations, preview: bool) -> object:
+async def _run(edge: FlushObservations, preview: bool) -> object:
     with ExitStack() as stack:
         for module, name, callback in _patches(edge):
             stack.enter_context(patch.object(module, name, callback))
         stack.enter_context(patch.object(legacy, "_state_access", return_value=edge))
-        result = legacy.flush_queue(
+        result = await legacy.async_flush_queue(
             cast(Spotify, edge),
             legacy.QueuePlaylists("queue", "queue2", "new-kids", "queue3", "unlucky"),
             dry_run=preview,
@@ -347,7 +359,7 @@ def _run(edge: FlushObservations, preview: bool) -> object:
     return asdict(result)
 
 
-def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
     """Observe the original complete runner without files or external writes.
 
     Args:
@@ -362,7 +374,7 @@ def original_outcome(scenario: str, preview: bool, failure: str | None) -> objec
     edge.setup()
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _run(edge, preview)
+        outcome["result"] = await _run(edge, preview)
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)
@@ -417,7 +429,7 @@ def restart_cases() -> list[tuple[str, dict[str, object]]]:
     return selected
 
 
-def _plan(
+async def _plan(
     workflow: QueuePlanning,
     edge: FlushObservations,
     source: PlaylistTrack,

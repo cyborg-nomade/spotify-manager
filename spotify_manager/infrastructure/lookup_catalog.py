@@ -12,7 +12,7 @@ from spotify_manager.infrastructure import lookup_records as records
 class LookupPages(Protocol):
     """Read catalog pages through explicit transport methods."""
 
-    def next_object(self, page: object) -> object:
+    async def next_object(self, page: object) -> object:
         """Read object continuation.
 
         Args:
@@ -23,7 +23,7 @@ class LookupPages(Protocol):
         """
         ...
 
-    def release_page(self, artist: str, offset: int) -> object:
+    async def release_page(self, artist: str, offset: int) -> object:
         """Read an artist release page.
 
         Args:
@@ -35,7 +35,7 @@ class LookupPages(Protocol):
         """
         ...
 
-    def albums(self, identifiers: list[str]) -> object:
+    async def albums(self, identifiers: list[str]) -> object:
         """Read an album batch.
 
         Args:
@@ -46,7 +46,7 @@ class LookupPages(Protocol):
         """
         ...
 
-    def next_tracks(self, page: object) -> object:
+    async def next_tracks(self, page: object) -> object:
         """Read embedded album-track continuation.
 
         Args:
@@ -58,7 +58,7 @@ class LookupPages(Protocol):
         ...
 
 
-def all_items(pages: LookupPages, page: object) -> list[dict[str, object]]:
+async def all_items(pages: LookupPages, page: object) -> list[dict[str, object]]:
     """Collect original object rows while validating each page and continuation.
 
     Args:
@@ -81,7 +81,7 @@ def all_items(pages: LookupPages, page: object) -> list[dict[str, object]]:
             raise SpotifyLookupResponseError(
                 "Spotify returned an empty track page with a next link."
             )
-        page = pages.next_object(page)
+        page = await pages.next_object(page)
 
 
 def _object_rows(rows: list[object]) -> list[dict[str, object]]:
@@ -114,7 +114,7 @@ def primary_ids(rows: list[object], artist: str) -> list[str]:
     return result
 
 
-def releases(pages: LookupPages, artist: str) -> list[str]:
+async def releases(pages: LookupPages, artist: str) -> list[str]:
     """Read original raw-offset release pages without collapsing row counts.
 
     Args:
@@ -131,7 +131,7 @@ def releases(pages: LookupPages, artist: str) -> list[str]:
     offset = 0
     while True:
         facts = records.page(
-            pages.release_page(artist, offset),
+            (await pages.release_page(artist, offset)),
             "Spotify returned invalid artist release data.",
         )
         for identifier in primary_ids(facts.rows, artist):
@@ -145,7 +145,7 @@ def releases(pages: LookupPages, artist: str) -> list[str]:
         offset += len(facts.rows)
 
 
-def primary_tracks(
+async def primary_tracks(
     pages: LookupPages,
     artist: str,
     release_ids: list[str],
@@ -165,13 +165,13 @@ def primary_tracks(
     identifiers: dict[str, None] = {}
     for start in range(0, len(release_ids), batch_size):
         albums = records.album_batch(
-            pages.albums(release_ids[start : start + batch_size])
+            await pages.albums(release_ids[start : start + batch_size])
         )
-        _collect_album_tracks(albums, pages, artist, identifiers)
+        await _collect_album_tracks(albums, pages, artist, identifiers)
     return list(identifiers)
 
 
-def _collect_album_tracks(
+async def _collect_album_tracks(
     albums: list[object],
     pages: LookupPages,
     artist: str,
@@ -180,12 +180,14 @@ def _collect_album_tracks(
     for album in albums:
         if not isinstance(album, dict):
             continue
-        track_ids = album_primary_tracks(album.get("tracks"), pages, artist)
+        track_ids = await album_primary_tracks(album.get("tracks"), pages, artist)
         for identifier in track_ids:
             identifiers[identifier] = None
 
 
-def album_primary_tracks(page: object, pages: LookupPages, artist: str) -> list[str]:
+async def album_primary_tracks(
+    page: object, pages: LookupPages, artist: str
+) -> list[str]:
     """Read original track pages with their distinct empty-next error label.
 
     Args:
@@ -209,7 +211,7 @@ def album_primary_tracks(page: object, pages: LookupPages, artist: str) -> list[
             raise SpotifyLookupResponseError(
                 "Spotify returned an empty album track page with a next link."
             )
-        page = pages.next_tracks(page)
+        page = await pages.next_tracks(page)
 
 
 def minimize_tracks(

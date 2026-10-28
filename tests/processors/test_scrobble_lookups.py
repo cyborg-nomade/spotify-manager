@@ -1,5 +1,6 @@
 """Tests for the live Spotify track to Last.fm history lookup."""
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +41,7 @@ def _timestamp(value: datetime) -> int:
     return round(value.timestamp() * 1000)
 
 
-def test_track_status_returns_latest_matching_scrobble_and_current_season(
+async def test_track_status_returns_latest_matching_scrobble_and_current_season(
     tmp_path: Path,
 ) -> None:
     history = tmp_path / "history.json"
@@ -56,7 +57,8 @@ def test_track_status_returns_latest_matching_scrobble_and_current_season(
     )
     spotify = SimpleNamespace(track=lambda _track_id: _spotify_track())
 
-    result = scrobble_lookups.get_track_scrobble_status(
+    result = await asyncio.to_thread(
+        scrobble_lookups.get_track_scrobble_status,
         spotify,
         track_id="track-id",
         path=history,
@@ -69,12 +71,13 @@ def test_track_status_returns_latest_matching_scrobble_and_current_season(
     assert result.in_current_season is True
 
 
-def test_track_status_reports_never_scrobbled(tmp_path: Path) -> None:
+async def test_track_status_reports_never_scrobbled(tmp_path: Path) -> None:
     history = tmp_path / "history.json"
     _history(history, [])
     spotify = SimpleNamespace(track=lambda _track_id: _spotify_track())
 
-    result = scrobble_lookups.get_track_scrobble_status(
+    result = await asyncio.to_thread(
+        scrobble_lookups.get_track_scrobble_status,
         spotify,
         track_id="track-id",
         path=history,
@@ -103,7 +106,9 @@ def test_season_window_uses_berlin_meteorological_boundaries(
     assert scrobble_lookups.season_window(when).label == label
 
 
-def test_resolve_live_track_prefers_most_popular_duplicate_for_same_artist() -> None:
+async def test_resolve_live_track_prefers_most_popular_duplicate_for_same_artist() -> (
+    None
+):
     spotify = SimpleNamespace(
         search=lambda **_kwargs: {
             "tracks": {
@@ -115,15 +120,14 @@ def test_resolve_live_track_prefers_most_popular_duplicate_for_same_artist() -> 
         }
     )
 
-    result = scrobble_lookups.resolve_live_track(
-        spotify,
-        name="The Song - 2011 Remaster",
+    result = await asyncio.to_thread(
+        scrobble_lookups.resolve_live_track, spotify, name="The Song - 2011 Remaster"
     )
 
     assert result.spotify_id == "popular"
 
 
-def test_resolve_live_track_reports_different_artists_as_ambiguous() -> None:
+async def test_resolve_live_track_reports_different_artists_as_ambiguous() -> None:
     spotify = SimpleNamespace(
         search=lambda **_kwargs: {
             "tracks": {
@@ -136,9 +140,12 @@ def test_resolve_live_track_reports_different_artists_as_ambiguous() -> None:
     )
 
     with pytest.raises(scrobble_lookups.AmbiguousTrackError) as error:
-        scrobble_lookups.resolve_live_track(
-            spotify,
-            name="The Song - 2011 Remaster",
+        (
+            await asyncio.to_thread(
+                scrobble_lookups.resolve_live_track,
+                spotify,
+                name="The Song - 2011 Remaster",
+            )
         )
 
     assert [candidate["artist"] for candidate in error.value.candidates] == [
@@ -147,7 +154,7 @@ def test_resolve_live_track_reports_different_artists_as_ambiguous() -> None:
     ]
 
 
-def test_track_status_rejects_invalid_matching_timestamp(tmp_path: Path) -> None:
+async def test_track_status_rejects_invalid_matching_timestamp(tmp_path: Path) -> None:
     history = tmp_path / "history.json"
     _history(
         history,
@@ -156,21 +163,27 @@ def test_track_status_rejects_invalid_matching_timestamp(tmp_path: Path) -> None
     spotify = SimpleNamespace(track=lambda _track_id: _spotify_track())
 
     with pytest.raises(blast_from_past.LastFmExportError, match="timestamp"):
-        scrobble_lookups.get_track_scrobble_status(
-            spotify,
-            track_id="track-id",
-            path=history,
+        (
+            await asyncio.to_thread(
+                scrobble_lookups.get_track_scrobble_status,
+                spotify,
+                track_id="track-id",
+                path=history,
+            )
         )
 
 
-def test_resolve_live_track_validates_search_response() -> None:
+async def test_resolve_live_track_validates_search_response() -> None:
     with pytest.raises(scrobble_lookups.SpotifyLookupResponseError):
-        scrobble_lookups.resolve_live_track(
-            SimpleNamespace(search=lambda **_kwargs: {}),
-            name="The Song",
+        (
+            await asyncio.to_thread(
+                scrobble_lookups.resolve_live_track,
+                SimpleNamespace(search=lambda **_kwargs: {}),
+                name="The Song",
+            )
         )
 
 
-def test_resolve_live_track_requires_lookup_argument() -> None:
+async def test_resolve_live_track_requires_lookup_argument() -> None:
     with pytest.raises(ValueError, match="provide name"):
-        scrobble_lookups.resolve_live_track(object())  # type: ignore[arg-type]
+        (await asyncio.to_thread(scrobble_lookups.resolve_live_track, object()))  # type: ignore[arg-type]

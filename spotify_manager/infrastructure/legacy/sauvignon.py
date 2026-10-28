@@ -1,12 +1,12 @@
 """Bind Sauvignon effects to the existing catalog, history and storage seams."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.domain.album_recommendations import AlbumKey
 from spotify_manager.domain.album_recommendations import FirstTrack
@@ -16,7 +16,9 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.infrastructure import sauvignon_data
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.recommendation_history import refresh_history
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.routines import sauvignon as legacy
 
 
@@ -55,7 +57,7 @@ class LegacySauvignon:
         """Resolve retry truthiness at the original post-validation boundary."""
         self.retry = self.requested_retry or NoRetry()
 
-    def refresh(
+    async def refresh(
         self, generated_at: datetime, dry_run: bool
     ) -> tuple[list[Scrobble], int]:
         """Refresh original canonical history.
@@ -67,7 +69,7 @@ class LegacySauvignon:
         Returns:
             Ordered plays and live-added count.
         """
-        return refresh_history(
+        return await refresh_history(
             self.lastfm,
             export_path=self.export_path,
             recent_path=self.recent_path,
@@ -76,7 +78,7 @@ class LegacySauvignon:
             progress_callback=self.progress,
         )
 
-    def read(self) -> tuple[PlaylistTrack, ...]:
+    async def read(self) -> tuple[PlaylistTrack, ...]:
         """Observe the destination with original error translation.
 
         Returns:
@@ -85,22 +87,34 @@ class LegacySauvignon:
         Raises:
             SauvignonSpotifyError: Original playlist loading fails.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
         try:
-            return load_playlist_tracks(self.spotify, self.playlist_id, self.retry)
+            return await load_playlist_tracks(
+                self.spotify, self.playlist_id, self.retry
+            )
         except legacy.new_wine.NewWineError as exc:
             raise legacy.SauvignonSpotifyError(str(exc)) from exc
 
-    def previous(self) -> set[AlbumKey]:
+    async def previous(self) -> set[AlbumKey]:
         """Read original accepted-addition exclusions.
 
         Returns:
             Original album identities.
         """
-        return sauvignon_data.previously_added_album_keys(self.log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    sauvignon_data.previously_added_album_keys, self.log_path
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+    async def search(
+        self, candidate: FoundArtCandidate
+    ) -> tuple[SpotifyAlbumOption, ...]:
         """Read eligible editions through the original retry boundary.
 
         Args:
@@ -109,11 +123,13 @@ class LegacySauvignon:
         Returns:
             Original eligible catalog observations.
         """
-        from spotify_manager.routines.sauvignon import search_candidate_albums
+        from spotify_manager.routines.sauvignon import (
+            async_search_candidate_albums as search_candidate_albums,
+        )
 
-        return search_candidate_albums(self.spotify, candidate, self.retry)
+        return await search_candidate_albums(self.spotify, candidate, self.retry)
 
-    def first(self, album: SpotifyAlbumOption) -> FirstTrack:
+    async def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Retain the original first-track observation.
 
         Args:
@@ -122,11 +138,13 @@ class LegacySauvignon:
         Returns:
             Original playable marker.
         """
-        from spotify_manager.routines.sauvignon import load_first_track
+        from spotify_manager.routines.sauvignon import (
+            async_load_first_track as load_first_track,
+        )
 
-        return load_first_track(self.spotify, album, self.retry)
+        return await load_first_track(self.spotify, album, self.retry)
 
-    def append(self, additions: list[PendingAlbum]) -> None:
+    async def append(self, additions: list[PendingAlbum]) -> None:
         """Accept original ordered additions through the original retry seam.
 
         Args:
@@ -137,13 +155,19 @@ class LegacySauvignon:
         for attempt in self.retry.attempts(
             f"adding {len(additions)} albums to Sauvignon Terre-Neuve"
         ):
-            with attempt:
-                _append_recommendation_albums(self.spotify, self.playlist_id, additions)
+            async with attempt:
+                await _append_recommendation_albums(
+                    self.spotify, self.playlist_id, additions
+                )
 
-    def audit(self, summary: SauvignonSummary) -> None:
+    async def audit(self, summary: SauvignonSummary) -> None:
         """Append the original outcome to the configured log.
 
         Args:
             summary: Original completed result.
         """
-        sauvignon_data.append_log(summary, self.log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(sauvignon_data.append_log, summary, self.log_path)
+            )
+            await finish_blocking(file_operation)

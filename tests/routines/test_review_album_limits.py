@@ -190,13 +190,13 @@ class FakeSpotify:
             {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
         ]
 
-    def album_tracks(self, album_id, limit=50, offset=0):
+    async def album_tracks(self, album_id, limit=50, offset=0):
         return {
             "items": self._album_tracks,
             "next": None,
         }
 
-    def album(self, album_id):
+    async def album(self, album_id):
         if self.rate_limit_on_album_metadata:
             raise SpotifyException(
                 429,
@@ -207,7 +207,7 @@ class FakeSpotify:
         self.album_metadata_calls.append(album_id)
         return {"artists": [{"id": "art1", "name": "Radiohead"}]}
 
-    def current_user_following_artists(self, artists):
+    async def current_user_following_artists(self, artists):
         self.follow_check_attempts.append(list(artists))
         if self.transient_failures_on_follow_check > 0:
             self.transient_failures_on_follow_check -= 1
@@ -226,11 +226,11 @@ class FakeSpotify:
         self.follow_checks.append(list(artists))
         return [artist in self.followed_artists for artist in artists]
 
-    def user_follow_artists(self, artists):
+    async def user_follow_artists(self, artists):
         self.followed.append(list(artists))
         self.followed_artists.update(artists)
 
-    def current_user_saved_tracks_contains(self, tracks):
+    async def current_user_saved_tracks_contains(self, tracks):
         if self.rate_limit_on_saved_track_check:
             raise SpotifyException(
                 429,
@@ -241,7 +241,7 @@ class FakeSpotify:
         self.saved_track_checks.append(list(tracks))
         return [track in self.saved_tracks for track in tracks]
 
-    def current_user_saved_albums_delete(self, albums):
+    async def current_user_saved_albums_delete(self, albums):
         if self.rate_limit_on_delete:
             raise SpotifyException(
                 429,
@@ -252,7 +252,7 @@ class FakeSpotify:
         self.deleted.append(list(albums))
 
 
-def test_review_removes_album_from_spotify_and_total_file(
+async def test_review_removes_album_from_spotify_and_total_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review removes album from spotify and total file.
@@ -287,11 +287,13 @@ def test_review_removes_album_from_spotify_and_total_file(
         partial(snapshot_items, saved_albums),
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("r"),
-        echo=MessageList(output),
-        log_path=log_path,
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("r"),
+            echo=MessageList(output),
+            log_path=log_path,
+        )
     )
 
     assert sp.deleted == [["alb1"]]
@@ -309,7 +311,7 @@ def test_review_removes_album_from_spotify_and_total_file(
     assert any(line == "Removed: OK Computer - Radiohead" for line in output)
 
 
-def test_review_auto_removes_album_with_zero_live_liked_tracks(
+async def test_review_auto_removes_album_with_zero_live_liked_tracks(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review auto removes album with zero live liked tracks.
@@ -343,8 +345,10 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
         partial(snapshot_items, saved_albums),
     )
     scenario = ReviewAutoRemovesAlbumWithZeroLiveLikedTracksScenario()
-    review_album_limits.review_album_limits(
-        sp, action_reader=scenario, echo=MessageList(output), log_path=log_path
+    (
+        review_album_limits.review_album_limits(
+            sp, action_reader=scenario, echo=MessageList(output), log_path=log_path
+        )
     )
     assert sp.saved_track_checks == [["t1", "t2"]]
     assert sp.deleted == [["alb1"]]
@@ -358,7 +362,7 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
     )
 
 
-def test_review_prompts_when_live_liked_tracks_exist(
+async def test_review_prompts_when_live_liked_tracks_exist(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review prompts when live liked tracks exist.
@@ -393,11 +397,13 @@ def test_review_prompts_when_live_liked_tracks_exist(
         partial(snapshot_items, saved_albums),
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=MessageList(output),
-        log_path=log_path,
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=MessageList(output),
+            log_path=log_path,
+        )
     )
 
     assert sp.saved_track_checks == [["t1", "t2"]]
@@ -408,7 +414,7 @@ def test_review_prompts_when_live_liked_tracks_exist(
     assert any(line == "Skipped: OK Computer - Radiohead" for line in output)
 
 
-def test_live_liked_track_checks_are_batched_for_large_albums(
+async def test_live_liked_track_checks_are_batched_for_large_albums(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Live liked track checks are batched for large albums.
@@ -444,11 +450,13 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=MessageList(output),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=MessageList(output),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
 
     assert [len(batch) for batch in sp.saved_track_checks] == [20, 20, 5]
@@ -457,7 +465,7 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
     assert any(line == "Live liked tracks: 1" for line in output)
 
 
-def test_keep_decision_persists_between_review_runs(
+async def test_keep_decision_persists_between_review_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Keep decision persists between review runs.
@@ -486,20 +494,24 @@ def test_keep_decision_persists_between_review_runs(
         "load_your_library_file",
         review_album_limits.load_your_library_file,
     )
-    review_album_limits.review_album_limits(
-        first_sp,
-        action_reader=Answer("k"),
-        echo=MessageList(first_output),
-        log_path=tmp_path / "removed_albums_log.jsonl",
-        decisions_path=decisions_path,
+    (
+        review_album_limits.review_album_limits(
+            first_sp,
+            action_reader=Answer("k"),
+            echo=MessageList(first_output),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+            decisions_path=decisions_path,
+        )
     )
     scenario = KeepDecisionPersistsBetweenReviewRunsScenario()
-    review_album_limits.review_album_limits(
-        second_sp,
-        action_reader=scenario,
-        echo=MessageList(second_output),
-        log_path=tmp_path / "removed_albums_log.jsonl",
-        decisions_path=decisions_path,
+    (
+        review_album_limits.review_album_limits(
+            second_sp,
+            action_reader=scenario,
+            echo=MessageList(second_output),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+            decisions_path=decisions_path,
+        )
     )
     decisions = json.loads(decisions_path.read_text())
     assert decisions["alb1"]["decision"] == "keep"
@@ -514,7 +526,7 @@ def test_keep_decision_persists_between_review_runs(
     )
 
 
-def test_review_retries_transient_spotify_server_errors(
+async def test_review_retries_transient_spotify_server_errors(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review retries transient spotify server errors.
@@ -550,13 +562,15 @@ def test_review_retries_transient_spotify_server_errors(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=MessageList(output),
-        log_path=tmp_path / "removed_albums_log.jsonl",
-        sleep=DelayList(sleeps),
-        transient_retry_delay_seconds=123,
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=MessageList(output),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+            sleep=DelayList(sleeps),
+            transient_retry_delay_seconds=123,
+        )
     )
 
     assert sleeps == [123]
@@ -572,7 +586,7 @@ def test_review_retries_transient_spotify_server_errors(
     assert any("keep: OK Computer - Radiohead" in line for line in output)
 
 
-def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
+async def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review stops cleanly after transient spotify retries are exhausted.
@@ -605,14 +619,16 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
     )
 
     with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
-        review_album_limits.review_album_limits(
-            sp,
-            action_reader=Answer("s"),
-            echo=DiscardMessages(),
-            log_path=tmp_path / "removed_albums_log.jsonl",
-            sleep=DelayList(sleeps),
-            transient_retry_delay_seconds=7,
-            transient_max_attempts=2,
+        (
+            review_album_limits.review_album_limits(
+                sp,
+                action_reader=Answer("s"),
+                echo=DiscardMessages(),
+                log_path=tmp_path / "removed_albums_log.jsonl",
+                sleep=DelayList(sleeps),
+                transient_retry_delay_seconds=7,
+                transient_max_attempts=2,
+            )
         )
 
     assert exc.value.http_status == 503
@@ -633,7 +649,7 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
         RequestsTimeout("Spotify request timed out"),
     ],
 )
-def test_retry_spotify_server_errors_retries_transport_failures(
+async def test_retry_spotify_server_errors_retries_transport_failures(
     error: RequestsConnectionError | RequestsTimeout,
 ) -> None:
     """Retry spotify server errors retries transport failures.
@@ -645,7 +661,7 @@ def test_retry_spotify_server_errors_retries_transport_failures(
     sleeps: list[float] = []
     request = TransportRequest(error)
     retry = SpotifyRetries(MessageList(output), DelayList(sleeps), 10, 3)
-    result = _send(retry, request)
+    result = await _send(retry, request)
 
     assert result == "connected"
     assert request.calls == 2
@@ -657,14 +673,16 @@ def test_retry_spotify_server_errors_retries_transport_failures(
     )
 
 
-def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> None:
+async def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> (
+    None
+):
     """Retry spotify server errors reports exhausted connection retries."""
     request = TransportRequest(
         RequestsConnectionError("Connection reset by peer"), fail_always=True
     )
     retry = SpotifyRetries(DiscardMessages(), NoWait(), 10, 3)
     with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
-        _send(retry, request)
+        await _send(retry, request)
 
     assert request.calls == 3
     assert exc.value.http_status is None
@@ -675,7 +693,7 @@ def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> N
     )
 
 
-def test_review_records_followed_artist_and_updates_stats_history(
+async def test_review_records_followed_artist_and_updates_stats_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     artist_persistence_store: ArtistPublicationObservations,
@@ -709,11 +727,13 @@ def test_review_records_followed_artist_and_updates_stats_history(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=DiscardMessages(),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=DiscardMessages(),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
 
     saved_artists = artist_persistence_store["saved_artists"]
@@ -731,7 +751,7 @@ def test_review_records_followed_artist_and_updates_stats_history(
     assert report.avg_liked_tracks_per_artists == 4
 
 
-def test_enter_defaults_to_remove_for_remove_candidate(
+async def test_enter_defaults_to_remove_for_remove_candidate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Enter defaults to remove for remove candidate.
@@ -764,18 +784,20 @@ def test_enter_defaults_to_remove_for_remove_candidate(
         partial(snapshot_items, saved_albums),
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer(""),
-        echo=DiscardMessages(),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer(""),
+            echo=DiscardMessages(),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
 
     assert sp.deleted == [["alb1"]]
     assert saved_albums == [[]]
 
 
-def test_review_reports_progress_after_each_completed_album(
+async def test_review_reports_progress_after_each_completed_album(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review reports progress after each completed album.
@@ -807,18 +829,20 @@ def test_review_reports_progress_after_each_completed_album(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=DiscardMessages(),
-        log_path=tmp_path / "removed_albums_log.jsonl",
-        progress_callback=CountEvents(progress_updates),
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=DiscardMessages(),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+            progress_callback=CountEvents(progress_updates),
+        )
     )
 
     assert progress_updates == [(1, 1)]
 
 
-def test_review_skip_is_only_for_current_run(
+async def test_review_skip_is_only_for_current_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review skip is only for current run.
@@ -853,11 +877,13 @@ def test_review_skip_is_only_for_current_run(
         partial(snapshot_items, saved_albums),
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=MessageList(output),
-        log_path=log_path,
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=MessageList(output),
+            log_path=log_path,
+        )
     )
 
     assert sp.deleted == []
@@ -867,7 +893,7 @@ def test_review_skip_is_only_for_current_run(
     assert any(line == "Skipped: OK Computer - Radiohead" for line in output)
 
 
-def test_review_follows_artist_for_kept_album_without_prompt(
+async def test_review_follows_artist_for_kept_album_without_prompt(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review follows artist for kept album without prompt.
@@ -896,18 +922,20 @@ def test_review_follows_artist_for_kept_album_without_prompt(
         review_album_limits.load_your_library_file,
     )
     scenario = ReviewFollowsArtistForKeptAlbumWithoutPromptScenario()
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=scenario,
-        echo=MessageList(output),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=scenario,
+            echo=MessageList(output),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
     assert sp.deleted == []
     assert sp.followed == [["art1"]]
     assert any("keep: OK Computer - Radiohead" in line for line in output)
 
 
-def test_review_does_not_refollow_artist_already_followed(
+async def test_review_does_not_refollow_artist_already_followed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review does not refollow artist already followed.
@@ -938,18 +966,20 @@ def test_review_does_not_refollow_artist_already_followed(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=DiscardMessages(),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=DiscardMessages(),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
 
     assert sp.follow_checks == [["art1"]]
     assert sp.followed == []
 
 
-def test_review_resolves_unfollowed_artist_from_album_metadata(
+async def test_review_resolves_unfollowed_artist_from_album_metadata(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review resolves unfollowed artist from album metadata.
@@ -980,11 +1010,13 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
         review_album_limits.load_your_library_file,
     )
 
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=Answer("s"),
-        echo=DiscardMessages(),
-        log_path=tmp_path / "removed_albums_log.jsonl",
+    (
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=Answer("s"),
+            echo=DiscardMessages(),
+            log_path=tmp_path / "removed_albums_log.jsonl",
+        )
     )
 
     assert sp.album_metadata_calls == ["alb1"]
@@ -992,7 +1024,7 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
     assert sp.followed == [["art1"]]
 
 
-def test_review_exits_cleanly_on_album_metadata_rate_limit(
+async def test_review_exits_cleanly_on_album_metadata_rate_limit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review exits cleanly on album metadata rate limit.
@@ -1031,11 +1063,13 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
-        review_album_limits.review_album_limits(
-            sp,
-            action_reader=Answer("r"),
-            echo=DiscardMessages(),
-            log_path=log_path,
+        (
+            review_album_limits.review_album_limits(
+                sp,
+                action_reader=Answer("r"),
+                echo=DiscardMessages(),
+                log_path=log_path,
+            )
         )
 
     assert exc.value.retry_after_seconds == 240
@@ -1044,7 +1078,7 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
     assert not log_path.exists()
 
 
-def test_review_exits_cleanly_on_rate_limit_without_saving(
+async def test_review_exits_cleanly_on_rate_limit_without_saving(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review exits cleanly on rate limit without saving.
@@ -1079,11 +1113,13 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
-        review_album_limits.review_album_limits(
-            sp,
-            action_reader=Answer("r"),
-            echo=DiscardMessages(),
-            log_path=log_path,
+        (
+            review_album_limits.review_album_limits(
+                sp,
+                action_reader=Answer("r"),
+                echo=DiscardMessages(),
+                log_path=log_path,
+            )
         )
 
     assert exc.value.retry_after_seconds == 120
@@ -1091,7 +1127,7 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
     assert not log_path.exists()
 
 
-def test_review_exits_cleanly_on_live_liked_track_rate_limit(
+async def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review exits cleanly on live liked track rate limit.
@@ -1126,11 +1162,13 @@ def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
-        review_album_limits.review_album_limits(
-            sp,
-            action_reader=Answer("r"),
-            echo=DiscardMessages(),
-            log_path=log_path,
+        (
+            review_album_limits.review_album_limits(
+                sp,
+                action_reader=Answer("r"),
+                echo=DiscardMessages(),
+                log_path=log_path,
+            )
         )
 
     assert exc.value.retry_after_seconds == 90
@@ -1139,7 +1177,7 @@ def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     assert not log_path.exists()
 
 
-def test_review_exits_cleanly_on_follow_rate_limit(
+async def test_review_exits_cleanly_on_follow_rate_limit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Review exits cleanly on follow rate limit.
@@ -1174,11 +1212,13 @@ def test_review_exits_cleanly_on_follow_rate_limit(
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
-        review_album_limits.review_album_limits(
-            sp,
-            action_reader=Answer("r"),
-            echo=DiscardMessages(),
-            log_path=log_path,
+        (
+            review_album_limits.review_album_limits(
+                sp,
+                action_reader=Answer("r"),
+                echo=DiscardMessages(),
+                log_path=log_path,
+            )
         )
 
     assert exc.value.retry_after_seconds == 180
@@ -1240,9 +1280,9 @@ class TransportRequest:
         return "connected"
 
 
-def _send(retry: SpotifyRetries, request: TransportRequest) -> str:
+async def _send(retry: SpotifyRetries, request: TransportRequest) -> str:
     for attempt in retry.attempts("loading the Slow Listening playlist"):
-        with attempt:
+        async with attempt:
             response = request.send()
     return response
 
@@ -1253,7 +1293,7 @@ class ReviewAutoRemovesAlbumWithZeroLiveLikedTracksScenario:
     fixture.
     """
 
-    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+    async def choose_action(self, _album: Any, _evaluation: Any) -> Never:
         """Execute the original fail action reader mock boundary.
 
         Args:
@@ -1270,7 +1310,7 @@ class ReviewAutoRemovesAlbumWithZeroLiveLikedTracksScenario:
 class KeepDecisionPersistsBetweenReviewRunsScenario:
     """Retain the original keep decision persists between review runs fixture."""
 
-    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+    async def choose_action(self, _album: Any, _evaluation: Any) -> Never:
         """Execute the original fail action reader mock boundary.
 
         Args:
@@ -1287,7 +1327,7 @@ class KeepDecisionPersistsBetweenReviewRunsScenario:
 class ReviewFollowsArtistForKeptAlbumWithoutPromptScenario:
     """Reject any unexpected prompt for a kept album."""
 
-    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+    async def choose_action(self, _album: Any, _evaluation: Any) -> Never:
         """Execute the original fail action reader mock boundary.
 
         Args:

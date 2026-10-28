@@ -32,32 +32,32 @@ class MemoryLibrary:
         if self.fail_at == name:
             raise OSError(name)
 
-    def saved(self, release: RankedRelease) -> bool:
+    async def saved(self, release: RankedRelease) -> bool:
         """Record the membership read and return the current remote state."""
         self._record("saved", release)
         return self.is_saved
 
-    def save_album(self, release: RankedRelease) -> None:
+    async def save_album(self, release: RankedRelease) -> None:
         """Accept a remote save after its failure boundary."""
         self._record("save", release)
         self.is_saved = True
 
-    def remove_album(self, release: RankedRelease) -> None:
+    async def remove_album(self, release: RankedRelease) -> None:
         """Accept a remote removal after its failure boundary."""
         self._record("remove", release)
         self.is_saved = False
 
-    def removed_audit(
+    async def removed_audit(
         self, release: RankedRelease, evaluation: AlbumEvaluation
     ) -> None:
         """Record recovery details before mirror reconciliation."""
         self._record("recovery", (release, evaluation))
 
-    def mirror(self, release: RankedRelease, should_save: bool) -> None:
+    async def mirror(self, release: RankedRelease, should_save: bool) -> None:
         """Record the desired mirror membership even without a remote change."""
         self._record("mirror", (release, should_save))
 
-    def event(self, name: str, **details: object) -> None:
+    async def event(self, name: str, **details: object) -> None:
         """Record original routine event fields in insertion order."""
         self._record("audit", (name, details))
 
@@ -90,17 +90,19 @@ class MemoryEffects(MemoryLibrary):
     remote_ids: dict[str, set[str]] = field(default_factory=dict)
     clock_reads: int = 0
 
-    def append(self, playlist_id: str, track: CatalogTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, track: CatalogTrack, description: str
+    ) -> None:
         """Accept a remote marker append after its failure boundary."""
         self._record("append", (playlist_id, track, description))
         self.remote_ids.setdefault(playlist_id, set()).add(track.spotify_id)
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
         """Accept remote source removal after its failure boundary."""
         self._record("remove_source", (playlist_id, source, label))
         self.remote_ids.setdefault(playlist_id, set()).discard(source.spotify_id)
 
-    def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
+    async def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
         """Read uncached live destination artist and track memberships."""
         self._record("membership", playlist_id)
         artists, tracks = self.destinations.get(playlist_id, (set(), set()))
@@ -111,25 +113,27 @@ class MemoryEffects(MemoryLibrary):
         self._record("great", (deepcopy(state), dry_run))
         return self.great
 
-    def followed(self, artist_id: str, artist_name: str) -> bool:
+    async def followed(self, artist_id: str, artist_name: str) -> bool:
         """Observe current follow membership before any unfollow effect."""
         self._record("followed", (artist_id, artist_name))
         return self.following
 
-    def unfollow(self, artist_id: str, artist_name: str) -> None:
+    async def unfollow(self, artist_id: str, artist_name: str) -> None:
         """Accept remote unfollowing after its failure boundary."""
         self._record("unfollow", (artist_id, artist_name))
         self.following = False
 
-    def remove_local_artist(self, artist_id: str) -> None:
+    async def remove_local_artist(self, artist_id: str) -> None:
         """Record canonical artist-mirror removal after successful unfollowing."""
         self._record("artist_mirror", artist_id)
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Reject unexpected reads from the execution-only checkpoint boundary."""
         raise AssertionError("Execution must not reload the namespace")
 
-    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
+    async def save(
+        self, value: dict[str, object], *, message: str | None = None
+    ) -> None:
         """Snapshot the complete namespace at the accepted checkpoint boundary."""
         self._record("checkpoint", (deepcopy(value), message))
 
@@ -204,7 +208,7 @@ class MemoryQueue(MemoryLibrary):
 
     queued: tuple[PlaylistTrack, ...] = field(default_factory=tuple)
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe source queue markers.
 
         Args:
@@ -216,7 +220,9 @@ class MemoryQueue(MemoryLibrary):
         self._record("playlist", playlist_id)
         return self.queued
 
-    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Observe destination append before queue removal.
 
         Args:
@@ -226,7 +232,9 @@ class MemoryQueue(MemoryLibrary):
         """
         self._record("append", (playlist_id, source, description))
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def remove(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Observe queue removal before destination projection changes.
 
         Args:
@@ -256,7 +264,7 @@ class RunPlaylists(MemoryQueue):
 
     reads: dict[str, list[tuple[PlaylistTrack, ...]]] = field(default_factory=dict)
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Consume one scripted live response, defaulting to an empty playlist.
 
         Args:
@@ -280,7 +288,7 @@ class ScriptedGreatDiscoveries:
 
     effects: MemoryEffects
 
-    def resolve(
+    async def resolve(
         self, state: dict[str, object], year: int, seed: str, preview: bool
     ) -> str | None:
         """Observe the original yearly destination boundary.

@@ -3,10 +3,11 @@
 from datetime import datetime as datetime
 from pathlib import Path
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import lookup_resolution
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.scrobble_lookup_run import status
 from spotify_manager.bootstrap import scrobble_lookups as composition
 from spotify_manager.domain import lookup_selection
@@ -51,7 +52,7 @@ def _matching_tracks(raw_items: list[object], name: str) -> list[ResolvedTrack]:
     )
 
 
-def resolve_live_track(
+async def async_resolve_live_track(
     sp: Spotify, *, name: str | None = None, track_id: str | None = None
 ) -> ResolvedTrack:
     """Resolve original direct identity or exact/edition-qualified title matches.
@@ -70,12 +71,12 @@ def resolve_live_track(
         AmbiguousTrackError: Multiple original primary artists match.
         SpotifyLookupResponseError: Original response validation fails.
     """
-    return lookup_resolution.track(composition.track_lookup(sp), name, track_id)
+    return await lookup_resolution.track(composition.track_lookup(sp), name, track_id)
 
 
-def _direct_track(sp: Spotify, identifier: str) -> ResolvedTrack:
+async def _direct_track(sp: Spotify, identifier: str) -> ResolvedTrack:
     try:
-        track = _track_from_spotify(sp.track(identifier))
+        track = _track_from_spotify(await sp.track(identifier))
     except SpotifyException as error:
         if error.http_status == 404:
             raise TrackNotFoundError(
@@ -89,9 +90,9 @@ def _direct_track(sp: Spotify, identifier: str) -> ResolvedTrack:
     return track
 
 
-def _track_search(sp: Spotify, name: str) -> list[object]:
+async def _track_search(sp: Spotify, name: str) -> list[object]:
     escaped = name.replace('"', " ").strip()
-    response = sp.search(
+    response = await sp.search(
         q=f'track:"{escaped}"', type="track", limit=SPOTIFY_SEARCH_LIMIT, offset=0
     )
     return lookup_records.search_items(
@@ -99,13 +100,13 @@ def _track_search(sp: Spotify, name: str) -> list[object]:
     )
 
 
-def _last_scrobble_at(
+async def _last_scrobble_at(
     path: Path, *, track_name: str, artist_name: str
 ) -> datetime | None:
-    return composition.latest(path, track_name, artist_name)
+    return await composition.latest(path, track_name, artist_name)
 
 
-def get_track_scrobble_status(
+async def async_get_track_scrobble_status(
     sp: Spotify,
     *,
     name: str | None = None,
@@ -125,4 +126,61 @@ def get_track_scrobble_status(
     Returns:
         Original complete track-scrobble status.
     """
-    return status(composition.resources(sp, name, track_id, path, now))
+    return await status(composition.resources(sp, name, track_id, path, now))
+
+
+def resolve_live_track(
+    sp: LegacySpotify, *, name: str | None = None, track_id: str | None = None
+) -> ResolvedTrack:
+    """Resolve original direct identity or exact/edition-qualified title matches.
+
+    Args:
+        sp: Original caller-owned synchronous client.
+        name: Original optional title.
+        track_id: Original direct identity taking precedence.
+
+    Returns:
+        Original unique primary-artist representative.
+
+    Raises:
+        ValueError: No original reference is provided.
+        TrackNotFoundError: No original match exists.
+        AmbiguousTrackError: Multiple original primary artists match.
+        SpotifyLookupResponseError: Original response validation fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_live_track(legacy_spotify(sp), name=name, track_id=track_id)
+    )
+
+
+def get_track_scrobble_status(
+    sp: LegacySpotify,
+    *,
+    name: str | None = None,
+    track_id: str | None = None,
+    path: Path = composition.DEFAULT_SCROBBLES_PATH,
+    now: datetime | None = None,
+) -> TrackScrobbleStatus:
+    """Observe original live identity, latest play and local season in order.
+
+    Args:
+        sp: Original caller-owned synchronous client.
+        name: Original optional exact title.
+        track_id: Original direct identity taking precedence.
+        path: Original history location, including compressed fallbacks.
+        now: Original supplied effective observation time or none.
+
+    Returns:
+        Original complete track-scrobble status.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_get_track_scrobble_status(
+            legacy_spotify(sp), name=name, track_id=track_id, path=path, now=now
+        )
+    )

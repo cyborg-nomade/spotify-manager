@@ -8,6 +8,7 @@ from functools import partial
 from functools import partialmethod
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -63,7 +64,7 @@ def _track(
     )
 
 
-def test_dormant_artists_requires_every_prior_year_and_excludes_current_year(
+async def test_dormant_artists_requires_every_prior_year_and_excludes_current_year(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "history.json"
@@ -87,7 +88,7 @@ def test_dormant_artists_requires_every_prior_year_and_excludes_current_year(
     assert [(artist.name, artist.scrobbles) for artist in artists] == [("Always", 5)]
 
 
-def test_dormant_artists_rolls_the_four_year_intersection_forward(
+async def test_dormant_artists_rolls_the_four_year_intersection_forward(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "history.json"
@@ -113,7 +114,7 @@ def test_dormant_artists_rolls_the_four_year_intersection_forward(
     ]
 
 
-def test_most_popular_liked_track_prefers_liked_spotify_top_track(
+async def test_most_popular_liked_track_prefers_liked_spotify_top_track(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Most popular liked track prefers liked spotify top track.
@@ -129,13 +130,13 @@ def test_most_popular_liked_track_prefers_liked_spotify_top_track(
 
     monkeypatch.setattr(
         new_kids,
-        "load_top_track_data",
-        Mock(return_value=({}, tracks)),
+        "async_load_top_track_data",
+        AsyncMock(side_effect=Mock(return_value=({}, tracks))),
     )
     monkeypatch.setattr(
         blast_from_past_artists,
         "_catalog_tracks",
-        UnexpectedCall("catalog fallback should not be needed"),
+        AsyncMock(side_effect=UnexpectedCall("catalog fallback should not be needed")),
     )
 
     selected = blast_from_past_artists.most_popular_liked_track(
@@ -147,7 +148,7 @@ def test_most_popular_liked_track_prefers_liked_spotify_top_track(
     assert selected == tracks[1]
 
 
-def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
+async def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Most popular liked track falls back to full primary catalog.
@@ -162,18 +163,18 @@ def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
 
     monkeypatch.setattr(
         new_kids,
-        "load_top_track_data",
-        Mock(return_value=({}, (top_track,))),
+        "async_load_top_track_data",
+        AsyncMock(side_effect=Mock(return_value=({}, (top_track,)))),
     )
     monkeypatch.setattr(
         new_kids,
-        "load_ranked_catalog",
-        Mock(return_value=(object(), object())),
+        "async_load_ranked_catalog",
+        AsyncMock(side_effect=Mock(return_value=(object(), object()))),
     )
     monkeypatch.setattr(
         new_kids,
-        "load_release_tracks",
-        Mock(return_value=(lower, higher, secondary, higher)),
+        "async_load_release_tracks",
+        AsyncMock(side_effect=Mock(return_value=(lower, higher, secondary, higher))),
     )
 
     selected = blast_from_past_artists.most_popular_liked_track(
@@ -187,7 +188,7 @@ def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
     assert selected.popularity == 73
 
 
-def test_spotify_response_validation_is_strict() -> None:
+async def test_spotify_response_validation_is_strict() -> None:
     """Spotify response validation is strict."""
     track = _track("track", "artist", "Artist", 1)
 
@@ -195,23 +196,27 @@ def test_spotify_response_validation_is_strict() -> None:
         blast_from_past_artists.BlastFromPastArtistsError,
         match="Liked Songs statuses",
     ):
-        blast_from_past_artists._liked_statuses(  # noqa: SLF001
-            InvalidSpotify(),  # type: ignore[arg-type]
-            (track,),
-            NoRetry(),
+        (
+            await blast_from_past_artists._liked_statuses(  # noqa: SLF001
+                InvalidSpotify(),  # type: ignore[arg-type]
+                (track,),
+                NoRetry(),
+            )
         )
     with pytest.raises(
         blast_from_past_artists.BlastFromPastArtistsError,
         match="liked-track details",
     ):
-        blast_from_past_artists._track_popularities(  # noqa: SLF001
-            InvalidSpotify(),  # type: ignore[arg-type]
-            (track,),
-            NoRetry(),
+        (
+            await blast_from_past_artists._track_popularities(  # noqa: SLF001
+                InvalidSpotify(),  # type: ignore[arg-type]
+                (track,),
+                NoRetry(),
+            )
         )
 
 
-def test_spotify_artist_requires_one_exact_mapping(
+async def test_spotify_artist_requires_one_exact_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Spotify artist requires one exact mapping.
@@ -240,11 +245,11 @@ def test_spotify_artist_requires_one_exact_mapping(
     )
     monkeypatch.setattr(
         release_check,
-        "search_spotify_artists",
-        Mock(return_value=(exact, inexact)),
+        "async_search_spotify_artists",
+        AsyncMock(side_effect=Mock(return_value=(exact, inexact))),
     )
 
-    selected = blast_from_past_artists._spotify_artist(  # noqa: SLF001
+    selected = await blast_from_past_artists._spotify_artist(  # noqa: SLF001
         object(),  # type: ignore[arg-type]
         artist,
         1,
@@ -254,21 +259,20 @@ def test_spotify_artist_requires_one_exact_mapping(
 
     monkeypatch.setattr(
         release_check,
-        "search_spotify_artists",
-        Mock(return_value=(exact, exact)),
+        "async_search_spotify_artists",
+        AsyncMock(side_effect=Mock(return_value=(exact, exact))),
     )
     assert (
-        blast_from_past_artists._spotify_artist(  # noqa: SLF001
+        await blast_from_past_artists._spotify_artist(  # noqa: SLF001
             object(),  # type: ignore[arg-type]
             artist,
             1,
             NoRetry(),
         )
-        is None
-    )
+    ) is None
 
 
-def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
+async def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Fill reports unmapped unliked and duplicate candidates.
@@ -284,28 +288,38 @@ def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
     progress: list[str] = []
     added: list[str] = []
     monkeypatch.setattr(
-        blast_from_past_artists, "dormant_artists", Mock(return_value=candidates)
+        blast_from_past_artists,
+        "async_dormant_artists",
+        AsyncMock(side_effect=Mock(return_value=candidates)),
     )
     monkeypatch.setattr(
         blast_from_past,
-        "load_playlist_state",
-        Mock(
-            return_value=blast_from_past.PlaylistState(
-                total_items=1, track_ids=frozenset({"duplicate"})
+        "async_load_playlist_state",
+        AsyncMock(
+            side_effect=Mock(
+                return_value=blast_from_past.PlaylistState(
+                    total_items=1, track_ids=frozenset({"duplicate"})
+                )
             )
         ),
     )
     scenario = FillReportsUnmappedUnlikedAndDuplicateCandidatesScenario(
         candidate_by_key=candidate_by_key
     )
-    monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", scenario.mapping)
     monkeypatch.setattr(
-        DormantLikedTrack, "run", partialmethod(dormant_track, scenario.liked_track)
+        blast_from_past_artists,
+        "_spotify_artist",
+        AsyncMock(side_effect=scenario.mapping),
+    )
+    monkeypatch.setattr(
+        DormantLikedTrack,
+        "run",
+        partialmethod(dormant_track, scenario.liked_track),
     )
     monkeypatch.setattr(
         blast_from_past,
-        "add_spotify_matches",
-        partial(_record_added_tracks, added),
+        "async_add_spotify_matches",
+        AsyncMock(side_effect=partial(_record_added_tracks, added)),
     )
     summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
         object(),
@@ -324,16 +338,18 @@ def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
     assert progress[-1] == "Dormant-artist recovery complete"
 
 
-def test_fill_rejects_zero_count() -> None:
+async def test_fill_rejects_zero_count() -> None:
     with pytest.raises(ValueError, match="at least 1"):
-        blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-            object(),  # type: ignore[arg-type]
-            "blast",
-            count=0,
+        (
+            blast_from_past_artists.add_dormant_artists_to_blast_from_past(
+                object(),  # type: ignore[arg-type]
+                "blast",
+                count=0,
+            )
         )
 
 
-def test_dormant_artist_fill_skips_represented_and_appends_five(
+async def test_dormant_artist_fill_skips_represented_and_appends_five(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -349,7 +365,7 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
 
     class FakeSpotify:
         @staticmethod
-        def _get(_path: str, limit: int, offset: int) -> dict[str, object]:
+        async def _get(_path: str, limit: int, offset: int) -> dict[str, object]:
             items = (
                 [
                     {
@@ -366,7 +382,7 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
             return {"items": items, "total": 1, "next": None}
 
         @staticmethod
-        def _post(_path: str, payload: dict[str, object]) -> dict[str, str]:
+        async def _post(_path: str, payload: dict[str, object]) -> dict[str, str]:
             posted.extend(payload["uris"])  # type: ignore[arg-type]
             return {"snapshot_id": "snapshot"}
 
@@ -386,7 +402,9 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
             exact_name=True,
         )
 
-    monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", mapped)
+    monkeypatch.setattr(
+        blast_from_past_artists, "_spotify_artist", AsyncMock(side_effect=mapped)
+    )
     monkeypatch.setattr(
         DormantLikedTrack,
         "run",
@@ -447,7 +465,7 @@ class LikedTopTracksSpotify:
     """Retain the original likedtoptracks spotify boundary fixture."""
 
     @staticmethod
-    def current_user_saved_tracks_contains(ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(ids: list[str]) -> list[bool]:
         """Retain the original current user saved tracks contains fixture observation.
 
         Args:
@@ -464,7 +482,7 @@ class LikedCatalogSpotify:
 
     liked = {"catalog-lower", "catalog-higher"}
 
-    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
         """Retain the original current user saved tracks contains fixture observation.
 
         Args:
@@ -476,7 +494,7 @@ class LikedCatalogSpotify:
         return [spotify_id in self.liked for spotify_id in ids]
 
     @staticmethod
-    def tracks(ids: list[str]) -> dict[str, object]:
+    async def tracks(ids: list[str]) -> dict[str, object]:
         """Retain the original tracks fixture observation.
 
         Args:
@@ -500,7 +518,7 @@ class InvalidSpotify:
     """Retain the original invalid spotify boundary fixture."""
 
     @staticmethod
-    def current_user_saved_tracks_contains(_ids: list[str]) -> dict[str, object]:
+    async def current_user_saved_tracks_contains(_ids: list[str]) -> dict[str, object]:
         """Return a malformed membership response.
 
         Args:
@@ -512,7 +530,7 @@ class InvalidSpotify:
         return {}
 
     @staticmethod
-    def tracks(_ids: list[str]) -> dict[str, object]:
+    async def tracks(_ids: list[str]) -> dict[str, object]:
         """Return a malformed track response.
 
         Args:

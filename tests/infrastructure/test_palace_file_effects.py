@@ -128,7 +128,7 @@ def _clock() -> datetime:
     return NOW
 
 
-def test_palace_mirror_backup_retains_original_bytes_before_unicode_replacement(
+async def test_palace_mirror_backup_retains_original_bytes_before_unicode_replacement(
     tmp_path: Path,
 ) -> None:
     """Keep the original source bytes and fixed timestamped backup name.
@@ -151,11 +151,10 @@ def test_palace_mirror_backup_retains_original_bytes_before_unicode_replacement(
         replace_saved_albums(
             tmp_path / "new.json", tmp_path / "backups", (ALBUM,), RecordedAlbumFiles()
         )
-        is None
-    )
+    ) is None
 
 
-def test_palace_mirror_backup_failure_preserves_original_before_replacement(
+async def test_palace_mirror_backup_failure_preserves_original_before_replacement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -169,7 +168,11 @@ def test_palace_mirror_backup_failure_preserves_original_before_replacement(
     path.write_text("original bytes")
     monkeypatch.setattr(shutil, "copy2", _fail_copy)
     with pytest.raises(PalaceOfMemoryStateError, match="Could not publish refreshed"):
-        replace_saved_albums(path, tmp_path / "backups", (ALBUM,), RecordedAlbumFiles())
+        (
+            replace_saved_albums(
+                path, tmp_path / "backups", (ALBUM,), RecordedAlbumFiles()
+            )
+        )
     assert path.read_text() == "original bytes"
 
 

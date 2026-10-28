@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import cast
 
-from spotipy import Spotify
-
 from spotify_manager.application import legacy_library_control as control
 from spotify_manager.application import legacy_library_conversion as conversion
 from spotify_manager.application import legacy_library_monthly as monthly
@@ -13,10 +11,11 @@ from spotify_manager.application.legacy_library_effects import Comparison
 from spotify_manager.application.legacy_library_effects import LegacyFiles
 from spotify_manager.application.legacy_library_effects import MonthlyActions
 from spotify_manager.application.legacy_library_effects import MonthlyPlaylist
-from spotify_manager.infrastructure.legacy_library_resources import (
-    LegacyComparisonMetadata,
-)
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy_library_resources import LegacyMonthlyLimits
+from spotify_manager.infrastructure.legacy_library_resources import (
+    NativeComparisonMetadata,
+)
 from spotify_manager.infrastructure.legacy_library_resources import SpotifyAlbumRefresh
 from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyControlMembership,
@@ -36,6 +35,7 @@ from spotify_manager.models.stats import StatsFileItem
 from spotify_manager.models.your_library import YourLibraryFile
 from tests.support.legacy_library_run import Catalog
 from tests.support.legacy_library_run import Memory
+from tests.support.legacy_library_run import MemoryComparisonClients
 from tests.support.legacy_library_run import Scenario
 
 
@@ -49,7 +49,7 @@ class MemoryFiles:
 
     memory: Memory
 
-    def albums(self) -> list[SimplifiedAlbum]:
+    async def albums(self) -> list[SimplifiedAlbum]:
         """Observe albums at the recorded boundary.
 
         Returns:
@@ -57,7 +57,7 @@ class MemoryFiles:
         """
         return self.memory.read_albums()
 
-    def control(self) -> list[ControlFileItem]:
+    async def control(self) -> list[ControlFileItem]:
         """Observe control at the recorded boundary.
 
         Returns:
@@ -65,7 +65,7 @@ class MemoryFiles:
         """
         return self.memory.read_control()
 
-    def export(self) -> YourLibraryFile:
+    async def export(self) -> YourLibraryFile:
         """Observe export at the recorded boundary.
 
         Returns:
@@ -73,7 +73,7 @@ class MemoryFiles:
         """
         return self.memory.read_export()
 
-    def comparison(self) -> Comparison:
+    async def comparison(self) -> Comparison:
         """Observe comparison at the recorded boundary.
 
         Returns:
@@ -81,7 +81,7 @@ class MemoryFiles:
         """
         return cast(Comparison, self.memory.read_comparison())
 
-    def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
         """Observe save albums at the recorded boundary.
 
         Args:
@@ -89,7 +89,7 @@ class MemoryFiles:
         """
         self.memory.write("save_albums", albums)
 
-    def save_control(self, control: list[ControlFileItem]) -> None:
+    async def save_control(self, control: list[ControlFileItem]) -> None:
         """Observe save control at the recorded boundary.
 
         Args:
@@ -97,7 +97,7 @@ class MemoryFiles:
         """
         self.memory.write("save_control", control)
 
-    def save_stats(self, stats: StatsFileItem) -> None:
+    async def save_stats(self, stats: StatsFileItem) -> None:
         """Observe save stats at the recorded boundary.
 
         Args:
@@ -105,7 +105,7 @@ class MemoryFiles:
         """
         self.memory.write("save_stats", stats)
 
-    def save_comparison(self, comparison: Comparison) -> None:
+    async def save_comparison(self, comparison: Comparison) -> None:
         """Observe save comparison at the recorded boundary.
 
         Args:
@@ -125,7 +125,7 @@ class MemoryAlbumRefresh(SpotifyAlbumRefresh):
 
     memory: Memory
 
-    def load(self) -> list[SimplifiedAlbum]:
+    async def load(self) -> list[SimplifiedAlbum]:
         """Observe load at the recorded boundary.
 
         Returns:
@@ -133,7 +133,7 @@ class MemoryAlbumRefresh(SpotifyAlbumRefresh):
         """
         return self.memory.read_albums()
 
-    def save(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save(self, albums: list[SimplifiedAlbum]) -> None:
         """Observe save at the recorded boundary.
 
         Args:
@@ -166,7 +166,7 @@ def catalog(client: Catalog) -> SpotifyConversionCatalog:
     return SpotifyConversionCatalog(cast(Spotify, client))
 
 
-def check(
+async def check(
     memory: Memory,
     client: Catalog,
     decisions: list[ControlFileItem],
@@ -183,7 +183,7 @@ def check(
     Returns:
         Recorded boundary result.
     """
-    return control.check(
+    return await control.check(
         decisions,
         albums,
         SpotifyControlMembership(cast(Spotify, client)),
@@ -192,7 +192,7 @@ def check(
     )
 
 
-def statistics(
+async def statistics(
     memory: Memory, decisions: list[ControlFileItem], albums: list[SimplifiedAlbum]
 ) -> bool:
     """Observe statistics at the recorded boundary.
@@ -205,7 +205,9 @@ def statistics(
     Returns:
         Recorded boundary result.
     """
-    return control.update_statistics(decisions, albums, files(memory), STANDARD_OUTPUT)
+    return await control.update_statistics(
+        decisions, albums, files(memory), STANDARD_OUTPUT
+    )
 
 
 def playlist(memory: Memory, client: Catalog) -> MonthlyPlaylist:
@@ -228,7 +230,7 @@ def playlist(memory: Memory, client: Catalog) -> MonthlyPlaylist:
     )
 
 
-def run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
+async def run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
     """Run direct application stages with the original recorded authorities.
 
     Args:
@@ -241,23 +243,23 @@ def run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
     """
     if scenario.workflow in ("update", "incremental"):
         deps = MemoryAlbumRefresh(cast(Spotify, client), memory)
-        return refresh.refresh(
+        return await refresh.refresh(
             deps, scenario.workflow == "incremental", STANDARD_OUTPUT
         )
     if scenario.workflow == "monthly":
         actions = MonthlyActions(
             SpotifyControlMembership(cast(Spotify, client)), playlist(memory, client)
         )
-        monthly.run(files(memory), actions, STANDARD_OUTPUT)
+        (await monthly.run(files(memory), actions, STANDARD_OUTPUT))
         return None
     if scenario.workflow == "control":
-        return check(memory, client, memory.control, memory.albums)
+        return await check(memory, client, memory.control, memory.albums)
     if scenario.workflow == "stats":
-        return statistics(memory, memory.control, memory.albums)
-    return other_run(scenario, memory, client)
+        return await statistics(memory, memory.control, memory.albums)
+    return await other_run(scenario, memory, client)
 
 
-def other_run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
+async def other_run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
     """Observe other run at the recorded boundary.
 
     Args:
@@ -269,15 +271,21 @@ def other_run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
         Recorded boundary result.
     """
     if scenario.workflow == "convert":
-        conversion.convert(files(memory), catalog(client), STANDARD_OUTPUT)
+        (await conversion.convert(files(memory), catalog(client), STANDARD_OUTPUT))
         return None
     if scenario.workflow == "analyse":
-        conversion.analyse(files(memory), catalog(client), STANDARD_OUTPUT)
+        (await conversion.analyse(files(memory), catalog(client), STANDARD_OUTPUT))
         return None
     if scenario.workflow == "restore":
-        conversion.restore(files(memory), catalog(client), STANDARD_OUTPUT)
+        (await conversion.restore(files(memory), catalog(client), STANDARD_OUTPUT))
         return None
     if scenario.workflow == "compare":
-        conversion.compare(files(memory), LegacyComparisonMetadata(), STANDARD_OUTPUT)
+        (
+            await conversion.compare(
+                files(memory),
+                NativeComparisonMetadata(MemoryComparisonClients(client)),
+                STANDARD_OUTPUT,
+            )
+        )
         return None
-    return monthly.count_artists(files(memory))
+    return await monthly.count_artists(files(memory))

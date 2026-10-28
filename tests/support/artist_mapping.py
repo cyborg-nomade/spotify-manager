@@ -26,7 +26,7 @@ class MappingObservations:
     searches: list[str | None] = field(default_factory=list)
     prompts: list[tuple[str, ...]] = field(default_factory=list)
 
-    def search(
+    async def search(
         self, artist: RankedArtist, text: str | None
     ) -> tuple[SpotifyArtistCandidate, ...]:
         """Observe the next original query without reordering its candidates.
@@ -58,7 +58,7 @@ class MappingObservations:
         self.prompts.append(tuple(item.spotify_id for item in candidates))
         return self.choices.pop(0)
 
-    def choose_artist(
+    async def choose_artist(
         self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.

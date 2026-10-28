@@ -5,13 +5,13 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
-from threading import Event
 from threading import Lock
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.analysis_worker import AnalysisWorker
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
@@ -175,7 +175,7 @@ def test_echo_keeps_original_empty_detail_behavior() -> None:
 
 @pytest.mark.parametrize("http_status", [None, 500])
 @pytest.mark.parametrize("cancelled", [False, True])
-def test_retry_wait_owns_its_signal_and_original_resume(
+async def test_retry_wait_owns_its_signal_and_original_resume(
     http_status: int | None, cancelled: bool
 ) -> None:
     """Preserve zero-delay retry text, signal interpretation and resumed detail.
@@ -191,7 +191,7 @@ def test_retry_wait_owns_its_signal_and_original_resume(
     failure = (
         "Spotify connection interrupted" if http_status is None else "Spotify HTTP 500"
     )
-    assert worker.wait(notice) is not cancelled
+    assert (await worker.wait(notice)) is not cancelled
     assert worker.job.result.retry_at is None
     assert _messages(worker)[0] == (
         "Waiting until 2026-09-24T00:00:00+00:00 before retry "
@@ -217,7 +217,7 @@ class RoutineProbe:
     arguments: tuple[object, ...] = ()
     options: dict[str, object] = field(default_factory=dict)
 
-    def __call__(
+    async def __call__(
         self, *arguments: object, **options: object
     ) -> analysis.LibrarySyncSummary:
         """Accept the exact routine call and return a fixed typed summary.
@@ -243,7 +243,7 @@ class RoutineProbe:
         ("mirrors", "albums", "refresh_live_library_resource_routine"),
     ],
 )
-def test_dispatch_uses_exact_routine_and_owned_callbacks(
+async def test_dispatch_uses_exact_routine_and_owned_callbacks(
     mode: analysis.AnalysisMode,
     resource: analysis.ResourceName | None,
     routine: str,
@@ -263,7 +263,7 @@ def test_dispatch_uses_exact_routine_and_owned_callbacks(
     worker.full_rebuild = True
     probe = RoutineProbe()
     monkeypatch.setattr(analysis, routine, probe)
-    assert worker.execute() == _summary()
+    assert (await worker.execute()) == _summary()
     assert probe.options["echo"] is worker
     assert probe.options["progress_callback"] is worker
     assert probe.options["cancel_check"] is worker.job.cancel_event
@@ -278,7 +278,9 @@ def test_dispatch_uses_exact_routine_and_owned_callbacks(
 
 
 @pytest.mark.parametrize("mode", ["sync", "mirrors"])
-def test_live_dispatch_requires_original_client(mode: analysis.AnalysisMode) -> None:
+async def test_live_dispatch_requires_original_client(
+    mode: analysis.AnalysisMode,
+) -> None:
     """Reject missing live clients with the original operation-specific message.
 
     Args:
@@ -288,7 +290,7 @@ def test_live_dispatch_requires_original_client(mode: analysis.AnalysisMode) -> 
     worker.mode = mode
     operation = "live analysis" if mode == "sync" else "live mirror refresh"
     with pytest.raises(analysis.LibrarySyncError) as error:
-        worker.execute()
+        (await worker.execute())
     assert str(error.value) == f"A Spotify client is required for {operation}."
 
 

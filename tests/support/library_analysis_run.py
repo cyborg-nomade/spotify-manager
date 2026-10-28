@@ -1,6 +1,7 @@
 """Freeze original export/live library runs, file bytes and restart effect prefixes."""
 
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -9,8 +10,8 @@ from tempfile import TemporaryDirectory
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import library_analysis as analysis_composition
 from spotify_manager.interfaces.operations import analyse_library as analysis_operations
 from spotify_manager.models.your_library import YourLibraryFile
@@ -105,7 +106,7 @@ class AnalysisObservations:
         self.trace.record("cancel", "read", value)
         return value
 
-    def wait(self, notice: legacy.RetryNotice) -> bool:
+    async def wait(self, notice: legacy.RetryNotice) -> bool:
         """Observe original retry notices and optional interactive cancellation.
 
         Args:
@@ -117,7 +118,7 @@ class AnalysisObservations:
         self.trace.record("wait", "choice", notice)
         return self.profile != "cancel-wait"
 
-    def sleep(self, delay: float) -> None:
+    async def sleep(self, delay: float) -> None:
         """Observe original noninteractive retry waits without wall-clock delay.
 
         Args:
@@ -266,15 +267,17 @@ def _watch_files(patch: pytest.MonkeyPatch, trace: Trace) -> None:
         trace.watch(patch, legacy, name, name)
 
 
-def _invoke(
+async def _invoke(
     edge: AnalysisObservations, kind: str, full: bool
 ) -> legacy.LibrarySyncSummary:
     paths = _paths(edge.root, kind)
     progress = None if edge.profile == "no-progress" else edge
     if kind == "export":
-        return legacy.analyse_library_async_routine(edge, progress, edge, paths)
+        return await legacy.async_analyse_library_async_routine(
+            edge, progress, edge, paths
+        )
     if kind == "sync":
-        return legacy.analyse_library_sync_routine(
+        return await legacy.async_analyse_library_sync_routine(
             cast(Spotify, edge.spotify),
             edge,
             progress,
@@ -286,7 +289,7 @@ def _invoke(
             0,
         )
     if kind == "mirrors":
-        return legacy.refresh_live_library_mirrors_routine(
+        return await legacy.async_refresh_live_library_mirrors_routine(
             cast(Spotify, edge.spotify),
             edge,
             progress,
@@ -298,7 +301,7 @@ def _invoke(
             0,
             full,
         )
-    return legacy.refresh_live_library_resource_routine(
+    return await legacy.async_refresh_live_library_resource_routine(
         cast(Spotify, edge.spotify),
         cast(legacy.ResourceName, kind),
         edge,
@@ -313,14 +316,14 @@ def _invoke(
     )
 
 
-def outcome(
+async def outcome(
     kind: str,
     profile: str = "normal",
     full: bool = False,
     fault: Fault | None = None,
     resume: bool = False,
     runner: Callable[
-        [AnalysisObservations, str, bool], legacy.LibrarySyncSummary
+        [AnalysisObservations, str, bool], Awaitable[legacy.LibrarySyncSummary]
     ] = _invoke,
 ) -> dict[str, Json]:
     """Observe original complete files, source authority and failure/restart traces.
@@ -341,21 +344,23 @@ def outcome(
         trace = Trace(root, fault)
         edge = AnalysisObservations(profile, root, trace, _spotify(profile))
         _prepare(_paths(root, kind), profile)
-        return _observe_runs(edge, kind, full, resume, runner)
+        return await _observe_runs(edge, kind, full, resume, runner)
 
 
-def _observe_runs(
+async def _observe_runs(
     edge: AnalysisObservations,
     kind: str,
     full: bool,
     resume: bool,
-    runner: Callable[[AnalysisObservations, str, bool], legacy.LibrarySyncSummary],
+    runner: Callable[
+        [AnalysisObservations, str, bool], Awaitable[legacy.LibrarySyncSummary]
+    ],
 ) -> dict[str, Json]:
     snapshots: list[Json] = []
     with pytest.MonkeyPatch.context() as patch:
         _watch(patch, edge)
         for _attempt in range(2 if resume else 1):
-            edge.trace.invoke(partial(runner, edge, kind, full))
+            await edge.trace.invoke_async(runner(edge, kind, full))
             snapshots.append(edge.snapshot())
     return {
         "trace": cast(list[Json], edge.trace.events),

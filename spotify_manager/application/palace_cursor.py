@@ -54,7 +54,7 @@ class PalaceCursor:
     access: CursorAccess
     mirror: SavedMirror
 
-    def update(self, position: int) -> AlphabeticalCursorUpdate:
+    async def update(self, position: int) -> AlphabeticalCursorUpdate:
         """Refresh live facts before validating and replacing the next manual position.
 
         Args:
@@ -67,7 +67,7 @@ class PalaceCursor:
             PalaceOfMemoryConfigError: Original position is outside the live mirror.
         """
         self.access.progress("Refreshing the saved-album mirror")
-        albums, refresh = self.mirror.run()
+        albums, refresh = await self.mirror.run()
         if not 1 <= position <= len(albums):
             raise PalaceOfMemoryConfigError(
                 f"Alphabetical cursor must be between 1 and {len(albums)}."
@@ -75,6 +75,6 @@ class PalaceCursor:
         next_index = position - 1
         previous = albums[(next_index - 1) % len(albums)]
         state = self.access.state_access()
-        state.load()
-        state.save(self.access.cursor_payload(next_index, previous))
+        await state.load()
+        await state.save(self.access.cursor_payload(next_index, previous))
         return AlphabeticalCursorUpdate(next_index, albums[next_index], refresh)

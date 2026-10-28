@@ -16,9 +16,10 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryReader
 from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.infrastructure.legacy.queue_fill import LegacyQueueFill
+from spotify_manager.infrastructure.sync_compat import legacy_result
 
 
-def annual_history(
+async def annual_history(
     workflow: HistoryRefresh,
     observe: Callable[..., ScrobbleHistorySummary],
     username: str | None,
@@ -38,17 +39,19 @@ def annual_history(
         Original complete refresh result.
     """
     reader = cast(LegacyHistoryReader, workflow.reader)
-    return observe(
-        reader.client,
-        expected_username=username,
-        full_rebuild=rebuild,
-        dry_run=preview,
-        progress_callback=cast(OptionalMessages, workflow.progress).output,
-        cancel_check=cast(HistoryCancellation, workflow.check_cancel).state,
+    return await legacy_result(
+        observe(
+            reader.client,
+            expected_username=username,
+            full_rebuild=rebuild,
+            dry_run=preview,
+            progress_callback=cast(OptionalMessages, workflow.progress).output,
+            cancel_check=cast(HistoryCancellation, workflow.check_cancel).state,
+        )
     )
 
 
-def annual_discoveries(
+async def annual_discoveries(
     workflow: AnnualDiscoveries,
     observe: Callable[..., object],
     active_year: int,
@@ -66,14 +69,16 @@ def annual_discoveries(
     options: dict[str, object] = {}
     if preview:
         options["dry_run"] = True
-    observe(
-        resources.sp,
-        resources.playlists["queue3"],
-        active_year=active_year,
-        state_service=resources.selected_service,
-        retry_call=resources.retry,
-        echo=resources.output,
-        **options,
+    await legacy_result(
+        observe(
+            resources.sp,
+            resources.playlists["queue3"],
+            active_year=active_year,
+            state_service=resources.selected_service,
+            retry_call=resources.retry,
+            echo=resources.output,
+            **options,
+        )
     )
 
 
@@ -81,7 +86,7 @@ def _release_progress(callback: Callable[[int, int, str], None], message: str) -
     callback(0, 0, message)
 
 
-def release_history(
+async def release_history(
     workflow: HistoryRefresh,
     observe: Callable[..., ScrobbleHistorySummary],
     username: str | None,
@@ -105,23 +110,25 @@ def release_history(
     storage = cast(LegacyHistoryStorage, workflow.storage)
     reader = cast(LegacyHistoryReader, workflow.reader)
     progress = cast(OptionalMessages, workflow.progress).output
-    return observe(
-        reader.client,
-        expected_username=username,
-        export_path=storage.export_path,
-        legacy_delta_path=storage.legacy_path,
-        backup_dir=storage.backup_dir,
-        log_path=storage.log_path,
-        dry_run=preview,
-        now=stamp,
-        progress_callback=progress,
+    return await legacy_result(
+        observe(
+            reader.client,
+            expected_username=username,
+            export_path=storage.export_path,
+            legacy_delta_path=storage.legacy_path,
+            backup_dir=storage.backup_dir,
+            log_path=storage.log_path,
+            dry_run=preview,
+            now=stamp,
+            progress_callback=progress,
+        )
     )
 
 
 something_old_history = release_history
 
 
-def queue_history(
+async def queue_history(
     resources: LegacyQueueFill,
     observe: Callable[..., tuple[list[Scrobble], int]],
     preview: bool,
@@ -143,17 +150,21 @@ def queue_history(
         if resources.callbacks.progress_callback is not None
         else None
     )
-    return observe(
-        resources.lastfm,
-        export_path=resources.resources.export_path,
-        recent_path=resources.resources.recent_path,
-        dry_run=preview,
-        now=now,
-        progress_callback=progress,
+    return await legacy_result(
+        observe(
+            resources.lastfm,
+            export_path=resources.resources.export_path,
+            recent_path=resources.resources.recent_path,
+            dry_run=preview,
+            now=now,
+            progress_callback=progress,
+        )
     )
 
 
-def hydrate_history(storage: LegacyHistoryStorage, service: LibraryDataService) -> None:
+async def hydrate_history(
+    storage: LegacyHistoryStorage, service: LibraryDataService
+) -> None:
     """Inject the original observed managed service at the storage port.
 
     Args:

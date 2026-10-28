@@ -7,10 +7,11 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_resolution import (
     RecommendationResolution,
@@ -196,16 +197,26 @@ class RunSteps:
 
 
 def _install(steps: RunSteps, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(LegacyRecommendationRun, "refresh", steps.history)
-    monkeypatch.setattr(LegacyRecommendationRun, "read", steps.read)
+    monkeypatch.setattr(
+        LegacyRecommendationRun, "refresh", AsyncMock(side_effect=steps.history)
+    )
+    monkeypatch.setattr(
+        LegacyRecommendationRun, "read", AsyncMock(side_effect=steps.read)
+    )
     monkeypatch.setattr(RecommendationSeeds, "run", steps.seeds)
-    monkeypatch.setattr(CandidateGathering, "run", steps.gather)
-    monkeypatch.setattr(RecommendationResolution, "run", steps.resolve)
-    monkeypatch.setattr(LegacyRecommendationRun, "append", steps.append)
-    monkeypatch.setattr(LegacyRecommendationRun, "audit", steps.audit)
+    monkeypatch.setattr(CandidateGathering, "run", AsyncMock(side_effect=steps.gather))
+    monkeypatch.setattr(
+        RecommendationResolution, "run", AsyncMock(side_effect=steps.resolve)
+    )
+    monkeypatch.setattr(
+        LegacyRecommendationRun, "append", AsyncMock(side_effect=steps.append)
+    )
+    monkeypatch.setattr(
+        LegacyRecommendationRun, "audit", AsyncMock(side_effect=steps.audit)
+    )
 
 
-def _run(
+async def _run(
     count: int | None = 1,
     maximum: int | None = None,
     dry_run: bool = False,
@@ -227,7 +238,7 @@ def _run(
 @pytest.mark.parametrize(
     "failure", ["history", "playlist", "seeds", "gather", "resolve", "append", "audit"]
 )
-def test_failure_stops_after_original_accepted_boundary(
+async def test_failure_stops_after_original_accepted_boundary(
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
 ) -> None:
@@ -240,14 +251,14 @@ def test_failure_stops_after_original_accepted_boundary(
     steps = RunSteps(failure=failure)
     _install(steps, monkeypatch)
     with pytest.raises(OSError, match=failure):
-        _run()
+        (await _run())
     order = ["history", "playlist", "seeds", "gather", "resolve", "append", "audit"]
     assert steps.events == order[: order.index(failure) + 1]
     assert len(steps.summaries) == (1 if failure == "audit" else 0)
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_preview_retains_history_gathering_resolution_and_audit(
+async def test_preview_retains_history_gathering_resolution_and_audit(
     monkeypatch: pytest.MonkeyPatch,
     dry_run: bool,
 ) -> None:
@@ -260,7 +271,7 @@ def test_preview_retains_history_gathering_resolution_and_audit(
     steps = RunSteps()
     _install(steps, monkeypatch)
     messages: list[str] = []
-    summary = _run(dry_run=dry_run, progress=MessageList(messages))
+    summary = await _run(dry_run=dry_run, progress=MessageList(messages))
     assert steps.events == ["history", "playlist", "seeds", "gather", "resolve"] + (
         [] if dry_run else ["append"]
     ) + ["audit"]
@@ -282,7 +293,7 @@ def test_preview_retains_history_gathering_resolution_and_audit(
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_full_destination_still_refreshes_history_and_audits(
+async def test_full_destination_still_refreshes_history_and_audits(
     monkeypatch: pytest.MonkeyPatch,
     dry_run: bool,
 ) -> None:
@@ -294,7 +305,7 @@ def test_full_destination_still_refreshes_history_and_audits(
     """
     steps = RunSteps()
     _install(steps, monkeypatch)
-    summary = _run(count=None, maximum=2, dry_run=dry_run)
+    summary = await _run(count=None, maximum=2, dry_run=dry_run)
     assert steps.events == ["history", "playlist", "audit"]
     assert summary.requested_count == summary.seed_count == summary.candidate_count == 0
     assert summary.seeds == ()
@@ -303,7 +314,7 @@ def test_full_destination_still_refreshes_history_and_audits(
     assert summary.live_scrobbles_added == 3
 
 
-def test_omitted_count_and_maximum_retain_default_request(
+async def test_omitted_count_and_maximum_retain_default_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Explicitly absent request settings retain the existing twenty-track fallback.
@@ -313,6 +324,6 @@ def test_omitted_count_and_maximum_retain_default_request(
     """
     steps = RunSteps()
     _install(steps, monkeypatch)
-    summary = _run(count=None)
+    summary = await _run(count=None)
     assert steps.requested == [20]
     assert summary.requested_count == 20

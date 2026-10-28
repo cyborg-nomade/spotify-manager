@@ -15,8 +15,10 @@ from spotify_manager.core.library_data import LibraryDataError
 from spotify_manager.core.library_data.models import validate_artifact_name
 from spotify_manager.core.library_data.service import ArtifactStatus
 from spotify_manager.core.library_data.service import LibraryDataService
+from spotify_manager.infrastructure.library_administration import LibraryAdministration
 from spotify_manager.interfaces.cli.formatting import format_file_size
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import terminal_confirm
 
 
 @dataclass(kw_only=True)
@@ -64,11 +66,11 @@ class LibraryDataCLI:
         """
         return format_file_size(size_bytes)
 
-    def _run_library_data_status(self) -> None:
+    async def _run_library_data_status(self) -> None:
         """Show durable versions and local synchronization for canonical files."""
         console = self.create_console()
         try:
-            statuses = self.runtime.get_library_data_service().statuses()
+            statuses = await (await self._administration()).statuses()
         except LibraryDataError as exc:
             self._report_library_data_status_library_data_failure(exc, console)
         table = self.create_table(title="Shared library data")
@@ -89,7 +91,7 @@ class LibraryDataCLI:
             )
         console.print(table)
 
-    def _run_library_data_pull(
+    async def _run_library_data_pull(
         self,
         artifact: Annotated[
             list[str] | None,
@@ -106,9 +108,9 @@ class LibraryDataCLI:
             artifact: Artifact supplied by the caller.
         """
         console = self.create_console()
-        service = self.runtime.get_library_data_service()
+        service = await self.runtime.get_library_data_service()
         try:
-            statuses = self._hydrate_artifacts(
+            statuses = await self._hydrate_artifacts(
                 service, self._selected_artifacts(artifact or ())
             )
         except LibraryDataError as exc:
@@ -119,7 +121,7 @@ class LibraryDataCLI:
             )
             console.print(f"{item.filename}: {state}")
 
-    def _run_library_data_push(
+    async def _run_library_data_push(
         self,
         artifact: Annotated[
             list[str] | None,
@@ -139,17 +141,17 @@ class LibraryDataCLI:
         """
         names = self._selected_artifacts(artifact or ())
         if not yes and (
-            not typer.confirm(
+            not await terminal_confirm(
                 "Publish local canonical files for " + ", ".join(names) + "?"
             )
         ):
             typer.echo("Library data was not changed.")
             return
         console = self.create_console()
-        service = self.runtime.get_library_data_service()
+        service = await self._administration()
         try:
             for name in names:
-                saved = service.publish(name, source="manual CLI publication")
+                saved = await service.publish(name)
                 console.print(f"Published {name} at revision {saved.revision}.")
         except LibraryDataError as exc:
             self._report_library_data_push_library_data_failure(exc, console)
@@ -177,10 +179,14 @@ class LibraryDataCLI:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
 
-    def _hydrate_artifacts(
+    async def _hydrate_artifacts(
         self, service: LibraryDataService, names: tuple[ArtifactName, ...]
     ) -> list[ArtifactStatus]:
         statuses = []
+        access = LibraryAdministration(service)
         for name in names:
-            statuses.append(service.hydrate(name))
+            statuses.append(await access.hydrate(name))
         return statuses
+
+    async def _administration(self) -> LibraryAdministration:
+        return LibraryAdministration(await self.runtime.get_library_data_service())

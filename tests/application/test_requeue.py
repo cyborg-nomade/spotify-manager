@@ -60,7 +60,7 @@ class MemoryRequeue:
         self.failure = None
         raise RuntimeError(f"{operation} interrupted")
 
-    def sources(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def sources(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read current markers and optionally replace the second observation.
 
         Args:
@@ -79,7 +79,7 @@ class MemoryRequeue:
             return self.changed_head
         return tuple(self.playlist)
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Return the scripted eligible releases after recording the request.
 
         Args:
@@ -95,7 +95,9 @@ class MemoryRequeue:
         self._fault("catalog")
         return self.releases
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Return successor tracks after recording their catalog boundary.
 
         Args:
@@ -111,7 +113,7 @@ class MemoryRequeue:
         self._fault("tracks")
         return self.tracks
 
-    def append(self, playlist_id: str, track: NamedTrack) -> None:
+    async def append(self, playlist_id: str, track: NamedTrack) -> None:
         """Append a replacement, optionally losing the response after acceptance.
 
         Args:
@@ -126,7 +128,7 @@ class MemoryRequeue:
         self.playlist.append(TARGET)
         self._fault("append", True)
 
-    def remove(self, playlist_id: str, track: NamedTrack) -> None:
+    async def remove(self, playlist_id: str, track: NamedTrack) -> None:
         """Remove matching markers, retaining all other playlist positions.
 
         Args:
@@ -157,7 +159,7 @@ class MemoryRequeue:
         """
         self.events.append(("progress", message))
 
-    def write(self, summary: RequeueForADreamSummary) -> None:
+    async def write(self, summary: RequeueForADreamSummary) -> None:
         """Persist a summary with optional before/after acceptance failure.
 
         Args:
@@ -208,14 +210,14 @@ class MemoryRequeue:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_requeue_keeps_full_stage_and_effect_order(dry_run: bool) -> None:
+async def test_requeue_keeps_full_stage_and_effect_order(dry_run: bool) -> None:
     """Retain read, decision, recheck, mutation, timestamp, and audit ordering.
 
     Args:
         dry_run: Whether to suppress the final recheck and all writes.
     """
     memory = MemoryRequeue([SOURCE])
-    summary = flush_requeue(memory.dependencies(), "p", dry_run=dry_run)
+    summary = await flush_requeue(memory.dependencies(), "p", dry_run=dry_run)
     expected = ["progress", "read", "progress", "catalog", "progress", "tracks"]
     if not dry_run:
         expected += ["progress", "read", "append", "echo", "remove", "echo"]
@@ -246,7 +248,7 @@ def test_requeue_keeps_full_stage_and_effect_order(dry_run: bool) -> None:
     ],
 )
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_noop_skip_and_final_release_contracts(
+async def test_noop_skip_and_final_release_contracts(
     playlist: list[PlaylistTrack],
     releases: tuple[DiscographyRelease, ...],
     tracks: tuple[ReleaseTrack, ...],
@@ -265,7 +267,9 @@ def test_noop_skip_and_final_release_contracts(
         dry_run: Whether this is a preview.
     """
     memory = MemoryRequeue(list(playlist), releases, tracks)
-    summary = flush_requeue(memory.dependencies(progress=False), "p", dry_run=dry_run)
+    summary = await flush_requeue(
+        memory.dependencies(progress=False), "p", dry_run=dry_run
+    )
     assert (summary.action, summary.reason) == (action, reason)
     assert len(memory.audits) == int(not dry_run and action != "empty")
     assert memory.reads == (2 if action == "drop" and not dry_run else 1)
@@ -273,7 +277,7 @@ def test_noop_skip_and_final_release_contracts(
 
 
 @pytest.mark.parametrize("head", [(), (TARGET,)])
-def test_changed_or_missing_head_prevents_all_writes(
+async def test_changed_or_missing_head_prevents_all_writes(
     head: tuple[PlaylistTrack, ...],
 ) -> None:
     """Stop before any effect when the final read no longer has the source head.
@@ -283,16 +287,16 @@ def test_changed_or_missing_head_prevents_all_writes(
     """
     memory = MemoryRequeue([SOURCE], changed_head=head)
     with pytest.raises(RequeueForADreamChangedError):
-        flush_requeue(memory.dependencies(), "p")
+        (await flush_requeue(memory.dependencies(), "p"))
     assert memory.playlist == [SOURCE]
     assert not memory.audits
     assert not any(event[0] in {"append", "remove", "clock"} for event in memory.events)
 
 
-def test_existing_target_is_not_duplicated() -> None:
+async def test_existing_target_is_not_duplicated() -> None:
     """Use the original playlist duplicate observation before removing the source."""
     memory = MemoryRequeue([SOURCE, TARGET])
-    summary = flush_requeue(memory.dependencies(), "p")
+    summary = await flush_requeue(memory.dependencies(), "p")
     assert summary.target_already_present
     assert summary.playlist_length_after == 1
     assert memory.playlist == [TARGET]
@@ -317,7 +321,7 @@ def test_existing_target_is_not_duplicated() -> None:
         ("audit", True),
     ],
 )
-def test_partial_failure_and_restart_keep_existing_semantics(
+async def test_partial_failure_and_restart_keep_existing_semantics(
     boundary: str, accepted: bool
 ) -> None:
     """Resume from accepted remote effects without inventing durable job state.
@@ -328,9 +332,9 @@ def test_partial_failure_and_restart_keep_existing_semantics(
     """
     memory = MemoryRequeue([SOURCE], failure=boundary, after_acceptance=accepted)
     with pytest.raises(RuntimeError, match=f"{boundary} interrupted"):
-        flush_requeue(memory.dependencies(), "p")
+        (await flush_requeue(memory.dependencies(), "p"))
     after_failure = list(memory.playlist)
-    result = flush_requeue(memory.dependencies(), "p")
+    result = await flush_requeue(memory.dependencies(), "p")
     if after_failure == [TARGET]:
         assert result.action == "drop"
         assert memory.playlist == []

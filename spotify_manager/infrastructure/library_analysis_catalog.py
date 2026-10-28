@@ -1,22 +1,24 @@
-"""Synchronous library observations and tolerant transport decoding."""
+"""Awaited library observations and tolerant transport decoding."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from typing import cast
 
-from spotipy import Spotify
-
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_values import LibraryModel
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.infrastructure import library_analysis_files as files
 from spotify_manager.infrastructure.library_models import album_from_saved_item
+from spotify_manager.infrastructure.spotify_compat import LegacyOffsetReader
+from spotify_manager.infrastructure.spotify_compat import LegacySpotifyClient
 
 
 @dataclass(frozen=True)
 class SpotifyAnalysisCatalog:
-    """Own caller-supplied synchronous resources and original retry configuration.
+    """Own caller-supplied resources and original retry configuration.
 
     Args:
         spotify: Original caller-owned client or none for offline preparation.
@@ -36,7 +38,7 @@ class SpotifyAnalysisCatalog:
         """
         return SpotifyOffsetPages(cast(Spotify, self.spotify), resource, initial)
 
-    def artists(self, after: str | None) -> object:
+    async def artists(self, after: str | None) -> object:
         """Read the original cursor scan with immediate endpoint fallback.
 
         Args:
@@ -45,11 +47,13 @@ class SpotifyAnalysisCatalog:
         Returns:
             Original unvalidated cursor page.
         """
-        from spotify_manager.routines.analyse_library import fetch_followed_artists_page
+        from spotify_manager.routines.analyse_library import (
+            async_fetch_followed_artists_page as fetch_followed_artists_page,
+        )
 
-        return fetch_followed_artists_page(cast(Spotify, self.spotify), after)
+        return await fetch_followed_artists_page(cast(Spotify, self.spotify), after)
 
-    def reconcile_artists(self, after: str | None) -> object:
+    async def reconcile_artists(self, after: str | None) -> object:
         """Read the original reconciliation cursor page.
 
         Args:
@@ -60,9 +64,9 @@ class SpotifyAnalysisCatalog:
         """
         from spotify_manager.routines.analyse_library import _reconcile_artist_page
 
-        return _reconcile_artist_page(cast(Spotify, self.spotify), after)
+        return await _reconcile_artist_page(cast(Spotify, self.spotify), after)
 
-    def following(self, identities: list[str]) -> object:
+    async def following(self, identities: list[str]) -> object:
         """Read original complete live follow verification facts.
 
         Args:
@@ -73,7 +77,7 @@ class SpotifyAnalysisCatalog:
         """
         from spotify_manager.routines.analyse_library import _following_artists
 
-        return _following_artists(cast(Spotify, self.spotify), identities)
+        return await _following_artists(cast(Spotify, self.spotify), identities)
 
     def convert(self, row: object, resource: ResourceName) -> LibraryModel | None:
         """Decode a saved resource row without configurable parsing callbacks.
@@ -128,20 +132,29 @@ class SpotifyOffsetPages:
     spotify: Spotify
     resource: ResourceName
     initial: bool
-    _method: Callable[..., object] = field(init=False, repr=False)
+    _method: Callable[..., Awaitable[object]] | None = field(
+        default=None, init=False, repr=False
+    )
+    _legacy_reader: LegacyOffsetReader | None = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         """Capture the transport handle before the first request."""
         from spotify_manager.routines.analyse_library import _initial_offset_reader
         from spotify_manager.routines.analyse_library import _reconcile_offset_reader
 
+        if isinstance(self.spotify, LegacySpotifyClient):
+            endpoint = LegacyOffsetReader(self.spotify.source, self.resource)
+            object.__setattr__(self, "_legacy_reader", endpoint)
+            return
         if self.initial:
             method = _initial_offset_reader(self.spotify, self.resource)
         else:
             method = _reconcile_offset_reader(self.spotify, self.resource)
         object.__setattr__(self, "_method", method)
 
-    def read(self, *, limit: int, offset: int) -> object:
+    async def read(self, *, limit: int, offset: int) -> object:
         """Read the selected SDK endpoint.
 
         Args:
@@ -151,4 +164,7 @@ class SpotifyOffsetPages:
         Returns:
             Unvalidated SDK response.
         """
-        return self._method(limit=limit, offset=offset)
+        if self._legacy_reader is not None:
+            return await self._legacy_reader.read(limit=limit, offset=offset)
+        method = cast(Callable[..., Awaitable[object]], self._method)
+        return await method(limit=limit, offset=offset)

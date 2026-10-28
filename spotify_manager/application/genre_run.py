@@ -12,7 +12,7 @@ from spotify_manager.domain.genres import destination_tracks
 class GenreEffects(Protocol):
     """Source, destination, accepted writes and completion boundaries."""
 
-    def source(self, slug: str, name: str) -> GenrePlaylistSource:
+    async def source(self, slug: str, name: str) -> GenrePlaylistSource:
         """Discover validated source metadata and original ordered markers.
 
         Args:
@@ -23,7 +23,7 @@ class GenreEffects(Protocol):
             Original source observations.
         """
 
-    def destination(self, playlist_id: str) -> frozenset[str]:
+    async def destination(self, playlist_id: str) -> frozenset[str]:
         """Observe destination membership after source discovery.
 
         Args:
@@ -33,14 +33,14 @@ class GenreEffects(Protocol):
             Live destination track identities.
         """
 
-    def follow(self, source: GenrePlaylistSource) -> None:
+    async def follow(self, source: GenrePlaylistSource) -> None:
         """Save the original source playlist even when no track append is needed.
 
         Args:
             source: Original discovered source.
         """
 
-    def append(self, destination: str, missing: tuple[str, ...]) -> None:
+    async def append(self, destination: str, missing: tuple[str, ...]) -> None:
         """Accept the original ordered missing-marker append.
 
         Args:
@@ -55,7 +55,7 @@ class GenreEffects(Protocol):
             Original current UTC time.
         """
 
-    def audit(self, outcome: GenreOutcome) -> None:
+    async def audit(self, outcome: GenreOutcome) -> None:
         """Present and audit the completed original outcome.
 
         Args:
@@ -73,7 +73,7 @@ class GenreReveal:
 
     effects: GenreEffects
 
-    def run(self, slug: str, name: str, destination: str) -> GenreOutcome:
+    async def run(self, slug: str, name: str, destination: str) -> GenreOutcome:
         """Save a genre playlist and copy only its missing source markers.
 
         Args:
@@ -84,12 +84,12 @@ class GenreReveal:
         Returns:
             Completed original outcome after presentation and accepted audit.
         """
-        source = self.effects.source(slug, name)
-        existing = self.effects.destination(destination)
+        source = await self.effects.source(slug, name)
+        existing = await self.effects.destination(destination)
         missing, present = destination_tracks(source.track_uris, existing)
-        self.effects.follow(source)
+        await self.effects.follow(source)
         if missing:
-            self.effects.append(destination, missing)
+            await self.effects.append(destination, missing)
         result = GenreOutcome(
             source.preview,
             destination,
@@ -98,5 +98,5 @@ class GenreReveal:
             present,
             self.effects.clock(),
         )
-        self.effects.audit(result)
+        await self.effects.audit(result)
         return result

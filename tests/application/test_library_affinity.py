@@ -22,7 +22,7 @@ class Membership:
     liked: set[str] = field(default_factory=set)
     calls: list[tuple[str, list[str]]] = field(default_factory=list)
 
-    def albums(self, ids: list[str]) -> tuple[bool, ...]:
+    async def albums(self, ids: list[str]) -> tuple[bool, ...]:
         """Read saved-album membership.
 
         Args:
@@ -34,7 +34,7 @@ class Membership:
         self.calls.append(("albums", ids))
         return tuple(spotify_id in self.saved for spotify_id in ids)
 
-    def tracks(self, ids: list[str]) -> tuple[bool, ...]:
+    async def tracks(self, ids: list[str]) -> tuple[bool, ...]:
         """Read liked-track membership.
 
         Args:
@@ -48,7 +48,7 @@ class Membership:
 
 
 @pytest.mark.parametrize("album_count", [3, 4, 10, 11])
-def test_album_threshold_skips_all_track_requests(album_count: int) -> None:
+async def test_album_threshold_skips_all_track_requests(album_count: int) -> None:
     """Count the entire accepted batch and skip remaining IDs once albums suffice.
 
     Args:
@@ -56,13 +56,15 @@ def test_album_threshold_skips_all_track_requests(album_count: int) -> None:
     """
     ids = tuple(str(index) for index in range(album_count))
     membership = Membership(saved=set(ids))
-    result = library_affinity(membership, ids, ("track",))
+    result = await library_affinity(membership, ids, ("track",))
     assert result == (None, min(album_count, 10), True)
     assert membership.calls == [("albums", list(ids[:10]))]
 
 
 @pytest.mark.parametrize("liked_count", [0, 17, 18, 20, 21])
-def test_track_threshold_runs_after_unsatisfied_album_reads(liked_count: int) -> None:
+async def test_track_threshold_runs_after_unsatisfied_album_reads(
+    liked_count: int,
+) -> None:
     """Retain whole-batch counts and the exact 18-like qualification boundary.
 
     Args:
@@ -70,7 +72,7 @@ def test_track_threshold_runs_after_unsatisfied_album_reads(liked_count: int) ->
     """
     tracks = tuple(str(index) for index in range(liked_count))
     membership = Membership(saved={"album"}, liked=set(tracks))
-    result = library_affinity(membership, ("album",), tracks)
+    result = await library_affinity(membership, ("album",), tracks)
     assert result == (min(liked_count, 20), 1, liked_count >= 18)
     expected = [("albums", ["album"])]
     for offset in range(0, min(liked_count, 20), 10):
@@ -78,14 +80,18 @@ def test_track_threshold_runs_after_unsatisfied_album_reads(liked_count: int) ->
     assert membership.calls == expected
 
 
-def test_empty_inventories_never_request_membership() -> None:
+async def test_empty_inventories_never_request_membership() -> None:
     """No candidates means no reads and no established affinity."""
     membership = Membership()
-    assert library_affinity(membership, (), ()) == (0, 0, False)
+    assert (await library_affinity(membership, (), ())) == (0, 0, False)
     assert membership.calls == []
 
 
-def test_duplicate_ids_still_count_when_supplied_by_the_boundary() -> None:
+async def test_duplicate_ids_still_count_when_supplied_by_the_boundary() -> None:
     """This policy preserves input observations; mirror deduplication is separate."""
     membership = Membership(saved={"same"})
-    assert library_affinity(membership, ("same", "same", "same"), ()) == (None, 3, True)
+    assert (await library_affinity(membership, ("same", "same", "same"), ())) == (
+        None,
+        3,
+        True,
+    )

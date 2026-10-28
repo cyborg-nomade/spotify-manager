@@ -52,7 +52,7 @@ class Effects:
         if self.failure == event:
             raise GenreBoundaryError(event)
 
-    def source(self, slug: str, name: str) -> GenrePlaylistSource:
+    async def source(self, slug: str, name: str) -> GenrePlaylistSource:
         """Observe validated source metadata before destination reads.
 
         Args:
@@ -66,7 +66,7 @@ class Effects:
         self._event("source")
         return SOURCE
 
-    def destination(self, playlist_id: str) -> frozenset[str]:
+    async def destination(self, playlist_id: str) -> frozenset[str]:
         """Observe original live membership.
 
         Args:
@@ -79,7 +79,7 @@ class Effects:
         self._event("destination")
         return self.existing
 
-    def follow(self, source: GenrePlaylistSource) -> None:
+    async def follow(self, source: GenrePlaylistSource) -> None:
         """Accept the original unconditional source-playlist save.
 
         Args:
@@ -90,7 +90,7 @@ class Effects:
         )
         self._event("follow")
 
-    def append(self, destination: str, missing: tuple[str, ...]) -> None:
+    async def append(self, destination: str, missing: tuple[str, ...]) -> None:
         """Accept the original ordered missing-marker append.
 
         Args:
@@ -111,7 +111,7 @@ class Effects:
         self._event("clock")
         return STAMP
 
-    def audit(self, outcome: GenreOutcome) -> None:
+    async def audit(self, outcome: GenreOutcome) -> None:
         """Accept the original completion audit before a possible later failure.
 
         Args:
@@ -124,7 +124,7 @@ class Effects:
 @pytest.mark.parametrize(
     "existing", [frozenset(), frozenset({"two"}), frozenset({"one", "two", "three"})]
 )
-def test_independent_genre_matches_original_completion_order(
+async def test_independent_genre_matches_original_completion_order(
     existing: frozenset[str],
 ) -> None:
     """Retain original ordered effects and unconditional source save.
@@ -133,7 +133,7 @@ def test_independent_genre_matches_original_completion_order(
         existing: Original destination membership.
     """
     effects = Effects(existing)
-    result = GenreReveal(effects).run("genre", "Genre", "destination")
+    result = await GenreReveal(effects).run("genre", "Genre", "destination")
     missing = tuple(
         uri for uri in SOURCE.track_uris if uri.rsplit(":", 1)[-1] not in existing
     )
@@ -159,7 +159,7 @@ def test_independent_genre_matches_original_completion_order(
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_independent_genre_matches_original_accepted_failure_prefix(
+async def test_independent_genre_matches_original_accepted_failure_prefix(
     failure: str,
 ) -> None:
     """Retain accepted writes when a subsequent stage fails.
@@ -169,7 +169,7 @@ def test_independent_genre_matches_original_accepted_failure_prefix(
     """
     effects = Effects(failure=failure)
     with pytest.raises(GenreBoundaryError, match=failure):
-        GenreReveal(effects).run("genre", "Genre", "destination")
+        (await GenreReveal(effects).run("genre", "Genre", "destination"))
     index = EVENTS.index(failure)
     assert effects.events == EVENTS[: index + 1]
     assert len(effects.writes) == min(max(index - 1, 0), 2)

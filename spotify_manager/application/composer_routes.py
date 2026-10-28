@@ -17,7 +17,7 @@ type ChoiceCandidate = RankedRelease | OwnedPlaylist
 class ReleaseChoiceReader(Protocol):
     """Read a release or composer-playlist decision from its interaction owner."""
 
-    def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
+    async def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
         """Read the original operator selection.
 
         Args:
@@ -30,7 +30,7 @@ class ReleaseChoiceReader(Protocol):
         ...
 
 
-def resolve_composer_route(
+async def resolve_composer_route(
     state: dict[str, object],
     artist_id: str,
     artist_name: str,
@@ -71,7 +71,7 @@ def resolve_composer_route(
         return existing, None
     if not candidates:
         return None, None
-    selected = _select(artist_name, candidates, choose)
+    selected = await _select(artist_name, candidates, choose)
     if isinstance(selected, str):
         return None, selected
     routes[artist_id] = {
@@ -96,12 +96,12 @@ def _existing_route(
     return selected
 
 
-def _select(
+async def _select(
     artist_name: str, candidates: tuple[OwnedPlaylist, ...], choose: ReleaseChoiceReader
 ) -> OwnedPlaylist | str:
     if len(candidates) == 1:
         return candidates[0]
-    choice = choose.choose(artist_name, candidates)
+    choice = await choose.choose(artist_name, candidates)
     if choice in {"__skip__", "__quit__"}:
         return choice
     selected = _matching(candidates, choice)

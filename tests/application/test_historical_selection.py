@@ -67,7 +67,7 @@ class SelectionMemory:
         if self.failure == name:
             raise OSError(name)
 
-    def history(self) -> HistoryByDate:
+    async def history(self) -> HistoryByDate:
         """Observe local history.
 
         Returns:
@@ -106,7 +106,7 @@ class SelectionMemory:
         """
         return eligible_dates(buckets, FIRST_DATE, cutoff)
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Observe one random index request.
 
         Args:
@@ -120,7 +120,7 @@ class SelectionMemory:
         self.requests.append((population, count))
         return RandomIndexSet(self.indexes, STAMP)
 
-    def timestamp(self) -> datetime:
+    async def timestamp(self) -> datetime:
         """Observe one random timestamp request.
 
         Returns:
@@ -154,20 +154,20 @@ class SelectionMemory:
         return select_scrobble(day, index, plays, stamp, page_size)
 
 
-def _blast(memory: SelectionMemory, count: int) -> BlastFromPastBatch:
+async def _blast(memory: SelectionMemory, count: int) -> BlastFromPastBatch:
     with patch.object(selection_application, "select_scrobble", memory.select):
-        return BlastSelection(memory, MessageList(memory.messages)).run(count)
+        return await BlastSelection(memory, MessageList(memory.messages)).run(count)
 
 
-def _radio(memory: SelectionMemory) -> DailyMindRadioBatch:
+async def _radio(memory: SelectionMemory) -> DailyMindRadioBatch:
     with patch.object(selection_application, "select_scrobble", memory.select):
-        return AnniversarySelection(memory, MessageList(memory.messages)).run()
+        return await AnniversarySelection(memory, MessageList(memory.messages)).run()
 
 
-def test_blast_keeps_random_index_order_and_shared_timestamp() -> None:
+async def test_blast_keeps_random_index_order_and_shared_timestamp() -> None:
     """Retain source index order and read one shared random timestamp."""
     memory = SelectionMemory()
-    result = _blast(memory, 2)
+    result = await _blast(memory, 2)
     assert memory.events == ["history", "cutoff", "random", "select", "select"]
     assert memory.requests == [(2, 2)] and memory.date_indexes == [1, 0]
     assert [selection.scrobble.track for selection in result.selections] == [
@@ -184,7 +184,7 @@ def test_blast_keeps_random_index_order_and_shared_timestamp() -> None:
 
 
 @pytest.mark.parametrize("count", [0, -1])
-def test_blast_invalid_count_precedes_history_reads(count: int) -> None:
+async def test_blast_invalid_count_precedes_history_reads(count: int) -> None:
     """Reject invalid counts before loading or presenting history.
 
     Args:
@@ -192,12 +192,12 @@ def test_blast_invalid_count_precedes_history_reads(count: int) -> None:
     """
     memory = SelectionMemory()
     with pytest.raises(BlastFromPastError, match="at least 1"):
-        _blast(memory, count)
+        (await _blast(memory, count))
     assert not memory.events and not memory.messages
 
 
 @pytest.mark.parametrize("empty", [False, True])
-def test_blast_population_validation_precedes_randomness(empty: bool) -> None:
+async def test_blast_population_validation_precedes_randomness(empty: bool) -> None:
     """Reject empty or insufficient populations after reading the cutoff.
 
     Args:
@@ -206,14 +206,14 @@ def test_blast_population_validation_precedes_randomness(empty: bool) -> None:
     memory = SelectionMemory(buckets={} if empty else _history())
     expected = "No scrobbled dates.*2021-12-31" if empty else "Count 3 exceeds the 2"
     with pytest.raises(BlastFromPastError, match=expected):
-        _blast(memory, 3)
+        (await _blast(memory, 3))
     assert memory.events == ["history", "cutoff"]
 
 
 @pytest.mark.parametrize(
     "indexes,expected", [((0, 0), [0, 0]), ((-1,), [-1]), ((), [])]
 )
-def test_blast_retains_original_random_boundary_tolerance(
+async def test_blast_retains_original_random_boundary_tolerance(
     indexes: tuple[int, ...], expected: list[int]
 ) -> None:
     """Retain duplicate, negative and empty indexes from an injected random source.
@@ -223,24 +223,24 @@ def test_blast_retains_original_random_boundary_tolerance(
         expected: Track-selection indexes without extra validation.
     """
     memory = SelectionMemory(indexes=indexes)
-    result = _blast(memory, 1)
+    result = await _blast(memory, 1)
     assert memory.date_indexes == expected
     assert len(result.selections) == len(indexes)
 
 
-def test_blast_out_of_range_index_retains_constructor_error() -> None:
+async def test_blast_out_of_range_index_retains_constructor_error() -> None:
     """An out-of-range injected index raises after the original progress messages."""
     memory = SelectionMemory(indexes=(2,))
     with pytest.raises(IndexError):
-        _blast(memory, 1)
+        (await _blast(memory, 1))
     assert memory.events == ["history", "cutoff", "random"]
     assert memory.messages[-1] == "Applying Last.fm pagination rules"
 
 
-def test_radio_missing_dates_keep_unfiltered_indexes() -> None:
+async def test_radio_missing_dates_keep_unfiltered_indexes() -> None:
     """Missing anniversary buckets retain their positions in subsequent selections."""
     memory = SelectionMemory()
-    result = _radio(memory)
+    result = await _radio(memory)
     assert memory.events == ["history", "today", "random", "select", "select"]
     assert memory.date_indexes == [0, 2]
     assert result.generated_at is STAMP
@@ -253,26 +253,26 @@ def test_radio_missing_dates_keep_unfiltered_indexes() -> None:
     assert result.missing_dates == (date(2020, 7, 22), date(2010, 7, 22))
 
 
-def test_radio_empty_buckets_skip_randomness() -> None:
+async def test_radio_empty_buckets_skip_randomness() -> None:
     """A known date with an empty bucket is missing, not a selectable population."""
     memory = SelectionMemory(buckets={date(2025, 7, 22): []})
-    result = _radio(memory)
+    result = await _radio(memory)
     assert memory.events == ["history", "today"]
     assert result.target_dates == result.missing_dates == (date(2025, 7, 22),)
     assert result.generated_at is None and not result.selections
 
 
-def test_radio_empty_export_fails_before_clock_access() -> None:
+async def test_radio_empty_export_fails_before_clock_access() -> None:
     """Reject history without date buckets before resolving the effective date."""
     memory = SelectionMemory(buckets={})
     with pytest.raises(LastFmExportError, match="does not contain any scrobbles"):
-        _radio(memory)
+        (await _radio(memory))
     assert memory.events == ["history"]
 
 
 @pytest.mark.parametrize("kind", ["blast", "radio"])
 @pytest.mark.parametrize("failure", ["history", "random", "select"])
-def test_selection_failure_suppresses_later_observations(
+async def test_selection_failure_suppresses_later_observations(
     kind: str, failure: str
 ) -> None:
     """Propagate observation failures without replacing their type or retrying.
@@ -284,8 +284,8 @@ def test_selection_failure_suppresses_later_observations(
     memory = SelectionMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
         if kind == "blast":
-            _blast(memory, 1)
+            (await _blast(memory, 1))
         else:
-            _radio(memory)
+            (await _radio(memory))
     assert memory.events[-1] == failure
     assert memory.events.count(failure) == 1

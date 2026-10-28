@@ -89,23 +89,23 @@ class FakeSpotify:
             }
         }
 
-    def albums(self, album_ids):
+    async def albums(self, album_ids):
         self.album_calls.append(list(album_ids))
         return {"albums": [self.album_metadata.get(album_id) for album_id in album_ids]}
 
-    def current_user_following_artists(self, artist_ids):
+    async def current_user_following_artists(self, artist_ids):
         self.follow_checks.append(list(artist_ids))
         return [artist_id in self.followed_artist_ids for artist_id in artist_ids]
 
-    def user_follow_artists(self, artist_ids):
+    async def user_follow_artists(self, artist_ids):
         self.followed_batches.append(list(artist_ids))
         self.followed_artist_ids.update(artist_ids)
 
-    def current_user_saved_albums_contains(self, album_ids):
+    async def current_user_saved_albums_contains(self, album_ids):
         self.saved_album_checks.append(list(album_ids))
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def current_user_saved_albums_add(self, album_ids):
+    async def current_user_saved_albums_add(self, album_ids):
         self.saved_album_batches.append(list(album_ids))
         self.saved_album_ids.update(album_ids)
 
@@ -135,7 +135,7 @@ def _stats_report() -> StatsReport:
     )
 
 
-def test_recovery_follows_all_artists_and_restores_future_album(
+async def test_recovery_follows_all_artists_and_restores_future_album(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Recovery follows all artists and restores future album.
@@ -226,18 +226,20 @@ def test_recovery_follows_all_artists_and_restores_future_album(
         messages,
         recovery_log_path,
     )
-    recover_removed_albums.recover_removed_albums(
-        sp,
-        echo=MessageList(messages),
-        removal_log_path=removal_log_path,
-        recovery_log_path=recovery_log_path,
-        today=date(2026, 7, 14),
-        transient_retry_delay_seconds=0,
+    (
+        recover_removed_albums.recover_removed_albums(
+            sp,
+            echo=MessageList(messages),
+            removal_log_path=removal_log_path,
+            recovery_log_path=recovery_log_path,
+            today=date(2026, 7, 14),
+            transient_retry_delay_seconds=0,
+        )
     )
     assert sp.album_calls == [["future"]]
 
 
-def test_dry_run_does_not_mutate_spotify_or_write_recovery_state(
+async def test_dry_run_does_not_mutate_spotify_or_write_recovery_state(
     monkeypatch,
     tmp_path,
 ) -> None:

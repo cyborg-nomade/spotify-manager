@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import partialmethod
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -64,10 +65,16 @@ def annual(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     sp = _annual_spotify(memory)
     _patch_annual_catalog(monkeypatch, memory)
     history = Mock(return_value=SimpleNamespace(history=(play(), play())))
-    monkeypatch.setattr(HistoryRefresh, "run", partialmethod(annual_history, history))
+    monkeypatch.setattr(
+        HistoryRefresh,
+        "run",
+        partialmethod(annual_history, history),
+    )
     imports = Mock()
     monkeypatch.setattr(
-        AnnualDiscoveries, "run", partialmethod(annual_discoveries, imports)
+        AnnualDiscoveries,
+        "run",
+        partialmethod(annual_discoveries, imports),
     )
     config = SimpleNamespace(
         blast_from_the_past_playlist="blast",
@@ -88,7 +95,7 @@ def annual(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     )
 
 
-def run(
+async def run(
     annual: SimpleNamespace,
     *,
     dry_run: bool = True,
@@ -118,9 +125,9 @@ def run(
     )
 
 
-def test_dry_run_resolves_every_step_without_writes(annual):
+async def test_dry_run_resolves_every_step_without_writes(annual):
     before = get_state_service().snapshot()
-    result = run(annual)
+    result = await run(annual)
     assert result["dry_run"]
     assert result["plan"]["artists"][0]["uri"] == "spotify:track:song"
     assert not annual.mutations
@@ -131,32 +138,32 @@ def test_dry_run_resolves_every_step_without_writes(annual):
     assert annual.imports.call_args.kwargs["dry_run"]
 
 
-def test_live_all_five_steps_and_repeated_invocation(annual):
-    result = run(annual, dry_run=False)
+async def test_live_all_five_steps_and_repeated_invocation(annual):
+    result = await run(annual, dry_run=False)
     assert result["done"] and len(result["completed"]) == 5
     assert annual.contents["blast"] == ["spotify:track:song", "spotify:track:obsession"]
     assert annual.contents["palace"] == ["spotify:track:first"]
     assert annual.contents["memory"][0] == "spotify:track:song"
     assert annual.imports.call_args.kwargs["active_year"] == 2026
     before = list(annual.mutations)
-    assert run(annual, dry_run=False)["already_completed"]
+    assert (await run(annual, dry_run=False))["already_completed"]
     assert annual.mutations == before
     assert annual.history.call_count == 1
 
 
-def test_partial_failure_resumes_saved_plan_without_duplicate_additions(annual):
+async def test_partial_failure_resumes_saved_plan_without_duplicate_additions(annual):
     annual.imports.side_effect = RuntimeError("interrupted")
     with pytest.raises(RuntimeError, match="interrupted"):
-        run(annual, dry_run=False)
+        (await run(annual, dry_run=False))
     assert annual.contents["blast"] == ["spotify:track:song"]
     annual.imports.side_effect = None
-    run(annual, dry_run=False)
+    (await run(annual, dry_run=False))
     assert annual.contents["blast"] == ["spotify:track:song", "spotify:track:obsession"]
     assert annual.history.call_count == 1
     assert len([p for p in annual.playlists if p.name.startswith("top")]) == 2
 
 
-def test_reconciliation_handles_write_succeeded_then_response_lost(annual):
+async def test_reconciliation_handles_write_succeeded_then_response_lost(annual):
     original = annual.sp._post.side_effect
 
     def fail(path, payload):
@@ -165,16 +172,16 @@ def test_reconciliation_handles_write_succeeded_then_response_lost(annual):
 
     annual.sp._post.side_effect = fail
     with pytest.raises(RuntimeError):
-        run(annual, dry_run=False)
+        (await run(annual, dry_run=False))
     annual.sp._post.side_effect = original
-    run(annual, dry_run=False)
+    (await run(annual, dry_run=False))
     chart = next(p for p in annual.playlists if p.name == "top 50 2025 tracks")
     assert annual.contents[chart.spotify_id] == ["spotify:track:song"]
 
 
-def test_memory_reuses_and_moves_existing_artist_marker(annual):
+async def test_memory_reuses_and_moves_existing_artist_marker(annual):
     annual.contents["memory"] = ["spotify:track:other", "spotify:track:existing"]
-    run(annual, dry_run=False)
+    (await run(annual, dry_run=False))
     assert annual.contents["memory"] == [
         "spotify:track:existing",
         "spotify:track:other",
@@ -182,44 +189,50 @@ def test_memory_reuses_and_moves_existing_artist_marker(annual):
     annual.sp.track.assert_not_called()
 
 
-def test_missing_source_stops_before_rebuild(annual):
+async def test_missing_source_stops_before_rebuild(annual):
     annual.playlists.pop(0)
     with pytest.raises(new_year.NewYearError, match="Obsessions"):
-        run(annual, dry_run=False)
+        (await run(annual, dry_run=False))
     annual.history.assert_not_called()
     assert not annual.mutations
 
 
-def test_no_history_or_album_match_stops_before_spotify_writes(annual, monkeypatch):
+async def test_no_history_or_album_match_stops_before_spotify_writes(
+    annual, monkeypatch
+):
     annual.history.return_value = SimpleNamespace(history=())
     with pytest.raises(new_year.NewYearError, match="No scrobbles"):
-        run(annual)
+        (await run(annual))
     annual.history.return_value = SimpleNamespace(history=(play(),))
     monkeypatch.setattr(
-        new_year.palace_of_memory, "search_spotify_album", lambda *a: None
+        new_year.palace_of_memory,
+        "async_search_spotify_album",
+        AsyncMock(side_effect=lambda *a: None),
     )
     with pytest.raises(new_year.NewYearError, match="album match"):
-        run(annual, dry_run=False)
+        (await run(annual, dry_run=False))
     assert not annual.mutations
 
 
-def test_unresolved_track_stops_before_mutations(annual, monkeypatch):
+async def test_unresolved_track_stops_before_mutations(annual, monkeypatch):
     monkeypatch.setattr(
-        new_year.blast_from_past, "search_spotify_matches", lambda *a: ()
+        new_year.blast_from_past,
+        "async_search_spotify_matches",
+        AsyncMock(side_effect=lambda *a: ()),
     )
     with pytest.raises(new_year.NewYearError, match="track match"):
-        run(annual, dry_run=False)
+        (await run(annual, dry_run=False))
     assert not annual.mutations
 
 
-def test_cancellation_preserves_state(annual: SimpleNamespace) -> None:
+async def test_cancellation_preserves_state(annual: SimpleNamespace) -> None:
     """Cancellation preserves state.
 
     Args:
         annual: Original annual playlist and accepted-effect fixture.
     """
     with pytest.raises(new_year.scrobble_history.ScrobbleHistoryCancelledError):
-        run(annual, dry_run=False, cancel_check=CancellationFlag(True))
+        (await run(annual, dry_run=False, cancel_check=CancellationFlag(True)))
     assert not annual.mutations
 
 
@@ -249,7 +262,7 @@ def test_duplicate_chart_name_rejected():
         )
 
 
-def test_automatic_retry_rechecks_membership_and_playlist_creation(
+async def test_automatic_retry_rechecks_membership_and_playlist_creation(
     annual: SimpleNamespace,
 ) -> None:
     """Automatic retry rechecks membership and playlist creation.
@@ -260,21 +273,21 @@ def test_automatic_retry_rechecks_membership_and_playlist_creation(
     responses = LostAnnualResponses(annual.memory)
     annual.sp._post.side_effect = responses.post
     annual.sp.user_playlist_create.side_effect = responses.create
-    run(annual, dry_run=False, retry_call=RetryRuntimeOnce())
+    (await run(annual, dry_run=False, retry_call=RetryRuntimeOnce()))
     assert annual.contents["blast"] == ["spotify:track:song", "spotify:track:obsession"]
     assert len([p for p in annual.playlists if p.name.startswith("top")]) == 2
 
 
-def test_existing_chart_is_synchronized_instead_of_appended(annual):
+async def test_existing_chart_is_synchronized_instead_of_appended(annual):
     annual.playlists.append(
         SimpleNamespace(spotify_id="oldchart", name="top 50 2025 tracks")
     )
     annual.contents["oldchart"] = ["spotify:track:outdated"]
-    run(annual, dry_run=False)
+    (await run(annual, dry_run=False))
     assert annual.contents["oldchart"] == ["spotify:track:song"]
 
 
-def test_reorder_retries_recalculate_positions(annual: SimpleNamespace) -> None:
+async def test_reorder_retries_recalculate_positions(annual: SimpleNamespace) -> None:
     """Reorder retries recalculate positions.
 
     Args:
@@ -283,7 +296,7 @@ def test_reorder_retries_recalculate_positions(annual: SimpleNamespace) -> None:
     annual.contents["memory"] = ["spotify:track:other", "spotify:track:existing"]
     response = LostAnnualReorder(annual.memory)
     annual.sp._put.side_effect = response.put
-    run(annual, dry_run=False, retry_call=RetryRuntimeOnce())
+    (await run(annual, dry_run=False, retry_call=RetryRuntimeOnce()))
     assert annual.contents["memory"] == [
         "spotify:track:existing",
         "spotify:track:other",
@@ -393,11 +406,11 @@ class AnnualMemory:
 
 def _annual_spotify(memory: AnnualMemory) -> Mock:
     sp = Mock()
-    sp.current_user.return_value = {"id": "owner"}
-    sp.track.return_value = {"artists": [{"id": "artist"}]}
-    sp.user_playlist_create.side_effect = memory.create
-    sp._post.side_effect = memory.post
-    sp._put.side_effect = memory.put
+    sp.current_user = AsyncMock(return_value={"id": "owner"})
+    sp.track = AsyncMock(return_value={"artists": [{"id": "artist"}]})
+    sp.user_playlist_create = AsyncMock(side_effect=memory.create)
+    sp._post = AsyncMock(side_effect=memory.post)
+    sp._put = AsyncMock(side_effect=memory.put)
     return sp
 
 
@@ -412,29 +425,43 @@ def _patch_annual_catalog(
         new_year.blast_from_past, "parse_playlist_id", _playlist_identity
     )
     monkeypatch.setattr(new_year.queue_3, "parse_playlist_id", _playlist_identity)
-    monkeypatch.setattr(new_year.queue_3, "load_owned_playlists", memory.owned)
-    monkeypatch.setattr(new_year.new_wine, "load_playlist_tracks", memory.tracks)
+    monkeypatch.setattr(
+        new_year.queue_3,
+        "async_load_owned_playlists",
+        AsyncMock(side_effect=memory.owned),
+    )
+    monkeypatch.setattr(
+        new_year.new_wine,
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=memory.tracks),
+    )
     monkeypatch.setattr(
         new_year.blast_from_past,
-        "search_spotify_matches",
-        Mock(
-            return_value=(
-                SimpleNamespace(uri="spotify:track:song", track_similarity=1.0),
+        "async_search_spotify_matches",
+        AsyncMock(
+            side_effect=Mock(
+                return_value=(
+                    SimpleNamespace(uri="spotify:track:song", track_similarity=1.0),
+                )
             )
         ),
     )
     monkeypatch.setattr(
-        new_year.palace_of_memory, "search_spotify_album", Mock(return_value=object())
+        new_year.palace_of_memory,
+        "async_search_spotify_album",
+        AsyncMock(side_effect=Mock(return_value=object())),
     )
     monkeypatch.setattr(
         new_year.palace_of_memory,
-        "load_first_track",
-        Mock(return_value=SimpleNamespace(uri="spotify:track:first")),
+        "async_load_first_track",
+        AsyncMock(
+            side_effect=Mock(return_value=SimpleNamespace(uri="spotify:track:first"))
+        ),
     )
     monkeypatch.setattr(
         new_year.something_old,
-        "resolve_spotify_artist",
-        Mock(return_value=SimpleNamespace(spotify_id="artist")),
+        "async_resolve_spotify_artist",
+        AsyncMock(side_effect=Mock(return_value=SimpleNamespace(spotify_id="artist"))),
     )
 
 

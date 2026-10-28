@@ -60,7 +60,7 @@ class Palace:
     alphabetical_count: int = 5
     match_threshold: float = 0.9
 
-    def run(
+    async def run(
         self, playlist: str, preview: bool, override: str | None
     ) -> PalaceOfMemorySummary:
         """Resolve markers, recheck live membership and complete original persistence.
@@ -73,15 +73,17 @@ class Palace:
         Returns:
             Original complete selected and classified outcome.
         """
-        opened = self._open(override)
-        generated, cutoff, available, historical = self.history.run(self.history_count)
+        opened = await self._open(override)
+        generated, cutoff, available, historical = await self.history.run(
+            self.history_count
+        )
         self.effects.progress("Loading Palace of Memory")
-        initial = self.effects.playlist(False)
+        initial = await self.effects.playlist(False)
         planner = PalacePlanning(self.effects, opened.saved, self.match_threshold)
-        planned = planner.alphabetical(opened.alphabetical)
-        planned.extend(planner.historical(historical))
-        final, results, pending = self._execute(planned, initial, preview)
-        return self._complete(
+        planned = await planner.alphabetical(opened.alphabetical)
+        planned.extend(await planner.historical(historical))
+        final, results, pending = await self._execute(planned, initial, preview)
+        return await self._complete(
             opened,
             playlist,
             preview,
@@ -94,7 +96,7 @@ class Palace:
             pending,
         )
 
-    def _complete(
+    async def _complete(
         self,
         opened: _OpenedPalace,
         playlist: str,
@@ -123,21 +125,21 @@ class Palace:
             payload = self.effects.cursor_payload(
                 opened.next_index, opened.alphabetical[-1]
             )
-            opened.state.save(payload)
-            self.effects.audit(summary)
+            await opened.state.save(payload)
+            await self.effects.audit(summary)
         return summary
 
-    def _open(self, override: str | None) -> _OpenedPalace:
+    async def _open(self, override: str | None) -> _OpenedPalace:
         self.effects.progress("Refreshing the saved-album mirror")
-        saved, refresh = self.mirror.run()
+        saved, refresh = await self.mirror.run()
         state = self.effects.state_access()
-        cursor = state.load()
+        cursor = await state.load()
         start = self.effects.start_index(saved, override, cursor)
         selected = alphabetical(saved, start, self.alphabetical_count)
         next_index = (start + len(selected)) % len(saved)
         return _OpenedPalace(saved, refresh, state, start, next_index, selected)
 
-    def _execute(
+    async def _execute(
         self,
         planned: list[PalaceAlbumResult],
         initial: PlaylistState,
@@ -149,11 +151,11 @@ class Palace:
         if preview:
             return initial, results, pending
         self.effects.progress("Rechecking Palace of Memory")
-        current = self.effects.playlist(True)
+        current = await self.effects.playlist(True)
         results, pending = classify(planned, current.track_ids)
         if pending:
             self.effects.progress(f"Adding {len(pending)} first tracks to Palace")
-            self.effects.append(pending)
+            await self.effects.append(pending)
             self.effects.echo(f"Added {len(pending)} first tracks to Palace of Memory.")
         return current, results, pending
 

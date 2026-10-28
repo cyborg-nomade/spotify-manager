@@ -10,7 +10,9 @@ from tests.support.effects import Fault
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_public_analysis_preserves_original_effects(case: dict[str, object]) -> None:
+async def test_public_analysis_preserves_original_effects(
+    case: dict[str, object],
+) -> None:
     """Preserve accepted file bytes, progress, retries and recovery prefixes.
 
     Args:
@@ -18,7 +20,7 @@ def test_public_analysis_preserves_original_effects(case: dict[str, object]) -> 
     """
     fault = cast(dict[str, object] | None, case["fault"])
     assert (
-        original.outcome(
+        await original.outcome(
             cast(str, case["kind"]),
             cast(str, case["profile"]),
             cast(bool, case["full"]),
@@ -31,5 +33,4 @@ def test_public_analysis_preserves_original_effects(case: dict[str, object]) -> 
             ),
             cast(bool, case["resume"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

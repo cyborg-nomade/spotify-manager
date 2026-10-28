@@ -47,7 +47,7 @@ def _page(items: list[object], next_cursor: str | None = None) -> dict[str, obje
     }
 
 
-def test_empty_offset_page_with_next_is_checkpointed_and_reported_before_failure(
+async def test_empty_offset_page_with_next_is_checkpointed_and_reported(
     tmp_path: Path,
 ) -> None:
     """Retain original empty-next failure after accepted staging, audit and progress.
@@ -56,16 +56,16 @@ def test_empty_offset_page_with_next_is_checkpointed_and_reported_before_failure
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory(pages=[{"items": [], "total": 3, "next": "link"}])
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     with pytest.raises(IncompleteLiveResourceError, match="empty albums page"):
-        offsets.scan_initial(session, "albums")
+        (await offsets.scan_initial(session, "albums"))
     state = session.checkpoint["resources"]["albums"]
     assert (state["status"], state["offset"], state["pages"]) == ("scanning", 0, 1)
     assert memory.effects[-1] == ("progress", ("albums", 0, 3, "Reading live API"))
     assert memory.effects[-2][0] == "page_saved"
 
 
-def test_invalid_offset_rows_are_skipped_without_reducing_the_raw_offset(
+async def test_invalid_offset_rows_are_skipped_without_reducing_the_raw(
     tmp_path: Path,
 ) -> None:
     """Keep original raw-row paging even when model conversion drops unusable rows.
@@ -76,14 +76,14 @@ def test_invalid_offset_rows_are_skipped_without_reducing_the_raw_offset(
     memory = AnalysisMemory(
         pages=[{"items": [None, _album("a")], "total": True, "next": None}]
     )
-    session = memory_session(memory, tmp_path)
-    offsets.scan_initial(session, "albums")
+    session = await memory_session(memory, tmp_path)
+    (await offsets.scan_initial(session, "albums"))
     state = session.checkpoint["resources"]["albums"]
     assert (state["offset"], state["skipped"], state["total"]) == (2, 1, True)
     assert memory.arrays[session.paths.stage("albums")] == [_album("a")]
 
 
-def test_artist_cursor_scan_and_reconciliation_restart_each_complete_pass(
+async def test_artist_cursor_scan_and_reconciliation_restart_each_complete(
     tmp_path: Path,
 ) -> None:
     """Retain original full artist rescans and accepted cursor progression.
@@ -93,9 +93,9 @@ def test_artist_cursor_scan_and_reconciliation_restart_each_complete_pass(
     """
     pages = [_page([_artist("a")], "cursor"), _page([_artist("b")])]
     memory = AnalysisMemory(pages=pages * 3)
-    session = memory_session(memory, tmp_path)
-    artists.scan_initial(session)
-    artists.reconcile(session)
+    session = await memory_session(memory, tmp_path)
+    (await artists.scan_initial(session))
+    (await artists.reconcile(session))
     assert session.checkpoint["resources"]["artists"]["status"] == "complete"
     cursors = [value for name, value in memory.effects if name == "cursor"]
     assert cursors == [None, "cursor", None, "cursor", None, "cursor"]
@@ -103,7 +103,7 @@ def test_artist_cursor_scan_and_reconciliation_restart_each_complete_pass(
 
 
 @pytest.mark.parametrize("cursor", [None, "same"])
-def test_nonadvancing_artist_cursor_fails_after_accepted_page(
+async def test_nonadvancing_artist_cursor_fails_after_accepted_page(
     tmp_path: Path, cursor: str | None
 ) -> None:
     """Preserve original absent/equal cursor checks after checkpoint and progress.
@@ -115,31 +115,33 @@ def test_nonadvancing_artist_cursor_fails_after_accepted_page(
     page = _page([_artist("a")])
     page.update(next="link", cursors={"after": cursor})
     memory = AnalysisMemory(pages=[page])
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     session.checkpoint["resources"]["artists"]["after"] = "same"
     with pytest.raises(IncompleteLiveResourceError, match="did not advance"):
-        artists.scan_initial(session)
+        (await artists.scan_initial(session))
     assert memory.arrays[session.paths.stage("artists")] == [_artist("a")]
     assert memory.effects[-1][0] == "progress"
 
 
-def test_direct_artist_budget_stops_before_another_live_read(tmp_path: Path) -> None:
+async def test_direct_artist_budget_stops_before_another_live_read(
+    tmp_path: Path,
+) -> None:
     """Retain original bounded direct discovery and fallback reason.
 
     Args:
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     session.checkpoint["resources"]["artists"]["pages"] = 25
     with pytest.raises(
         _FollowedArtistsEndpointUnavailableError, match="bounded page budget"
     ):
-        artists.scan_initial(session)
+        (await artists.scan_initial(session))
     assert [name for name, _value in memory.effects] == ["write"]
 
 
-def test_completed_artists_are_read_for_progress_without_rescanning(
+async def test_completed_artists_are_read_for_progress_without_rescanning(
     tmp_path: Path,
 ) -> None:
     """Preserve original completed-resource duplicate counts and live-read guard.
@@ -148,17 +150,17 @@ def test_completed_artists_are_read_for_progress_without_rescanning(
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     session.checkpoint["resources"]["artists"]["status"] = "complete"
     memory.arrays[session.paths.stage("artists")] = [_artist("a"), _artist("a")]
-    artists.reconcile(session)
+    (await artists.reconcile(session))
     assert memory.effects == [
         ("models", session.paths.stage("artists")),
         ("progress", ("artists", 1, 1, "Complete")),
     ]
 
 
-def test_fallback_already_prepared_does_not_replace_accepted_candidates(
+async def test_fallback_already_prepared_does_not_replace_accepted(
     tmp_path: Path,
 ) -> None:
     """Retain original verification-state guard before any source or staging effect.
@@ -167,14 +169,18 @@ def test_fallback_already_prepared_does_not_replace_accepted_candidates(
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     session.checkpoint["resources"]["artists"]["status"] = "verifying_fallback"
-    artists.prepare_verification(session, full_rebuild=True, reason="already accepted")
+    (
+        await artists.prepare_verification(
+            session, full_rebuild=True, reason="already accepted"
+        )
+    )
     assert memory.effects == []
 
 
 @pytest.mark.parametrize("response", [None, [], [True, False]])
-def test_incomplete_artist_verification_keeps_original_candidate_offset(
+async def test_incomplete_artist_verification_keeps_candidate_offset(
     tmp_path: Path, response: object
 ) -> None:
     """Retain original sequence-length validation before staged rows or checkpoints.
@@ -184,16 +190,16 @@ def test_incomplete_artist_verification_keeps_original_candidate_offset(
         response: Original malformed or incomplete verification response.
     """
     memory = AnalysisMemory(follow_response=response)
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     memory.arrays[artists.candidate_path(session)] = [_artist("a")]
     with pytest.raises(IncompleteLiveResourceError, match="incomplete artist-follow"):
-        artists.verify(session)
+        (await artists.verify(session))
     assert memory.effects[-1] == ("following", ["a"])
     assert "candidate_index" not in session.checkpoint["resources"]["artists"]
 
 
 @pytest.mark.parametrize("progress", [True, False])
-def test_completed_export_resource_uses_staging_without_reprocessing_source(
+async def test_completed_export_resource_uses_staging_without_reprocessing(
     tmp_path: Path,
     progress: bool,
 ) -> None:
@@ -204,10 +210,10 @@ def test_completed_export_resource_uses_staging_without_reprocessing_source(
         progress: Original optional progress presence.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path, progress)
+    session = await memory_session(memory, tmp_path, progress)
     session.checkpoint["resources"]["albums"]["status"] = "complete"
     memory.arrays[session.paths.stage("albums")] = [_album("stored")]
-    result = prepare_export_resource(
+    result = await prepare_export_resource(
         session, "albums", [_album("source")], YourLibraryAlbum
     )
     assert result == [_album("stored")]
@@ -217,7 +223,7 @@ def test_completed_export_resource_uses_staging_without_reprocessing_source(
         assert memory.effects == [("models", session.paths.stage("albums"))]
 
 
-def test_large_export_observes_original_coarse_progress_and_cancellation_boundaries(
+async def test_large_export_observes_coarse_progress_and_cancellation(
     tmp_path: Path,
 ) -> None:
     """Retain original roughly one-percent progress steps for large exports.
@@ -226,9 +232,9 @@ def test_large_export_observes_original_coarse_progress_and_cancellation_boundar
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     source = [_album(str(index)) for index in range(201)]
-    prepare_export_resource(session, "albums", source, YourLibraryAlbum)
+    (await prepare_export_resource(session, "albums", source, YourLibraryAlbum))
     progress: list[tuple[str, int, int, str]] = []
     for name, value in memory.effects:
         if name == "progress":
@@ -240,7 +246,7 @@ def test_large_export_observes_original_coarse_progress_and_cancellation_boundar
 class MemoryBackups(RecordedAnalysisBackups):
     """Accept an in-memory resource backup without physical file copies."""
 
-    def resource_backup(
+    async def resource_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -267,7 +273,7 @@ class MemoryBackups(RecordedAnalysisBackups):
         return paths.backups_dir / run_id
 
 
-def test_invalid_publication_manifest_fails_before_any_output_is_replaced(
+async def test_invalid_publication_manifest_fails_before_any_output_is(
     tmp_path: Path,
 ) -> None:
     """Preserve original resumed-publication shape validation before output writes.
@@ -276,18 +282,18 @@ def test_invalid_publication_manifest_fails_before_any_output_is_replaced(
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     session.checkpoint.update(
         {"status": "finalizing", "backup_dir": str(tmp_path / "backup")}
     )
     with pytest.raises(
         LibrarySyncError, match="live-mirror backup manifest is invalid"
     ):
-        finalize_mirrors(session, _publication(session.files), [], [])
+        (await finalize_mirrors(session, _publication(), [], []))
     assert memory.effects == [("read", tmp_path / "backup/manifest.json")]
 
 
-def test_full_artist_resume_verifies_accepted_candidates_without_rediscovery(
+async def test_full_artist_resume_verifies_accepted_candidates_without(
     tmp_path: Path,
 ) -> None:
     """Retain original fallback restart authority instead of reopening cursor scans.
@@ -296,7 +302,7 @@ def test_full_artist_resume_verifies_accepted_candidates_without_rediscovery(
         tmp_path: Independent path names for memory authority.
     """
     memory = AnalysisMemory(follow_response=[True])
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     state = session.checkpoint["resources"]["artists"]
     state.update(
         {
@@ -308,8 +314,8 @@ def test_full_artist_resume_verifies_accepted_candidates_without_rediscovery(
         }
     )
     memory.arrays[artists.candidate_path(session)] = [_artist("accepted")]
-    publication = MemoryBackups(session.files)
-    result = refresh_resource(session, publication, "artists", True)
+    publication = MemoryBackups(memory)
+    result = await refresh_resource(session, publication, "artists", True)
     assert result.resources[0].source == "live_verified_fallback"
     assert result.resources[0].current == 1
     assert not any(name == "cursor" for name, _value in memory.effects)

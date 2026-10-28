@@ -39,6 +39,40 @@ def test_interface_checker_accepts_only_endpoint_line_movement(tmp_path: Path) -
     assert compare_interfaces(candidate, baseline) == 2
 
 
+@pytest.mark.parametrize("native_count", [0, 1, 2])
+def test_comparison_source_variant_requires_one_native_lookup(
+    tmp_path: Path,
+    native_count: int,
+) -> None:
+    """Account for a parallel compatibility path while rejecting duplicate reads.
+
+    Args:
+        tmp_path: Synthetic original and candidate evidence.
+        native_count: Number of recorded native metadata lookup sites.
+    """
+    original = ENDPOINT_PAYLOAD.replace(
+        "routine.py:12", "spotify_manager/utils/comparison.py:12"
+    )
+    references = ['"spotify_manager/utils/comparison.py:12"']
+    for offset in range(native_count):
+        references.append(
+            '"spotify_manager/infrastructure/legacy_library_resources.py:'
+            + str(50 + offset)
+            + '"'
+        )
+    changed = original.replace(
+        '["spotify_manager/utils/comparison.py:12"]',
+        "[" + ", ".join(references) + "]",
+    )
+    candidate, baseline = _captures(tmp_path, changed)
+    (baseline / "spotify-endpoints.json").write_text(original)
+    if native_count <= 1:
+        assert compare_interfaces(candidate, baseline) == 2
+        return
+    with pytest.raises(AssertionError, match="spotify-endpoints.json"):
+        compare_interfaces(candidate, baseline)
+
+
 @pytest.mark.parametrize(
     "before,after",
     [

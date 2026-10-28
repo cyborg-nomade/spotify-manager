@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.historical_playlists import AnniversaryPlaylist
 from spotify_manager.application.historical_playlists import BlastPlaylist
 from spotify_manager.application.historical_playlists import HistoricalPlaylistEffects
@@ -14,6 +12,7 @@ from spotify_manager.application.historical_selection import AnniversarySelectio
 from spotify_manager.application.historical_selection import BlastSelection
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.historical_inputs import (
     LegacyHistoricalInputs,
 )

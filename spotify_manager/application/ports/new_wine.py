@@ -20,7 +20,7 @@ class NewWineAccess(Protocol):
             Current configured New Wine marker limit.
         """
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read ordered live markers.
 
         Args:
@@ -30,7 +30,7 @@ class NewWineAccess(Protocol):
             Parsed playable markers in original order.
         """
 
-    def load_state(self, dry_run: bool) -> dict[str, object]:
+    async def load_state(self, dry_run: bool) -> dict[str, object]:
         """Resolve namespace access and read durable state or fresh preview defaults.
 
         Args:
@@ -40,14 +40,14 @@ class NewWineAccess(Protocol):
             Original namespace with unknown fields retained.
         """
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Persist one complete namespace checkpoint.
 
         Args:
             state: Current working namespace.
         """
 
-    def append(self, playlist_id: str, track: ReleaseTrack) -> None:
+    async def append(self, playlist_id: str, track: ReleaseTrack) -> None:
         """Append a replacement marker.
 
         Args:
@@ -55,7 +55,7 @@ class NewWineAccess(Protocol):
             track: Accepted replacement.
         """
 
-    def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Remove a source after additions are secure.
 
         Args:
@@ -63,7 +63,7 @@ class NewWineAccess(Protocol):
             source: Original marker.
         """
 
-    def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
+    async def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
         """Observe saved-album membership with its original tolerant parsing.
 
         Args:
@@ -74,35 +74,35 @@ class NewWineAccess(Protocol):
             First truthy status, or false for an absent/malformed response.
         """
 
-    def save_album(self, release: ReleaseCandidate) -> None:
+    async def save_album(self, release: ReleaseCandidate) -> None:
         """Save a qualifying album remotely.
 
         Args:
             release: Selected album to save.
         """
 
-    def unsave_album(self, release: ReleaseCandidate) -> None:
+    async def unsave_album(self, release: ReleaseCandidate) -> None:
         """Unsave an album that failed the keep rule.
 
         Args:
             release: Selected album to remove.
         """
 
-    def mirror_album(self, release: ReleaseCandidate) -> None:
+    async def mirror_album(self, release: ReleaseCandidate) -> None:
         """Ensure a kept album exists in the canonical mirror and statistics.
 
         Args:
             release: Album accepted by the live keep rule.
         """
 
-    def remove_mirror_album(self, release: ReleaseCandidate) -> None:
+    async def remove_mirror_album(self, release: ReleaseCandidate) -> None:
         """Remove an unsaved album from the canonical mirror and statistics.
 
         Args:
             release: Album just removed remotely.
         """
 
-    def removed_audit(
+    async def removed_audit(
         self, release: ReleaseCandidate, evaluation: AlbumEvaluation, reason: str
     ) -> None:
         """Append the original removed-album recovery record.
@@ -113,7 +113,7 @@ class NewWineAccess(Protocol):
             reason: Original drop action string.
         """
 
-    def audit(self, run_id: str, result: FlushResult) -> None:
+    async def audit(self, run_id: str, result: FlushResult) -> None:
         """Append a completed or skipped result, including previews.
 
         Args:

@@ -2,8 +2,7 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.routines import the_queue as legacy
@@ -21,7 +20,7 @@ class LegacyQueuePlanning:
     spotify: Spotify
     retry: legacy.RetryCall
 
-    def top(self, artist: str) -> tuple[CatalogTrack, ...]:
+    async def top(self, artist: str) -> tuple[CatalogTrack, ...]:
         """Read original ordered top tracks before membership.
 
         Args:
@@ -30,12 +29,14 @@ class LegacyQueuePlanning:
         Returns:
             Original ordered eligible top tracks.
         """
-        from spotify_manager.routines.new_kids import load_top_track_data
+        from spotify_manager.routines.new_kids import (
+            async_load_top_track_data as load_top_track_data,
+        )
 
-        _, tracks = load_top_track_data(self.spotify, artist, self.retry)
+        _, tracks = await load_top_track_data(self.spotify, artist, self.retry)
         return tracks
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Retain original top membership validation and retry text.
 
         Args:
@@ -46,9 +47,9 @@ class LegacyQueuePlanning:
         """
         from spotify_manager.routines.the_queue import _liked_statuses
 
-        return _liked_statuses(self.spotify, tracks, self.retry)
+        return await _liked_statuses(self.spotify, tracks, self.retry)
 
-    def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
+    async def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
         """Read original ranked catalog after top membership.
 
         Args:
@@ -57,11 +58,13 @@ class LegacyQueuePlanning:
         Returns:
             Original ranked releases in source order.
         """
-        from spotify_manager.routines.new_kids import load_ranked_catalog
+        from spotify_manager.routines.new_kids import (
+            async_load_ranked_catalog as load_ranked_catalog,
+        )
 
-        return load_ranked_catalog(self.spotify, artist, self.retry)
+        return await load_ranked_catalog(self.spotify, artist, self.retry)
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read uncached preferred-release tracks with original paging and retry.
 
         Args:
@@ -70,6 +73,8 @@ class LegacyQueuePlanning:
         Returns:
             Original ordered catalog tracks.
         """
-        from spotify_manager.routines.new_kids import load_release_tracks
+        from spotify_manager.routines.new_kids import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
-        return load_release_tracks(self.spotify, release, self.retry)
+        return await load_release_tracks(self.spotify, release, self.retry)

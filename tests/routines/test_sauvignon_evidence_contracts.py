@@ -8,10 +8,11 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import found_art
 from spotify_manager.routines import sauvignon
 from tests.routines.test_sauvignon import album_option
@@ -165,7 +166,7 @@ class EvidenceSteps:
         self.progress(message)
 
 
-def gather_evidence(
+async def gather_evidence(
     case: EvidenceCase, steps: EvidenceSteps
 ) -> tuple[sauvignon.AlbumRecommendation, ...]:
     """Execute the original public gatherer for a frozen scenario.
@@ -192,7 +193,7 @@ def gather_evidence(
 @pytest.mark.parametrize(
     "name", ["grouped", "duplicates", "exclusions", "negative-limit", "empty"]
 )
-def test_original_album_evidence_snapshots(
+async def test_original_album_evidence_snapshots(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     """Retain exact scores, displays, edition choices, ties and weekly hash ranks.
@@ -203,8 +204,10 @@ def test_original_album_evidence_snapshots(
     """
     case = evidence_case(name)
     steps = EvidenceSteps(case)
-    monkeypatch.setattr(sauvignon, "search_candidate_albums", steps.search)
-    recommendations = gather_evidence(case, steps)
+    monkeypatch.setattr(
+        sauvignon, "async_search_candidate_albums", AsyncMock(side_effect=steps.search)
+    )
+    recommendations = await gather_evidence(case, steps)
     result = json.loads(json.dumps([asdict(item) for item in recommendations]))
     fixture = json.loads(FIXTURE.read_text())
     assert result == fixture["cases"][name]["recommendations"]
@@ -220,7 +223,7 @@ def test_original_album_evidence_snapshots(
         "search:Second",
     ],
 )
-def test_original_failed_observation_prefix(
+async def test_original_failed_observation_prefix(
     monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
     """Stop before later searches when original progress or evidence reads fail.
@@ -231,9 +234,11 @@ def test_original_failed_observation_prefix(
     """
     case = evidence_case("grouped")
     steps = EvidenceSteps(case, failure=failure)
-    monkeypatch.setattr(sauvignon, "search_candidate_albums", steps.search)
+    monkeypatch.setattr(
+        sauvignon, "async_search_candidate_albums", AsyncMock(side_effect=steps.search)
+    )
     with pytest.raises(OSError, match=failure):
-        gather_evidence(case, steps)
+        (await gather_evidence(case, steps))
     order = [
         "Resolving album evidence 1/2: New Artist - First",
         "search:First",

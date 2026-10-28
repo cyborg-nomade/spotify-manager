@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -63,11 +64,19 @@ def test_plan_discographies_dry_run_prints_fractional_days(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = PlanDiscographiesDryRunPrintsFractionalDaysScenario(
         plan=plan, received=received
     )
-    monkeypatch.setattr(main.discography, "build_discography_plan", scenario.build)
+    monkeypatch.setattr(
+        main.discography,
+        "build_discography_plan",
+        AsyncMock(side_effect=scenario.build),
+    )
     result = CliRunner().invoke(main.app, ["plan-discographies", "--dry-run"])
     assert result.exit_code == 0
     assert received["playlist_ids"] == {

@@ -47,7 +47,9 @@ class QueueFillCandidates:
     multiplier: int = 10
     top_track_limit: int = 10
 
-    def run(self, candidates: tuple[ArtistRecommendation, ...], requested: int) -> None:
+    async def run(
+        self, candidates: tuple[ArtistRecommendation, ...], requested: int
+    ) -> None:
         """Process the original bounded pool until the requested additions or quit.
 
         Args:
@@ -59,20 +61,20 @@ class QueueFillCandidates:
             if self.selected >= requested:
                 break
             self.effects.progress(index - 1, maximum, f"Resolving {candidate.artist}")
-            outcome = self._process(candidate)
+            outcome = await self._process(candidate)
             if outcome == "quit":
                 self.paused = True
                 break
-            self._complete(outcome)
+            await self._complete(outcome)
 
-    def _mapping(
+    async def _mapping(
         self,
         candidate: ArtistRecommendation,
     ) -> SpotifyArtistCandidate | FillResult | Literal["quit"]:
         artist = self.effects.decode_mapping(self.mappings.get(candidate.key))
         if artist is not None:
             return artist
-        resolved = self.mapping.resolve(candidate)
+        resolved = await self.mapping.resolve(candidate)
         if resolved == "quit":
             return "quit"
         if resolved == "skip":
@@ -80,21 +82,23 @@ class QueueFillCandidates:
         if not isinstance(resolved, SpotifyArtistCandidate):
             return FillResult(candidate, None, None, "no Spotify match")
         self.mappings[candidate.key] = asdict(resolved)
-        self.access.save(self.state)
+        await self.access.save(self.state)
         return resolved
 
-    def _process(self, candidate: ArtistRecommendation) -> FillResult | Literal["quit"]:
-        mapped = self._mapping(candidate)
+    async def _process(
+        self, candidate: ArtistRecommendation
+    ) -> FillResult | Literal["quit"]:
+        mapped = await self._mapping(candidate)
         if not isinstance(mapped, SpotifyArtistCandidate):
             return mapped
         if mapped.spotify_id in self.represented:
             return FillResult(candidate, mapped, None, "already represented")
-        tracks = self.effects.top_tracks(mapped)[: self.top_track_limit]
-        target = first_unliked(tracks, self.effects.liked(tracks))
+        tracks = (await self.effects.top_tracks(mapped))[: self.top_track_limit]
+        target = first_unliked(tracks, (await self.effects.liked(tracks)))
         if target is None:
             return FillResult(candidate, mapped, None, "no unliked top track")
-        followed_now = not self.effects.following(mapped)
-        self._append(mapped, target, followed_now)
+        followed_now = not (await self.effects.following(mapped))
+        await self._append(mapped, target, followed_now)
         return FillResult(
             candidate,
             mapped,
@@ -103,7 +107,7 @@ class QueueFillCandidates:
             followed=followed_now,
         )
 
-    def _append(
+    async def _append(
         self,
         artist: SpotifyArtistCandidate,
         target: CatalogTrack,
@@ -112,17 +116,17 @@ class QueueFillCandidates:
         if self.preview:
             return
         if follow:
-            self.effects.follow(artist)
-            self.effects.persist_followed(artist)
-        self.effects.append(artist, target)
+            await self.effects.follow(artist)
+            await self.effects.persist_followed(artist)
+        await self.effects.append(artist, target)
 
-    def _complete(self, result: FillResult) -> None:
+    async def _complete(self, result: FillResult) -> None:
         self.results.append(result)
         selected = result.action in {"added", "would add"}
         if selected:
             assert result.spotify_artist is not None
             self.represented.add(result.spotify_artist.spotify_id)
             self.selected += 1
-        self.effects.audit(result, self.preview, selected)
+        await self.effects.audit(result, self.preview, selected)
         if selected:
             self.effects.present(result, self.preview)

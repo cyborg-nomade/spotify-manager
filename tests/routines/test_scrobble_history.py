@@ -24,7 +24,7 @@ class FakeLastFm:
         self.tracks = tracks
         self.calls: list[tuple[int, int, int]] = []
 
-    def recent_tracks(
+    async def recent_tracks(
         self,
         *,
         from_timestamp: int,
@@ -73,7 +73,9 @@ def write_legacy_delta(path: Path) -> None:
     )
 
 
-def test_dry_run_merges_export_legacy_and_api_without_writing(tmp_path: Path) -> None:
+async def test_dry_run_merges_export_legacy_and_api_without_writing(
+    tmp_path: Path,
+) -> None:
     export_path = tmp_path / "lastfm.json"
     original = write_export(export_path)
     legacy_path = tmp_path / "recent.jsonl"
@@ -109,7 +111,9 @@ def test_dry_run_merges_export_legacy_and_api_without_writing(tmp_path: Path) ->
     assert not log_path.exists()
 
 
-def test_real_refresh_backs_up_then_atomically_replaces_export(tmp_path: Path) -> None:
+async def test_real_refresh_backs_up_then_atomically_replaces_export(
+    tmp_path: Path,
+) -> None:
     export_path = tmp_path / "lastfm.json"
     original = write_export(export_path)
     legacy_path = tmp_path / "recent.jsonl"
@@ -145,7 +149,7 @@ def test_real_refresh_backs_up_then_atomically_replaces_export(tmp_path: Path) -
     assert audit["persisted"] is True
 
 
-def test_managed_refresh_hydrates_and_publishes_even_when_current(
+async def test_managed_refresh_hydrates_and_publishes_even_when_current(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -182,7 +186,7 @@ def test_managed_refresh_hydrates_and_publishes_even_when_current(
     ]
 
 
-def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
+async def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
     """Refresh can cancel before reading history.
 
     Args:
@@ -192,14 +196,16 @@ def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
         scrobble_history.ScrobbleHistoryCancelledError,
         match="cancelled",
     ):
-        scrobble_history.refresh_scrobble_history(
-            FakeLastFm(()),
-            export_path=tmp_path / "missing.json",
-            cancel_check=CancellationFlag(True),
+        (
+            scrobble_history.refresh_scrobble_history(
+                FakeLastFm(()),
+                export_path=tmp_path / "missing.json",
+                cancel_check=CancellationFlag(True),
+            )
         )
 
 
-def test_current_refresh_records_successful_check_time_without_rewrite(
+async def test_current_refresh_records_successful_check_time_without_rewrite(
     tmp_path: Path,
 ) -> None:
     """Current refresh records successful check time without rewrite.
@@ -236,7 +242,7 @@ def test_current_refresh_records_successful_check_time_without_rewrite(
     assert log_path.exists()
 
 
-def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
+async def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
     tmp_path: Path,
 ) -> None:
     """Refresh recovers inline fallback before replacing lfs pointer.
@@ -289,7 +295,7 @@ def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
     assert "Recovered Last.fm history from compressed fallback parts" in progress
 
 
-def test_refresh_preserves_duplicate_scrobbles_at_the_same_second(
+async def test_refresh_preserves_duplicate_scrobbles_at_the_same_second(
     tmp_path: Path,
 ) -> None:
     export_path = tmp_path / "lastfm.json"
@@ -349,19 +355,21 @@ def test_refresh_preserves_duplicate_scrobbles_at_the_same_second(
     ]
 
 
-def test_refresh_rejects_an_export_for_a_different_user(tmp_path: Path) -> None:
+async def test_refresh_rejects_an_export_for_a_different_user(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     write_export(export_path)
     lastfm = FakeLastFm(())
 
     with pytest.raises(scrobble_history.ScrobbleHistoryError, match="not somebody"):
-        scrobble_history.refresh_scrobble_history(
-            lastfm,
-            expected_username="somebody",
-            export_path=export_path,
-            legacy_delta_path=None,
-            backup_dir=tmp_path / "backups",
-            log_path=tmp_path / "log.jsonl",
+        (
+            scrobble_history.refresh_scrobble_history(
+                lastfm,
+                expected_username="somebody",
+                export_path=export_path,
+                legacy_delta_path=None,
+                backup_dir=tmp_path / "backups",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
     assert lastfm.calls == []
@@ -383,11 +391,11 @@ def test_export_record_validation_rejects_malformed_scrobbles(record: object) ->
         scrobble_history._parse_export_record(record, 3)
 
 
-def test_export_and_legacy_delta_reject_invalid_shapes(tmp_path: Path) -> None:
+async def test_export_and_legacy_delta_reject_invalid_shapes(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(json.dumps({"scrobbles": "bad"}))
     with pytest.raises(scrobble_history.ScrobbleHistoryError, match="scrobbles"):
-        scrobble_history._load_export(export_path)
+        (scrobble_history._load_export(export_path))
 
     legacy_path = tmp_path / "legacy.jsonl"
     legacy_path.write_text("\n[]\n")
@@ -395,23 +403,25 @@ def test_export_and_legacy_delta_reject_invalid_shapes(tmp_path: Path) -> None:
         scrobble_history._load_legacy_delta(legacy_path)
 
 
-def test_missing_or_invalid_export_is_reported(tmp_path: Path) -> None:
+async def test_missing_or_invalid_export_is_reported(tmp_path: Path) -> None:
     with pytest.raises(scrobble_history.ScrobbleHistoryError):
-        scrobble_history._load_export(tmp_path / "missing.json")
+        (scrobble_history._load_export(tmp_path / "missing.json"))
 
 
-def test_refresh_rejects_empty_history(tmp_path: Path) -> None:
+async def test_refresh_rejects_empty_history(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(json.dumps({"username": "user", "scrobbles": []}))
 
     with pytest.raises(scrobble_history.ScrobbleHistoryError, match="history is empty"):
-        scrobble_history.refresh_scrobble_history(
-            FakeLastFm(()),
-            expected_username="user",
-            export_path=export_path,
-            legacy_delta_path=None,
-            backup_dir=tmp_path / "backups",
-            log_path=tmp_path / "log.jsonl",
+        (
+            scrobble_history.refresh_scrobble_history(
+                FakeLastFm(()),
+                expected_username="user",
+                export_path=export_path,
+                legacy_delta_path=None,
+                backup_dir=tmp_path / "backups",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
 
@@ -485,7 +495,9 @@ def test_backup_write_log_and_timestamp_failures_are_wrapped(
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
-def test_full_rebuild_replaces_edits_deletions_and_ignores_legacy(tmp_path, dry_run):
+async def test_full_rebuild_replaces_edits_deletions_and_ignores_legacy(
+    tmp_path, dry_run
+):
     path = tmp_path / "history.json"
     original = write_export(path)
     delta = tmp_path / "legacy.jsonl"
@@ -518,17 +530,19 @@ def test_full_rebuild_replaces_edits_deletions_and_ignores_legacy(tmp_path, dry_
         assert len(json.loads(path.read_text())["scrobbles"]) == 2
 
 
-def test_full_rebuild_rejects_empty_replacement(tmp_path):
+async def test_full_rebuild_rejects_empty_replacement(tmp_path):
     path = tmp_path / "history.json"
     original = write_export(path)
     with pytest.raises(scrobble_history.ScrobbleHistoryError, match="empty API"):
-        scrobble_history.refresh_scrobble_history(
-            FakeLastFm(()), export_path=path, full_rebuild=True
+        (
+            scrobble_history.refresh_scrobble_history(
+                FakeLastFm(()), export_path=path, full_rebuild=True
+            )
         )
     assert path.read_bytes() == original
 
 
-def test_incremental_after_rebuild_does_not_resurrect_deleted_legacy(tmp_path):
+async def test_incremental_after_rebuild_does_not_resurrect_deleted_legacy(tmp_path):
     path = tmp_path / "history.json"
     write_export(path)
     delta = tmp_path / "legacy.jsonl"
@@ -540,8 +554,10 @@ def test_incremental_after_rebuild_does_not_resurrect_deleted_legacy(tmp_path):
         log_path=tmp_path / "log",
     )
     corrected = LastFmRecentTrack("Corrected", "Song", "Album", 1)
-    scrobble_history.refresh_scrobble_history(
-        FakeLastFm((corrected,)), full_rebuild=True, **options
+    (
+        scrobble_history.refresh_scrobble_history(
+            FakeLastFm((corrected,)), full_rebuild=True, **options
+        )
     )
     result = scrobble_history.refresh_scrobble_history(
         FakeLastFm((corrected,)), **options

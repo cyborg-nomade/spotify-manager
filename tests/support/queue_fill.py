@@ -11,10 +11,10 @@ from datetime import datetime
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
 from spotify_manager.application.queue_recommendations import QueueRecommendations
 from spotify_manager.application.queue_seeds import QueueSeeds
@@ -273,7 +273,7 @@ class FillObservations:
         self.record("liked", [track.spotify_id for track in tracks])
         return {"track": self.scenario == "all-liked"}
 
-    def current_user_following_artists(self, artists: list[str]) -> list[bool]:
+    async def current_user_following_artists(self, artists: list[str]) -> list[bool]:
         """Observe original follow-status request.
 
         Args:
@@ -285,7 +285,7 @@ class FillObservations:
         self.record("following", artists)
         return [] if self.scenario == "bad-follow" else [self.scenario == "followed"]
 
-    def user_follow_artists(self, artists: list[str]) -> None:
+    async def user_follow_artists(self, artists: list[str]) -> None:
         """Accept the original Spotify follow.
 
         Args:
@@ -344,25 +344,25 @@ class FillObservations:
 def _patches(edge: FillObservations) -> tuple[tuple[object, str, object], ...]:
     return (
         (LegacyQueueFill, "history", partialmethod(queue_history, edge.refresh)),
-        (new_wine, "load_playlist_tracks", edge.playlist),
+        (new_wine, "async_load_playlist_tracks", AsyncMock(side_effect=edge.playlist)),
         (QueueSeeds, "select", partialmethod(_seeds, edge)),
         (QueueRecommendations, "run", partialmethod(_gather, edge)),
-        (legacy, "_playlist_artist_ids", edge.represented),
+        (legacy, "_playlist_artist_ids", AsyncMock(side_effect=edge.represented)),
         (QueueArtistMapping, "resolve", partialmethod(_resolve, edge)),
-        (new_kids, "load_top_track_data", edge.top),
-        (legacy, "_liked_statuses", edge.liked),
-        (legacy, "_persist_followed_artist", edge.persist),
-        (review_artists, "add_playlist_item", edge.append),
+        (new_kids, "async_load_top_track_data", AsyncMock(side_effect=edge.top)),
+        (legacy, "_liked_statuses", AsyncMock(side_effect=edge.liked)),
+        (legacy, "_persist_followed_artist", AsyncMock(side_effect=edge.persist)),
+        (review_artists, "async_add_playlist_item", AsyncMock(side_effect=edge.append)),
         (legacy, "append_event", edge.audit),
     )
 
 
-def _run(edge: FillObservations, preview: bool) -> object:
+async def _run(edge: FillObservations, preview: bool) -> object:
     with ExitStack() as stack:
         for module, name, callback in _patches(edge):
             stack.enter_context(patch.object(module, name, callback))
         stack.enter_context(patch.object(legacy, "_state_access", return_value=edge))
-        result = legacy.fill_queue_from_lastfm(
+        result = await legacy.async_fill_queue_from_lastfm(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
             QueueFillOptions(
@@ -379,7 +379,7 @@ def _run(edge: FillObservations, preview: bool) -> object:
     return asdict(result)
 
 
-def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
     """Observe the original complete runner and accepted failure prefixes.
 
     Args:
@@ -393,7 +393,7 @@ def original_outcome(scenario: str, preview: bool, failure: str | None) -> objec
     edge = FillObservations(scenario, failure)
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _run(edge, preview)
+        outcome["result"] = await _run(edge, preview)
     except (RuntimeError, legacy.QueueSpotifyError) as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)
@@ -410,7 +410,7 @@ def cases() -> list[tuple[str, dict[str, object]]]:
     return list(raw.items())
 
 
-def _gather(
+async def _gather(
     resources: QueueRecommendations,
     edge: FillObservations,
     seeds: tuple[ArtistSeed, ...],
@@ -433,7 +433,7 @@ def _gather(
     )
 
 
-def _resolve(
+async def _resolve(
     resources: QueueArtistMapping,
     edge: FillObservations,
     recommendation: ArtistRecommendation,

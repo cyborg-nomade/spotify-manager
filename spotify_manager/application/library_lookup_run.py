@@ -34,7 +34,7 @@ class ArtistStatistics:
     batch_size: int
 
 
-def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
+async def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
     """Observe release membership before gathering and checking track facts.
 
     Args:
@@ -43,13 +43,15 @@ def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
     Returns:
         Original live artist-statistics response.
     """
-    identifier, name = artist(deps.catalog, deps.name, deps.identifier)
-    releases = deps.catalog.releases(identifier)
-    saved = count_contains(
+    identifier, name = await artist(deps.catalog, deps.name, deps.identifier)
+    releases = await deps.catalog.releases(identifier)
+    saved = await count_contains(
         releases, deps.catalog.saved, "Saved Albums", deps.batch_size
     )
-    tracks = deps.catalog.tracks(identifier, releases)
-    liked = count_contains(tracks, deps.catalog.liked, "Liked Songs", deps.batch_size)
+    tracks = await deps.catalog.tracks(identifier, releases)
+    liked = await count_contains(
+        tracks, deps.catalog.liked, "Liked Songs", deps.batch_size
+    )
     return ArtistLibraryStats(
         artist_name=name,
         artist_id=identifier,
@@ -59,7 +61,7 @@ def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
     )
 
 
-def count_contains(
+async def count_contains(
     ids: list[str],
     contains: LookupMembership,
     resource: str,
@@ -82,7 +84,7 @@ def count_contains(
     count = 0
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
-        response = contains.contains(batch)
+        response = await contains.contains(batch)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SpotifyLookupResponseError(
                 f"Spotify returned invalid {resource} statuses."
@@ -91,7 +93,7 @@ def count_contains(
     return count
 
 
-def tracklist(
+async def tracklist(
     deps: CachedTracks, identifier: str, use_cache: bool, refresh_cache: bool
 ) -> tuple[list[LookupTrack], bool]:
     """Retain authoritative empty hits and delayed client acquisition.
@@ -105,17 +107,17 @@ def tracklist(
     Returns:
         Original complete tracks and cache-hit flag.
     """
-    cache = deps.load() if use_cache else {}
+    cache = (await deps.load()) if use_cache else {}
     if use_cache and not refresh_cache and identifier in cache:
         return cache[identifier], True
-    tracks = deps.fetch(identifier)
+    tracks = await deps.fetch(identifier)
     if use_cache:
         cache[identifier] = tracks
-        deps.save(cache)
+        await deps.save(cache)
     return tracks, False
 
 
-def evaluate_local(
+async def evaluate_local(
     deps: LocalAlbumLookup,
     name: str | None,
     identifier: str | None,
@@ -136,12 +138,12 @@ def evaluate_local(
     Returns:
         Original album evaluation response.
     """
-    facts = library if library is not None else deps.files.library()
+    facts = library if library is not None else (await deps.files.library())
     resolved_id, resolved_name, resolved_artist = local_album(
         facts.albums, name, identifier, artist
     )
     liked_ids = {track.spotify_id for track in facts.tracks}
-    tracks, cached = tracklist(
+    tracks, cached = await tracklist(
         deps.tracks, resolved_id, deps.use_cache, deps.refresh_cache
     )
     statuses, liked = local_statuses(tracks, liked_ids)

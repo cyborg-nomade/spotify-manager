@@ -148,7 +148,7 @@ class FakeSpotify:
         query = review_artists.spotify_search_query(item.name)
         self.search_results[(search_type, query)] = results
 
-    def search(self, q: str, limit: int, offset: int, **kwargs: str) -> dict:
+    async def search(self, q: str, limit: int, offset: int, **kwargs: str) -> dict:
         search_type = kwargs["type"]
         self.search_calls.append((search_type, q, limit, offset))
         results = self.search_results.get((search_type, q), [])
@@ -161,7 +161,7 @@ class FakeSpotify:
             }
         }
 
-    def _get(self, path: str, limit: int, offset: int) -> dict:
+    async def _get(self, path: str, limit: int, offset: int) -> dict:
         playlist_id = path.split("/")[1]
         self.playlist_get_calls.append(playlist_id)
         tracks = self.playlists.get(playlist_id, [])
@@ -172,12 +172,12 @@ class FakeSpotify:
             "total": len(tracks),
         }
 
-    def _post(self, path: str, payload: dict) -> dict:
+    async def _post(self, path: str, payload: dict) -> dict:
         playlist_id = path.split("/")[1]
         self.playlist_post_calls.append((playlist_id, payload))
         return {"snapshot_id": "snapshot"}
 
-    def _delete(self, path: str, payload: dict | None = None, **kwargs) -> None:
+    async def _delete(self, path: str, payload: dict | None = None, **kwargs) -> None:
         if path.startswith("playlists/"):
             assert payload is not None
             playlist_id = path.split("/")[1]
@@ -186,7 +186,7 @@ class FakeSpotify:
         assert payload is None
         self.library_delete_calls.append((path, kwargs))
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         include_groups: str,
@@ -203,7 +203,7 @@ class FakeSpotify:
             "total": len(releases),
         }
 
-    def album_tracks(self, album_id: str, limit: int, offset: int) -> dict:
+    async def album_tracks(self, album_id: str, limit: int, offset: int) -> dict:
         assert (limit, offset) == (1, 0)
         self.album_track_calls.append(album_id)
         return {"items": self.first_tracks.get(album_id, [])[:1]}
@@ -212,7 +212,7 @@ class FakeSpotify:
 PLAYLISTS = review_artists.QueuePlaylists("queue-1", "queue-2", "queue-3")
 
 
-def run_review(
+async def run_review(
     sp: FakeSpotify,
     paths: review_artists.ArtistReviewPaths,
     **kwargs: object,
@@ -237,7 +237,9 @@ def run_review(
     )
 
 
-def test_zero_liked_uses_only_the_first_five_ranked_tracks(tmp_path: Path) -> None:
+async def test_zero_liked_uses_only_the_first_five_ranked_tracks(
+    tmp_path: Path,
+) -> None:
     removed = artist("removed")
     kept = artist("kept")
     paths = prepare_paths(tmp_path, [removed, kept])
@@ -257,7 +259,7 @@ def test_zero_liked_uses_only_the_first_five_ranked_tracks(tmp_path: Path) -> No
     )
     sp.set_search(kept, "track", [spotify_track("primary", kept.spotify_id)])
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.reviewed == 2
     assert summary.unfollowed == 1
@@ -273,7 +275,7 @@ def test_zero_liked_uses_only_the_first_five_ranked_tracks(tmp_path: Path) -> No
     assert latest["artists_stats"]["removed_artists"] == 1
 
 
-def test_low_tier_adds_only_to_queue_one_and_uses_an_unliked_track(
+async def test_low_tier_adds_only_to_queue_one_and_uses_an_unliked_track(
     tmp_path: Path,
 ) -> None:
     item = artist("low")
@@ -289,20 +291,22 @@ def test_low_tier_adds_only_to_queue_one_and_uses_an_unliked_track(
         ],
     )
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.queued == 1
     assert sp.playlist_get_calls == ["queue-1", "queue-2", "queue-3"]
     assert sp.playlist_post_calls == [("queue-1", {"uris": ["spotify:track:unliked"]})]
 
 
-def test_existing_tier_queue_entry_avoids_catalog_requests(tmp_path: Path) -> None:
+async def test_existing_tier_queue_entry_avoids_catalog_requests(
+    tmp_path: Path,
+) -> None:
     item = artist("present")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 3))
     sp = FakeSpotify()
     sp.playlists["queue-1"] = [spotify_track("queued", item.spotify_id)]
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.already_queued == 1
     assert sp.playlist_get_calls == ["queue-1"]
@@ -310,7 +314,7 @@ def test_existing_tier_queue_entry_avoids_catalog_requests(tmp_path: Path) -> No
     assert sp.playlist_post_calls == []
 
 
-def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
+async def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
     tmp_path: Path,
 ) -> None:
     """Medium tier prompts with album and ep and adds only to queue two.
@@ -345,7 +349,9 @@ def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
     sp.first_tracks["ep"] = [spotify_track("ep-first", item.spotify_id)]
     prompted: list[tuple[tuple[review_artists.ReleaseCandidate, ...], bool]] = []
 
-    summary = run_review(sp, paths, release_choice_reader=MediumReleaseChoice(prompted))
+    summary = await run_review(
+        sp, paths, release_choice_reader=MediumReleaseChoice(prompted)
+    )
 
     assert summary.queued == 1
     assert sp.playlist_get_calls == ["queue-2", "queue-3", "queue-1"]
@@ -359,7 +365,7 @@ def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
     ]
 
 
-def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
+async def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
     tmp_path: Path,
 ) -> None:
     """High tier can decline or choose from earliest releases and resumes.
@@ -394,7 +400,7 @@ def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
     sp.first_tracks["old"] = [spotify_track("old-first", queued.spotify_id)]
     seen_dates: list[list[str]] = []
 
-    summary = run_review(
+    summary = await run_review(
         sp,
         paths,
         release_choice_reader=HighReleaseChoice(declined.spotify_id, seen_dates),
@@ -409,13 +415,13 @@ def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
     ]
 
     resumed_sp = FakeSpotify()
-    resumed = run_review(resumed_sp, paths)
+    resumed = await run_review(resumed_sp, paths)
     assert resumed.total_pending_at_start == 0
     assert resumed_sp.playlist_get_calls == []
     assert resumed_sp.artist_album_calls == []
 
 
-def test_queue_two_placement_is_sticky_after_artist_reaches_high_tier(
+async def test_queue_two_placement_is_sticky_after_artist_reaches_high_tier(
     tmp_path: Path,
 ) -> None:
     item = artist("sticky-medium")
@@ -423,7 +429,7 @@ def test_queue_two_placement_is_sticky_after_artist_reaches_high_tier(
     sp = FakeSpotify()
     sp.playlists["queue-2"] = [spotify_track("existing", item.spotify_id)]
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.already_queued == 1
     assert sp.playlist_get_calls == ["queue-2"]
@@ -431,13 +437,15 @@ def test_queue_two_placement_is_sticky_after_artist_reaches_high_tier(
     assert sp.artist_album_calls == []
 
 
-def test_queue_three_placement_is_sticky_when_liked_count_drops(tmp_path: Path) -> None:
+async def test_queue_three_placement_is_sticky_when_liked_count_drops(
+    tmp_path: Path,
+) -> None:
     item = artist("sticky-high")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 3))
     sp = FakeSpotify()
     sp.playlists["queue-3"] = [spotify_track("existing", item.spotify_id)]
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.already_queued == 1
     assert sp.playlist_get_calls == ["queue-1", "queue-2", "queue-3"]
@@ -445,7 +453,7 @@ def test_queue_three_placement_is_sticky_when_liked_count_drops(tmp_path: Path) 
     assert sp.search_calls == []
 
 
-def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
+async def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
     tmp_path: Path,
 ) -> None:
     """Queue one artist with six or more likes moves only to queue two.
@@ -467,7 +475,7 @@ def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
     ]
     prompt_flags: list[bool] = []
 
-    summary = run_review(
+    summary = await run_review(
         sp, paths, release_choice_reader=PromotionReleaseChoice(prompt_flags)
     )
 
@@ -487,7 +495,7 @@ def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
     assert sp.artist_album_calls == []
 
 
-def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
+async def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
     """Skip is run only and cached search is reused.
 
     Args:
@@ -505,7 +513,7 @@ def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
         ],
     )
 
-    first = run_review(
+    first = await run_review(
         first_sp,
         paths,
         track_choice_reader=Answer(review_artists.CHOICE_SKIP),
@@ -514,7 +522,7 @@ def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
     assert first.reviewed == 0
 
     resumed_sp = FakeSpotify()
-    resumed = run_review(
+    resumed = await run_review(
         resumed_sp,
         paths,
         track_choice_reader=Answer("version-b"),
@@ -526,7 +534,9 @@ def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
     ]
 
 
-def test_pending_unfollow_is_finished_before_new_catalog_work(tmp_path: Path) -> None:
+async def test_pending_unfollow_is_finished_before_new_catalog_work(
+    tmp_path: Path,
+) -> None:
     item = artist("pending")
     paths = prepare_paths(tmp_path, [item])
     paths.log.write_text(
@@ -545,7 +555,7 @@ def test_pending_unfollow_is_finished_before_new_catalog_work(tmp_path: Path) ->
     )
     sp = FakeSpotify()
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.total_pending_at_start == 1
     assert summary.unfollowed == 1
@@ -555,7 +565,9 @@ def test_pending_unfollow_is_finished_before_new_catalog_work(tmp_path: Path) ->
     ]
 
 
-def test_pending_queue_move_finishes_without_adding_a_duplicate(tmp_path: Path) -> None:
+async def test_pending_queue_move_finishes_without_adding_a_duplicate(
+    tmp_path: Path,
+) -> None:
     item = artist("pending-move")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 8))
     paths.log.write_text(
@@ -581,7 +593,7 @@ def test_pending_queue_move_finishes_without_adding_a_duplicate(tmp_path: Path) 
     sp.playlists["queue-1"] = [spotify_track("old-track", item.spotify_id)]
     sp.playlists["queue-2"] = [spotify_track("new-track", item.spotify_id)]
 
-    summary = run_review(sp, paths)
+    summary = await run_review(sp, paths)
 
     assert summary.total_pending_at_start == 1
     assert summary.moved == 1
@@ -616,7 +628,7 @@ class MediumReleaseChoice:
 
     prompts: list[tuple[tuple[review_artists.ReleaseCandidate, ...], bool]]
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: YourLibraryArtist,
         candidates: tuple[review_artists.ReleaseCandidate, ...],
@@ -648,7 +660,7 @@ class HighReleaseChoice:
     declined_artist: str
     dates: list[list[str]]
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: YourLibraryArtist,
         candidates: tuple[review_artists.ReleaseCandidate, ...],
@@ -681,7 +693,7 @@ class PromotionReleaseChoice:
 
     flags: list[bool]
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: YourLibraryArtist,
         candidates: tuple[review_artists.ReleaseCandidate, ...],

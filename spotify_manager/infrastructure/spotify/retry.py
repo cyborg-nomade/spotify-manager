@@ -216,7 +216,7 @@ class _RetryPolicy:
     attempts: int
 
 
-def _wait_or_raise(
+async def _wait_or_raise(
     error: SpotifyException | RequestsConnectionError | RequestsTimeout,
     description: str,
     attempts: int,
@@ -235,7 +235,7 @@ def _wait_or_raise(
     policy.output.echo(
         f"{prefix} while {description}. Retrying {format_retry_delay(policy.delay)}."
     )
-    policy.wait.sleep(policy.delay)
+    await policy.wait.sleep(policy.delay)
 
 
 def handle_spotify_exception(exc: SpotifyException) -> None:
@@ -314,7 +314,7 @@ class SpotifyAttemptPolicy:
     def accepted(self) -> None:
         """Accept the original request without an additional observation."""
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Retry only the original Spotify and transport failures.
 
         Args:
@@ -333,5 +333,5 @@ class SpotifyAttemptPolicy:
         ):
             return False
         self.failures += 1
-        _wait_or_raise(error, self.description, self.failures, self.settings)
+        await _wait_or_raise(error, self.description, self.failures, self.settings)
         return True

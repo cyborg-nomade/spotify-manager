@@ -13,7 +13,7 @@ from spotify_manager.domain.release_check_values import RankedArtist
 class QueueArtistChoice(Protocol):
     """Own the operator interaction for choose artist."""
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist: ArtistRecommendation,
         candidates: tuple[SpotifyArtistCandidate, ...],
@@ -43,7 +43,7 @@ class QueueMappingChoice:
     reader: QueueArtistChoice
     recommendation: ArtistRecommendation
 
-    def choose_artist(
+    async def choose_artist(
         self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...], /
     ) -> str:
         """Read the Queue-specific prompt after the shared search.
@@ -55,7 +55,7 @@ class QueueMappingChoice:
         Returns:
             Original Queue operator response.
         """
-        return self.reader.choose_artist(self.recommendation, candidates)
+        return await self.reader.choose_artist(self.recommendation, candidates)
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,7 @@ class QueueArtistMapping:
     catalog: ArtistSearch
     reader: QueueArtistChoice | None
 
-    def resolve(
+    async def resolve(
         self, recommendation: ArtistRecommendation
     ) -> SpotifyArtistCandidate | str | None:
         """Resolve a recommendation through the named mapping stage.
@@ -87,4 +87,4 @@ class QueueArtistMapping:
         reader = None
         if self.reader is not None:
             reader = QueueMappingChoice(self.reader, recommendation)
-        return ArtistMapping(self.catalog, reader).run(artist)
+        return await ArtistMapping(self.catalog, reader).run(artist)

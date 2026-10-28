@@ -30,7 +30,7 @@ class PlaylistPages:
     pages: list[object]
     offsets: list[int] = field(default_factory=list)
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read the next original page without normalizing raw row counts.
 
         Args:
@@ -44,17 +44,17 @@ class PlaylistPages:
 
 
 @pytest.mark.parametrize("page", [None, {}, {"items": None}])
-def test_playlist_page_shape_is_unchanged(page: object) -> None:
+async def test_playlist_page_shape_is_unchanged(page: object) -> None:
     """Retain original invalid-page diagnostics.
 
     Args:
         page: Original malformed response.
     """
     with pytest.raises(SpotifyTrackResolutionError, match="invalid playlist"):
-        history_playlist.state(PlaylistPages([page]), "target")
+        (await history_playlist.state(PlaylistPages([page]), "target"))
 
 
-def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
+async def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
     """Preserve total fallback, unchecked continuation values and empty identities."""
     rows: list[object] = [
         None,
@@ -70,19 +70,23 @@ def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
             {"items": [{"track": raw_track("last")}], "total": 7},
         ]
     )
-    result = history_playlist.state(pages, "target")
+    result = await history_playlist.state(pages, "target")
     assert pages.offsets == [0, 6] and result.total_items == 7
     assert result.track_ids == frozenset({"id", "last"})
     assert result.primary_artist_keys == frozenset({"artist"})
 
 
-def test_playlist_non_string_continuation_and_empty_next_guard() -> None:
+async def test_playlist_non_string_continuation_and_empty_next_guard() -> None:
     """Follow truthy original continuations and reject empty active pages."""
     pages = PlaylistPages([{"items": [{}], "next": True}, {"items": [], "next": None}])
-    assert history_playlist.state(pages, "target").total_items == 1
+    assert (await history_playlist.state(pages, "target")).total_items == 1
     assert pages.offsets == [0, 1]
     with pytest.raises(SpotifyTrackResolutionError, match="empty playlist"):
-        history_playlist.state(PlaylistPages([{"items": [], "next": True}]), "target")
+        (
+            await history_playlist.state(
+                PlaylistPages([{"items": [], "next": True}]), "target"
+            )
+        )
 
 
 @pytest.mark.parametrize(

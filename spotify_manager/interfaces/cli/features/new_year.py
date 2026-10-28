@@ -25,20 +25,20 @@ class NewYearCLI:
 
     create_console: type[Console]
 
-    def _run_new_year(self, year: int | None, dry_run: bool) -> None:
+    async def _run_new_year(self, year: int | None, dry_run: bool) -> None:
         """Build the annual retrospective, or preview it without changing Spotify.
 
         Args:
             year: Year supplied by the caller.
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         console = self.create_console()
         key, username = found_art.validate_lastfm_configuration(
             configuration.lastfm_api_key, configuration.lastfm_username
         )
-        new_year.run_new_year(
-            self.runtime.client(),
+        await new_year.run_new_year(
+            (await self.runtime.client()),
             create_lastfm_client(
                 LastFmCredentials(key, username), ConsoleOutput(console)
             ),

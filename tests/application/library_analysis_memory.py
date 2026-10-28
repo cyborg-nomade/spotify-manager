@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from collections.abc import Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -18,6 +18,7 @@ from spotify_manager.application.library_analysis_values import LibraryAnalysisP
 from spotify_manager.application.library_analysis_values import LibraryModel
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.library_analysis_values import ResourceName
+from spotify_manager.infrastructure.analysis_async_files import AsyncAnalysisStorage
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 
@@ -196,7 +197,7 @@ class AnalysisMemory:
         self.effects.append(("cursor", after))
         return {"artists": self.pages.pop(0)}
 
-    def following(self, identities: list[str]) -> object:
+    async def following(self, identities: list[str]) -> object:
         """Read original unvalidated candidate follow facts.
 
         Args:
@@ -275,7 +276,7 @@ class AnalysisMemory:
         """
         return _export_artists(paths)
 
-    def artists(self, after: str | None) -> object:
+    async def artists(self, after: str | None) -> object:
         """Observe artists at the recorded boundary.
 
         Args:
@@ -286,7 +287,7 @@ class AnalysisMemory:
         """
         return self.cursor(after)
 
-    def reconcile_artists(self, after: str | None) -> object:
+    async def reconcile_artists(self, after: str | None) -> object:
         """Observe reconcile artists at the recorded boundary.
 
         Args:
@@ -367,7 +368,7 @@ class ImmediateRequests:
 
     def attempts(
         self, description: str, max_attempts: int | None = None
-    ) -> Iterator[AbstractContextManager[None]]:
+    ) -> Iterator[AbstractAsyncContextManager[None]]:
         """Provide one direct memory request scope.
 
         Args:
@@ -390,7 +391,7 @@ class MemoryOffsetPages:
 
     memory: AnalysisMemory
 
-    def read(self, *, limit: int, offset: int) -> object:
+    async def read(self, *, limit: int, offset: int) -> object:
         """Read one page.
 
         Args:
@@ -403,7 +404,7 @@ class MemoryOffsetPages:
         return self.memory.offset_page(limit=limit, offset=offset)
 
 
-def memory_session(
+async def memory_session(
     memory: AnalysisMemory, root: Path, progress: bool = True
 ) -> AnalysisSession:
     """Construct a complete typed use-case session from memory authority.
@@ -417,9 +418,9 @@ def memory_session(
         Independently injected session without production bootstrap or SDKs.
     """
     paths = LibraryAnalysisPaths.for_files_dir(root, "mirrors")
-    files = memory
+    files = AsyncAnalysisStorage(memory)
     catalog = memory
-    checkpoint = new_checkpoint(files, paths)
+    checkpoint = await new_checkpoint(files, paths)
     return AnalysisSession(
         paths,
         checkpoint,

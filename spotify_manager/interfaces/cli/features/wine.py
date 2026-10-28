@@ -1,7 +1,7 @@
 """Explicit wine CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -15,11 +15,14 @@ from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -45,7 +48,7 @@ class WineCLI:
     display: ConsoleDisplay
     sleep: Wait
 
-    def _prompt_new_wine_release_choice(
+    async def _prompt_new_wine_release_choice(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -66,14 +69,14 @@ class WineCLI:
         if progress is not None:
             progress.stop()
         try:
-            return self._read_new_wine_release_choice(
+            return await self._read_new_wine_release_choice(
                 console, source, candidates, progress
             )
         finally:
             if progress is not None:
                 progress.start()
 
-    def _prompt_new_wine_endpoint_choice(
+    async def _prompt_new_wine_endpoint_choice(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -97,7 +100,7 @@ class WineCLI:
             progress.stop()
         try:
             position = current_index + 1
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 (
                     f'Treat {source.release.name} track {position}/{len(tracks)} "'
                     f"{source.name}"
@@ -118,7 +121,7 @@ class WineCLI:
             if progress is not None:
                 progress.start()
 
-    def _run_flush_new_wine(
+    async def _run_flush_new_wine(
         self, dry_run: bool, no_discovery: bool, choose_album_endpoints: bool
     ) -> None:
         """Advance every New Wine track once according to its release.
@@ -131,7 +134,7 @@ class WineCLI:
         choose_album_endpoints = choose_album_endpoints is True
         self._flush_new_wine_console = self.display.create_console()
         self._flush_new_wine_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             new_wine_playlist_id = new_wine.parse_playlist_id(
                 configuration.new_wine_from_old_bottles_playlist,
@@ -163,8 +166,8 @@ class WineCLI:
                 self._flush_new_wine_task_id = self._flush_new_wine_progress.add_task(
                     description, total=None
                 )
-                summary = new_wine.flush_new_wine(
-                    self.runtime.review_client(),
+                summary = await new_wine.flush_new_wine(
+                    (await self.runtime.review_client()),
                     NewWineOptions(
                         destination=new_wine_playlist_id,
                         sauvignon=sauvignon_playlist_id,
@@ -190,7 +193,7 @@ class WineCLI:
             self._report_flush_new_wine_new_wine_failure(exc)
         except SpotifyException as exc:
             self._report_flush_new_wine_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_new_wine_interrupted_interrupted(exc)
         self._show_flush_new_wine(summary)
 
@@ -225,25 +228,25 @@ class WineCLI:
             description=status,
         )
 
-    def _flush_new_wine_ask_new_wine_release_choice(
+    async def _flush_new_wine_ask_new_wine_release_choice(
         self,
         source: new_wine.PlaylistTrack,
         candidates: tuple[new_wine.ReleaseCandidate, ...],
     ) -> str:
-        return self._prompt_new_wine_release_choice(
+        return await self._prompt_new_wine_release_choice(
             self._flush_new_wine_console,
             source,
             candidates,
             self._flush_new_wine_progress_ref,
         )
 
-    def _flush_new_wine_ask_new_wine_endpoint_choice(
+    async def _flush_new_wine_ask_new_wine_endpoint_choice(
         self,
         source: new_wine.PlaylistTrack,
         tracks: tuple[new_wine.ReleaseTrack, ...],
         current_index: int,
     ) -> str:
-        return self._prompt_new_wine_endpoint_choice(
+        return await self._prompt_new_wine_endpoint_choice(
             self._flush_new_wine_console,
             source,
             tracks,
@@ -305,7 +308,7 @@ class WineCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_new_wine_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._flush_new_wine_console.print(
             "New Wine flush paused. The active run was saved.", style="bold yellow"
@@ -360,7 +363,7 @@ class WineCLI:
                 "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
-    def _read_new_wine_release_choice(
+    async def _read_new_wine_release_choice(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -402,13 +405,13 @@ class WineCLI:
         choices = [str(index) for index in range(1, len(candidates) + 1)]
         at_album_endpoint = source.release.release_type in {"Album", "EP"}
         if at_album_endpoint:
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Release number / [f]inish / [s]kip this run / [q]uit",
                 choices=[*choices, "f", "s", "q"],
                 console=console,
             )
         else:
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Release number / [d]rop / [s]kip this run / [q]uit",
                 choices=[*choices, "d", "s", "q"],
                 console=console,
@@ -514,7 +517,7 @@ class FlushNewWineInteraction:
 
     owner: WineCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -541,9 +544,10 @@ class FlushNewWineInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._flush_new_wine_update_progress(completed, total, status)
 
-    def choose_release(
+    async def choose_release(
         self,
         source: new_wine.PlaylistTrack,
         candidates: tuple[new_wine.ReleaseCandidate, ...],
@@ -557,11 +561,11 @@ class FlushNewWineInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_new_wine_ask_new_wine_release_choice(
+        return await self.owner._flush_new_wine_ask_new_wine_release_choice(
             source, candidates
         )
 
-    def choose_endpoint(
+    async def choose_endpoint(
         self,
         source: new_wine.PlaylistTrack,
         tracks: tuple[new_wine.ReleaseTrack, ...],
@@ -577,6 +581,6 @@ class FlushNewWineInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_new_wine_ask_new_wine_endpoint_choice(
+        return await self.owner._flush_new_wine_ask_new_wine_endpoint_choice(
             source, tracks, current_index
         )

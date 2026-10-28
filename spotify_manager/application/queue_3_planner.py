@@ -20,7 +20,7 @@ from spotify_manager.models.lookups import AlbumEvaluation
 class TransitionReader(Protocol):
     """Own the operator interaction for choose transition."""
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: PlaylistTrack,
         current: DiscographyRelease,
@@ -43,7 +43,9 @@ class TransitionReader(Protocol):
 class Queue3Catalog(Protocol):
     """Read ordered studio tracks and their live liked membership."""
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Read the selected edition's ordered tracks.
 
         Args:
@@ -53,7 +55,7 @@ class Queue3Catalog(Protocol):
             Original playable tracks.
         """
 
-    def memberships(
+    async def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
     ) -> dict[str, bool]:
         """Read live memberships before applying the album decision.
@@ -105,7 +107,7 @@ class Queue3Planner:
     ordering: ReleaseOrdering
     choose: TransitionReader
 
-    def plan(
+    async def plan(
         self, source: PlaylistTrack, discography: tuple[DiscographyRelease, ...]
     ) -> dict[str, object] | None:
         """Plan the next track, release boundary, or completed catalog.
@@ -123,16 +125,16 @@ class Queue3Planner:
         """
         current, _following = release_transition(source.release.name, discography)
         if current is None:
-            return self._ineligible(source, discography)
-        tracks = self._tracks(current)
+            return await self._ineligible(source, discography)
+        tracks = await self._tracks(current)
         index = track_index(tracks, source)
         if index is None:
             return self._unmapped(current, tracks)
         if index + 1 < len(tracks):
             return _plan("advance", current, current, tracks[index + 1], None, None)
-        liked = self.catalog.memberships(current, tracks)
+        liked = await self.catalog.memberships(current, tracks)
         evaluation = evaluate_release(release_candidate(current), tracks, liked)
-        following = self.ordering.following(current, discography)
+        following = await self.ordering.following(current, discography)
         if following is None:
             return _plan(
                 "complete",
@@ -142,9 +144,9 @@ class Queue3Planner:
                 evaluation,
                 "last track of the final studio release",
             )
-        return self.transition(source, current, following, evaluation=evaluation)
+        return await self.transition(source, current, following, evaluation=evaluation)
 
-    def transition(
+    async def transition(
         self,
         source: PlaylistTrack,
         current: DiscographyRelease,
@@ -168,24 +170,24 @@ class Queue3Planner:
         Raises:
             Queue3Error: Choice is invalid or the accepted successor has no tracks.
         """
-        choice = self.choose.choose_transition(source, current, following)
+        choice = await self.choose.choose_transition(source, current, following)
         if choice == "quit":
             return None
         if choice != "advance":
             raise Queue3Error("Release transition must be advance or quit.")
-        tracks = self._tracks(following)
+        tracks = await self._tracks(following)
         if not tracks:
             raise Queue3Error(f"{following.name} has no playable tracks.")
         return _plan("next_release", current, following, tracks[0], evaluation, reason)
 
-    def _tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def _tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         tracks = self.tracks.get(release.spotify_id)
         if tracks is None:
-            tracks = self.catalog.release_tracks(release)
+            tracks = await self.catalog.release_tracks(release)
             self.tracks[release.spotify_id] = tracks
         return tracks
 
-    def _ineligible(
+    async def _ineligible(
         self, source: PlaylistTrack, discography: tuple[DiscographyRelease, ...]
     ) -> dict[str, object] | None:
         current = source_release(source)
@@ -198,7 +200,7 @@ class Queue3Planner:
                 None,
                 "artist has no eligible studio album or EP",
             )
-        return self.transition(
+        return await self.transition(
             source,
             current,
             discography[0],

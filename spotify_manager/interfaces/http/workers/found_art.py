@@ -5,13 +5,15 @@ from dataclasses import field
 from datetime import UTC
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
@@ -53,11 +55,11 @@ class FoundArtWorker:
     lastfm: LastFmClient = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one Found Art web job and retain its complete trace."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except (found_art.FoundArtError, LastFmError, SpotifyException) as exc:
             self._failed(exc)
         except RequestException:
@@ -92,8 +94,8 @@ class FoundArtWorker:
             LastFmCredentials(self.api_key, self.username), self
         )
 
-    def _execute(self) -> found_art.FoundArtSummary:
-        summary = found_art.run_found_art(
+    async def _execute(self) -> found_art.FoundArtSummary:
+        summary = await found_art.run_found_art(
             self.spotify,
             self.lastfm,
             self.playlist_id,

@@ -3,10 +3,9 @@
 import json
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
 from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
@@ -36,7 +35,7 @@ class ReviewInputs:
     owned_playlists: tuple[OwnedPlaylist, ...]
 
 
-def review_inputs(
+async def review_inputs(
     sp: Spotify,
     options: DiscoveryOptions,
     interaction: DiscoveryInteraction,
@@ -59,12 +58,16 @@ def review_inputs(
     from spotify_manager.infrastructure.discovery_history import (
         refresh_release_history as _refresh_history,
     )
-    from spotify_manager.routines.composer_playlists import load_owned_playlists
-    from spotify_manager.routines.new_kids import _state_access
+    from spotify_manager.routines.composer_playlists import (
+        async_load_owned_playlists as load_owned_playlists,
+    )
+    from spotify_manager.routines.new_kids import (
+        _async_state_access as _async_state_access,
+    )
 
     retry = interaction
     active_year = options.year or legacy.datetime.now().year
-    _refresh_history(
+    await _refresh_history(
         resources.lastfm,
         resources.lastfm_username,
         "New Kids",
@@ -73,16 +76,16 @@ def review_inputs(
         interaction,
     )
     interaction.progress(0, 0, f"Loading {active_year} Last.fm release history")
-    annual_scrobbles = load_annual_scrobble_index(
+    annual_scrobbles = await load_annual_scrobble_index(
         resources.scrobbles_path, year=active_year
     )
-    state_access = _state_access(resources.state_path, resources.state_service)
-    persisted_state = state_access.load()
+    state_access = _async_state_access(resources.state_path, resources.state_service)
+    persisted_state = await state_access.load()
     state = (
         json.loads(json.dumps(persisted_state)) if options.dry_run else persisted_state
     )
     try:
-        owned_playlists = load_owned_playlists(
+        owned_playlists = await load_owned_playlists(
             sp,
             retry,
             frozenset({options.new_kids_playlist_id, options.queue_2_playlist_id}),

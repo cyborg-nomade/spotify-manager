@@ -1,7 +1,7 @@
 """Explicit callbacks and wire presentation for NewKidsWorker."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -9,14 +9,16 @@ from datetime import timedelta
 from typing import Literal
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -76,11 +78,11 @@ class NewKidsWorker:
     lastfm: LastFmClient = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one interactive album-discovery flush as a reconnectable job."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except _NewKidsJobCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -129,7 +131,7 @@ class NewKidsWorker:
             self.job.result.total = total
             self.job.result.detail = progress_status
 
-    def choose(
+    async def choose(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
         """Present feature options and wait for this job's accepted choice.
@@ -152,18 +154,18 @@ class NewKidsWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = f"Choose the next release for {artist}"
             self.context.append(self.job, self.job.result.detail)
-        return await_submission(self.job.choice_event, self)
+        return await await_submission(self.job.choice_event, self)
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
             seconds: Original routine-supplied seconds.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise _NewKidsJobCancelledError
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -193,7 +195,7 @@ class NewKidsWorker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> new_kids.FlushSummary | new_kids.Queue2Summary:
+    async def _execute(self) -> new_kids.FlushSummary | new_kids.Queue2Summary:
         configuration = self.context.settings.load()
         lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
             configuration.lastfm_api_key, configuration.lastfm_username
@@ -209,11 +211,15 @@ class NewKidsWorker:
                 lastfm=self.lastfm,
                 lastfm_username=lastfm_username,
             )
-            return new_kids.flush_queue_2(self.spotify, options, interaction, resources)
+            return await new_kids.flush_queue_2(
+                self.spotify, options, interaction, resources
+            )
         resources = DiscoveryResources(
             lastfm=self.lastfm, lastfm_username=lastfm_username
         )
-        return new_kids.flush_new_kids(self.spotify, options, interaction, resources)
+        return await new_kids.flush_new_kids(
+            self.spotify, options, interaction, resources
+        )
 
     def _completed(
         self, summary: new_kids.FlushSummary | new_kids.Queue2Summary
@@ -403,7 +409,7 @@ class NewKidsWorker:
             )
         self.context.append(self.job, self.job.result.detail)
 
-    def wait_for_rate_limit(
+    async def wait_for_rate_limit(
         self, exc: review_album_limits.SpotifyRateLimitError, description: str
     ) -> None:
         """Wait at the job's original rate-limit boundary.
@@ -424,7 +430,7 @@ class NewKidsWorker:
             self.job.result.retry_at = retry_at.isoformat()
             self.job.result.detail = message
             self.context.append(self.job, message)
-        self.sleep(delay)
+        await self.sleep(delay)
         with self.context.lock:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."

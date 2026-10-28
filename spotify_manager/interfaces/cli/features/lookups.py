@@ -26,7 +26,7 @@ class LookupsCLI:
 
     runtime: CliResources
 
-    def _artist_stats(self, name: str, artist_id: str) -> None:
+    async def _artist_stats(self, name: str, artist_id: str) -> None:
         """Show live liked-track and saved-release counts for an artist.
 
         Args:
@@ -36,8 +36,8 @@ class LookupsCLI:
         if not name and (not artist_id):
             raise typer.BadParameter("provide an artist NAME or --artist-id")
         try:
-            stats = lookup_operations.get_live_artist_library_stats(
-                self.runtime.client(), name=name, artist_id=artist_id
+            stats = await lookup_operations.get_live_artist_library_stats(
+                (await self.runtime.client()), name=name, artist_id=artist_id
             )
         except AmbiguousArtistError as exc:
             self._report_artist_stats_ambiguous_artist_failure(exc)
@@ -49,7 +49,7 @@ class LookupsCLI:
             self._report_artist_stats_connection_request_exception(exc)
         typer.echo(stats.model_dump_json(indent=2))
 
-    def _album_decision(
+    async def _album_decision(
         self, name: str, album_id: str, artist: str, threshold: float
     ) -> None:
         """Evaluate an album against live Spotify Liked Songs state.
@@ -63,8 +63,8 @@ class LookupsCLI:
         if not name and (not album_id):
             raise typer.BadParameter("provide an album NAME or --album-id")
         try:
-            evaluation = lookup_operations.evaluate_live_album(
-                self.runtime.client(),
+            evaluation = await lookup_operations.evaluate_live_album(
+                (await self.runtime.client()),
                 name=name,
                 album_id=album_id,
                 artist=artist,

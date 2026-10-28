@@ -11,7 +11,7 @@ from spotify_manager.domain.release_check_values import RankedArtist
 class ArtistChoiceReader(Protocol):
     """Own the operator interaction for choose artist."""
 
-    def choose_artist(
+    async def choose_artist(
         self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...], /
     ) -> str:
         """Read or report the original operator interaction.
@@ -29,7 +29,7 @@ class ArtistChoiceReader(Protocol):
 class ArtistSearch(Protocol):
     """Read exact or custom-query artist candidates."""
 
-    def search(
+    async def search(
         self, artist: RankedArtist, text: str | None
     ) -> tuple[SpotifyArtistCandidate, ...]:
         """Read candidates in original search order.
@@ -70,7 +70,7 @@ class ArtistMapping:
     controls: frozenset[str] = frozenset({"skip", "skip-artist", "quit"})
     search_prefix: str = "search:"
 
-    def run(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
+    async def run(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
         """Resolve the original unique exact match or repeat explicit custom queries.
 
         Args:
@@ -84,24 +84,24 @@ class ArtistMapping:
         """
         search_text = None
         while True:
-            candidates = self.catalog.search(artist, search_text)
+            candidates = await self.catalog.search(artist, search_text)
             exact = tuple(item for item in candidates if item.exact_name)
             if search_text is None and len(exact) == 1:
                 return exact[0]
             choices = candidates if search_text is not None else (exact or candidates)
-            selected = self._choose(artist, choices)
+            selected = await self._choose(artist, choices)
             if isinstance(selected, _SearchRequest):
                 search_text = selected.text
                 continue
             return selected
 
-    def _choose(
+    async def _choose(
         self, artist: RankedArtist, choices: tuple[SpotifyArtistCandidate, ...]
     ) -> SpotifyArtistCandidate | str | _SearchRequest | None:
         if self.reader is None:
             _require_empty(artist, choices)
             return None
-        choice = self.reader.choose_artist(artist, choices)
+        choice = await self.reader.choose_artist(artist, choices)
         if choice in self.controls:
             return choice
         if choice.startswith(self.search_prefix):

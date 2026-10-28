@@ -3,9 +3,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 
@@ -24,7 +23,9 @@ class LegacyDiscoveryEffects:
     retry: RetryCall
     artists_path: Path
 
-    def append(self, playlist_id: str, track: CatalogTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, track: CatalogTrack, description: str
+    ) -> None:
         """Append a marker using its original retry description.
 
         Args:
@@ -34,9 +35,11 @@ class LegacyDiscoveryEffects:
         """
         from spotify_manager.routines.new_kids import _append_review_track
 
-        _append_review_track(self.client, playlist_id, track, description, self.retry)
+        await _append_review_track(
+            self.client, playlist_id, track, description, self.retry
+        )
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
         """Remove the original source at its accepted retry boundary.
 
         Args:
@@ -46,9 +49,9 @@ class LegacyDiscoveryEffects:
         """
         from spotify_manager.routines.new_kids import _remove_review_track
 
-        _remove_review_track(self.client, playlist_id, source, label, self.retry)
+        await _remove_review_track(self.client, playlist_id, source, label, self.retry)
 
-    def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
+    async def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
         """Read destination memberships through the original live playlist loader.
 
         Args:
@@ -59,9 +62,9 @@ class LegacyDiscoveryEffects:
         """
         from spotify_manager.routines.new_kids import _playlist_artist_ids
 
-        return _playlist_artist_ids(self.client, playlist_id, self.retry)
+        return await _playlist_artist_ids(self.client, playlist_id, self.retry)
 
-    def followed(self, artist_id: str, artist_name: str) -> bool:
+    async def followed(self, artist_id: str, artist_name: str) -> bool:
         """Observe the original tolerant follow status.
 
         Args:
@@ -73,9 +76,9 @@ class LegacyDiscoveryEffects:
         """
         from spotify_manager.routines.new_kids import _artist_followed
 
-        return _artist_followed(self.client, artist_id, artist_name, self.retry)
+        return await _artist_followed(self.client, artist_id, artist_name, self.retry)
 
-    def unfollow(self, artist_id: str, artist_name: str) -> None:
+    async def unfollow(self, artist_id: str, artist_name: str) -> None:
         """Unfollow an artist remotely before mirror removal.
 
         Args:
@@ -84,17 +87,19 @@ class LegacyDiscoveryEffects:
         """
         from spotify_manager.routines.new_kids import _unfollow_artist
 
-        _unfollow_artist(self.client, artist_id, artist_name, self.retry)
+        await _unfollow_artist(self.client, artist_id, artist_name, self.retry)
 
-    def remove_local_artist(self, artist_id: str) -> None:
+    async def remove_local_artist(self, artist_id: str) -> None:
         """Remove the unfollowed artist from the existing canonical mirror.
 
         Args:
             artist_id: Logical artist identifier.
         """
-        from spotify_manager.routines.new_kids import remove_local_artist
+        from spotify_manager.routines.new_kids import (
+            async_remove_local_artist as remove_local_artist,
+        )
 
-        remove_local_artist(artist_id, self.artists_path)
+        await remove_local_artist(artist_id, self.artists_path)
 
 
 @dataclass(frozen=True)
@@ -109,7 +114,7 @@ class LegacyDiscoveryCreation:
     client: Spotify
     retry: RetryCall
 
-    def current_user(self) -> str:
+    async def current_user(self) -> str:
         """Read the original profile ID using tolerant response parsing.
 
         Returns:
@@ -117,9 +122,9 @@ class LegacyDiscoveryCreation:
         """
         from spotify_manager.routines.new_kids import _current_user_id
 
-        return _current_user_id(self.client, self.retry)
+        return await _current_user_id(self.client, self.retry)
 
-    def create(self, user_id: str, year: int) -> str:
+    async def create(self, user_id: str, year: int) -> str:
         """Create the original private yearly playlist.
 
         Args:
@@ -131,7 +136,7 @@ class LegacyDiscoveryCreation:
         """
         from spotify_manager.routines.new_kids import _create_great_playlist
 
-        return _create_great_playlist(self.client, user_id, year, self.retry)
+        return await _create_great_playlist(self.client, user_id, year, self.retry)
 
 
 @dataclass(frozen=True)
@@ -146,7 +151,7 @@ class LegacyDiscoveryQueue:
     client: Spotify
     retry: RetryCall
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe playable queue markers in their original order.
 
         Args:
@@ -155,11 +160,15 @@ class LegacyDiscoveryQueue:
         Returns:
             Original markers, retaining duplicates.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        return load_playlist_tracks(self.client, playlist_id, self.retry)
+        return await load_playlist_tracks(self.client, playlist_id, self.retry)
 
-    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Secure a queue marker through the original append helper.
 
         Args:
@@ -169,9 +178,13 @@ class LegacyDiscoveryQueue:
         """
         from spotify_manager.routines.new_kids import _append_queue_track
 
-        _append_queue_track(self.client, playlist_id, source, description, self.retry)
+        await _append_queue_track(
+            self.client, playlist_id, source, description, self.retry
+        )
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def remove(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Remove a moved or reconciled marker through the original helper.
 
         Args:
@@ -181,4 +194,6 @@ class LegacyDiscoveryQueue:
         """
         from spotify_manager.routines.new_kids import _remove_queue_track
 
-        _remove_queue_track(self.client, playlist_id, source, description, self.retry)
+        await _remove_queue_track(
+            self.client, playlist_id, source, description, self.retry
+        )

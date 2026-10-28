@@ -1,12 +1,12 @@
 """Restart-safe review of followed artists and listening queues."""
 
-import time
+import asyncio
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.artist_review_catalog import FirstTrack
@@ -50,13 +50,14 @@ from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.bootstrap import artist_review as composition
-
-# UFI
 from spotify_manager.core.library_data.runtime import (
     publish_managed_path as publish_managed_path,
 )
-from spotify_manager.core.state.compat import RoutineState
+
+# UFI
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
@@ -116,8 +117,24 @@ from spotify_manager.infrastructure.artist_review_resources import SpotifyArtist
 from spotify_manager.infrastructure.artist_review_resources import (
     SpotifyMembershipPages,
 )
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from spotify_manager.infrastructure.library_records import current_stats_history_key
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.artist_review import (
+    BlockingArtistReleaseChoice as LegacyArtistReleaseChoice,
+)
+from spotify_manager.infrastructure.python_compat.artist_review import (
+    BlockingArtistTrackChoice as LegacyArtistTrackChoice,
+)
+from spotify_manager.infrastructure.python_compat.catalog import (
+    BlockingMembership as LegacyMembership,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingWait as LegacyWait,
+)
 from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
@@ -310,15 +327,20 @@ def _save_log_state(_state: dict[str, object], _log_path: Path) -> None:
 
 
 def _state_access(
-    paths: ArtistReviewPaths,
-    state_service: StateService | None,
-) -> RoutineState:
+    paths: ArtistReviewPaths, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test log."""
     return routine_state_from(
         "review_artists",
         ReviewArtistsStateCodec(),
         StateLocation(paths.log, DEFAULT_PATHS.log, state_service),
     )
+
+
+def _async_state_access(
+    paths: ArtistReviewPaths, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(paths, state_service))
 
 
 def load_cache(path: Path, refresh: bool) -> dict[str, dict[str, object]]:
@@ -347,7 +369,7 @@ def save_cache(path: Path, cache: dict[str, dict[str, object]]) -> None:
     write_json_atomic(path, cache)
 
 
-def ranked_artist_tracks(
+async def async_ranked_artist_tracks(
     sp: Spotify,
     artist: YourLibraryArtist,
     cache: dict[str, dict[str, object]],
@@ -366,12 +388,12 @@ def ranked_artist_tracks(
     Returns:
         Original complete associated ranked tracks.
     """
-    return composition.catalog(
+    return await composition.catalog(
         sp, artist, cache, cache_path, retry_call
     ).ranked_tracks()
 
 
-def search_ranked_releases(
+async def async_search_ranked_releases(
     sp: Spotify,
     artist: YourLibraryArtist,
     retry_call: RetryCall,
@@ -386,10 +408,10 @@ def search_ranked_releases(
     Returns:
         Original first ten qualifying album/EP search results.
     """
-    return search_releases(SpotifyArtistReads(sp, artist, retry_call))
+    return await search_releases(SpotifyArtistReads(sp, artist, retry_call))
 
 
-def ranked_artist_releases(
+async def async_ranked_artist_releases(
     sp: Spotify,
     artist: YourLibraryArtist,
     cache: dict[str, dict[str, object]],
@@ -408,12 +430,12 @@ def ranked_artist_releases(
     Returns:
         Original complete enriched ranked releases.
     """
-    return composition.catalog(
+    return await composition.catalog(
         sp, artist, cache, cache_path, retry_call
     ).ranked_releases()
 
 
-def earliest_artist_releases(
+async def async_earliest_artist_releases(
     sp: Spotify,
     artist: YourLibraryArtist,
     cache: dict[str, dict[str, object]],
@@ -432,12 +454,12 @@ def earliest_artist_releases(
     Returns:
         Original ten earliest distinct enriched releases.
     """
-    return composition.catalog(
+    return await composition.catalog(
         sp, artist, cache, cache_path, retry_call
     ).earliest_releases()
 
 
-def enrich_first_tracks(
+async def async_enrich_first_tracks(
     sp: Spotify,
     artist: YourLibraryArtist,
     releases: list[ReleaseCandidate],
@@ -460,12 +482,12 @@ def enrich_first_tracks(
     Returns:
         Original same complete mutable candidate list.
     """
-    return composition.catalog(sp, artist, cache, cache_path, retry_call).enrich(
+    return await composition.catalog(sp, artist, cache, cache_path, retry_call).enrich(
         releases, cache_key
     )
 
 
-def playlist_membership(
+async def async_playlist_membership(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
@@ -480,12 +502,14 @@ def playlist_membership(
     Returns:
         Original complete mutable queue membership indexes.
     """
-    return gather_membership(
+    return await gather_membership(
         playlist_id, SpotifyMembershipPages(sp, playlist_id, retry_call)
     )
 
 
-def add_playlist_item(sp: Spotify, playlist_id: str, track_uri: str) -> object:
+async def async_add_playlist_item(
+    sp: Spotify, playlist_id: str, track_uri: str
+) -> object:
     """Add one track through Spotify's current playlist-items endpoint.
 
     Args:
@@ -496,13 +520,13 @@ def add_playlist_item(sp: Spotify, playlist_id: str, track_uri: str) -> object:
     Returns:
         Original accepted Spotify mutation response.
     """
-    return sp._post(
+    return await sp._post(
         f"playlists/{playlist_id}/items",
         payload={"uris": [track_uri]},
     )
 
 
-def remove_playlist_items(
+async def async_remove_playlist_items(
     sp: Spotify,
     playlist_id: str,
     track_uris: list[str],
@@ -517,13 +541,13 @@ def remove_playlist_items(
     Returns:
         Original accepted Spotify mutation response.
     """
-    return sp._delete(
+    return await sp._delete(
         f"playlists/{playlist_id}/items",
         payload={"items": [{"uri": uri} for uri in track_uris]},
     )
 
 
-def remove_library_artists(sp: Spotify, artist_uris: list[str]) -> object:
+async def async_remove_library_artists(sp: Spotify, artist_uris: list[str]) -> object:
     """Unfollow artists through Spotify's current generic library endpoint.
 
     Args:
@@ -533,7 +557,7 @@ def remove_library_artists(sp: Spotify, artist_uris: list[str]) -> object:
     Returns:
         Original accepted Spotify mutation response.
     """
-    return sp._delete("me/library", uris=",".join(artist_uris))
+    return await sp._delete("me/library", uris=",".join(artist_uris))
 
 
 def update_stats_after_unfollow(
@@ -560,7 +584,7 @@ def update_stats_after_unfollow(
     write_json_atomic(stats_path, payload)
 
 
-def complete_artist(
+async def async_complete_artist(
     state: ArtistReviewState,
     counts: ReviewCounts,
     log_path: Path,
@@ -591,7 +615,7 @@ def complete_artist(
         action=action,
         **details,
     )
-    record_completion(
+    await record_completion(
         state,
         counts,
         artist.spotify_id,
@@ -601,7 +625,7 @@ def complete_artist(
     )
 
 
-def flush_pending_unfollows(
+async def async_flush_pending_unfollows(
     sp: Spotify,
     artists: list[YourLibraryArtist],
     state: ArtistReviewState,
@@ -630,10 +654,10 @@ def flush_pending_unfollows(
         flush_pending_unfollows as operation,
     )
 
-    return operation(sp, artists, state, counts, paths, run_id, retry_call, echo)
+    return await operation(sp, artists, state, counts, paths, run_id, retry_call, echo)
 
 
-def flush_pending_queue_moves(
+async def async_flush_pending_queue_moves(
     sp: Spotify,
     artists: list[YourLibraryArtist],
     state: ArtistReviewState,
@@ -661,12 +685,12 @@ def flush_pending_queue_moves(
         flush_pending_queue_moves as operation,
     )
 
-    return operation(
+    return await operation(
         sp, artists, state, counts, paths, run_id, retry_call, memberships, echo
     )
 
 
-def review_artists(
+async def async_review_artists(
     sp: Spotify,
     playlists: QueuePlaylists,
     track_choice_reader: TrackChoiceReader | None = None,
@@ -676,7 +700,7 @@ def review_artists(
     progress_callback: ProgressCallback | None = None,
     refresh_cache: bool = False,
     limit: int | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -708,7 +732,7 @@ def review_artists(
         review_artists as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         playlists,
         track_choice_reader,
@@ -744,12 +768,12 @@ __all__ = [
 ]
 
 
-def _read_tracks(
+async def _read_tracks(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall
 ) -> list[TrackCandidate]:
     for attempt in retry_call.attempts(f"searching ranked tracks for {artist.name}"):
-        with attempt:
-            response = sp.search(
+        async with attempt:
+            response = await sp.search(
                 q=spotify_search_query(artist.name),
                 type="track",
                 limit=SEARCH_LIMIT,
@@ -758,14 +782,14 @@ def _read_tracks(
     return catalog_records.track_page(response, artist.spotify_id, artist.name)
 
 
-def _read_ranked_page(
+async def _read_ranked_page(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall, offset: int
 ) -> ReleasePage:
     for attempt in retry_call.attempts(
         f"searching ranked releases for {artist.name} at offset {offset}"
     ):
-        with attempt:
-            response = sp.search(
+        async with attempt:
+            response = await sp.search(
                 q=spotify_search_query(artist.name),
                 type="album",
                 limit=SEARCH_LIMIT,
@@ -776,14 +800,14 @@ def _read_ranked_page(
     )
 
 
-def _read_discography_page(
+async def _read_discography_page(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall, offset: int
 ) -> RawReleasePage:
     for attempt in retry_call.attempts(
         f"fetching releases for {artist.name} at offset {offset}"
     ):
-        with attempt:
-            response = sp.artist_albums(
+        async with attempt:
+            response = await sp.artist_albums(
                 artist.spotify_id,
                 include_groups="album,single,compilation",
                 limit=ARTIST_ALBUM_PAGE_LIMIT,
@@ -792,11 +816,11 @@ def _read_discography_page(
     return catalog_records.scan_page(response, artist.name)
 
 
-def _read_first(
+async def _read_first(
     sp: Spotify, retry_call: RetryCall, release: ReleaseCandidate
 ) -> FirstTrack | None:
     try:
-        response = _request_first_track(retry_call, release, sp)
+        response = await _request_first_track(retry_call, release, sp)
     except SpotifyException as exc:
         if exc.http_status != 404:
             raise
@@ -804,14 +828,14 @@ def _read_first(
     return catalog_records.first_track(response, release.name)
 
 
-def _read_membership_page(
+async def _read_membership_page(
     sp: Spotify, playlist_id: str, retry_call: RetryCall, offset: int
 ) -> MembershipPage:
     for attempt in retry_call.attempts(
         f"loading queue playlist {playlist_id} at offset {offset}"
     ):
-        with attempt:
-            response = sp._get(
+        async with attempt:
+            response = await sp._get(
                 f"playlists/{playlist_id}/items",
                 limit=PLAYLIST_PAGE_LIMIT,
                 offset=offset,
@@ -841,10 +865,435 @@ def _stats_reports(raw: dict[str, object]) -> dict[str, StatsReport]:
     return history
 
 
-def _request_first_track(
+async def _request_first_track(
     retry_call: RetryCall, release: ReleaseCandidate, sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"fetching the first track of {release.name}"):
-        with attempt:
-            return sp.album_tracks(release.spotify_id, limit=1, offset=0)
+        async with attempt:
+            return await sp.album_tracks(release.spotify_id, limit=1, offset=0)
     raise AssertionError("Retry scopes must include an attempt")
+
+
+def ranked_artist_tracks(
+    sp: LegacySpotify,
+    artist: YourLibraryArtist,
+    cache: dict[str, dict[str, object]],
+    cache_path: Path,
+    retry_call: RetryCall | LegacyRetry,
+) -> list[TrackCandidate]:
+    """Return Spotify-ranked associated tracks using one search request.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist: Original complete followed-artist model.
+        cache: Original same mutable complete metadata cache.
+        cache_path: Original metadata checkpoint destination.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original complete associated ranked tracks.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_ranked_artist_tracks(
+            legacy_spotify(sp), artist, cache, cache_path, PythonRetry(retry_call)
+        )
+    )
+
+
+def search_ranked_releases(
+    sp: LegacySpotify, artist: YourLibraryArtist, retry_call: RetryCall | LegacyRetry
+) -> list[ReleaseCandidate]:
+    """Collect up to ten associated releases in Spotify search rank order.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist: Original complete followed-artist model.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original first ten qualifying album/EP search results.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_search_ranked_releases(
+            legacy_spotify(sp), artist, PythonRetry(retry_call)
+        )
+    )
+
+
+def ranked_artist_releases(
+    sp: LegacySpotify,
+    artist: YourLibraryArtist,
+    cache: dict[str, dict[str, object]],
+    cache_path: Path,
+    retry_call: RetryCall | LegacyRetry,
+) -> list[ReleaseCandidate]:
+    """Return cached Spotify-ranked album/EP candidates with first tracks.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist: Original complete followed-artist model.
+        cache: Original same mutable complete metadata cache.
+        cache_path: Original metadata checkpoint destination.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original complete enriched ranked releases.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_ranked_artist_releases(
+            legacy_spotify(sp), artist, cache, cache_path, PythonRetry(retry_call)
+        )
+    )
+
+
+def earliest_artist_releases(
+    sp: LegacySpotify,
+    artist: YourLibraryArtist,
+    cache: dict[str, dict[str, object]],
+    cache_path: Path,
+    retry_call: RetryCall | LegacyRetry,
+) -> list[ReleaseCandidate]:
+    """Return the artist's ten earliest releases with resumable pagination.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist: Original complete followed-artist model.
+        cache: Original same mutable complete metadata cache.
+        cache_path: Original metadata checkpoint destination.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original ten earliest distinct enriched releases.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_earliest_artist_releases(
+            legacy_spotify(sp), artist, cache, cache_path, PythonRetry(retry_call)
+        )
+    )
+
+
+def enrich_first_tracks(
+    sp: LegacySpotify,
+    artist: YourLibraryArtist,
+    releases: list[ReleaseCandidate],
+    cache_key: str,
+    cache: dict[str, dict[str, object]],
+    cache_path: Path,
+    retry_call: RetryCall | LegacyRetry,
+) -> list[ReleaseCandidate]:
+    """Fetch only each displayed release's first track and cache the result.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist: Original complete followed-artist model.
+        releases: Original complete mutable release candidates.
+        cache_key: Original ranked or chronological catalog namespace.
+        cache: Original same mutable complete metadata cache.
+        cache_path: Original metadata checkpoint destination.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original same complete mutable candidate list.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_enrich_first_tracks(
+            legacy_spotify(sp),
+            artist,
+            releases,
+            cache_key,
+            cache,
+            cache_path,
+            PythonRetry(retry_call),
+        )
+    )
+
+
+def playlist_membership(
+    sp: LegacySpotify, playlist_id: str, retry_call: RetryCall | LegacyRetry
+) -> PlaylistMembership:
+    """Load one queue once and index its tracks and primary artists.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        playlist_id: Original queue playlist identity.
+        retry_call: Original caller-owned synchronous retry wrapper.
+
+    Returns:
+        Original complete mutable queue membership indexes.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_playlist_membership(
+            legacy_spotify(sp), playlist_id, PythonRetry(retry_call)
+        )
+    )
+
+
+def add_playlist_item(sp: LegacySpotify, playlist_id: str, track_uri: str) -> object:
+    """Add one track through Spotify's current playlist-items endpoint.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        playlist_id: Original queue playlist identity.
+        track_uri: Original selected playable marker URI.
+
+    Returns:
+        Original accepted Spotify mutation response.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_add_playlist_item(legacy_spotify(sp), playlist_id, track_uri)
+    )
+
+
+def remove_playlist_items(
+    sp: LegacySpotify, playlist_id: str, track_uris: list[str]
+) -> object:
+    """Remove specific tracks through Spotify's current playlist endpoint.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        playlist_id: Original queue playlist identity.
+        track_uris: Original complete ordered marker removal batch.
+
+    Returns:
+        Original accepted Spotify mutation response.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_remove_playlist_items(legacy_spotify(sp), playlist_id, track_uris)
+    )
+
+
+def remove_library_artists(sp: LegacySpotify, artist_uris: list[str]) -> object:
+    """Unfollow artists through Spotify's current generic library endpoint.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artist_uris: Original complete ordered unfollow batch.
+
+    Returns:
+        Original accepted Spotify mutation response.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(async_remove_library_artists(legacy_spotify(sp), artist_uris))
+
+
+def complete_artist(
+    state: ArtistReviewState,
+    counts: ReviewCounts,
+    log_path: Path,
+    run_id: str,
+    artist: YourLibraryArtist,
+    liked_count: int,
+    action: str,
+    **details: object,
+) -> None:
+    """Persist a completed artist decision and update invocation counters.
+
+    Args:
+        state: Original mutable completed and pending progress.
+        counts: Original mutable invocation counters.
+        log_path: Original explicit legacy audit file.
+        run_id: Original sortable invocation identity.
+        artist: Original complete followed-artist model.
+        liked_count: Original local liked-track count.
+        action: Original completed action category.
+        details: Original complete decision fields.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_complete_artist(
+            state, counts, log_path, run_id, artist, liked_count, action
+        )
+    )
+
+
+def flush_pending_unfollows(
+    sp: LegacySpotify,
+    artists: list[YourLibraryArtist],
+    state: ArtistReviewState,
+    counts: ReviewCounts,
+    paths: ArtistReviewPaths,
+    run_id: str,
+    retry_call: RetryCall | LegacyRetry,
+    echo: Echo,
+) -> list[YourLibraryArtist]:
+    """Execute journaled automatic unfollows in API-sized batches.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artists: Original caller-owned current followed-artist list.
+        state: Original mutable completed and pending progress.
+        counts: Original mutable invocation counters.
+        paths: Original complete file locations.
+        run_id: Original sortable invocation identity.
+        retry_call: Original caller-owned synchronous retry wrapper.
+        echo: Original visible progress and action presenter.
+
+    Returns:
+        Original current followed artists after recovery.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_pending_unfollows(
+            legacy_spotify(sp),
+            artists,
+            state,
+            counts,
+            paths,
+            run_id,
+            PythonRetry(retry_call),
+            echo,
+        )
+    )
+
+
+def flush_pending_queue_moves(
+    sp: LegacySpotify,
+    artists: list[YourLibraryArtist],
+    state: ArtistReviewState,
+    counts: ReviewCounts,
+    paths: ArtistReviewPaths,
+    run_id: str,
+    retry_call: RetryCall | LegacyRetry,
+    memberships: MembershipAccess | LegacyMembership,
+    echo: Echo,
+) -> None:
+    """Finish journaled queue-one to queue-two moves idempotently.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        artists: Original caller-owned current followed-artist list.
+        state: Original mutable completed and pending progress.
+        counts: Original mutable invocation counters.
+        paths: Original complete file locations.
+        run_id: Original sortable invocation identity.
+        retry_call: Original caller-owned synchronous retry wrapper.
+        echo: Original visible progress and action presenter.
+        memberships: Named live liked-track membership reader.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.catalog import PythonMembership
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_pending_queue_moves(
+            legacy_spotify(sp),
+            artists,
+            state,
+            counts,
+            paths,
+            run_id,
+            PythonRetry(retry_call),
+            PythonMembership(memberships),
+            echo,
+        )
+    )
+
+
+def review_artists(
+    sp: LegacySpotify,
+    playlists: QueuePlaylists,
+    track_choice_reader: TrackChoiceReader | None | LegacyArtistTrackChoice = None,
+    release_choice_reader: ReleaseChoiceReader
+    | None
+    | LegacyArtistReleaseChoice = None,
+    paths: ArtistReviewPaths = DEFAULT_PATHS,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    refresh_cache: bool = False,
+    limit: int | None = None,
+    sleep: Sleep | LegacyWait = asyncio,
+    transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
+    transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
+    state_service: StateService | None = None,
+) -> ArtistReviewSummary:
+    """Review followed artists using local counts and targeted Spotify calls.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        playlists: Original parsed three queue identities.
+        track_choice_reader: Original optional tied-track decision reader.
+        release_choice_reader: Original optional release decision reader.
+        paths: Original complete file locations.
+        echo: Original visible progress and action presenter.
+        progress_callback: Original optional position/total presenter.
+        refresh_cache: Original option to rebuild metadata from live reads.
+        limit: Original pending-list slice, including zero and negatives.
+        sleep: Original blocking retry wait.
+        transient_retry_delay_seconds: Original transient retry delay.
+        transient_max_attempts: Original maximum transient attempts.
+        state_service: Original optional shared state authority.
+
+    Returns:
+        Original complete paused or completed ten-field summary.
+
+    Raises:
+        ArtistReviewError: An original required boundary is invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.artist_review import (
+        PythonArtistReleaseChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.artist_review import (
+        PythonArtistTrackChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_review_artists(
+            legacy_spotify(sp),
+            playlists,
+            PythonArtistTrackChoice(track_choice_reader)
+            if track_choice_reader is not None
+            else None,
+            PythonArtistReleaseChoice(release_choice_reader)
+            if release_choice_reader is not None
+            else None,
+            paths,
+            echo,
+            progress_callback,
+            refresh_cache,
+            limit,
+            PythonWait(sleep),
+            transient_retry_delay_seconds,
+            transient_max_attempts,
+            state_service,
+        )
+    )

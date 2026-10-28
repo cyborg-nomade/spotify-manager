@@ -1,7 +1,7 @@
 """Explicit queue CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Never
@@ -14,13 +14,18 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.interfaces.operations import (
@@ -139,7 +144,7 @@ class QueueCLI:
             )
         console.print(table)
 
-    def _prompt_queue_artist(
+    async def _prompt_queue_artist(
         self,
         console: Console,
         recommendation: the_queue.ArtistRecommendation,
@@ -159,7 +164,7 @@ class QueueCLI:
         """
         progress.stop()
         try:
-            return self._read_queue_artist(
+            return await self._read_queue_artist(
                 console, recommendation, candidates, progress
             )
         finally:
@@ -184,7 +189,7 @@ class QueueCLI:
             configuration.unlucky_ones_playlist,
         )
 
-    def _run_fill_queue_from_lastfm(
+    async def _run_fill_queue_from_lastfm(
         self,
         count: int | None,
         max_playlist_length: int | None,
@@ -204,7 +209,7 @@ class QueueCLI:
                 "use either --count or --max-playlist-length, not both"
             )
         self._fill_queue_from_lastfm_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlists = self._configured_queue_playlists(configuration)
             api_key, username = found_art.validate_lastfm_configuration(
@@ -220,7 +225,7 @@ class QueueCLI:
         lastfm_client = create_lastfm_client(
             LastFmCredentials(api_key, username), FillQueueFromLastfmDiagnostics(self)
         )
-        summary = self._execute_fill_queue_from_lastfm(
+        summary = await self._execute_fill_queue_from_lastfm(
             dry_run,
             effective_count,
             lastfm_client,
@@ -251,19 +256,19 @@ class QueueCLI:
     def _fill_queue_from_lastfm_log(self, message: str) -> None:
         return self._fill_queue_from_lastfm_console.print(message, style="yellow")
 
-    def _fill_queue_from_lastfm_ask_queue_artist(
+    async def _fill_queue_from_lastfm_ask_queue_artist(
         self,
         recommendation: the_queue.ArtistRecommendation,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self._prompt_queue_artist(
+        return await self._prompt_queue_artist(
             self._fill_queue_from_lastfm_console,
             recommendation,
             candidates,
             self._fill_queue_from_lastfm_progress,
         )
 
-    def _run_flush_queue(self, dry_run: bool) -> None:
+    async def _run_flush_queue(self, dry_run: bool) -> None:
         """Advance the first ten Queue artists through Spotify's top tracks.
 
         Args:
@@ -271,7 +276,9 @@ class QueueCLI:
         """
         self._flush_queue_console = self.display.create_console()
         try:
-            playlists = self._configured_queue_playlists(self.runtime.configuration())
+            playlists = self._configured_queue_playlists(
+                await self.runtime.configuration()
+            )
         except the_queue.QueueConfigError as exc:
             self._report_flush_queue_configuration_failure(exc)
         try:
@@ -291,8 +298,8 @@ class QueueCLI:
                 self._flush_queue_task_id = self._flush_queue_progress.add_task(
                     description, total=None
                 )
-                summary = the_queue.flush_queue(
-                    self.runtime.review_client(),
+                summary = await the_queue.flush_queue(
+                    (await self.runtime.review_client()),
                     playlists,
                     dry_run=dry_run,
                     echo=FlushQueueInteraction(self),
@@ -307,7 +314,7 @@ class QueueCLI:
             self._report_flush_queue_queue_failure(exc)
         except SpotifyException as exc:
             self._report_flush_queue_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_queue_interrupted_interrupted(exc)
         finally:
             if progress_ref is not None:
@@ -429,7 +436,7 @@ class QueueCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_fill_queue_from_lastfm_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._fill_queue_from_lastfm_console.print(
             (
@@ -451,7 +458,7 @@ class QueueCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_queue_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._flush_queue_console.print(
             "Queue flush paused. The active run was saved.", style="bold yellow"
@@ -502,7 +509,7 @@ class QueueCLI:
                 "Resumed the previously saved Queue flush.", style="cyan"
             )
 
-    def _execute_fill_queue_from_lastfm(
+    async def _execute_fill_queue_from_lastfm(
         self,
         dry_run: bool,
         effective_count: int | None,
@@ -545,8 +552,8 @@ class QueueCLI:
                         description, total=None
                     )
                 )
-                summary = the_queue.fill_queue_from_lastfm(
-                    self.runtime.review_client(),
+                summary = await the_queue.fill_queue_from_lastfm(
+                    (await self.runtime.review_client()),
                     lastfm_client,
                     QueueFillOptions(
                         playlists=playlists,
@@ -575,14 +582,14 @@ class QueueCLI:
             self._report_fill_queue_from_lastfm_queue_failure(exc)
         except SpotifyException as exc:
             self._report_fill_queue_from_lastfm_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_fill_queue_from_lastfm_interrupted_interrupted(exc)
         finally:
             if progress_ref is not None:
                 progress_ref.stop()
         return summary
 
-    def _read_queue_artist(
+    async def _read_queue_artist(
         self,
         console: Console,
         recommendation: the_queue.ArtistRecommendation,
@@ -625,7 +632,7 @@ class QueueCLI:
                 style=None if candidate.exact_name else "dim",
             )
         console.print(table)
-        response = self.display.prompt.ask(
+        response = await TerminalPrompt(self.display.prompt).ask(
             "Artist number / [n]ew search / [s]kip this run / [q]uit",
             choices=[
                 *(str(index) for index in range(1, len(candidates) + 1)),
@@ -637,16 +644,16 @@ class QueueCLI:
             console=console,
         )
         if response == "n":
-            return self._read_artist_search(console)
+            return await self._read_artist_search(console)
         if response == "s":
             return the_queue.CHOICE_SKIP
         if response == "q":
             return the_queue.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
 
-    def _read_artist_search(self, console: Console) -> str:
+    async def _read_artist_search(self, console: Console) -> str:
         while True:
-            search_text = self.display.prompt.ask(
+            search_text = await TerminalPrompt(self.display.prompt).ask(
                 "New Spotify artist search", console=console
             )
             if search_text.strip():
@@ -664,7 +671,7 @@ class FillQueueFromLastfmInteraction:
 
     owner: QueueCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -691,9 +698,10 @@ class FillQueueFromLastfmInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._fill_queue_from_lastfm_update_progress(completed, total, status)
 
-    def choose_artist(
+    async def choose_artist(
         self,
         recommendation: the_queue.ArtistRecommendation,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
@@ -707,7 +715,7 @@ class FillQueueFromLastfmInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._fill_queue_from_lastfm_ask_queue_artist(
+        return await self.owner._fill_queue_from_lastfm_ask_queue_artist(
             recommendation, candidates
         )
 
@@ -722,7 +730,7 @@ class FlushQueueInteraction:
 
     owner: QueueCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -749,6 +757,7 @@ class FlushQueueInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._flush_queue_update_progress(completed, total, status)
 
 

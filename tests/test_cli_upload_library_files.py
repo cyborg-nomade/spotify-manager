@@ -1,6 +1,7 @@
 """Tests for the HF library-file upload CLI command."""
 
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -34,11 +35,15 @@ def test_upload_command_dry_run_does_not_call_hf(
         received.update(kwargs)
         return upload_plan()
 
-    monkeypatch.setattr(main.hf_upload, "prepare_library_files_upload", prepare)
+    monkeypatch.setattr(
+        main.hf_upload, "prepare_library_files_upload", AsyncMock(side_effect=prepare)
+    )
     monkeypatch.setattr(
         main.hf_upload,
         "upload_library_files",
-        lambda *_args, **_kwargs: pytest.fail("dry run called HF"),
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: pytest.fail("dry run called HF")
+        ),
     )
 
     result = CliRunner().invoke(
@@ -73,16 +78,18 @@ def test_upload_command_prints_commit(
     monkeypatch.setattr(
         main.hf_upload,
         "prepare_library_files_upload",
-        lambda **_kwargs: upload_plan(),
+        AsyncMock(side_effect=lambda **_kwargs: upload_plan()),
     )
     monkeypatch.setattr(
         main.hf_upload,
         "upload_library_files",
-        lambda _plan: main.hf_upload.LibraryFilesUploadResult(
-            commit_url="https://huggingface.co/spaces/owner/space/commit/1",
-            uploaded_files=1,
-            deleted_stale_parts=0,
-            upload_size_bytes=1024,
+        AsyncMock(
+            side_effect=lambda _plan: main.hf_upload.LibraryFilesUploadResult(
+                commit_url="https://huggingface.co/spaces/owner/space/commit/1",
+                uploaded_files=1,
+                deleted_stale_parts=0,
+                upload_size_bytes=1024,
+            )
         ),
     )
 
@@ -119,16 +126,18 @@ def test_upload_command_reports_inline_parts_and_removes_stale_parts(
     monkeypatch.setattr(
         main.hf_upload,
         "prepare_library_files_upload",
-        lambda **_kwargs: plan,
+        AsyncMock(side_effect=lambda **_kwargs: plan),
     )
     monkeypatch.setattr(
         main.hf_upload,
         "upload_library_files",
-        lambda _plan: main.hf_upload.LibraryFilesUploadResult(
-            commit_url="https://huggingface.co/commit/1",
-            uploaded_files=3,
-            deleted_stale_parts=2,
-            upload_size_bytes=2048,
+        AsyncMock(
+            side_effect=lambda _plan: main.hf_upload.LibraryFilesUploadResult(
+                commit_url="https://huggingface.co/commit/1",
+                uploaded_files=3,
+                deleted_stale_parts=2,
+                upload_size_bytes=2048,
+            )
         ),
     )
 
@@ -150,12 +159,18 @@ def test_upload_command_reports_validation_and_upload_errors(
     monkeypatch.setattr(
         main.hf_upload,
         "prepare_library_files_upload",
-        fail if stage == "prepare" else lambda **_kwargs: upload_plan(),
+        AsyncMock(
+            side_effect=fail if stage == "prepare" else lambda **_kwargs: upload_plan()
+        ),
     )
     monkeypatch.setattr(
         main.hf_upload,
         "upload_library_files",
-        fail if stage == "upload" else lambda _plan: pytest.fail("unexpected upload"),
+        AsyncMock(
+            side_effect=fail
+            if stage == "upload"
+            else lambda _plan: pytest.fail("unexpected upload")
+        ),
     )
 
     result = CliRunner().invoke(main.app, ["upload-library-files-to-hf"])

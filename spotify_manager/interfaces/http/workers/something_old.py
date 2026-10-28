@@ -1,20 +1,22 @@
 """Explicit callbacks and wire presentation for SomethingOldWorker."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
 
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -76,11 +78,11 @@ class SomethingOldWorker:
     lastfm: LastFmClient = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute Something Old as a reconnectable interactive web job."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except _SomethingOldJobCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -112,7 +114,7 @@ class SomethingOldWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def wait_for_submission(
+    async def wait_for_submission(
         self, pending: SomethingOldPendingChoice, detail: str
     ) -> str:
         """Publish pending interaction data and consume its submission.
@@ -133,9 +135,9 @@ class SomethingOldWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(self.job.choice_event, self)
+        return await await_submission(self.job.choice_event, self)
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist: something_old.GoldenOldieArtist,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
@@ -153,7 +155,7 @@ class SomethingOldWorker:
         with self.context.lock:
             self.job.result.something_old_artist = artist.artist
             self.job.result.something_old_average_scrobble_date = average_date
-        return self.wait_for_submission(
+        return await self.wait_for_submission(
             SomethingOldPendingChoice(
                 kind="artist",
                 artist=artist.artist,
@@ -164,7 +166,7 @@ class SomethingOldWorker:
             f"Choose the exact Spotify artist for {artist.artist}.",
         )
 
-    def choose_mode(
+    async def choose_mode(
         self,
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
@@ -184,7 +186,7 @@ class SomethingOldWorker:
                 artist.average_scrobble_ms
             )
             self.job.result.something_old_spotify_artist = spotify_artist.name
-        return self.wait_for_submission(
+        return await self.wait_for_submission(
             SomethingOldPendingChoice(
                 kind="mode",
                 artist=artist.artist,
@@ -195,7 +197,7 @@ class SomethingOldWorker:
             f"Choose what to add for {artist.artist}.",
         )
 
-    def choose_album(
+    async def choose_album(
         self,
         artist: something_old.GoldenOldieArtist,
         releases: tuple[slow_listening.DiscographyRelease, ...],
@@ -209,7 +211,7 @@ class SomethingOldWorker:
         Returns:
             The original accepted routine callback result.
         """
-        return self.wait_for_submission(
+        return await self.wait_for_submission(
             SomethingOldPendingChoice(
                 kind="album",
                 artist=artist.artist,
@@ -221,16 +223,16 @@ class SomethingOldWorker:
             f"Choose one album or EP by {artist.artist}.",
         )
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
             seconds: Original routine-supplied seconds.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise _SomethingOldJobCancelledError
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -261,8 +263,8 @@ class SomethingOldWorker:
             self,
         )
 
-    def _execute(self) -> something_old.SomethingOldSummary:
-        summary = something_old.run_something_old(
+    async def _execute(self) -> something_old.SomethingOldSummary:
+        summary = await something_old.run_something_old(
             self.spotify,
             self.lastfm,
             SomethingOldOptions(

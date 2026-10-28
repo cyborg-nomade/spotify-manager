@@ -3,8 +3,7 @@
 from datetime import date
 from datetime import datetime as datetime
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.sauvignon_values import (
     SauvignonConfigError as SauvignonConfigError,
 )
@@ -50,7 +49,7 @@ from spotify_manager.routines.sauvignon import RetryCall as RetryCall
 from spotify_manager.routines.sauvignon import parse_playlist_id as parse_playlist_id
 
 
-def fill_sauvignon_from_lastfm(
+async def fill_sauvignon_from_lastfm(
     spotify: Spotify,
     lastfm: LastFmReader,
     options: SauvignonOptions,
@@ -87,7 +86,7 @@ def fill_sauvignon_from_lastfm(
         resources.log_path,
         options.now,
     )
-    return workflow.run(
+    return await workflow.run(
         options.playlist_id,
         options.count,
         options.max_playlist_length,
@@ -96,7 +95,7 @@ def fill_sauvignon_from_lastfm(
     )
 
 
-def gather_albums(
+async def gather_albums(
     spotify: Spotify,
     candidates: tuple[FoundArtCandidate, ...],
     excluded: set[AlbumKey],
@@ -125,4 +124,4 @@ def gather_albums(
         SauvignonSpotifyError: Existing catalog observations are unusable.
     """
     workflow = album_gathering(spotify, retry, progress)
-    return workflow.run(candidates, excluded, existing, maximum, week)
+    return await workflow.run(candidates, excluded, existing, maximum, week)

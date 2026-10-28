@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Literal
 from typing import Protocol
+from typing import runtime_checkable
 
 
 type SpotifyJson = (
@@ -41,6 +42,27 @@ class SpotifyTransport(Protocol):
 
         Returns:
             Original decoded JSON value, or none for an empty/invalid JSON body.
+        """
+        ...
+
+
+@runtime_checkable
+class SpotifyMaintenance(Protocol):
+    """Expose explicit operator token maintenance separately from HTTP requests."""
+
+    async def rotate_credentials(self) -> str:
+        """Activate the next usable credential after an explicit operator request.
+
+        Returns:
+            Original active credential label.
+        """
+        ...
+
+    async def refresh_all_app_tokens(self) -> tuple[str, ...]:
+        """Refresh configured apps without changing the active credential.
+
+        Returns:
+            Refreshed credential labels in configuration order.
         """
         ...
 

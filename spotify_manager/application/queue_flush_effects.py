@@ -35,7 +35,7 @@ class QueueFlushEffects(Protocol):
             Original Queue playlist identity.
         """
 
-    def queue(self) -> tuple[PlaylistTrack, ...]:
+    async def queue(self) -> tuple[PlaylistTrack, ...]:
         """Read original live Queue membership even when resuming.
 
         Returns:
@@ -52,14 +52,14 @@ class QueueFlushEffects(Protocol):
             Original mutable run with pending entries.
         """
 
-    def queue_2(self) -> set[str]:
+    async def queue_2(self) -> set[str]:
         """Read original promotion destination before unlucky membership.
 
         Returns:
             Original represented primary artist identities.
         """
 
-    def unlucky(self) -> set[str]:
+    async def unlucky(self) -> set[str]:
         """Read original unlucky destination after promotion membership.
 
         Returns:
@@ -86,7 +86,7 @@ class QueueFlushEffects(Protocol):
             Original target marker or no target.
         """
 
-    def append(
+    async def append(
         self, destination: str, source: PlaylistTrack, target: CatalogTrack
     ) -> None:
         """Accept the original destination append with its original retry description.
@@ -97,7 +97,7 @@ class QueueFlushEffects(Protocol):
             target: Original selected destination marker.
         """
 
-    def following(self, source: PlaylistTrack) -> bool:
+    async def following(self, source: PlaylistTrack) -> bool:
         """Read and validate original follow status even during preview.
 
         Args:
@@ -107,21 +107,21 @@ class QueueFlushEffects(Protocol):
             Original first follow status.
         """
 
-    def unfollow(self, source: PlaylistTrack) -> None:
+    async def unfollow(self, source: PlaylistTrack) -> None:
         """Accept original unfollow before local mirror removal.
 
         Args:
             source: Original authoritative source marker.
         """
 
-    def remove_local(self, source: PlaylistTrack) -> None:
+    async def remove_local(self, source: PlaylistTrack) -> None:
         """Remove original local artist mirrors after accepted unfollow.
 
         Args:
             source: Original authoritative source marker.
         """
 
-    def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
+    async def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
         """Accept original source removal after destination effects.
 
         Args:
@@ -143,7 +143,7 @@ class QueueFlushEffects(Protocol):
             Original presented result.
         """
 
-    def audit(
+    async def audit(
         self, run: dict[str, object], source: PlaylistTrack, result: FlushResult
     ) -> None:
         """Accept original completion audit before marking an entry complete.

@@ -25,7 +25,7 @@ class LibraryUploadCLI:
     create_console: type[Console]
     create_table: type[Table]
 
-    def _run_upload_library_files_to_hf(
+    async def _run_upload_library_files_to_hf(
         self,
         your_library_only: bool,
         lastfm_only: bool,
@@ -49,7 +49,7 @@ class LibraryUploadCLI:
         console = self.create_console()
         try:
             with console.status("Validating library exports"):
-                plan = hf_upload.prepare_library_files_upload(
+                plan = await hf_upload.prepare_library_files_upload(
                     include_your_library=not lastfm_only,
                     include_lastfm=not your_library_only,
                     repo_id=repo_id,
@@ -71,7 +71,7 @@ class LibraryUploadCLI:
             return
         try:
             with console.status("Uploading library exports to Hugging Face"):
-                result = hf_upload.upload_library_files(plan)
+                result = await hf_upload.upload_library_files(plan)
         except hf_upload.LibraryFilesUploadError as exc:
             self._report_upload_library_files_to_hf_library_files_upload_failure(
                 exc, console

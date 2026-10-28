@@ -17,7 +17,7 @@ class ExportListeningHistory:
 
     path: Path
 
-    def by_date(self) -> dict[date, tuple[Scrobble, ...]]:
+    async def by_date(self) -> dict[date, tuple[Scrobble, ...]]:
         """Load the original Berlin-local buckets and event ordering.
 
         Returns:
@@ -26,9 +26,11 @@ class ExportListeningHistory:
         Raises:
             blast_from_past.LastFmExportError: The export cannot be read or parsed.
         """
-        from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+        from spotify_manager.routines.blast_from_past import (
+            async_load_scrobbles_by_date as load_scrobbles_by_date,
+        )
 
         result = {}
-        for day, scrobbles in load_scrobbles_by_date(self.path).items():
+        for day, scrobbles in (await load_scrobbles_by_date(self.path)).items():
             result[day] = tuple(scrobbles)
         return result

@@ -5,25 +5,23 @@ from collections.abc import Iterator
 from datetime import UTC
 from datetime import datetime
 from datetime import tzinfo
-from functools import partial
-from threading import Thread
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
 from tests.interfaces.test_discovery_slice import _wait
 from tests.interfaces.test_slow_listening_slice import _stop
-from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_blast_from_past import FakeSpotify as BlastSpotify
 from tests.routines.test_daily_mind_radio import FakeSpotify as RadioSpotify
@@ -90,7 +88,6 @@ def historical_http(
     """
     kind = str(request.param)
     spotify = _spotify(kind)
-    threads: list[Thread] = []
     _history()
     response = MagicMock()
     response.__enter__.return_value = response
@@ -101,14 +98,14 @@ def historical_http(
     monkeypatch.setattr(radio, "datetime", HistoricalClock)
     monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     command = "blast-from-the-past" if kind == "blast" else "daily-mind-radio"
-    try:
-        yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify, command
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield (http, spotify, command)
+        finally:
+            _stop()
 
 
 @pytest.mark.parametrize("preview", [False, True])

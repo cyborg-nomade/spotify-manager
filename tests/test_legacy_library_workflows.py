@@ -1,6 +1,8 @@
 """Coverage for still-registered legacy library commands."""
 
+import asyncio
 from functools import partial
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 from pytest import MonkeyPatch
@@ -100,7 +102,7 @@ def test_comparison_helpers_identify_and_enrich_differences(monkeypatch) -> None
     }
 
 
-def test_compare_library_workflow_persists_generated_diff(
+async def test_compare_library_workflow_persists_generated_diff(
     monkeypatch: MonkeyPatch, mocker: MockerFixture
 ) -> None:
     """Verify compare library workflow persists generated diff.
@@ -125,7 +127,7 @@ def test_compare_library_workflow_persists_generated_diff(
         Mock(side_effect=saved.append),
     )
 
-    convert_library_file.compare_your_library_and_all_albums()
+    (await asyncio.to_thread(convert_library_file.compare_your_library_and_all_albums))
 
     assert saved == [{"add": ["exported"], "remove": ["stored"]}]
     comparison_stage.assert_called_once_with(
@@ -133,7 +135,9 @@ def test_compare_library_workflow_persists_generated_diff(
     )
 
 
-def test_analyse_comparison_checks_both_live_statuses(monkeypatch, mocker) -> None:
+async def test_analyse_comparison_checks_both_live_statuses(
+    monkeypatch, mocker
+) -> None:
     spotify = mocker.Mock()
     spotify.current_user_saved_albums_contains.side_effect = [
         [True],
@@ -150,12 +154,12 @@ def test_analyse_comparison_checks_both_live_statuses(monkeypatch, mocker) -> No
         },
     )
 
-    convert_library_file.analyse_comparison(spotify)
+    (await asyncio.to_thread(convert_library_file.analyse_comparison, spotify))
 
     assert spotify.current_user_saved_albums_contains.call_count == 4
 
 
-def test_convert_library_applies_confirmed_additions_and_removals(
+async def test_convert_library_applies_confirmed_additions_and_removals(
     monkeypatch: MonkeyPatch,
     mocker: MockerFixture,
 ) -> None:
@@ -186,19 +190,23 @@ def test_convert_library_applies_confirmed_additions_and_removals(
             }
         ),
     )
-    monkeypatch.setattr(control_processors, "enrich_album", Mock(return_value=added))
+    monkeypatch.setattr(
+        control_processors,
+        "async_enrich_album",
+        AsyncMock(side_effect=Mock(return_value=added)),
+    )
     monkeypatch.setattr(
         files,
         "save_total_albums_file",
         partial(snapshot_items, saved),
     )
 
-    convert_library_file.convert_your_library_file(spotify)
+    (await asyncio.to_thread(convert_library_file.convert_your_library_file, spotify))
 
     assert [[item.spotify_id for item in items] for items in saved] == [["add", "keep"]]
 
 
-def test_restore_library_only_restores_missing_artists_and_tracks(
+async def test_restore_library_only_restores_missing_artists_and_tracks(
     monkeypatch,
     mocker,
 ) -> None:
@@ -211,24 +219,38 @@ def test_restore_library_only_restores_missing_artists_and_tracks(
     monkeypatch.setattr(files, "load_your_library_file", lambda: library)
     monkeypatch.setattr(
         export_processors,
-        "is_in_library_artist",
-        lambda *_args: next(artist_statuses),
+        "async_is_in_library_artist",
+        AsyncMock(side_effect=lambda *_args: next(artist_statuses)),
     )
     monkeypatch.setattr(
         export_processors,
-        "is_in_library_track",
-        lambda *_args: next(track_statuses),
+        "async_is_in_library_track",
+        AsyncMock(side_effect=lambda *_args: next(track_statuses)),
     )
-    monkeypatch.setattr(export_processors, "save_to_library_artist", save_artist)
-    monkeypatch.setattr(export_processors, "save_to_library_track", save_track)
+    monkeypatch.setattr(
+        export_processors,
+        "async_save_to_library_artist",
+        AsyncMock(side_effect=save_artist),
+    )
+    monkeypatch.setattr(
+        export_processors,
+        "async_save_to_library_track",
+        AsyncMock(side_effect=save_track),
+    )
 
-    convert_library_file.restore_your_library_from_file(spotify)
+    (
+        await asyncio.to_thread(
+            convert_library_file.restore_your_library_from_file, spotify
+        )
+    )
 
-    save_artist.assert_called_once_with(spotify, library.artists[0])
-    save_track.assert_called_once_with(spotify, library.tracks[0])
+    save_artist.assert_called_once_with(mocker.ANY, library.artists[0])
+    assert save_artist.call_args.args[0].source is spotify
+    save_track.assert_called_once_with(mocker.ANY, library.tracks[0])
+    assert save_track.call_args.args[0].source is spotify
 
 
-def test_monthly_routine_runs_each_stage_in_order(
+async def test_monthly_routine_runs_each_stage_in_order(
     monkeypatch: MonkeyPatch, mocker: MockerFixture
 ) -> None:
     """Verify monthly routine runs each stage in order.
@@ -244,22 +266,26 @@ def test_monthly_routine_runs_each_stage_in_order(
     mocker.patch.object(files, "load_total_albums_file", return_value=total)
     stages = mocker.Mock()
     stages.index.return_value = 7
-    mocker.patch.object(control_stages, "check", stages.check)
-    mocker.patch.object(control_stages, "update_statistics", stages.stats)
+    mocker.patch.object(control_stages, "check", AsyncMock(side_effect=stages.check))
+    mocker.patch.object(
+        control_stages, "update_statistics", AsyncMock(side_effect=stages.stats)
+    )
     mocker.patch.object(control_stages, "starting_index", stages.index)
-    mocker.patch.object(playlist_stages, "add_monthly", stages.add)
+    mocker.patch.object(
+        playlist_stages, "add_monthly", AsyncMock(side_effect=stages.add)
+    )
 
-    monthly_routine.run_monthly_routines(spotify)
+    (await monthly_routine.async_run_monthly_routines(spotify))
 
     assert [call[0] for call in stages.mock_calls] == ["check", "stats", "index", "add"]
     assert stages.add.call_args.args[3] == 7
 
 
-def test_count_artists_uses_current_export(monkeypatch) -> None:
+async def test_count_artists_uses_current_export(monkeypatch) -> None:
     monkeypatch.setattr(
         files,
         "load_your_library_file",
         exported_library,
     )
 
-    assert count_items.count_artists_in_library() == 2
+    assert (await count_items.async_count_artists_in_library()) == 2

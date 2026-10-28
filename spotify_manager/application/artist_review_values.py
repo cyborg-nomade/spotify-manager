@@ -63,10 +63,10 @@ class ArtistReviewState:
         default=None, repr=False
     )
 
-    def persist(self) -> None:
+    async def persist(self) -> None:
         """Persist current progress when a store is attached."""
         if self.checkpoint is not None:
-            self.checkpoint.save(self)
+            await self.checkpoint.save(self)
 
 
 @dataclass

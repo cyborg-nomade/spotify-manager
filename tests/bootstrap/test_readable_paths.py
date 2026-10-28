@@ -96,12 +96,14 @@ def test_route_declarations_stay_beside_endpoint_definitions() -> None:
 def _route_names(module: ast.Module) -> set[str]:
     names = set()
     for node in module.body:
-        if isinstance(node, ast.FunctionDef) and _has_route_declaration(node):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and _has_route_declaration(node):
             names.add(node.name)
     return names
 
 
-def _has_route_declaration(node: ast.FunctionDef) -> bool:
+def _has_route_declaration(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
             continue
@@ -149,6 +151,8 @@ def test_bootstrap_does_not_execute_application_stages() -> None:
 def _execution_calls(path: Path) -> list[str]:
     violations = []
     for node in ast.walk(_module(path)):
+        if _is_asyncio_boundary(path, node):
+            continue
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         if node.func.attr in EXECUTION_METHODS:
@@ -186,3 +190,50 @@ def _client_aliases(node: ast.ImportFrom) -> set[str]:
         if alias.name == "LastFmClient":
             names.add(alias.asname or alias.name)
     return names
+
+
+def _is_asyncio_boundary(path: Path, node: ast.AST) -> bool:
+    if path.name != "execution.py" or not isinstance(node, ast.Call):
+        return False
+    if ast.unparse(node.func) != "asyncio.run":
+        return False
+    for function in _module(path).body:
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        if (
+            function.name in {"run_cli", "run_python"}
+            and node.lineno >= function.lineno
+            and node.end_lineno <= function.end_lineno
+        ):
+            return True
+    return False
+
+
+def test_synchronous_locks_never_span_an_await() -> None:
+    """Keep contended threading locks from stopping the web event loop."""
+    violations = []
+    for path in PACKAGE.rglob("*.py"):
+        violations.extend(_awaiting_thread_locks(path))
+    assert violations == []
+
+
+def _awaiting_thread_locks(path: Path) -> list[str]:
+    violations = []
+    for node in ast.walk(_module(path)):
+        if not isinstance(node, ast.With):
+            continue
+        if _names_a_lock(node) and _contains_await(node):
+            violations.append(f"{path.name}:{node.lineno}")
+    return violations
+
+
+def _names_a_lock(node: ast.With) -> bool:
+    for item in node.items:
+        name = ast.unparse(item.context_expr)
+        if name == "lock" or name.endswith(("_lock", ".lock")):
+            return True
+    return False
+
+
+def _contains_await(node: ast.With) -> bool:
+    return any(isinstance(child, ast.Await) for child in ast.walk(node))

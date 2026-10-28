@@ -2,11 +2,10 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import Clock
 from spotify_manager.application.ports.listening import MessageSink
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue import RequeueDependencies
 from spotify_manager.bootstrap.listening import requeue_audit
 from spotify_manager.infrastructure.legacy.spotify import RequeuePlaylistAccess

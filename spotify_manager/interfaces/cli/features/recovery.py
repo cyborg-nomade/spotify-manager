@@ -6,6 +6,7 @@ from typing import Never
 import typer
 from rich.console import Console
 
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
@@ -32,7 +33,9 @@ class RecoveryCLI:
     progress_display: ProgressDisplay
     create_console: type[Console]
 
-    def _run_recover_removed_albums(self, dry_run: bool, limit: int | None) -> None:
+    async def _run_recover_removed_albums(
+        self, dry_run: bool, limit: int | None
+    ) -> None:
         """Audit removed albums, follow credited artists, and restore future releases.
 
         Args:
@@ -58,8 +61,8 @@ class RecoveryCLI:
                         description, total=None
                     )
                 )
-                recover_removed_albums.recover_removed_albums(
-                    self.runtime.review_client(),
+                await recover_removed_albums.recover_removed_albums(
+                    (await self.runtime.review_client()),
                     echo=RecoverRemovedAlbumsInteraction(self),
                     progress_callback=RecoverRemovedAlbumsInteraction(self),
                     dry_run=dry_run,
@@ -158,4 +161,5 @@ class RecoverRemovedAlbumsInteraction:
             position: Original position.
             total: Original total.
         """
+        check_cli_interruption()
         self.owner._recover_removed_albums_update_progress(position, total)

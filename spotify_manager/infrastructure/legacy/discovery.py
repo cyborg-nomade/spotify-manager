@@ -1,16 +1,18 @@
 """Discovery catalog and audit bindings for the existing synchronous integrations."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.legacy.artist_assessment import (
     LegacyAssessmentCatalog,
 )
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 
@@ -23,7 +25,7 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
         retry: Existing retry and cancellation callback.
     """
 
-    def ranked(self, artist_id: str) -> tuple[RankedRelease, ...]:
+    async def ranked(self, artist_id: str) -> tuple[RankedRelease, ...]:
         """Read the existing canonical discovery catalog.
 
         Args:
@@ -32,11 +34,13 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
         Returns:
             Original release observations in ranked order.
         """
-        from spotify_manager.routines.new_kids import load_ranked_catalog
+        from spotify_manager.routines.new_kids import (
+            async_load_ranked_catalog as load_ranked_catalog,
+        )
 
-        return load_ranked_catalog(self.client, artist_id, self.retry)
+        return await load_ranked_catalog(self.client, artist_id, self.retry)
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read the original ordered works playlist.
 
         Args:
@@ -45,20 +49,24 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
         Returns:
             Original playable markers, retaining duplicates.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        return load_playlist_tracks(self.client, playlist_id, self.retry)
+        return await load_playlist_tracks(self.client, playlist_id, self.retry)
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Populate shared membership observations at the original batch boundary.
 
         Args:
             ids: Original requested sequence, retaining duplicates.
             cache: Mutable accepted memberships shared by the review invocation.
         """
-        from spotify_manager.routines.new_wine import get_liked_statuses
+        from spotify_manager.routines.new_wine import (
+            async_get_liked_statuses as get_liked_statuses,
+        )
 
-        get_liked_statuses(self.client, ids, cache, self.retry)
+        await get_liked_statuses(self.client, ids, cache, self.retry)
 
 
 @dataclass(frozen=True)
@@ -71,16 +79,20 @@ class LegacyDiscoveryAudit:
 
     path: Path
 
-    def event(self, name: str, **details: object) -> None:
+    async def event(self, name: str, **details: object) -> None:
         """Append an original named audit record.
 
         Args:
             name: Existing event identifier.
             details: Original structured fields in application-supplied order.
         """
-        from spotify_manager.routines.new_kids import append_event
+        from spotify_manager.routines.new_kids import append_event as _append_event
 
-        append_event(self.path, name, **details)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_event, self.path, name, **details)
+            )
+            await finish_blocking(file_operation)
 
 
 @dataclass(frozen=True)
@@ -99,7 +111,7 @@ class LegacyDiscoveryLibrary:
     albums_path: Path
     removed_path: Path
 
-    def saved(self, release: RankedRelease) -> bool:
+    async def saved(self, release: RankedRelease) -> bool:
         """Observe saved membership through the original retry boundary.
 
         Args:
@@ -110,9 +122,9 @@ class LegacyDiscoveryLibrary:
         """
         from spotify_manager.routines.new_kids import _release_saved
 
-        return _release_saved(self.client, release, self.retry)
+        return await _release_saved(self.client, release, self.retry)
 
-    def save_album(self, release: RankedRelease) -> None:
+    async def save_album(self, release: RankedRelease) -> None:
         """Save one accepted release remotely.
 
         Args:
@@ -120,9 +132,9 @@ class LegacyDiscoveryLibrary:
         """
         from spotify_manager.routines.new_kids import _save_release
 
-        _save_release(self.client, release, self.retry)
+        await _save_release(self.client, release, self.retry)
 
-    def remove_album(self, release: RankedRelease) -> None:
+    async def remove_album(self, release: RankedRelease) -> None:
         """Remove one rejected release remotely.
 
         Args:
@@ -130,9 +142,9 @@ class LegacyDiscoveryLibrary:
         """
         from spotify_manager.routines.new_kids import _remove_release
 
-        _remove_release(self.client, release, self.retry)
+        await _remove_release(self.client, release, self.retry)
 
-    def removed_audit(
+    async def removed_audit(
         self, release: RankedRelease, evaluation: AlbumEvaluation
     ) -> None:
         """Append the original recovery record after a successful remote removal.
@@ -142,22 +154,27 @@ class LegacyDiscoveryLibrary:
             evaluation: Accepted live removal decision.
         """
         from spotify_manager.routines.review_album_limits import (
-            append_removed_album_log,
+            append_removed_album_log as _append_removed_album_log,
         )
 
-        append_removed_album_log(
-            YourLibraryAlbum(
-                artist=release.primary_artist_name,
-                album=release.name,
-                uri=release.uri,
-            ),
-            evaluation,
-            log_path=self.removed_path,
-            action="new_kids_release_boundary",
-            live_liked_tracks=evaluation.liked_tracks,
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_removed_album_log,
+                    YourLibraryAlbum(
+                        artist=release.primary_artist_name,
+                        album=release.name,
+                        uri=release.uri,
+                    ),
+                    evaluation,
+                    log_path=self.removed_path,
+                    action="new_kids_release_boundary",
+                    live_liked_tracks=evaluation.liked_tracks,
+                )
+            )
+            await finish_blocking(file_operation)
 
-    def mirror(self, release: RankedRelease, should_save: bool) -> None:
+    async def mirror(self, release: RankedRelease, should_save: bool) -> None:
         """Apply the original canonical mirror and statistics synchronization.
 
         Args:
@@ -166,4 +183,4 @@ class LegacyDiscoveryLibrary:
         """
         from spotify_manager.routines.new_kids import _sync_local_album
 
-        _sync_local_album(release, should_save, self.albums_path)
+        await _sync_local_album(release, should_save, self.albums_path)

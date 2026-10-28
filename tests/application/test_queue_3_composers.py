@@ -63,7 +63,7 @@ class RoutingMemory:
         self._record("clock")
         return "accepted-at"
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[OwnedPlaylist, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -86,12 +86,12 @@ class RoutingMemory:
         return self.now()
 
 
-def _resolve(
+async def _resolve(
     memory: RoutingMemory,
     routes: dict[str, object],
     owned: tuple[OwnedPlaylist, ...],
 ) -> tuple[OwnedPlaylist | None, bool]:
-    return resolve_composer_route(
+    return await resolve_composer_route(
         "bach",
         ARTIST,
         "source",
@@ -104,7 +104,7 @@ def _resolve(
 
 
 @pytest.mark.parametrize("previous", [None, False, {"playlist_id": "stale"}])
-def test_no_candidates_preserve_nonrecords_but_remove_stale_routes(
+async def test_no_candidates_preserve_nonrecords_but_remove_stale_routes(
     previous: object,
 ) -> None:
     """Original tolerant route handling does not invent a replacement without a match.
@@ -114,22 +114,22 @@ def test_no_candidates_preserve_nonrecords_but_remove_stale_routes(
     """
     memory = RoutingMemory()
     routes = {"bach": previous}
-    assert _resolve(memory, routes, ()) == (None, False)
+    assert (await _resolve(memory, routes, ())) == (None, False)
     assert routes == ({} if isinstance(previous, dict) else {"bach": previous})
     assert memory.events == []
 
 
-def test_valid_saved_route_is_reused_without_choice_clock_or_rewrite() -> None:
+async def test_valid_saved_route_is_reused_without_choice_clock_or_rewrite() -> None:
     """Saved route metadata remains unchanged when the owned playlist still matches."""
     memory = RoutingMemory()
     routes: dict[str, object] = {"bach": {"playlist_id": "other", "unknown": True}}
-    assert _resolve(memory, routes, (WORKS, OTHER)) == (OTHER, False)
+    assert (await _resolve(memory, routes, (WORKS, OTHER))) == (OTHER, False)
     assert routes == {"bach": {"playlist_id": "other", "unknown": True}}
     assert memory.events == []
 
 
 @pytest.mark.parametrize("ambiguous", [False, True])
-def test_new_route_records_marker_and_time_only_after_selection(
+async def test_new_route_records_marker_and_time_only_after_selection(
     ambiguous: bool,
 ) -> None:
     """A sole candidate bypasses choice, while ambiguous candidates retain selection.
@@ -140,7 +140,7 @@ def test_new_route_records_marker_and_time_only_after_selection(
     memory = RoutingMemory()
     routes: dict[str, object] = {}
     owned = (WORKS, OTHER) if ambiguous else (WORKS,)
-    assert _resolve(memory, routes, owned) == (WORKS, False)
+    assert (await _resolve(memory, routes, owned)) == (WORKS, False)
     assert routes == {
         "bach": {
             "artist_name": ARTIST,
@@ -153,20 +153,22 @@ def test_new_route_records_marker_and_time_only_after_selection(
     assert memory.events == (["choice", "clock"] if ambiguous else ["clock"])
 
 
-def test_missing_reader_rejects_ambiguity_after_discarding_stale_route() -> None:
+async def test_missing_reader_rejects_ambiguity_after_discarding_stale_route() -> None:
     """Original candidate labels remain visible in the configuration error."""
     memory = RoutingMemory()
     routes: dict[str, object] = {"bach": {"playlist_id": "stale"}}
     with pytest.raises(Queue3ConfigError) as error:
-        resolve_composer_route(
-            "bach",
-            ARTIST,
-            "source",
-            "queue",
-            (WORKS, OTHER),
-            {"composer_routes": routes},
-            None,
-            memory,
+        (
+            await resolve_composer_route(
+                "bach",
+                ARTIST,
+                "source",
+                "queue",
+                (WORKS, OTHER),
+                {"composer_routes": routes},
+                None,
+                memory,
+            )
         )
     assert (
         str(error.value)
@@ -176,7 +178,9 @@ def test_missing_reader_rejects_ambiguity_after_discarding_stale_route() -> None
 
 
 @pytest.mark.parametrize("choice", ["quit", "missing", "__skip__"])
-def test_cancel_or_invalid_choice_does_not_restore_stale_route(choice: str) -> None:
+async def test_cancel_or_invalid_choice_does_not_restore_stale_route(
+    choice: str,
+) -> None:
     """Queue 3 supports quit but deliberately retains no discovery-style skip token.
 
     Args:
@@ -185,15 +189,15 @@ def test_cancel_or_invalid_choice_does_not_restore_stale_route(choice: str) -> N
     memory = RoutingMemory(choice)
     routes: dict[str, object] = {"bach": {"playlist_id": "stale"}}
     if choice == "quit":
-        assert _resolve(memory, routes, (WORKS, OTHER)) == (None, True)
+        assert (await _resolve(memory, routes, (WORKS, OTHER))) == (None, True)
     else:
         with pytest.raises(Queue3ConfigError, match="not an owned match"):
-            _resolve(memory, routes, (WORKS, OTHER))
+            (await _resolve(memory, routes, (WORKS, OTHER)))
     assert routes == {} and memory.events == ["choice"]
 
 
 @pytest.mark.parametrize("failure", ["choice", "clock"])
-def test_failed_acceptance_leaves_no_new_route(failure: str) -> None:
+async def test_failed_acceptance_leaves_no_new_route(failure: str) -> None:
     """A failed choice or timestamp read leaves only the accepted stale-route removal.
 
     Args:
@@ -202,7 +206,7 @@ def test_failed_acceptance_leaves_no_new_route(failure: str) -> None:
     memory = RoutingMemory(failure=failure)
     routes: dict[str, object] = {"bach": {"playlist_id": "stale"}}
     with pytest.raises(OSError, match=failure):
-        _resolve(memory, routes, (WORKS, OTHER))
+        (await _resolve(memory, routes, (WORKS, OTHER)))
     assert routes == {} and memory.events[-1] == failure
 
 

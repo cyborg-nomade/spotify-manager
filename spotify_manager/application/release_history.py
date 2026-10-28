@@ -14,7 +14,7 @@ from spotify_manager.domain.discovery_history import scrobbled_titles
 class ReleaseHistoryCatalog(Protocol):
     """Supply original track and membership reads without exposing the Spotify SDK."""
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Observe one release whose history passed the inexpensive prefilter.
 
         Args:
@@ -24,7 +24,7 @@ class ReleaseHistoryCatalog(Protocol):
             Original ordered tracks with their primary credits.
         """
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Populate previously unseen live track memberships.
 
         Args:
@@ -33,7 +33,7 @@ class ReleaseHistoryCatalog(Protocol):
         """
 
 
-def played_releases(
+async def played_releases(
     access: ReleaseHistoryCatalog,
     catalog: tuple[RankedRelease, ...],
     history: AnnualScrobbleIndex,
@@ -62,13 +62,13 @@ def played_releases(
         titles = scrobbled_titles(history, release.identity)
         if len(titles) < scrobble_threshold(release.tier, studio_minimum):
             continue
-        tracks = _observe(access, release, track_cache, liked_cache)
+        tracks = await _observe(access, release, track_cache, liked_cache)
         if release_was_played(release, tracks, liked_cache, history, studio_minimum):
             played.append(release)
     return tuple(played)
 
 
-def _observe(
+async def _observe(
     access: ReleaseHistoryCatalog,
     release: RankedRelease,
     track_cache: dict[str, tuple[CatalogTrack, ...]],
@@ -76,7 +76,7 @@ def _observe(
 ) -> tuple[CatalogTrack, ...]:
     tracks = track_cache.get(release.spotify_id)
     if tracks is None:
-        tracks = access.tracks(release)
+        tracks = await access.tracks(release)
         track_cache[release.spotify_id] = tracks
-    access.likes([track.spotify_id for track in tracks], liked_cache)
+    await access.likes([track.spotify_id for track in tracks], liked_cache)
     return tracks

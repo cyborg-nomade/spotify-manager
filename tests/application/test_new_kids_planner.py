@@ -37,12 +37,12 @@ def _planner(memory: MemoryDiscovery, *, preview: bool = False) -> NewKidsPlanne
     return NewKidsPlanner(observations, memory, memory, memory, 2026, preview)
 
 
-def _context(
+async def _context(
     planner: NewKidsPlanner, *, prior: object = None, index: int | None = 0
 ) -> ReviewSource:
     observations = planner.observations
-    catalog = observations.catalog("artist")
-    tracks = observations.tracks(CURRENT)
+    catalog = await observations.catalog("artist")
+    tracks = await observations.tracks(CURRENT)
     return ReviewSource(
         SOURCE,
         "artist",
@@ -61,11 +61,11 @@ def _plan(decision: ReviewDecision) -> dict[str, object]:
     return decision
 
 
-def test_next_release_plan_audits_history_before_requesting_a_choice() -> None:
+async def test_next_release_plan_audits_history_before_requesting_a_choice() -> None:
     """Completion checks all current tracks before candidate reads and interaction."""
     memory = _memory()
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner)))
+    plan = _plan(await planner.plan(await _context(planner)))
     assert plan["action"] == "next_release" and plan["release_number"] == 1
     assert plan["target"] == asdict(track("next"))
     assert [name for name, value in memory.events] == [
@@ -96,7 +96,7 @@ def test_next_release_plan_audits_history_before_requesting_a_choice() -> None:
 
 
 @pytest.mark.parametrize("liked", [False, True])
-def test_intra_release_advance_uses_observed_streak_without_history(
+async def test_intra_release_advance_uses_observed_streak_without_history(
     liked: bool,
 ) -> None:
     """Normal advancement does not read other releases or emit completion events.
@@ -108,7 +108,7 @@ def test_intra_release_advance_uses_observed_streak_without_history(
     memory.releases["album"] = (track("source"), track("next"))
     memory.liked_statuses["source"] = liked
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, prior=True)))
+    plan = _plan(await planner.plan(await _context(planner, prior=True)))
     assert plan["action"] == "advance" and plan["advance_reason"] == "next track"
     assert (
         plan["consecutive_unliked"]
@@ -122,7 +122,7 @@ def test_intra_release_advance_uses_observed_streak_without_history(
     ]
 
 
-def test_missing_saved_streak_is_reconstructed_from_preceding_primary_tracks() -> None:
+async def test_missing_saved_streak_is_reconstructed_from_preceding_primary() -> None:
     """Observe the source before predecessors and reset the streak on a live like."""
     memory = _memory()
     memory.releases["album"] = (
@@ -133,7 +133,7 @@ def test_missing_saved_streak_is_reconstructed_from_preceding_primary_tracks() -
     )
     memory.liked_statuses["liked"] = True
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, prior="invalid", index=2)))
+    plan = _plan(await planner.plan(await _context(planner, prior="invalid", index=2)))
     assert plan["consecutive_unliked"] == 2
     assert memory.events[2:4] == [
         ("memberships", ["source"]),
@@ -141,13 +141,13 @@ def test_missing_saved_streak_is_reconstructed_from_preceding_primary_tracks() -
     ]
 
 
-def test_three_unlikes_advance_to_later_like_and_reset_persisted_streak() -> None:
+async def test_three_unlikes_advance_to_later_like_and_reset_persisted() -> None:
     """The later-liked shortcut observes all primary tracks before choosing a target."""
     memory = _memory()
     memory.releases["album"] = (track("source"), track("unliked"), track("liked"))
     memory.liked_statuses["liked"] = True
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, prior=2)))
+    plan = _plan(await planner.plan(await _context(planner, prior=2)))
     assert plan["advance_reason"] == "next liked track"
     assert (
         plan["target"] == asdict(track("liked"))
@@ -156,17 +156,19 @@ def test_three_unlikes_advance_to_later_like_and_reset_persisted_streak() -> Non
     assert "audit" not in [name for name, value in memory.events]
 
 
-def test_unmapped_source_uses_zero_prior_and_proceeds_to_release_completion() -> None:
+async def test_unmapped_source_uses_zero_prior_and_proceeds_to_release() -> None:
     """An unmapped source does not infer predecessors or advance within the release."""
     memory = _memory()
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, index=None)))
+    plan = _plan(await planner.plan(await _context(planner, index=None)))
     assert plan["consecutive_unliked"] == 1 and plan["action"] == "next_release"
     assert ("memberships", []) not in memory.events
 
 
 @pytest.mark.parametrize("choice", ["__skip__", "__quit__", "missing"])
-def test_release_choice_controls_preserve_prior_history_audit(choice: str) -> None:
+async def test_release_choice_controls_preserve_prior_history_audit(
+    choice: str,
+) -> None:
     """Pause, skip and selection errors all follow the existing preview audit.
 
     Args:
@@ -175,12 +177,12 @@ def test_release_choice_controls_preserve_prior_history_audit(choice: str) -> No
     memory = _memory()
     memory.choices = [choice]
     planner = _planner(memory, preview=True)
-    context = _context(planner)
+    context = await _context(planner)
     if choice == "missing":
         with pytest.raises(NewKidsError, match="Selected release"):
-            planner.plan(context)
+            (await planner.plan(context))
     else:
-        decision = planner.plan(context)
+        decision = await planner.plan(context)
         assert (
             decision is None
             if choice == "__quit__"
@@ -198,7 +200,7 @@ def test_release_choice_controls_preserve_prior_history_audit(choice: str) -> No
         (False, True, "unlucky"),
     ],
 )
-def test_exhausted_catalog_routes_from_live_assessment(
+async def test_exhausted_catalog_routes_from_live_assessment(
     qualified: bool, top: bool, action: str
 ) -> None:
     """No viable next release triggers live completion with the original precedence.
@@ -214,26 +216,26 @@ def test_exhausted_catalog_routes_from_live_assessment(
     memory.top = (track("top"),) if top else ()
     memory.liked_statuses["top"] = top
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, prior=2)))
+    plan = _plan(await planner.plan(await _context(planner, prior=2)))
     assert (plan["action"], plan["result_action"]) == ("finish", action)
     assert plan["target"] is None and "assessment" in plan
     assert "choice" not in [name for name, value in memory.events]
 
 
-def test_completed_release_limit_bypasses_viable_candidate_observations() -> None:
+async def test_completed_release_limit_bypasses_viable_candidate() -> None:
     """Sufficient annual completion triggers assessment before candidate selection."""
     memory = _memory()
     planner = _planner(memory)
     planner.observations.release_limit = 1
     planner.observations.studio_minimum = 1
     planner.observations.history = {("artist", "album"): frozenset({"source"})}
-    plan = _plan(planner.plan(_context(planner)))
+    plan = _plan(await planner.plan(await _context(planner)))
     assert plan["action"] == "finish"
     assert ("message", ("Artist", 1, 2026)) in memory.events
     assert "choice" not in [name for name, value in memory.events]
 
 
-def test_candidate_scan_reads_all_remaining_releases_before_limiting_display() -> None:
+async def test_candidate_scan_reads_all_remaining_releases_before_limiting() -> None:
     """Viability uses primary credits and preserves the ten-choice display cap."""
     memory = _memory()
     releases = tuple(release(str(index)) for index in range(11))
@@ -245,13 +247,13 @@ def test_candidate_scan_reads_all_remaining_releases_before_limiting_display() -
     for candidate in releases:
         memory.releases[candidate.spotify_id] = (track(candidate.spotify_id),)
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner)))
+    plan = _plan(await planner.plan(await _context(planner)))
     assert plan["target_release"] == asdict(releases[0])
     assert ("tracks", "10") in memory.events and ("tracks", "guest") in memory.events
     assert memory.events[-1] == ("choice", ("Artist", releases[:10]))
 
 
-def test_completed_and_current_release_identities_are_excluded_from_choices() -> None:
+async def test_completed_and_current_release_identities_are_excluded_from() -> None:
     """Exclude alternative editions and historically completed release identities."""
     memory = _memory()
     played = release("played")
@@ -262,7 +264,7 @@ def test_completed_and_current_release_identities_are_excluded_from_choices() ->
     planner.observations.history = {
         ("artist", "played"): frozenset({"one", "two", "three"})
     }
-    plan = _plan(planner.plan(_context(planner)))
+    plan = _plan(await planner.plan(await _context(planner)))
     assert plan["release_number"] == 2 and plan["target_release"] == asdict(OTHER)
     assert memory.events[-1] == ("choice", ("Artist", (OTHER,)))
     assert ("tracks", "edition") not in memory.events
@@ -278,7 +280,7 @@ class ChangedTracks:
 
     observations: DiscoveryObservations
 
-    def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
+    async def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
         """Accept the candidate after its previously viable tracks disappear.
 
         Args:
@@ -292,27 +294,35 @@ class ChangedTracks:
         return "other"
 
 
-def test_selected_release_without_primary_tracks_retains_original_error() -> None:
+async def test_selected_release_without_primary_tracks_retains_error() -> None:
     """Selection rechecks its shared accepted tracks before creating a durable plan."""
     memory = _memory()
     planner = _planner(memory)
     changed = ChangedTracks(planner.observations)
     planner = replace(planner, choose=changed)
     with pytest.raises(NewKidsError, match="no primary-artist tracks"):
-        planner.plan(_context(planner))
+        (await planner.plan(await _context(planner)))
 
 
-def test_observations_cache_empty_catalogs_and_works_without_refresh() -> None:
+async def test_observations_cache_empty_catalogs_and_works_without_refresh() -> None:
     """Empty accepted responses remain stable throughout one invocation."""
     memory = MemoryDiscovery()
     observations = DiscoveryObservations(memory, {})
-    assert observations.catalog("missing") == observations.catalog("missing") == ()
     assert (
-        observations.composer_tracks("works")
-        == observations.composer_tracks("works")
+        (await observations.catalog("missing"))
+        == (await observations.catalog("missing"))
         == ()
     )
-    assert observations.tracks(CURRENT) == observations.tracks(CURRENT) == ()
+    assert (
+        (await observations.composer_tracks("works"))
+        == (await observations.composer_tracks("works"))
+        == ()
+    )
+    assert (
+        (await observations.tracks(CURRENT))
+        == (await observations.tracks(CURRENT))
+        == ()
+    )
     assert memory.events == [
         ("catalog", "missing"),
         ("playlist", "works"),
@@ -320,14 +330,12 @@ def test_observations_cache_empty_catalogs_and_works_without_refresh() -> None:
     ]
 
 
-def test_empty_current_release_still_observes_source_before_next_release_choice() -> (
-    None
-):
+async def test_empty_current_release_observes_source_before_next_release() -> None:
     """Empty catalog tracks do not suppress the original live source observation."""
     memory = _memory()
     memory.releases["album"] = ()
     planner = _planner(memory)
-    plan = _plan(planner.plan(_context(planner, index=None)))
+    plan = _plan(await planner.plan(await _context(planner, index=None)))
     assert plan["action"] == "next_release"
     assert memory.events[2:4] == [("memberships", ["source"]), ("memberships", [])]
     evaluation = plan["evaluation"]

@@ -8,10 +8,11 @@ from datetime import tzinfo
 from pathlib import Path
 from typing import Self
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.infrastructure.genre_pages import GenrePages
 from spotify_manager.routines import blast_from_past
@@ -85,11 +86,11 @@ class GenreEffects:
         self._event("destination")
         return PlaylistState(len(self.existing), self.existing)
 
-    def _put(self, endpoint: str, *, args: object) -> None:
+    async def _put(self, endpoint: str, *, args: object) -> None:
         self.writes.append(["PUT", endpoint, args])
         self._event("follow")
 
-    def _post(self, endpoint: str, *, payload: object) -> None:
+    async def _post(self, endpoint: str, *, payload: object) -> None:
         self.writes.append(["POST", endpoint, payload])
         self._event("append")
 
@@ -133,14 +134,20 @@ class GenreClock(datetime):
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, effects: GenreEffects) -> None:
-    monkeypatch.setattr(legacy, "_load_genre_playlist_source", effects.source)
-    monkeypatch.setattr(blast_from_past, "load_playlist_state", effects.destination)
+    monkeypatch.setattr(
+        legacy, "_load_genre_playlist_source", AsyncMock(side_effect=effects.source)
+    )
+    monkeypatch.setattr(
+        blast_from_past,
+        "async_load_playlist_state",
+        AsyncMock(side_effect=effects.destination),
+    )
     monkeypatch.setattr(legacy, "append_genre_reveal_log", effects.audit)
     monkeypatch.setattr(GenreClock, "effects", effects, raising=False)
     monkeypatch.setattr(legacy, "datetime", GenreClock)
 
 
-def _run(effects: GenreEffects, path: Path) -> legacy.GenreRevealRunResult:
+async def _run(effects: GenreEffects, path: Path) -> legacy.GenreRevealRunResult:
     return legacy.process_next_genre(
         cast(Spotify, effects), "genre", "Genre", "destination", log_path=path
     )
@@ -149,7 +156,7 @@ def _run(effects: GenreEffects, path: Path) -> legacy.GenreRevealRunResult:
 @pytest.mark.parametrize(
     "existing", [frozenset(), frozenset({"two"}), frozenset({"one", "two", "three"})]
 )
-def test_original_genre_completion_order(
+async def test_original_genre_completion_order(
     existing: frozenset[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Save the source even when every track is present and audit after the last write.
@@ -161,7 +168,7 @@ def test_original_genre_completion_order(
     """
     effects = GenreEffects(existing)
     _bind(monkeypatch, effects)
-    result = _run(effects, tmp_path / "audit.jsonl")
+    result = await _run(effects, tmp_path / "audit.jsonl")
     missing = [uri for uri in URIS if uri.rsplit(":", 1)[-1] not in existing]
     assert effects.events == (
         EVENTS if missing else [event for event in EVENTS if event != "append"]
@@ -184,7 +191,7 @@ def test_original_genre_completion_order(
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_original_genre_failure_preserves_accepted_effect_prefix(
+async def test_original_genre_failure_preserves_accepted_effect_prefix(
     failure: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Keep accepted library/playlist writes when a later clock or audit stage fails.
@@ -197,7 +204,7 @@ def test_original_genre_failure_preserves_accepted_effect_prefix(
     effects = GenreEffects(failure=failure)
     _bind(monkeypatch, effects)
     with pytest.raises(GenreEffectFailureError, match=failure):
-        _run(effects, tmp_path / "audit.jsonl")
+        (await _run(effects, tmp_path / "audit.jsonl"))
     index = EVENTS.index(failure)
     assert effects.events == EVENTS[: index + 1]
     assert len(effects.writes) == min(max(index - 1, 0), 2)

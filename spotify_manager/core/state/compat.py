@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from typing import Protocol
 
-from spotify_manager.application.ports.state import RoutineState as RoutineState
+from spotify_manager.application.ports.state import BlockingRoutineState as RoutineState
 from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.service import StateService

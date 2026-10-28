@@ -2,21 +2,20 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.library_affinity import library_affinity
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.wine_cellar import CellarOptions
 from spotify_manager.application.wine_cellar import refill_cellar
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.infrastructure.legacy.wine_cellar import ArtistLibraryMembership
 from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
 from spotify_manager.interfaces.presenters.wine_cellar import CellarPresenter
 
 
-def run_cellar_refill(
+async def run_cellar_refill(
     client: Spotify,
     retry: RetryCall,
     access: RoutineState,
@@ -48,10 +47,10 @@ def run_cellar_refill(
     integration = WineCellarAccess(
         client, retry, access, log_path, liked_path, albums_path
     )
-    return refill_cellar(integration, options, state, run, CellarPresenter(echo))
+    return await refill_cellar(integration, options, state, run, CellarPresenter(echo))
 
 
-def observe_library_affinity(
+async def observe_library_affinity(
     client: Spotify,
     retry: RetryCall,
     artist: str,
@@ -76,7 +75,7 @@ def observe_library_affinity(
     Returns:
         Liked count, saved-album count and qualification.
     """
-    return library_affinity(
+    return await library_affinity(
         ArtistLibraryMembership(client, artist, retry),
         albums,
         tracks,

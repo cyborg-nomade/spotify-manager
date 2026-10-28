@@ -17,7 +17,7 @@ from spotify_manager.domain.queue_3 import source_release
 class ComposerReader(Protocol):
     """Own the operator interaction for choose composer."""
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[OwnedPlaylist, ...], /
     ) -> str:
         """Read or report the original operator interaction.
@@ -32,7 +32,7 @@ class ComposerReader(Protocol):
         ...
 
 
-def resolve_composer_route(
+async def resolve_composer_route(
     artist_id: str,
     artist_name: str,
     source_id: str,
@@ -70,7 +70,7 @@ def resolve_composer_route(
         return existing, False
     if not candidates:
         return None, False
-    selected = _choose(artist_name, candidates, choose)
+    selected = await _choose(artist_name, candidates, choose)
     if selected is None:
         return None, True
     routes[artist_id] = {
@@ -95,7 +95,7 @@ def _existing(
     return selected
 
 
-def _choose(
+async def _choose(
     artist_name: str,
     candidates: tuple[OwnedPlaylist, ...],
     choose: ComposerReader | None,
@@ -107,7 +107,7 @@ def _choose(
         raise Queue3ConfigError(
             f"Multiple owned playlists match {artist_name}: {names}."
         )
-    selected_id = choose.choose_composer(artist_name, candidates)
+    selected_id = await choose.choose_composer(artist_name, candidates)
     if selected_id == "quit":
         return None
     selected = _matching(candidates, selected_id)

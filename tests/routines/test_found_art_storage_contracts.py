@@ -71,27 +71,27 @@ def _fixture() -> dict[str, object]:
     return cast(dict[str, object], json.loads(FIXTURE.read_text()))
 
 
-def test_cache_and_audit_bytes_match_original_snapshots(tmp_path: Path) -> None:
+async def test_cache_and_audit_bytes_match_original_snapshots(tmp_path: Path) -> None:
     """Preserve Unicode, indentation, field order, omissions and append newlines.
 
     Args:
         tmp_path: Isolated cache and audit destinations.
     """
     cache, audit = tmp_path / "cache.json", tmp_path / "audit.jsonl"
-    found_art._save_similar_cache(_cache_payload(), cache)
-    found_art.append_found_art_log(_summary(), audit)
-    found_art.append_found_art_log(_summary(), audit)
+    (found_art._save_similar_cache(_cache_payload(), cache))
+    (found_art.append_found_art_log(_summary(), audit))
+    (found_art.append_found_art_log(_summary(), audit))
     assert cache.read_text() == _fixture()["cache_text"]
     assert audit.read_text() == cast(str, _fixture()["audit_text"]) * 2
     assert not cache.with_suffix(".json.tmp").exists()
-    assert found_art._load_similar_cache(cache) == _cache_payload()
+    assert (found_art._load_similar_cache(cache)) == _cache_payload()
 
 
 @pytest.mark.parametrize(
     "payload",
     [None, [], {}, {"version": 2, "entries": {}}, {"version": 1, "entries": []}],
 )
-def test_cache_schema_rejection_preserves_error_without_cause(
+async def test_cache_schema_rejection_preserves_error_without_cause(
     tmp_path: Path, payload: object
 ) -> None:
     """Reject original invalid shapes while keeping schema errors distinct from IO.
@@ -105,11 +105,11 @@ def test_cache_schema_rejection_preserves_error_without_cause(
     with pytest.raises(
         found_art.FoundArtStateError, match="cache is invalid"
     ) as raised:
-        found_art._load_similar_cache(path)
+        (found_art._load_similar_cache(path))
     assert raised.value.__cause__ is None
 
 
-def test_cache_missing_file_and_numeric_version_equality_are_preserved(
+async def test_cache_missing_file_and_numeric_version_equality_are_preserved(
     tmp_path: Path,
 ) -> None:
     """Keep the empty default and original permissive equality for version one.
@@ -118,14 +118,14 @@ def test_cache_missing_file_and_numeric_version_equality_are_preserved(
         tmp_path: Isolated cache destination.
     """
     path = tmp_path / "cache.json"
-    assert found_art._load_similar_cache(path) == {"version": 1, "entries": {}}
+    assert (found_art._load_similar_cache(path)) == {"version": 1, "entries": {}}
     payload = {"version": True, "entries": {}, "extra": [1]}
     path.write_text(json.dumps(payload))
-    assert found_art._load_similar_cache(path) == payload
+    assert (found_art._load_similar_cache(path)) == payload
 
 
 @pytest.mark.parametrize("failure", ["mkdir", "write_text", "replace"])
-def test_cache_replacement_failure_retains_prior_bytes_and_original_cause(
+async def test_cache_replacement_failure_retains_prior_bytes_and_original_cause(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
@@ -142,20 +142,20 @@ def test_cache_replacement_failure_retains_prior_bytes_and_original_cause(
     error = PermissionError(failure)
     monkeypatch.setattr(Path, failure, Mock(side_effect=error))
     with pytest.raises(found_art.FoundArtStateError, match="Could not save") as raised:
-        found_art._save_similar_cache(_cache_payload(), path)
+        (found_art._save_similar_cache(_cache_payload(), path))
     assert raised.value.__cause__ is error
     assert path.read_text() == "prior"
     assert path.with_suffix(".json.tmp").exists() is (failure == "replace")
 
 
-def test_cache_json_encoding_failure_is_not_reclassified(tmp_path: Path) -> None:
+async def test_cache_json_encoding_failure_is_not_reclassified(tmp_path: Path) -> None:
     """Retain original TypeError propagation outside narrowed filesystem handling.
 
     Args:
         tmp_path: Isolated cache destination.
     """
     with pytest.raises(TypeError):
-        found_art._save_similar_cache({"value": object()}, tmp_path / "cache.json")
+        (found_art._save_similar_cache({"value": object()}, tmp_path / "cache.json"))
 
 
 @pytest.mark.parametrize(
@@ -228,7 +228,7 @@ def test_neighborhood_preserves_nonfinite_match_and_uncaught_numeric_overflow() 
         {"results": [{"action": "added", "candidate": {"artist": "A"}}]},
     ],
 )
-def test_invalid_audit_record_reports_original_physical_line(
+async def test_invalid_audit_record_reports_original_physical_line(
     tmp_path: Path, record: object
 ) -> None:
     """Blank physical lines still count toward the original chained diagnostic.
@@ -242,11 +242,11 @@ def test_invalid_audit_record_reports_original_physical_line(
         "\n" + json.dumps({"results": []}) + "\n" + json.dumps(record) + "\n"
     )
     with pytest.raises(found_art.FoundArtStateError, match="at line 3") as raised:
-        found_art.previously_added_track_keys(path)
+        (found_art.previously_added_track_keys(path))
     assert isinstance(raised.value.__cause__, (KeyError, ValueError))
 
 
-def test_audit_ignores_nonadded_rows_but_preserves_invalid_normalized_added_keys(
+async def test_audit_ignores_nonadded_rows_but_preserves_invalid_normalized_added_keys(
     tmp_path: Path,
 ) -> None:
     """Keep preview/unknown actions excluded and original added-key coercion tolerance.
@@ -255,7 +255,7 @@ def test_audit_ignores_nonadded_rows_but_preserves_invalid_normalized_added_keys
         tmp_path: Isolated audit destination.
     """
     path = tmp_path / "audit.jsonl"
-    assert found_art.previously_added_track_keys(path) == set()
+    assert (found_art.previously_added_track_keys(path)) == set()
     records = {
         "results": [
             1,
@@ -266,10 +266,13 @@ def test_audit_ignores_nonadded_rows_but_preserves_invalid_normalized_added_keys
         ]
     }
     path.write_text(json.dumps(records) + "\n")
-    assert found_art.previously_added_track_keys(path) == {("", ""), ("none", "123")}
+    assert (found_art.previously_added_track_keys(path)) == {
+        ("", ""),
+        ("none", "123"),
+    }
 
 
-def test_audit_open_failure_omits_line_detail(tmp_path: Path) -> None:
+async def test_audit_open_failure_omits_line_detail(tmp_path: Path) -> None:
     """Preserve chained filesystem failures before any physical line is read.
 
     Args:
@@ -278,7 +281,7 @@ def test_audit_open_failure_omits_line_detail(tmp_path: Path) -> None:
     with pytest.raises(
         found_art.FoundArtStateError, match="audit log is invalid:"
     ) as raised:
-        found_art.previously_added_track_keys(tmp_path)
+        (found_art.previously_added_track_keys(tmp_path))
     assert isinstance(raised.value.__cause__, OSError)
 
 
@@ -334,7 +337,7 @@ class InterruptedAudit:
         return "\n" if self.lines == 1 else '{"results": []}\n'
 
 
-def test_audit_read_failure_reports_last_accepted_physical_line(
+async def test_audit_read_failure_reports_last_accepted_physical_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Retain original line-two diagnostics when reading the next line fails.
@@ -347,5 +350,5 @@ def test_audit_read_failure_reports_last_accepted_physical_line(
     path.write_text("unused")
     monkeypatch.setattr(Path, "open", Mock(return_value=InterruptedAudit()))
     with pytest.raises(found_art.FoundArtStateError, match="at line 2") as raised:
-        found_art.previously_added_track_keys(path)
+        (found_art.previously_added_track_keys(path))
     assert isinstance(raised.value.__cause__, OSError)

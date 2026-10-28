@@ -1,7 +1,5 @@
 """Compose original synchronous annual clients, state, cancellation and presenters."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.new_year_charts import AnnualCharts
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.application.new_year_execution import AnnualExecution
@@ -13,6 +11,7 @@ from spotify_manager.application.new_year_retry import AnnualRetry
 from spotify_manager.application.new_year_run import NewYear
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.annual_catalog import LegacyAnnualCatalog

@@ -78,7 +78,7 @@ class CatalogScan(Protocol):
         """
         ...
 
-    def accept(self, page: RawReleasePage, offset: int) -> None:
+    async def accept(self, page: RawReleasePage, offset: int) -> None:
         """Retain original raw rows, update scan progress and checkpoint in order.
 
         Args:
@@ -118,7 +118,7 @@ class CatalogCache(Protocol):
         """
         ...
 
-    def save_tracks(self, tracks: list[TrackCandidate]) -> None:
+    async def save_tracks(self, tracks: list[TrackCandidate]) -> None:
         """Checkpoint original complete ranked-track metadata.
 
         Args:
@@ -126,7 +126,7 @@ class CatalogCache(Protocol):
         """
         ...
 
-    def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
+    async def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
         """Checkpoint original complete release metadata.
 
         Args:
@@ -147,7 +147,7 @@ class CatalogCache(Protocol):
 class CatalogReads(Protocol):
     """Read one artist's tracks, release pages and first-track metadata."""
 
-    def read_tracks(self) -> list[TrackCandidate]:
+    async def read_tracks(self) -> list[TrackCandidate]:
         """Read ranked associated tracks.
 
         Returns:
@@ -155,7 +155,7 @@ class CatalogReads(Protocol):
         """
         ...
 
-    def read_search(self, offset: int) -> ReleasePage:
+    async def read_search(self, offset: int) -> ReleasePage:
         """Read ranked releases.
 
         Args:
@@ -166,7 +166,7 @@ class CatalogReads(Protocol):
         """
         ...
 
-    def read_discography(self, offset: int) -> RawReleasePage:
+    async def read_discography(self, offset: int) -> RawReleasePage:
         """Read chronological catalog scan facts.
 
         Args:
@@ -177,7 +177,7 @@ class CatalogReads(Protocol):
         """
         ...
 
-    def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
+    async def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
         """Read the first playable track, retaining original 404 behavior.
 
         Args:
@@ -201,7 +201,7 @@ class ArtistCatalog:
     cache: CatalogCache
     reads: CatalogReads
 
-    def ranked_tracks(self) -> list[TrackCandidate]:
+    async def ranked_tracks(self) -> list[TrackCandidate]:
         """Retain authoritative empty hits and checkpoint the first ten candidates.
 
         Returns:
@@ -210,11 +210,11 @@ class ArtistCatalog:
         cached = self.cache.tracks()
         if cached is not None:
             return cached
-        tracks = self.reads.read_tracks()[:10]
-        self.cache.save_tracks(tracks)
+        tracks = (await self.reads.read_tracks())[:10]
+        await self.cache.save_tracks(tracks)
         return tracks
 
-    def ranked_releases(self) -> list[ReleaseCandidate]:
+    async def ranked_releases(self) -> list[ReleaseCandidate]:
         """Read original ranked album/EP candidates, then enrich each first track.
 
         Returns:
@@ -222,19 +222,19 @@ class ArtistCatalog:
         """
         releases = self.cache.releases("ranked_releases")
         if releases is None:
-            releases = self.search_releases()
-            self.cache.save_releases("ranked_releases", releases)
-        return self.enrich(releases, "ranked_releases")
+            releases = await self.search_releases()
+            await self.cache.save_releases("ranked_releases", releases)
+        return await self.enrich(releases, "ranked_releases")
 
-    def search_releases(self) -> list[ReleaseCandidate]:
+    async def search_releases(self) -> list[ReleaseCandidate]:
         """Read at most three raw pages and stop at the tenth usable distinct release.
 
         Returns:
             Original associated album/EP candidates in search order.
         """
-        return search_releases(self.reads)
+        return await search_releases(self.reads)
 
-    def earliest_releases(self) -> list[ReleaseCandidate]:
+    async def earliest_releases(self) -> list[ReleaseCandidate]:
         """Complete the original raw scan before chronological qualification.
 
         Returns:
@@ -242,16 +242,16 @@ class ArtistCatalog:
         """
         cached = self.cache.releases("earliest_releases")
         if cached is not None:
-            return self.enrich(cached, "earliest_releases")
+            return await self.enrich(cached, "earliest_releases")
         scan = self.cache.scan()
         while not scan.complete():
             offset = scan.offset()
-            scan.accept(self.reads.read_discography(offset), offset)
+            await scan.accept((await self.reads.read_discography(offset)), offset)
         releases = earliest_releases(scan.candidates())
-        self.cache.save_releases("earliest_releases", releases)
-        return self.enrich(releases, "earliest_releases")
+        await self.cache.save_releases("earliest_releases", releases)
+        return await self.enrich(releases, "earliest_releases")
 
-    def enrich(
+    async def enrich(
         self, releases: list[ReleaseCandidate], key: str
     ) -> list[ReleaseCandidate]:
         """Checkpoint every newly checked first track, including empty/404 results.
@@ -266,11 +266,11 @@ class ArtistCatalog:
         for release in releases:
             if release.first_track_checked:
                 continue
-            first = self.reads.read_first(release)
+            first = await self.reads.read_first(release)
             release.first_track_checked = True
             if first is not None:
                 _assign_first(release, first)
-            self.cache.save_releases(key, releases)
+            await self.cache.save_releases(key, releases)
         return releases
 
 
@@ -299,7 +299,7 @@ def _assign_first(release: ReleaseCandidate, first: FirstTrack) -> None:
     release.first_track_primary_artist_name = first.primary_name
 
 
-def search_releases(reads: CatalogReads) -> list[ReleaseCandidate]:
+async def search_releases(reads: CatalogReads) -> list[ReleaseCandidate]:
     """Read at most three raw pages and retain ten distinct ranked album/EP releases.
 
     Args:
@@ -311,7 +311,7 @@ def search_releases(reads: CatalogReads) -> list[ReleaseCandidate]:
     releases: list[ReleaseCandidate] = []
     seen: set[str] = set()
     for page_index in range(3):
-        page = reads.read_search(page_index * 10)
+        page = await reads.read_search(page_index * 10)
         _retain_ranked(releases, seen, page.releases)
         if len(releases) == 10:
             return releases

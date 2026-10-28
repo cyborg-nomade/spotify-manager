@@ -35,7 +35,7 @@ def _selection(case: dict[str, object]) -> SpotifyAlbum | SpotifyFirstTrack | No
 
 
 @pytest.mark.parametrize("case", cases())
-def test_palace_catalog_matches_original_shapes_rank_and_marker_order(
+async def test_palace_catalog_matches_original_shapes_rank_and_marker_order(
     case: dict[str, object],
 ) -> None:
     """Retain complete original parsed outcomes and translated catalog errors.
@@ -43,5 +43,5 @@ def test_palace_catalog_matches_original_shapes_rank_and_marker_order(
     Args:
         case: Immutable original raw input and observed outcome.
     """
-    assert original_outcome(case) == case["outcome"]
+    assert (await original_outcome(case)) == case["outcome"]
     assert _outcome(case) == case["outcome"]

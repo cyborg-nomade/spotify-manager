@@ -41,7 +41,7 @@ class JobIdentity(Protocol):
 class WaitSignal(Protocol):
     """Expose the caller-owned submission signal without a thread dependency."""
 
-    def wait(self, timeout: float | None = None) -> bool:
+    async def wait(self, timeout: float | None = None) -> bool:
         """Wait for the original signal or polling timeout.
 
         Args:
@@ -65,7 +65,7 @@ class Submission[T](Protocol):
         ...
 
 
-def await_submission[T](signal: WaitSignal, submission_owner: Submission[T]) -> T:
+async def await_submission[T](signal: WaitSignal, submission_owner: Submission[T]) -> T:
     """Poll and consume an interaction at the original locked safe boundary.
 
     Args:
@@ -79,7 +79,7 @@ def await_submission[T](signal: WaitSignal, submission_owner: Submission[T]) -> 
         RuntimeError: The owning adapter signals cancellation during consumption.
     """
     while True:
-        signal.wait(0.5)
+        await signal.wait(0.5)
         submission = submission_owner.consume()
         if submission is not None:
             return submission

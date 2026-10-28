@@ -5,7 +5,7 @@ from spotify_manager.loaders_savers import (
 )
 
 
-def count_artists_in_library() -> int:
+async def async_count_artists_in_library() -> int:
     """Read the original export and count every artist entry.
 
     Returns:
@@ -15,4 +15,15 @@ def count_artists_in_library() -> int:
         count_artists_in_library as operation,
     )
 
-    return operation()
+    return await operation()
+
+
+def count_artists_in_library() -> int:
+    """Read the original export and count every artist entry.
+
+    Returns:
+        Original raw artist-list length.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_count_artists_in_library())

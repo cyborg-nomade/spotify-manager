@@ -37,7 +37,7 @@ class HistoricalInputs(Protocol):
             Configured anniversary spacing in years.
         """
 
-    def history(self) -> dict[date, list[Scrobble]]:
+    async def history(self) -> dict[date, list[Scrobble]]:
         """Return complete dated history in original bucket order.
 
         Returns:
@@ -58,7 +58,7 @@ class HistoricalInputs(Protocol):
             Original effective local date.
         """
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Read ordered random indexes and their shared timestamp.
 
         Args:
@@ -69,7 +69,7 @@ class HistoricalInputs(Protocol):
             Original unmodified random-source response.
         """
 
-    def timestamp(self) -> datetime:
+    async def timestamp(self) -> datetime:
         """Read one external timestamp for all populated anniversaries.
 
         Returns:
@@ -80,7 +80,7 @@ class HistoricalInputs(Protocol):
 class HistoricalMatches(Protocol):
     """Search Spotify and read liked status after all match groups are complete."""
 
-    def search(self, scrobble: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, scrobble: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
         """Read candidates for a selected play.
 
         Args:
@@ -90,7 +90,7 @@ class HistoricalMatches(Protocol):
             Candidates in search encounter order.
         """
 
-    def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
+    async def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
         """Read liked membership after all searches finish.
 
         Args:
@@ -104,14 +104,14 @@ class HistoricalMatches(Protocol):
 class HistoricalPlaylist(Protocol):
     """Read a destination and append accepted matches in their original order."""
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Return the original raw length and represented identities.
 
         Returns:
             Original complete destination length and represented identities.
         """
 
-    def append(self, matches: list[SpotifyTrackMatch]) -> None:
+    async def append(self, matches: list[SpotifyTrackMatch]) -> None:
         """Append pending matches through the existing batching boundary.
 
         Args:

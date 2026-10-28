@@ -1,9 +1,12 @@
 """Observe the original job adapters without launching workers or touching data."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from types import CoroutineType
 from typing import ClassVar
 from typing import Literal
 from typing import cast
@@ -11,9 +14,12 @@ from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
-from spotipy import Spotify
 
 from spotify_manager import api
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap.execution import ExecutionRuntime
+from spotify_manager.infrastructure.async_jobs import JobTasks
+from spotify_manager.infrastructure.async_signal import AsyncSignal
 from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines.release_check import ReleaseCheckPlaylists
 from spotify_manager.routines.the_queue import QueuePlaylists
@@ -52,7 +58,16 @@ class StartCase:
 
     name: str
     family: Family
-    start: Callable[[], Result]
+    operation: Callable[[], Awaitable[Result]]
+
+    async def start(self) -> Result:
+        """Reserve a synthetic job inside an explicit invocation resource lifetime.
+
+        Returns:
+            Original queued snapshot after its captured background dispatch.
+        """
+        async with ExecutionRuntime():
+            return await self.operation()
 
 
 CASES = (
@@ -327,43 +342,52 @@ class Identities:
         return UUID(int=self.count)
 
 
-@dataclass
 class ThreadCapture:
-    """Replace a worker launch while checking registration preceded dispatch.
+    """Normalize native background dispatch into the retained scheduler fixture.
 
-    Args:
-        target: Original worker callback.
-        args: Original ordered worker arguments.
-        name: Original diagnostic thread name.
-        daemon: Original thread lifetime flag.
+    The fixture's ``daemon`` flag means dispatch does not await routine completion.
+    Coroutine frames expose the same named worker and bound invocation arguments.
     """
 
-    target: Callable[..., object]
-    args: tuple[object, ...]
-    name: str
-    daemon: bool
     observations: ClassVar[list[dict[str, Json]]] = []
 
-    def start(self) -> None:
-        """Record an accepted launch without invoking the worker.
+    @staticmethod
+    def start(
+        self: JobTasks,
+        operation: Coroutine[object, object, None],
+        cancellation: AsyncSignal,
+        name: str,
+    ) -> None:
+        """Record registered background dispatch without executing a routine.
 
-        Raises:
-            AssertionError: The job was not registered before dispatch.
+        Args:
+            self: Actual lifespan-owned task registry being patched.
+            operation: Explicitly named worker coroutine.
+            cancellation: Original job stop signal.
+            name: Original diagnostic worker name.
         """
-        identifier = str(self.args[0])
-        registered = (
+        assert isinstance(operation, CoroutineType)
+        frame = operation.cr_frame
+        assert frame is not None
+        code = operation.cr_code
+        names = code.co_varnames[: code.co_argcount + code.co_kwonlyargcount]
+        arguments = tuple(frame.f_locals[item] for item in names)
+        if code.co_name == "_run_new_kids_job" and arguments[-1] == "flush_new_kids":
+            arguments = arguments[:-1]
+        identifier = str(arguments[0])
+        assert (
             identifier in http_jobs._blast_jobs
             or identifier in http_jobs._analysis_jobs
         )
-        assert registered
-        self.observations.append(
+        ThreadCapture.observations.append(
             {
-                "worker": self.target.__name__,
-                "args": _arguments(self.args),
-                "name": self.name,
-                "daemon": self.daemon,
+                "worker": code.co_name,
+                "args": _arguments(arguments),
+                "name": name,
+                "daemon": True,
             }
         )
+        operation.close()
 
 
 def _arguments(values: tuple[object, ...]) -> list[Json]:
@@ -389,12 +413,12 @@ def bind(patch: pytest.MonkeyPatch) -> None:
         patch: Scope owning the replacement lifetime.
     """
     reset()
-    patch.setattr(http_jobs, "Thread", ThreadCapture)
+    patch.setattr(JobTasks, "start", ThreadCapture.start)
     patch.setattr(http_jobs, "uuid4", Identities())
     patch.setattr(http_jobs, "datetime", FixedDatetime)
 
 
-def queued(case: StartCase) -> dict[str, Json]:
+async def queued(case: StartCase) -> dict[str, Json]:
     """Observe the complete queued snapshot and original scheduler arguments.
 
     Args:
@@ -405,14 +429,16 @@ def queued(case: StartCase) -> dict[str, Json]:
     """
     with pytest.MonkeyPatch.context() as patch:
         bind(patch)
-        snapshot = case.start()
+        snapshot = await case.start()
         return {
             "snapshot": cast(Json, snapshot.model_dump(mode="json")),
             "launches": encode_value(ThreadCapture.observations, ROOT),
         }
 
 
-def conflict(first: StartCase, second: StartCase, status: JobStatus) -> dict[str, Json]:
+async def conflict(
+    first: StartCase, second: StartCase, status: JobStatus
+) -> dict[str, Json]:
     """Observe the original asymmetric conflict rules without running a routine.
 
     Args:
@@ -425,9 +451,9 @@ def conflict(first: StartCase, second: StartCase, status: JobStatus) -> dict[str
     """
     with pytest.MonkeyPatch.context() as patch:
         bind(patch)
-        existing = first.start()
+        existing = await first.start()
         _set_status(first, existing.job_id, status)
-        return _attempt(second)
+        return await _attempt(second)
 
 
 def _set_status(case: StartCase, identifier: str, status: JobStatus) -> None:
@@ -437,9 +463,9 @@ def _set_status(case: StartCase, identifier: str, status: JobStatus) -> None:
     http_jobs._blast_jobs[identifier].result.status = status
 
 
-def _attempt(case: StartCase) -> dict[str, Json]:
+async def _attempt(case: StartCase) -> dict[str, Json]:
     try:
-        result = case.start()
+        result = await case.start()
     except HTTPException as error:
         return {"status_code": error.status_code, "detail": cast(Json, error.detail)}
     return {
@@ -462,7 +488,7 @@ def pair_cases() -> list[tuple[StartCase, StartCase]]:
     return result
 
 
-def capture() -> dict[str, Json]:
+async def capture() -> dict[str, Json]:
     """Freeze start, overlap and phase observations before production changes.
 
     Returns:
@@ -472,11 +498,11 @@ def capture() -> dict[str, Json]:
     pairs: dict[str, Json] = {}
     phases: dict[str, Json] = {}
     for case in CASES:
-        starts[case.name] = queued(case)
+        starts[case.name] = await queued(case)
         for status in STATUSES:
-            phases[f"{case.name}:{status}"] = conflict(case, case, status)
+            phases[f"{case.name}:{status}"] = await conflict(case, case, status)
     for first, second in pair_cases():
-        pairs[f"{first.name}:{second.name}"] = conflict(first, second, "running")
+        pairs[f"{first.name}:{second.name}"] = await conflict(first, second, "running")
     reset()
     return {
         "source": "93a36aa79567b54a5907d324af444a049136a532",

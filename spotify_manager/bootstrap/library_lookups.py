@@ -1,14 +1,13 @@
 """Construct named catalog and storage resources for library lookups."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.library_lookup_run import ArtistStatistics
 from spotify_manager.application.lookup_effects import LocalAlbumLookup
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.lookup_resources import AlbumTrackCache
-from spotify_manager.infrastructure.lookup_resources import (
-    ClientFactory as ClientFactory,
-)
 from spotify_manager.infrastructure.lookup_resources import LocalLibraryFiles
+from spotify_manager.infrastructure.lookup_resources import (
+    NativeClientFactory as ClientFactory,
+)
 from spotify_manager.infrastructure.lookup_resources import SpotifyAlbumLookup
 from spotify_manager.infrastructure.lookup_resources import SpotifyArtistLookup
 

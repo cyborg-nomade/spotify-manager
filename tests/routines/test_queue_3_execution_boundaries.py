@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
@@ -149,7 +149,9 @@ def _access(path: Path, service: queue_3.StateService | None) -> queue_3.Routine
     return cast(queue_3.RoutineState, service)
 
 
-def _run(spotify: FakeSpotify, memory: ExecutionBoundaries) -> queue_3.FlushSummary:
+async def _run(
+    spotify: FakeSpotify, memory: ExecutionBoundaries
+) -> queue_3.FlushSummary:
     return queue_3.flush_queue_3(
         cast(Spotify, spotify),
         Queue3Options(playlist_id="queue3", active_year=2026),
@@ -170,7 +172,7 @@ def _entry(state: dict[str, object]) -> dict[str, object]:
 @pytest.mark.parametrize(
     "failure", [None, "add", "remove", "audit", "checkpoint", "message"]
 )
-def test_original_saved_transition_preserves_failure_acknowledgment_order(
+async def test_original_saved_transition_preserves_failure_acknowledgment_order(
     monkeypatch: pytest.MonkeyPatch,
     failure: str | None,
 ) -> None:
@@ -186,9 +188,9 @@ def test_original_saved_transition_preserves_failure_acknowledgment_order(
     monkeypatch.setattr(queue_3, "append_event", memory.audit)
     if failure is not None:
         with pytest.raises(OSError, match=failure):
-            _run(spotify, memory)
+            (await _run(spotify, memory))
     else:
-        result = _run(spotify, memory)
+        result = await _run(spotify, memory)
         assert result.resumed is True and result.advanced == 1
     assert _entry(memory.state)["status"] == (
         "completed" if failure in {None, "checkpoint"} else "pending"
@@ -210,7 +212,7 @@ def test_original_saved_transition_preserves_failure_acknowledgment_order(
         ]
 
 
-def test_original_resumed_ordinary_cleanup_includes_existing_replacement(
+async def test_original_resumed_ordinary_cleanup_includes_existing_replacement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An existing same-artist replacement remains part of ordinary snapshot cleanup.
@@ -223,7 +225,7 @@ def test_original_resumed_ordinary_cleanup_includes_existing_replacement(
     spotify.playlists["queue3"] = [spotify.release_tracks["album"][1]]
     monkeypatch.setattr(queue_3, "_state_access", _access)
     monkeypatch.setattr(queue_3, "append_event", memory.audit)
-    result = _run(spotify, memory)
+    result = await _run(spotify, memory)
     assert result.advanced == 1 and result.resumed is True
     assert spotify.playlists["queue3"] == []
     assert spotify.mutations == [("remove", "target")]
@@ -237,7 +239,7 @@ def test_original_resumed_ordinary_cleanup_includes_existing_replacement(
         ("composer_routes", False, "composer-route state is invalid"),
     ],
 )
-def test_original_resumed_run_validates_containers_before_entry_effects(
+async def test_original_resumed_run_validates_containers_before_entry_effects(
     monkeypatch: pytest.MonkeyPatch,
     field: str,
     value: object,
@@ -260,12 +262,12 @@ def test_original_resumed_run_validates_containers_before_entry_effects(
     monkeypatch.setattr(queue_3, "_state_access", _access)
     monkeypatch.setattr(queue_3, "append_event", memory.audit)
     with pytest.raises(queue_3.Queue3StateError, match=message):
-        _run(_spotify(), memory)
+        (await _run(_spotify(), memory))
     assert memory.events == []
 
 
 @pytest.mark.parametrize("status", ["completed", "skipped"])
-def test_original_acknowledged_entries_skip_decoding_and_only_finish_run(
+async def test_original_acknowledged_entries_skip_decoding_and_only_finish_run(
     monkeypatch: pytest.MonkeyPatch,
     status: str,
 ) -> None:
@@ -280,7 +282,7 @@ def test_original_acknowledged_entries_skip_decoding_and_only_finish_run(
     entry.update(status=status, source=None, plan=None)
     monkeypatch.setattr(queue_3, "_state_access", _access)
     monkeypatch.setattr(queue_3, "append_event", memory.audit)
-    result = _run(_spotify(), memory)
+    result = await _run(_spotify(), memory)
     assert result.total == 1 and result.processed == 0 and result.resumed is True
     assert [name for name, value in memory.events] == ["checkpoint"]
     run = cast(dict[str, object], memory.state["active_run"])

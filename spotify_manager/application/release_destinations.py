@@ -29,7 +29,7 @@ class ReleaseDestinations:
     composers: tuple[OwnedPlaylist, ...]
 
 
-def _report_cleanup(
+async def _report_cleanup(
     progress: ReleaseProgress, snapshot: PlaylistSnapshot, count: int
 ) -> None:
     if not count:
@@ -37,7 +37,7 @@ def _report_cleanup(
     action = "Would remove" if progress.preview else "Removed"
     progress.notify(f"{action} {count} duplicate Wine Cellar track(s)")
     if not progress.preview:
-        progress.effects.audit(
+        await progress.effects.audit(
             progress.opening.run_id,
             "wine_cellar_deduplicated",
             removed=count,
@@ -45,7 +45,7 @@ def _report_cleanup(
         )
 
 
-def load_destinations(
+async def load_destinations(
     progress: ReleaseProgress, wine_id: str, vintage_id: str
 ) -> ReleaseDestinations:
     """Observe destinations and composers in their original accepted-effect order.
@@ -59,12 +59,12 @@ def load_destinations(
         Original cleaned destination memberships and composer observations.
     """
     progress.notify("Loading destination playlists")
-    snapshot = progress.effects.wine()
-    duplicates, wine = progress.effects.cleanup(snapshot, progress.preview)
-    _report_cleanup(progress, snapshot, duplicates)
-    vintage = progress.effects.vintage()
+    snapshot = await progress.effects.wine()
+    duplicates, wine = await progress.effects.cleanup(snapshot, progress.preview)
+    await _report_cleanup(progress, snapshot, duplicates)
+    vintage = await progress.effects.vintage()
     progress.notify("Loading classical composer playlists")
-    composers = progress.effects.composers()
+    composers = await progress.effects.composers()
     return ReleaseDestinations(
         wine_id, vintage_id, wine, vintage, duplicates, composers
     )

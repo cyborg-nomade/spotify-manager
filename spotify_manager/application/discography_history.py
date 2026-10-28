@@ -22,7 +22,7 @@ from spotify_manager.domain.history import Scrobble
 class HistoricalArtistCatalog(Protocol):
     """Read the original exact Spotify artist mapping and ambiguity interaction."""
 
-    def resolve(self, name: str) -> SpotifyArtistCandidate | None:
+    async def resolve(self, name: str) -> SpotifyArtistCandidate | None:
         """Read an exact artist mapping.
 
         Args:
@@ -36,7 +36,7 @@ class HistoricalArtistCatalog(Protocol):
 class DatedHistory(Protocol):
     """Read complete history before observing its cutoff and random source."""
 
-    def history(self) -> dict[date, list[Scrobble]]:
+    async def history(self) -> dict[date, list[Scrobble]]:
         """Return the complete dated history buckets.
 
         Returns:
@@ -50,7 +50,7 @@ class DatedHistory(Protocol):
             Original inclusive local-date cutoff.
         """
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Read original ordered indexes and shared timestamp.
 
         Args:
@@ -62,7 +62,7 @@ class DatedHistory(Protocol):
         """
 
 
-def resolve_historical(
+async def resolve_historical(
     selection: HistoricalArtistSelection,
     catalog: HistoricalArtistCatalog,
 ) -> QueueArtist:
@@ -80,7 +80,7 @@ def resolve_historical(
         DiscographyCancelledError: Original mapping is cancelled.
     """
     try:
-        resolved = catalog.resolve(selection.artist.name)
+        resolved = await catalog.resolve(selection.artist.name)
     except SomethingOldError as exc:
         raise DiscographyError(str(exc)) from exc
     if resolved is None:
@@ -100,7 +100,7 @@ class DiscographyArtistMapping:
 
     catalog: HistoricalArtistCatalog
 
-    def resolve(self, selection: HistoricalArtistSelection) -> QueueArtist:
+    async def resolve(self, selection: HistoricalArtistSelection) -> QueueArtist:
         """Resolve a historical candidate with the original error translation.
 
         Args:
@@ -109,7 +109,7 @@ class DiscographyArtistMapping:
         Returns:
             Accepted Memory Lane candidate.
         """
-        return resolve_historical(selection, self.catalog)
+        return await resolve_historical(selection, self.catalog)
 
 
 @dataclass(frozen=True)
@@ -126,7 +126,7 @@ class DiscographyHistory:
     progress: Messages
     first: date
 
-    def run(self) -> HistoricalArtistSelection:
+    async def run(self) -> HistoricalArtistSelection:
         """Request one historical date and retain original custom-reader tolerance.
 
         Returns:
@@ -137,7 +137,7 @@ class DiscographyHistory:
             IndexError: The original reader returns no index or an invalid index.
         """
         self.progress.echo("Memory Lane is empty; loading Last.fm artist history")
-        history = self._history()
+        history = await self._history()
         cutoff = self.source.cutoff()
         rankings = dated_artists(history, self.first, cutoff)
         if not rankings:
@@ -146,19 +146,19 @@ class DiscographyHistory:
                 f"{cutoff.isoformat()}."
             )
         self.progress.echo("Requesting a historical date from Random.org")
-        indexes = self._random(len(rankings))
+        indexes = await self._random(len(rankings))
         return selected_artist(
             rankings, cutoff, indexes.indexes[0], indexes.generated_at
         )
 
-    def _history(self) -> dict[date, list[Scrobble]]:
+    async def _history(self) -> dict[date, list[Scrobble]]:
         try:
-            return self.source.history()
+            return await self.source.history()
         except LastFmExportError as exc:
             raise DiscographyError(str(exc)) from exc
 
-    def _random(self, population: int) -> RandomIndexSet:
+    async def _random(self, population: int) -> RandomIndexSet:
         try:
-            return self.source.random(population, 1)
+            return await self.source.random(population, 1)
         except (ValueError, RandomOrgError) as exc:
             raise DiscographyError(str(exc)) from exc

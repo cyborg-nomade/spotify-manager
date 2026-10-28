@@ -33,7 +33,7 @@ from spotify_manager.routines.scrobble_history import (
 from spotify_manager.routines.scrobble_history import check_cancel as check_cancel
 
 
-def refresh_scrobble_history(
+async def refresh_scrobble_history(
     lastfm: LastFmReader,
     *,
     expected_username: str | None = None,
@@ -79,4 +79,4 @@ def refresh_scrobble_history(
         progress_callback,
         cancel_check,
     )
-    return configured.run(expected_username, dry_run, full_rebuild)
+    return await configured.run(expected_username, dry_run, full_rebuild)

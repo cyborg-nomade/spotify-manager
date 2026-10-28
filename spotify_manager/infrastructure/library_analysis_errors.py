@@ -26,7 +26,7 @@ class AnalysisFailure:
     label: str
     paused: tuple[type[BaseException], ...]
 
-    def __enter__(self) -> Self:
+    async def __aenter__(self) -> Self:
         """Open the original post-checkpoint error reporting boundary.
 
         Returns:
@@ -34,7 +34,7 @@ class AnalysisFailure:
         """
         return self
 
-    def __exit__(
+    async def __aexit__(
         self,
         exception_type: type[BaseException] | None,
         exception: BaseException | None,
@@ -56,14 +56,14 @@ class AnalysisFailure:
         if exception is None:
             return False
         if isinstance(exception, self.paused):
-            self.session.event("run_paused")
+            await self.session.event("run_paused")
             return False
         if isinstance(exception, LibrarySyncError):
-            self.session.event("run_failed")
+            await self.session.event("run_failed")
             return False
         if not isinstance(exception, Exception):
             return False
-        self.session.event(
+        await self.session.event(
             "run_failed", error=type(exception).__name__, detail=str(exception)
         )
         raise LibrarySyncError(f"{self.label}: {exception}") from exception

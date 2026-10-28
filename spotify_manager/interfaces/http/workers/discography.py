@@ -1,17 +1,17 @@
 """Explicit callbacks and wire presentation for DiscographyWorker."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -58,11 +58,11 @@ class DiscographyWorker:
     job: _BlastJob = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one reload-safe interactive discography planning job."""
         self._start()
         try:
-            self._execute()
+            await self._execute()
         except _DiscographyJobCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -88,7 +88,7 @@ class DiscographyWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def wait_for_submission(
+    async def wait_for_submission(
         self, pending: DiscographyPendingChoice, detail: str
     ) -> tuple[str, tuple[str, ...]]:
         """Publish pending interaction data and consume its submission.
@@ -110,9 +110,9 @@ class DiscographyWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(self.job.choice_event, self)
+        return await await_submission(self.job.choice_event, self)
 
-    def select_releases(
+    async def select_releases(
         self,
         artist: discography.QueueArtist,
         releases: tuple[discography.CatalogRelease, ...],
@@ -126,7 +126,7 @@ class DiscographyWorker:
         Returns:
             The original accepted routine callback result.
         """
-        choice, release_ids = self.wait_for_submission(
+        choice, release_ids = await self.wait_for_submission(
             DiscographyPendingChoice(
                 kind="releases",
                 artist=artist.name,
@@ -142,7 +142,7 @@ class DiscographyWorker:
             return ()
         return release_ids
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist_name: str,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
@@ -156,7 +156,7 @@ class DiscographyWorker:
         Returns:
             The original accepted routine callback result.
         """
-        choice, _release_ids = self.wait_for_submission(
+        choice, _release_ids = await self.wait_for_submission(
             DiscographyPendingChoice(
                 kind="artist",
                 artist=artist_name,
@@ -179,16 +179,16 @@ class DiscographyWorker:
             self.job.result.detail = detail
             self.context.append(self.job, detail)
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
             seconds: Original routine-supplied seconds.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise _DiscographyJobCancelledError
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -215,8 +215,8 @@ class DiscographyWorker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> None:
-        plan = discography.build_discography_plan(
+    async def _execute(self) -> None:
+        plan = await discography.build_discography_plan(
             self.spotify,
             self.playlist_ids,
             self,
@@ -226,7 +226,7 @@ class DiscographyWorker:
             progress_callback=DiscographyProgress(self),
         )
         self._present_plan(plan)
-        self._complete_or_apply_plan(plan)
+        await self._complete_or_apply_plan(plan)
 
     def _finish(self) -> None:
         self.events.restore()
@@ -360,7 +360,7 @@ class DiscographyWorker:
                 plan.artists
             )
 
-    def _complete_or_apply_plan(self, plan: discography.DiscographyPlan) -> None:
+    async def _complete_or_apply_plan(self, plan: discography.DiscographyPlan) -> None:
         if not plan.artists:
             with self.context.lock:
                 self.job.result.status = "completed"
@@ -376,7 +376,7 @@ class DiscographyWorker:
                 )
                 self.context.append(self.job, self.job.result.detail)
             return
-        choice, _release_ids = self.wait_for_submission(
+        choice, _release_ids = await self.wait_for_submission(
             DiscographyPendingChoice(kind="confirm"),
             "Confirm removal from the source queues and Queue 3 where applicable.",
         )
@@ -391,10 +391,10 @@ class DiscographyWorker:
                 )
                 self.context.append(self.job, self.job.result.detail)
             return
-        self._apply_plan(plan)
+        await self._apply_plan(plan)
 
-    def _apply_plan(self, plan: discography.DiscographyPlan) -> None:
-        summary = discography.apply_discography_plan(
+    async def _apply_plan(self, plan: discography.DiscographyPlan) -> None:
+        summary = await discography.apply_discography_plan(
             self.spotify,
             plan,
             retry_call=self,

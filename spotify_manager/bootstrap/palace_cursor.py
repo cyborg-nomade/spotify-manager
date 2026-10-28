@@ -2,10 +2,9 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.palace_cursor import PalaceCursor
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.palace_cursor import PalaceCursorAccess

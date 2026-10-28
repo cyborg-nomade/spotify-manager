@@ -27,7 +27,7 @@ class AnnualCharts:
     membership: AnnualMembership
     retry: RetryCall
 
-    def run(
+    async def run(
         self,
         plan: RetrospectivePlan,
         year: int,
@@ -46,18 +46,18 @@ class AnnualCharts:
         """
         name = f"top {limit} {year} {kind}"
         for attempt in self.retry.attempts("finding or creating yearly chart"):
-            with attempt:
-                response = self._ensure(name, kind, year)
+            async with attempt:
+                response = await self._ensure(name, kind, year)
         playlist = response
         uris = [item["uri"] for item in plan[kind]]
         uris = list(dict.fromkeys(uris))
-        current = [track.uri for track in self.catalog.playlist(playlist)]
+        current = [track.uri for track in (await self.catalog.playlist(playlist))]
         if current != uris:
-            self.catalog.replace(playlist, uris)
-        self.membership.run(destination, uris)
+            await self.catalog.replace(playlist, uris)
+        await self.membership.run(destination, uris)
 
-    def _ensure(self, name: str, kind: ChartKind, year: int) -> str:
-        existing = named_playlist(self.catalog.owned(), name)
+    async def _ensure(self, name: str, kind: ChartKind, year: int) -> str:
+        existing = named_playlist((await self.catalog.owned()), name)
         if existing is not None:
             return existing
-        return self.catalog.create(name, kind, year)
+        return await self.catalog.create(name, kind, year)

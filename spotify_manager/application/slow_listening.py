@@ -76,7 +76,7 @@ def new_run(
     }
 
 
-def flush_slow_listening(
+async def flush_slow_listening(
     playlist_id: str, dependencies: SlowListeningDependencies, *, dry_run: bool = False
 ) -> FlushSummary:
     """Advance at most two saved markers, retaining accepted effects on failure.
@@ -93,9 +93,9 @@ def flush_slow_listening(
         SlowListeningStateError: Durable records or resumed live membership are invalid.
         SlowListeningError: Catalog observations or operator choices are invalid.
     """
-    tracks = dependencies.access.playlist()
-    state = dependencies.access.load_state(dry_run)
-    run, resumed = _select_run(playlist_id, tracks, dependencies, state, dry_run)
+    tracks = await dependencies.access.playlist()
+    state = await dependencies.access.load_state(dry_run)
+    run, resumed = await _select_run(playlist_id, tracks, dependencies, state, dry_run)
     entries = _entries(run)
     orders = _orders(state)
     session = SlowListeningRun(
@@ -108,10 +108,10 @@ def flush_slow_listening(
         resumed,
         {track.spotify_id for track in tracks},
     )
-    return session.execute()
+    return await session.execute()
 
 
-def _select_run(
+async def _select_run(
     playlist_id: str,
     tracks: tuple[PlaylistTrack, ...],
     dependencies: SlowListeningDependencies,
@@ -124,7 +124,7 @@ def _select_run(
     run = new_run(playlist_id, tracks, dependencies.clock)
     if not dry_run:
         state["active_run"] = run
-        dependencies.access.save(state)
+        await dependencies.access.save(state)
     return run, False
 
 
@@ -205,7 +205,7 @@ class SlowListeningRun:
     results: list[FlushResult] = field(default_factory=list)
     paused: bool = False
 
-    def execute(self) -> FlushSummary:
+    async def execute(self) -> FlushSummary:
         """Process pending entries, then mark the run complete when appropriate.
 
         Returns:
@@ -213,35 +213,35 @@ class SlowListeningRun:
         """
         run_id = str(self.run["run_id"])
         for index, raw in enumerate(self.entries, start=1):
-            if not self._review(_entry(raw), index, run_id):
+            if not (await self._review(_entry(raw), index, run_id)):
                 self.paused = True
                 break
-        self._finish()
+        await self._finish()
         return self._summary(run_id)
 
-    def _review(self, entry: dict[str, object], index: int, run_id: str) -> bool:
+    async def _review(self, entry: dict[str, object], index: int, run_id: str) -> bool:
         if entry.get("status") in {"completed", "skipped"}:
             return True
         source = source_from_record(entry.get("source"))
         self._progress(index - 1, f"{source.primary_artist_name} - {source.name}")
-        plan = self._plan(entry, source)
+        plan = await self._plan(entry, source)
         if plan is None:
             return False
-        self._save_plan(entry, plan)
+        await self._save_plan(entry, plan)
         action = str(plan["action"])
         target = track_from_record(plan.get("target"))
         release = release_from_record(plan.get("target_release"))
         if action == "skip":
-            self._skip(entry, source, plan, run_id)
+            await self._skip(entry, source, plan, run_id)
             return True
-        self._transition(source, action, target, release)
-        self._acknowledge(source, action, plan)
-        self._record(source, plan, run_id)
-        self._mark(entry, "completed")
+        await self._transition(source, action, target, release)
+        await self._acknowledge(source, action, plan)
+        await self._record(source, plan, run_id)
+        await self._mark(entry, "completed")
         self._progress(index, f"Completed {source.name}")
         return True
 
-    def _plan(
+    async def _plan(
         self, entry: dict[str, object], source: PlaylistTrack
     ) -> dict[str, object] | None:
         raw = entry.get("plan")
@@ -249,7 +249,7 @@ class SlowListeningRun:
             return cast(dict[str, object], raw)
         skipped = _skipped_ids(entry)
         observations = self.dependencies.observations
-        catalog = observations.discography(source.primary_artist_id)
+        catalog = await observations.discography(source.primary_artist_id)
         checkpoint = NamespaceCheckpoint(
             self.dependencies.access, self.state, self.dry_run
         )
@@ -263,42 +263,44 @@ class SlowListeningRun:
             set(skipped),
             SkippedTracks(skipped, checkpoint),
         )
-        return selection.plan()
+        return await selection.plan()
 
-    def _save(self) -> None:
+    async def _save(self) -> None:
         if not self.dry_run:
-            self.dependencies.access.save(self.state)
+            await self.dependencies.access.save(self.state)
 
-    def _save_plan(self, entry: dict[str, object], plan: dict[str, object]) -> None:
+    async def _save_plan(
+        self, entry: dict[str, object], plan: dict[str, object]
+    ) -> None:
         if entry.get("plan") is None:
             entry["plan"] = plan
-            self._save()
+            await self._save()
 
-    def _mark(self, entry: dict[str, object], status: str) -> None:
+    async def _mark(self, entry: dict[str, object], status: str) -> None:
         if not self.dry_run:
             entry["status"] = status
-            self._save()
+            await self._save()
 
-    def _skip(
+    async def _skip(
         self,
         entry: dict[str, object],
         source: PlaylistTrack,
         plan: dict[str, object],
         run_id: str,
     ) -> None:
-        result = self._record(source, plan, run_id)
+        result = await self._record(source, plan, run_id)
         self.dependencies.presentation.skipped(source, result)
-        self._mark(entry, "skipped")
+        await self._mark(entry, "skipped")
 
-    def _record(
+    async def _record(
         self, source: PlaylistTrack, plan: dict[str, object], run_id: str
     ) -> FlushResult:
         result = result_from_plan(source, plan, dry_run=self.dry_run)
         self.results.append(result)
-        self.dependencies.access.audit(run_id, result)
+        await self.dependencies.access.audit(run_id, result)
         return result
 
-    def _transition(
+    async def _transition(
         self,
         source: PlaylistTrack,
         action: str,
@@ -309,10 +311,10 @@ class SlowListeningRun:
             self._resume(source, action, target)
             return
         if action == "advance" and target is not None:
-            self._advance(source, target, release)
+            await self._advance(source, target, release)
             return
         if action == "complete":
-            self._remove(source)
+            await self._remove(source)
             self.dependencies.presentation.completed(source, self.dry_run)
 
     def _resume(
@@ -329,31 +331,33 @@ class SlowListeningRun:
             )
         self.dependencies.presentation.resumed(source)
 
-    def _advance(
+    async def _advance(
         self,
         source: PlaylistTrack,
         target: ReleaseTrack,
         release: DiscographyRelease | None,
     ) -> None:
         if target.spotify_id not in self.live_ids:
-            self._append(target, release)
-        self._remove(source)
+            await self._append(target, release)
+        await self._remove(source)
         self.dependencies.presentation.removed(source, self.dry_run)
 
-    def _append(self, target: ReleaseTrack, release: DiscographyRelease | None) -> None:
+    async def _append(
+        self, target: ReleaseTrack, release: DiscographyRelease | None
+    ) -> None:
         if not self.dry_run:
-            self.dependencies.access.append(target)
+            await self.dependencies.access.append(target)
         self.live_ids.add(target.spotify_id)
         self.dependencies.presentation.added(
             target, release.name if release else "?", self.dry_run
         )
 
-    def _remove(self, source: PlaylistTrack) -> None:
+    async def _remove(self, source: PlaylistTrack) -> None:
         if not self.dry_run:
-            self.dependencies.access.remove(source)
+            await self.dependencies.access.remove(source)
         self.live_ids.discard(source.spotify_id)
 
-    def _acknowledge(
+    async def _acknowledge(
         self, source: PlaylistTrack, action: str, plan: dict[str, object]
     ) -> None:
         if (
@@ -362,22 +366,22 @@ class SlowListeningRun:
             or bool(plan.get("completion_acknowledged"))
         ):
             return
-        self.dependencies.complete.complete(source)
+        await self.dependencies.complete.complete(source)
         plan["completion_acknowledged"] = True
-        self._save()
-        tracks = self.dependencies.access.playlist()
+        await self._save()
+        tracks = await self.dependencies.access.playlist()
         self.live_ids = {track.spotify_id for track in tracks}
 
     def _progress(self, completed: int, label: str) -> None:
         if self.dependencies.progress is not None:
             self.dependencies.progress.progress(completed, len(self.entries), label)
 
-    def _finish(self) -> None:
+    async def _finish(self) -> None:
         if self.dry_run or self.paused or not _finished(self.entries):
             return
         self.run["status"] = "completed"
         self.run["completed_at"] = self.dependencies.clock.now().isoformat()
-        self._save()
+        await self._save()
 
     def _summary(self, run_id: str) -> FlushSummary:
         return FlushSummary(

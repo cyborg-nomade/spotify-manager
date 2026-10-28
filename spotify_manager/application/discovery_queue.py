@@ -17,7 +17,7 @@ type QueueTransferResult = tuple[
 class DiscoveryQueueAccess(Protocol):
     """Read and mutate queue markers at their original retry boundaries."""
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read live queue markers in source order.
 
         Args:
@@ -27,7 +27,9 @@ class DiscoveryQueueAccess(Protocol):
             Original playable markers, retaining duplicates.
         """
 
-    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Secure a source marker in the destination.
 
         Args:
@@ -36,7 +38,9 @@ class DiscoveryQueueAccess(Protocol):
             description: Original retry message.
         """
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+    async def remove(
+        self, playlist_id: str, source: PlaylistTrack, description: str
+    ) -> None:
         """Remove a moved or reconciled queue marker.
 
         Args:
@@ -103,7 +107,7 @@ class DiscoveryQueueTransfer:
     capacity: int
     dry_run: bool
 
-    def move(
+    async def move(
         self,
         current: list[PlaylistTrack],
         state: dict[str, object],
@@ -119,18 +123,20 @@ class DiscoveryQueueTransfer:
         Returns:
             Original destination list, accepted results and untouched queue suffix.
         """
-        queued = list(self.access.playlist(self.source)) if queue is None else queue
+        queued = (
+            list(await self.access.playlist(self.source)) if queue is None else queue
+        )
         projection = _projection(current, state)
         results: list[FillResult] = []
         for index, marker in enumerate(queued):
             artist_id, artist_name = logical_artist(state, marker)
             if len(current) >= self.capacity:
                 return current, tuple(results), queued[index:]
-            result = self._transfer(projection, marker, artist_id, artist_name)
+            result = await self._transfer(projection, marker, artist_id, artist_name)
             results.append(result)
         return current, tuple(results), []
 
-    def _transfer(
+    async def _transfer(
         self,
         projection: QueueProjection,
         marker: PlaylistTrack,
@@ -138,29 +144,31 @@ class DiscoveryQueueTransfer:
         artist_name: str,
     ) -> FillResult:
         if artist_id in projection.artists:
-            self._remove(
+            await self._remove(
                 marker, f"removing reconciled Queue 2 marker for {artist_name}"
             )
             return FillResult(artist_name, marker.name, "reconciled")
         if marker.spotify_id not in projection.ids and not self.dry_run:
-            self.access.append(
+            await self.access.append(
                 self.destination, marker, f"adding {artist_name} to New Kids"
             )
-        self._remove(marker, f"removing {artist_name} from Queue 2")
+        await self._remove(marker, f"removing {artist_name} from Queue 2")
         projection.tracks.append(marker)
         projection.ids.add(marker.spotify_id)
         projection.artists.add(artist_id)
         result = FillResult(artist_name, marker.name, "moved")
-        self._audit(marker, artist_id, artist_name)
+        await self._audit(marker, artist_id, artist_name)
         self.presentation.moved(artist_name, self.dry_run)
         return result
 
-    def _remove(self, marker: PlaylistTrack, description: str) -> None:
+    async def _remove(self, marker: PlaylistTrack, description: str) -> None:
         if not self.dry_run:
-            self.access.remove(self.source, marker, description)
+            await self.access.remove(self.source, marker, description)
 
-    def _audit(self, marker: PlaylistTrack, artist_id: str, artist_name: str) -> None:
-        self.audit.event(
+    async def _audit(
+        self, marker: PlaylistTrack, artist_id: str, artist_name: str
+    ) -> None:
+        await self.audit.event(
             "queue_2_moved",
             artist=artist_name,
             artist_id=artist_id,

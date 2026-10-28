@@ -9,16 +9,17 @@ from types import TracebackType
 from typing import Literal
 from typing import Self
 from typing import cast
+from unittest.mock import AsyncMock
 from urllib.request import Request
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import api
 from spotify_manager import main
 from spotify_manager import web
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import genre_reveal
@@ -120,14 +121,16 @@ class OfflineGenre:
         assert request.full_url == "https://open.spotify.com/embed/playlist/source"
         return PublicPage(" ".join(URIS))
 
-    def _get(self, endpoint: str, *, limit: int, offset: int) -> dict[str, object]:
+    async def _get(
+        self, endpoint: str, *, limit: int, offset: int
+    ) -> dict[str, object]:
         assert endpoint == "playlists/destination/items" and offset == 0
         return {"items": [{"item": {"id": URIS[1].rsplit(":", 1)[-1]}}], "total": 1}
 
-    def _put(self, endpoint: str, *, args: object) -> None:
+    async def _put(self, endpoint: str, *, args: object) -> None:
         self.writes.append(["PUT", endpoint, args])
 
-    def _post(self, endpoint: str, *, payload: object) -> None:
+    async def _post(self, endpoint: str, *, payload: object) -> None:
         self.writes.append(["POST", endpoint, payload])
         if self.fail_append:
             raise genre_reveal.GenreRevealSourceError("accepted append failed")
@@ -136,7 +139,7 @@ class OfflineGenre:
 def _bind(monkeypatch: pytest.MonkeyPatch, fake: OfflineGenre) -> None:
     monkeypatch.setattr(genre_reveal, "urlopen", fake.page)
     monkeypatch.setattr(main, "Settings", fake.settings)
-    monkeypatch.setattr(main, "client", fake.client)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=fake.client))
     monkeypatch.setattr(web, "Settings", fake.settings)
     overrides = api.app.dependency_overrides.copy()
     overrides[api.get_client] = fake.client
@@ -158,14 +161,15 @@ def _assert_artifacts(
     ]
     if failed:
         assert (
-            genre_reveal.load_genre_reveal_state(state, state_service=service).completed
-            == []
-        )
+            genre_reveal.load_genre_reveal_state(state, state_service=service)
+        ).completed == []
         assert not log.exists()
         return
     assert (
         len(
-            genre_reveal.load_genre_reveal_state(state, state_service=service).completed
+            (
+                genre_reveal.load_genre_reveal_state(state, state_service=service)
+            ).completed
         )
         == 1
     )
@@ -203,7 +207,7 @@ def test_actual_genre_cli_preserves_completion_and_accepted_failure(
     assert (
         "accepted append failed" if failed else "completed kerkkoor"
     ) in result.output
-    _assert_artifacts(fake, state, log, failed)
+    (_assert_artifacts(fake, state, log, failed))
 
 
 @pytest.mark.parametrize("failed", [False, True])
@@ -222,9 +226,10 @@ def test_actual_genre_http_preserves_completion_and_accepted_failure(
     state, log = tmp_path / "state.json", tmp_path / "audit.jsonl"
     monkeypatch.setattr(web, "GENRE_REVEAL_STATE_PATH", state)
     monkeypatch.setattr(web, "GENRE_REVEAL_LOG_PATH", log)
-    response = TestClient(api.app).post(
-        "/genre-reveal/run-next", json={"slug": "genre", "name": "Genre"}
-    )
+    with TestClient(api.app) as http:
+        response = http.post(
+            "/genre-reveal/run-next", json={"slug": "genre", "name": "Genre"}
+        )
     assert response.status_code == (502 if failed else 200), response.text
-    _assert_artifacts(fake, state, log, failed, get_state_service())
+    (_assert_artifacts(fake, state, log, failed, get_state_service()))
     assert not web._genre_reveal_run_lock.locked()

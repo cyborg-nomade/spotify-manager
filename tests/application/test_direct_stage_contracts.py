@@ -35,7 +35,7 @@ class MappingMemory:
     choices: list[str] = field(default_factory=list)
     events: list[tuple[str, object]] = field(default_factory=list)
 
-    def search(
+    async def search(
         self, artist: RankedArtist, text: str | None
     ) -> tuple[SpotifyArtistCandidate, ...]:
         """Observe a query using the original recommendation's rank and identity.
@@ -69,7 +69,7 @@ class MappingMemory:
         self.events.append(("choice", tuple(item.spotify_id for item in candidates)))
         return self.choices.pop(0)
 
-    def choose_artist(
+    async def choose_artist(
         self,
         recommendation: ArtistRecommendation,
         candidates: tuple[SpotifyArtistCandidate, ...],
@@ -86,17 +86,17 @@ class MappingMemory:
         return self.choose(recommendation, candidates)
 
 
-def test_queue_mapping_automatic_exact_match_requires_no_operator() -> None:
+async def test_queue_mapping_automatic_exact_match_requires_no_operator() -> None:
     """Preserve automatic selection and original rank metadata without a prompt."""
     memory = MappingMemory([(EXACT,)])
-    assert QueueArtistMapping(memory, None).resolve(RECOMMENDATION) is EXACT
+    assert (await QueueArtistMapping(memory, None).resolve(RECOMMENDATION)) is EXACT
     assert memory.events == [("search", None)]
 
 
-def test_queue_mapping_custom_search_retains_original_prompt_context() -> None:
+async def test_queue_mapping_custom_search_retains_original_prompt_context() -> None:
     """Keep the Queue recommendation while asking the shared mapping use case."""
     memory = MappingMemory([(OTHER,), (EXACT,)], ["search: custom", "exact"])
-    assert QueueArtistMapping(memory, memory).resolve(RECOMMENDATION) is EXACT
+    assert (await QueueArtistMapping(memory, memory).resolve(RECOMMENDATION)) is EXACT
     assert memory.events == [
         ("search", None),
         ("choice", ("other",)),
@@ -115,7 +115,7 @@ class CheckpointMemory:
 
     saved: list[dict[str, object]] = field(default_factory=list)
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Accept a complete namespace at its original checkpoint boundary.
 
         Args:
@@ -125,7 +125,7 @@ class CheckpointMemory:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_preference_checkpoint_retains_namespace_identity_and_preview_rule(
+async def test_preference_checkpoint_retains_namespace_identity_and_preview_rule(
     preview: bool,
 ) -> None:
     """A preview cannot persist ordering or skip preferences.
@@ -135,7 +135,7 @@ def test_preference_checkpoint_retains_namespace_identity_and_preview_rule(
     """
     memory = CheckpointMemory()
     state: dict[str, object] = {"unknown": "retained"}
-    NamespaceCheckpoint(memory, state, preview).save()
+    (await NamespaceCheckpoint(memory, state, preview).save())
     assert memory.saved == ([] if preview else [state])
     if not preview:
         assert memory.saved[0] is state
@@ -153,7 +153,7 @@ class AnnualMemory:
     inputs: AnnualDiscoveryInputs
     events: list[tuple[str, object]] = field(default_factory=list)
 
-    def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
+    async def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
         """Observe the original import inputs after loading presentation.
 
         Args:
@@ -192,7 +192,7 @@ class AnnualMemory:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_retrospective_import_honors_completed_authority_without_more_effects(
+async def test_retrospective_import_honors_completed_authority_without_more_effects(
     preview: bool,
 ) -> None:
     """Retain standalone import progress and avoid duplicate imports or checkpoints.
@@ -205,7 +205,7 @@ def test_retrospective_import_honors_completed_authority_without_more_effects(
     state: dict[str, object] = {"annual_imports": {"2026": {"completed": True}}}
     inputs = AnnualDiscoveryInputs("queue", [], state, (), importer)
     memory = AnnualMemory(inputs)
-    AnnualDiscoveries(memory, memory).run(2026, preview)
+    (await AnnualDiscoveries(memory, memory).run(2026, preview))
     assert memory.events == [
         ("loading", 2025),
         ("inputs", preview),

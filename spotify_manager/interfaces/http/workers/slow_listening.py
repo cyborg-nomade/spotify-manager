@@ -1,16 +1,16 @@
 """Explicit callbacks and wire presentation for SlowListeningWorker."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
 
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -58,11 +58,11 @@ class SlowListeningWorker:
     job: _BlastJob = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute an interactive Slow Listening flush as a reconnectable job."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except _SlowListeningJobCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -103,7 +103,7 @@ class SlowListeningWorker:
             self.job.result.total = total
             self.job.result.detail = progress_status
 
-    def wait_for_submission(
+    async def wait_for_submission(
         self, pending: SlowListeningPendingChoice, detail: str
     ) -> tuple[str, tuple[str, ...] | None]:
         """Publish pending interaction data and consume its submission.
@@ -125,9 +125,9 @@ class SlowListeningWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(self.job.choice_event, self)
+        return await await_submission(self.job.choice_event, self)
 
-    def choose_track(
+    async def choose_track(
         self,
         source: new_wine.PlaylistTrack,
         target: new_wine.ReleaseTrack,
@@ -143,7 +143,7 @@ class SlowListeningWorker:
         Returns:
             The original accepted routine callback result.
         """
-        choice, _order = self.wait_for_submission(
+        choice, _order = await self.wait_for_submission(
             SlowListeningPendingChoice(
                 kind="track",
                 artist=source.primary_artist_name,
@@ -159,7 +159,7 @@ class SlowListeningWorker:
         )
         return choice
 
-    def order_releases(
+    async def order_releases(
         self,
         release_date: str,
         candidates: tuple[slow_listening.DiscographyRelease, ...],
@@ -174,7 +174,7 @@ class SlowListeningWorker:
             The original accepted routine callback result.
         """
         artist = candidates[0].primary_artist_name if candidates else "Artist"
-        choice, order = self.wait_for_submission(
+        choice, order = await self.wait_for_submission(
             SlowListeningPendingChoice(
                 kind="release_order",
                 artist=artist,
@@ -189,13 +189,13 @@ class SlowListeningWorker:
             )
         return order
 
-    def complete(self, source: new_wine.PlaylistTrack) -> None:
+    async def complete(self, source: new_wine.PlaylistTrack) -> None:
         """Wait for acknowledgement of the completed artist.
 
         Args:
             source: Original routine-supplied source.
         """
-        choice, _order = self.wait_for_submission(
+        choice, _order = await self.wait_for_submission(
             SlowListeningPendingChoice(
                 kind="completion",
                 artist=source.primary_artist_name,
@@ -213,16 +213,16 @@ class SlowListeningWorker:
                 "Slow Listening completion was not acknowledged."
             )
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
             seconds: Original routine-supplied seconds.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise _SlowListeningJobCancelledError
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -249,8 +249,8 @@ class SlowListeningWorker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> slow_listening.FlushSummary:
-        summary = slow_listening.flush_slow_listening(
+    async def _execute(self) -> slow_listening.FlushSummary:
+        summary = await slow_listening.flush_slow_listening(
             self.spotify,
             self.playlist_id,
             order_reader=self,

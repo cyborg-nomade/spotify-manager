@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import something_old as legacy
 from tests.support.something_old_run import ARTIST
 
@@ -30,7 +29,7 @@ class CatalogResponse:
     response: object
     choice: str
 
-    def search(self, **options: object) -> object:
+    async def search(self, **options: object) -> object:
         """Return the configured original artist payload.
 
         Args:
@@ -42,7 +41,7 @@ class CatalogResponse:
         assert options["type"] == "artist"
         return self.response
 
-    def artist_top_tracks(self, artist: str) -> object:
+    async def artist_top_tracks(self, artist: str) -> object:
         """Return the configured original popular-track payload.
 
         Args:
@@ -69,7 +68,7 @@ class CatalogResponse:
         assert name and candidates
         return self.choice
 
-    def choose_artist(
+    async def choose_artist(
         self, name: str, candidates: tuple[legacy.SpotifyArtistCandidate, ...]
     ) -> str:
         """Use the original scripted artist prompt.
@@ -184,7 +183,7 @@ def _track_inputs(rows: list[dict[str, object]]) -> None:
         rows.append({"kind": "tracks", "payload": {"tracks": items}, "choice": ""})
 
 
-def original_outcome(case: dict[str, object]) -> object:
+async def original_outcome(case: dict[str, object]) -> object:
     """Observe the original facade before extracting selection rules.
 
     Args:
@@ -196,20 +195,22 @@ def original_outcome(case: dict[str, object]) -> object:
     edge = CatalogResponse(case["payload"], cast(str, case["choice"]))
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _selection(edge, cast(str, case["kind"]))
+        outcome["result"] = await _selection(edge, cast(str, case["kind"]))
     except legacy.SomethingOldSpotifyError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     return json.loads(json.dumps(outcome))
 
 
-def _selection(edge: CatalogResponse, kind: str) -> object:
+async def _selection(edge: CatalogResponse, kind: str) -> object:
     if kind == "artist":
         chooser = None if edge.choice == "absent" else edge
-        artist = legacy.resolve_spotify_artist(
+        artist = await legacy.async_resolve_spotify_artist(
             cast(Spotify, edge), "Artist", chooser, NoRetry()
         )
         return asdict(artist) if artist is not None else None
-    tracks = legacy.select_spotify_top_tracks(cast(Spotify, edge), ARTIST, NoRetry())
+    tracks = await legacy.async_select_spotify_top_tracks(
+        cast(Spotify, edge), ARTIST, NoRetry()
+    )
     return [asdict(track) for track in tracks]
 
 

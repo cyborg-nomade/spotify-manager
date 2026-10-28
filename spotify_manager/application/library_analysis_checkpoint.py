@@ -26,7 +26,7 @@ def pending_resource() -> ResourceState:
     }
 
 
-def new_checkpoint(
+async def new_checkpoint(
     files: AnalysisFiles,
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
@@ -52,13 +52,13 @@ def new_checkpoint(
     for resource in ("albums", "tracks", "artists"):
         checkpoint["resources"][resource] = pending_resource()
     if paths.mode == "async":
-        checkpoint["export_fingerprint"] = files.fingerprint(paths.your_library)
+        checkpoint["export_fingerprint"] = await files.fingerprint(paths.your_library)
     if paths.mode == "mirrors":
         checkpoint["mirror_refresh_mode"] = mirror_refresh_mode or "incremental"
     return checkpoint
 
 
-def load_or_create_checkpoint(
+async def load_or_create_checkpoint(
     files: AnalysisFiles,
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
@@ -73,19 +73,19 @@ def load_or_create_checkpoint(
     Returns:
         Original accepted resumable or fresh checkpoint.
     """
-    raw = files.read(paths.checkpoint)
-    if _compatible(files, paths, raw, mirror_refresh_mode):
+    raw = await files.read(paths.checkpoint)
+    if await _compatible(files, paths, raw, mirror_refresh_mode):
         checkpoint = cast(Checkpoint, raw)
-        files.event(paths, str(checkpoint["run_id"]), "run_resumed")
+        await files.event(paths, str(checkpoint["run_id"]), "run_resumed")
         return checkpoint
-    files.reset_staging(paths.staging_dir)
-    checkpoint = new_checkpoint(files, paths, mirror_refresh_mode)
-    files.write(paths.checkpoint, checkpoint)
-    files.event(paths, str(checkpoint["run_id"]), "run_started")
+    await files.reset_staging(paths.staging_dir)
+    checkpoint = await new_checkpoint(files, paths, mirror_refresh_mode)
+    await files.write(paths.checkpoint, checkpoint)
+    await files.event(paths, str(checkpoint["run_id"]), "run_started")
     return checkpoint
 
 
-def _compatible(
+async def _compatible(
     files: AnalysisFiles,
     paths: LibraryAnalysisPaths,
     raw: object,
@@ -96,8 +96,8 @@ def _compatible(
     compatible = raw.get("version") == 1 and raw.get("mode") == paths.mode
     compatible = compatible and raw.get("status") != "complete"
     if compatible and paths.mode == "async":
-        compatible = raw.get("export_fingerprint") == files.fingerprint(
-            paths.your_library
+        compatible = raw.get("export_fingerprint") == (
+            await files.fingerprint(paths.your_library)
         )
     if compatible and paths.mode == "mirrors":
         compatible = raw.get("mirror_refresh_mode") == (refresh or "incremental")

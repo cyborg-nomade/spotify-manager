@@ -11,14 +11,16 @@ from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
 
+from spotify_manager.application.ports.runtime import BlockingWait as Wait
 from spotify_manager.application.ports.runtime import Messages
-from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.queue_candidates import (
     LastFmSimilarArtist as LastFmSimilarArtist,
 )
 from spotify_manager.domain.recommendation_candidates import (
     LastFmSimilarTrack as LastFmSimilarTrack,
 )
+from spotify_manager.infrastructure.cli_cancellation import BlockingInvocationWait
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 
 
 type Sleeper = Wait
@@ -103,9 +105,17 @@ class LastFmClient:
         """Return the exponential delay before the next attempt."""
         return self.backoff_seconds * (2**attempt)
 
+    def _sleep(self, delay: float) -> None:
+        if self.sleeper is time:
+            BlockingInvocationWait().sleep(delay)
+            return
+        self.sleeper.sleep(delay)
+
     def _request(self, method: str, **params: object) -> dict[str, Any]:
+        check_cli_interruption()
         request = _lastfm_request(method, self.api_key, params)
         for attempt in range(self.max_retries + 1):
+            check_cli_interruption()
             try:
                 return self._request_attempt(request, method, attempt)
             except _RetryLastFmRequestError:
@@ -136,7 +146,7 @@ class LastFmClient:
         self._emit(
             f"Last.fm returned HTTP {error.code}; retrying in {delay:g} seconds."
         )
-        self.sleeper.sleep(delay)
+        self._sleep(delay)
         raise _RetryLastFmRequestError
 
     def _transport_failure(
@@ -151,7 +161,7 @@ class LastFmClient:
             f"Last.fm request {method} could not connect; "
             f"retrying in {delay:g} seconds."
         )
-        self.sleeper.sleep(delay)
+        self._sleep(delay)
         raise _RetryLastFmRequestError
 
     def _validate_payload(
@@ -172,7 +182,7 @@ class LastFmClient:
             )
         delay = self._retry_delay(attempt)
         self._emit(f"Last.fm error {numeric_error}; retrying in {delay:g} seconds.")
-        self.sleeper.sleep(delay)
+        self._sleep(delay)
         raise _RetryLastFmRequestError
 
     def similar_tracks(

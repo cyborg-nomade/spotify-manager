@@ -28,7 +28,7 @@ class AlbumEditionChoice:
     skip: str = "skip"
     quit: str = "quit"
 
-    def choose(
+    async def choose(
         self, item: AlbumRecommendation
     ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
         """Resolve equivalent editions directly and prompt only for ambiguity.
@@ -39,13 +39,13 @@ class AlbumEditionChoice:
         Returns:
             Accepted edition, skip or quit.
         """
-        return choose_album(item, self.reader, self.skip, self.quit)
+        return await choose_album(item, self.reader, self.skip, self.quit)
 
 
 class AlbumMarkers(Protocol):
     """Read a playable first track for an accepted edition."""
 
-    def first(self, album: SpotifyAlbumOption) -> FirstTrack:
+    async def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Read the original marker before any playlist mutation.
 
         Args:
@@ -80,7 +80,7 @@ class AlbumSelection:
     pending: list[PendingAlbum] = field(default_factory=list)
     paused: bool = False
 
-    def run(
+    async def run(
         self, recommendations: tuple[AlbumRecommendation, ...], requested: int
     ) -> None:
         """Observe ordered choices until enough additions or the original quit.
@@ -95,17 +95,17 @@ class AlbumSelection:
         for item in recommendations:
             if len(self.pending) >= requested:
                 return
-            self._select(item)
+            await self._select(item)
             if self.paused:
                 return
 
-    def _select(self, item: AlbumRecommendation) -> None:
+    async def _select(self, item: AlbumRecommendation) -> None:
         if item.key[0] in self.artists:
             self.results.append(
                 SauvignonResult(item, None, None, "artist already selected")
             )
             return
-        choice = self.choice.choose(item)
+        choice = await self.choice.choose(item)
         if choice == "quit":
             self.results.append(SauvignonResult(item, None, None, "quit"))
             self.paused = True
@@ -118,10 +118,12 @@ class AlbumSelection:
                 SauvignonResult(item, choice, None, "already represented")
             )
             return
-        self._remember(item, choice)
+        await self._remember(item, choice)
 
-    def _remember(self, item: AlbumRecommendation, album: SpotifyAlbumOption) -> None:
-        track = self.catalog.first(album)
+    async def _remember(
+        self, item: AlbumRecommendation, album: SpotifyAlbumOption
+    ) -> None:
+        track = await self.catalog.first(album)
         self.results.append(
             SauvignonResult(
                 item, album, track, "would add" if self.dry_run else "added"

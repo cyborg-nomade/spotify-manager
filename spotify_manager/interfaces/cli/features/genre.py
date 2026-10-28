@@ -1,5 +1,6 @@
 """Explicit genre CLI execution, prompts and presentation."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -10,6 +11,8 @@ from rich.console import Console
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import genre_reveal as genre_reveal
@@ -30,7 +33,7 @@ class GenreCLI:
     create_console: type[Console]
     create_table: type[Table]
 
-    def _run_genre_reveal(
+    async def _run_genre_reveal(
         self,
         state_path: Annotated[
             Path,
@@ -55,12 +58,16 @@ class GenreCLI:
             open_pages: Open pages supplied by the caller.
         """
         console = self.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             destination_playlist_id = genre_reveal.parse_destination_playlist_id(
                 configuration.genre_reveal_playlist
             )
-            state = genre_reveal.load_genre_reveal_state(state_path)
+            async with blocking_capacity():
+                reading = asyncio.create_task(
+                    asyncio.to_thread(genre_reveal.load_genre_reveal_state, state_path)
+                )
+                state = await finish_blocking(reading)
             entry = genre_reveal.first_incomplete_genre(state)
         except (
             genre_reveal.GenreRevealConfigError,
@@ -70,14 +77,14 @@ class GenreCLI:
             self._report_genre_reveal_configuration_failure(exc, console)
         try:
             with console.status(f"Processing {entry.name}"):
-                result = genre_reveal.process_next_genre(
-                    self.runtime.client(),
+                result = await genre_reveal.process_next_genre(
+                    (await self.runtime.client()),
                     entry.slug,
                     entry.name,
                     destination_playlist_id,
                     log_path=log_path,
                 )
-                genre_reveal.mark_genre_completed(entry.slug, state_path)
+                await genre_reveal.mark_genre_completed(entry.slug, state_path)
         except (
             genre_reveal.GenreRevealSourceError,
             genre_reveal.GenreRevealStateError,

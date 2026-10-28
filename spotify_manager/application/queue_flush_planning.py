@@ -18,7 +18,7 @@ from spotify_manager.domain.queue_flush_decision import resolved_promotion
 class QueuePlanningCatalog(Protocol):
     """Original ordered top membership, catalog, assessment and marker reads."""
 
-    def top(self, artist: str) -> tuple[CatalogTrack, ...]:
+    async def top(self, artist: str) -> tuple[CatalogTrack, ...]:
         """Read original eligible top tracks before membership.
 
         Args:
@@ -28,7 +28,7 @@ class QueuePlanningCatalog(Protocol):
             Original ordered top tracks before truncation.
         """
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Read original top membership after window truncation.
 
         Args:
@@ -38,7 +38,7 @@ class QueuePlanningCatalog(Protocol):
             Original liked statuses.
         """
 
-    def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
+    async def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
         """Read original ranked catalog after top membership.
 
         Args:
@@ -48,7 +48,7 @@ class QueuePlanningCatalog(Protocol):
             Original ordered ranked releases.
         """
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read a preferred release only when assessment has not populated it.
 
         Args:
@@ -59,7 +59,7 @@ class QueuePlanningCatalog(Protocol):
         """
 
 
-def promotion_marker(
+async def promotion_marker(
     access: QueuePlanningCatalog,
     artist: str,
     catalog: tuple[RankedRelease, ...],
@@ -81,7 +81,7 @@ def promotion_marker(
             continue
         tracks = cache.get(release.spotify_id)
         if tracks is None:
-            tracks = access.tracks(release)
+            tracks = await access.tracks(release)
             cache[release.spotify_id] = tracks
         target = first_primary_marker(tracks, artist)
         if target is not None:
@@ -103,7 +103,7 @@ class QueuePlanning:
     assessment: AssessmentCatalog
     top_limit: int = 10
 
-    def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
+    async def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
         """Build the original durable plan document from observed business facts.
 
         Args:
@@ -113,9 +113,9 @@ class QueuePlanning:
         Returns:
             Original serialized plan before its accepted checkpoint.
         """
-        return asdict(self.run(source, uris))
+        return asdict(await self.run(source, uris))
 
-    def run(self, source: PlaylistTrack, uris: list[str]) -> QueuePlan:
+    async def run(self, source: PlaylistTrack, uris: list[str]) -> QueuePlan:
         """Preserve top, membership, catalog, assessment and marker read order.
 
         Args:
@@ -126,11 +126,11 @@ class QueuePlanning:
             Original complete plan facts before durable acceptance.
         """
         artist = source.primary_artist_id
-        tracks = self.access.top(artist)[: self.top_limit]
-        liked = self.access.liked(tracks)
-        catalog = self.access.catalog(artist)
+        tracks = (await self.access.top(artist))[: self.top_limit]
+        liked = await self.access.liked(tracks)
+        catalog = await self.access.catalog(artist)
         cache: dict[str, tuple[CatalogTrack, ...]] = {}
-        assessment = assess_artist(self.assessment, artist, catalog, cache)
+        assessment = await assess_artist(self.assessment, artist, catalog, cache)
         decision = choose_queue_action(
             source.spotify_id,
             tracks,
@@ -140,7 +140,9 @@ class QueuePlanning:
         )
         release = None
         if decision.action == "promote":
-            target, release = promotion_marker(self.access, artist, catalog, cache)
+            target, release = await promotion_marker(
+                self.access, artist, catalog, cache
+            )
             decision = resolved_promotion(decision.reason, target)
         return QueuePlan(
             decision.action,

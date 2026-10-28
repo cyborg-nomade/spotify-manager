@@ -61,7 +61,7 @@ class QueueFlush:
     effects: QueueFlushEffects
     planning: QueuePlanning
 
-    def run(self, preview: bool) -> FlushSummary:
+    async def run(self, preview: bool) -> FlushSummary:
         """Open or resume the original daily snapshot and process unfinished entries.
 
         Args:
@@ -76,18 +76,20 @@ class QueueFlush:
         """
         self.effects.configure()
         access = self.effects.state()
-        state = self.effects.default_state() if preview else access.load()
-        facts = self._facts(access, state, preview)
+        state = self.effects.default_state() if preview else (await access.load())
+        facts = await self._facts(access, state, preview)
         execution = QueueFlushExecution(self.effects, facts, preview)
         results: list[FlushResult] = []
         total = len(facts.entries)
         for index, raw in enumerate(facts.entries, start=1):
-            result = self._entry(raw, index, total, access, state, facts, execution)
+            result = await self._entry(
+                raw, index, total, access, state, facts, execution
+            )
             if result is not None:
                 results.append(result)
         if not preview:
             state["active_flush"] = None
-            access.save(state)
+            await access.save(state)
         return FlushSummary(
             str(facts.run.get("run_id") or "dry-run"),
             len(facts.tracks),
@@ -99,7 +101,7 @@ class QueueFlush:
             tuple(results),
         )
 
-    def _facts(
+    async def _facts(
         self,
         access: QueueStateAccess,
         state: dict[str, object],
@@ -111,13 +113,13 @@ class QueueFlush:
             and isinstance(active, dict)
             and active.get("playlist_id") == self.effects.queue_id()
         )
-        tracks = self.effects.queue()
+        tracks = await self.effects.queue()
         run = (
             cast(dict[str, object], active) if resumed else self.effects.new_run(tracks)
         )
         if not resumed and not preview:
             state["active_flush"] = run
-            access.save(state)
+            await access.save(state)
         entries = run.get("entries")
         if not isinstance(entries, list):
             raise QueueStateError("Queue active flush has invalid entries.")
@@ -127,12 +129,12 @@ class QueueFlush:
             tracks,
             {track.spotify_id for track in tracks},
             {track.uri for track in tracks},
-            self.effects.queue_2(),
-            self.effects.unlucky(),
+            (await self.effects.queue_2()),
+            (await self.effects.unlucky()),
             resumed,
         )
 
-    def _entry(
+    async def _entry(
         self,
         raw: object,
         index: int,
@@ -150,17 +152,17 @@ class QueueFlush:
         self.effects.progress(
             index - 1, total, f"Planning {source.primary_artist_name}"
         )
-        plan = self._plan(raw, source, access, state, facts, execution.preview)
-        execution.run(source, plan)
+        plan = await self._plan(raw, source, access, state, facts, execution.preview)
+        await execution.run(source, plan)
         result = self.effects.result(source, plan, execution.preview)
-        self.effects.audit(facts.run, source, result)
+        await self.effects.audit(facts.run, source, result)
         if not execution.preview:
             raw["status"] = "completed"
-            access.save(state)
+            await access.save(state)
         self.effects.progress(index, total, f"Completed {source.primary_artist_name}")
         return result
 
-    def _plan(
+    async def _plan(
         self,
         entry: dict[str, object],
         source: PlaylistTrack,
@@ -172,8 +174,8 @@ class QueueFlush:
         raw_plan = entry.get("plan")
         if isinstance(raw_plan, dict):
             return raw_plan
-        plan = self.planning.record(source, source_uris(facts.tracks, source))
+        plan = await self.planning.record(source, source_uris(facts.tracks, source))
         entry["plan"] = plan
         if not preview:
-            access.save(state)
+            await access.save(state)
         return plan

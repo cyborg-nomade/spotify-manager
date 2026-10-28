@@ -1,6 +1,6 @@
 # Item 8: native async Spotify transport
 
-**Status:** implemented for review on `codex/refactor-08-native-spotify-transport`.
+**Status:** approved, deployed and merged in PR #68.
 The base is clean Item 7a merge `cb6f191`. Routine execution and the web/CLI
 entry points keep their synchronous behavior until Item 9.
 
@@ -142,12 +142,22 @@ Final verification on 2026-10-26:
   Four unrelated operator data files are preserved and excluded from the PR.
 
 
-## Review and remaining work
+## Release and remaining work
 
-The local web environment runs this branch at **http://127.0.0.1:8766/**; use any
-non-empty local unlock text. It exercises the retained synchronous application
-contracts. The native adapter is tested independently and is deliberately not
-activated through an interface flag or extra HTTP route.
+The Item 8 review environment exercised the retained synchronous application
+contracts. Its native adapter was tested independently. The active review
+environment now follows [Item 9](ASYNC_EXECUTION.md).
+
+Approved source `32a1a5e8af16d8b061446c37a6fc6d59df3e798c` was deployed to
+Space revision `33047b35a2ef8f83c3c8b8dcd893b45bb81f9f89`; all 15 changed blobs
+matched and the Space reached `RUNNING`. State and canonical-data dataset
+revisions remained unchanged. Authenticated check-only workflows passed before
+and after deployment, without running routines:
+[before](https://github.com/cyborg-nomade/spotify-manager/actions/runs/40476053756),
+[after](https://github.com/cyborg-nomade/spotify-manager/actions/runs/40476217024).
+PR #68 then merged as `6ea10e4`. The rollback Space revision is
+`b1a3c0cec8cf497f6a907147d0cd7824185f5d3a`. Four local operator files were
+preserved in a named stash before returning to clean master.
 
 Item 9 converts application execution, interactions and interface ownership to
 async and installs this runtime at the web lifespan/CLI entry boundary. Item 10

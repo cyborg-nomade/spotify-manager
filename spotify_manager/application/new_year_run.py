@@ -31,7 +31,7 @@ class NewYear:
     execution: AnnualExecution
     discoveries: AnnualDiscoveries
 
-    def run(self, requested: int | None, preview: bool) -> dict[str, object]:
+    async def run(self, requested: int | None, preview: bool) -> dict[str, object]:
         """Validate source year, reuse durable plans and execute original annual stages.
 
         Args:
@@ -50,18 +50,18 @@ class NewYear:
             raise NewYearError("Choose a completed calendar year (2002 or later).")
         destinations = self.effects.destinations()
         access = self.effects.state()
-        state = access.load()
+        state = await access.load()
         run = state["years"].get(str(year), {"completed": []})
         if run.get("done"):
             self.effects.echo(f"The {year} retrospective has already completed.")
             return {"year": year, "already_completed": True, **run}
-        plan = self._plan(year, preview, destinations, run, state, access)
+        plan = await self._plan(year, preview, destinations, run, state, access)
         if preview:
-            return self._preview(year, plan, run)
-        self.execution.run(year, plan, run, state, access)
+            return await self._preview(year, plan, run)
+        await self.execution.run(year, plan, run, state, access)
         return {"year": year, **run}
 
-    def _plan(
+    async def _plan(
         self,
         year: int,
         preview: bool,
@@ -70,14 +70,16 @@ class NewYear:
         state: RetrospectiveState,
         access: AnnualStateAccess,
     ) -> RetrospectivePlan:
-        playlists = self.effects.owned()
+        playlists = await self.effects.owned()
         obsessions = obsessions_playlist(playlists, year)
         resolve_yearly_playlist(playlists, year)
         if "plan" not in run:
-            run["plan"] = self.planning.run(year, preview, destinations, obsessions)
+            run["plan"] = await self.planning.run(
+                year, preview, destinations, obsessions
+            )
             if not preview:
                 state["years"][str(year)] = run
-                access.save(state)
+                await access.save(state)
         plan = run["plan"]
         if plan["destinations"] != destinations:
             raise NewYearError(
@@ -85,10 +87,10 @@ class NewYear:
             )
         return plan
 
-    def _preview(
+    async def _preview(
         self, year: int, plan: RetrospectivePlan, run: RetrospectiveRun
     ) -> dict[str, object]:
-        self.discoveries.run(year + 1, True)
+        await self.discoveries.run(year + 1, True)
         self.effects.echo(
             f"Dry run: {len(plan['tracks'])} tracks, {len(plan['albums'])} albums, "
             f"{len(plan['artists'])} artists and "

@@ -21,7 +21,7 @@ from spotify_manager.domain.slow_listening import track_index
 class StudioCatalog(Protocol):
     """Observe studio releases and ordered playable tracks for one run."""
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Read selected editions.
 
         Args:
@@ -31,7 +31,7 @@ class StudioCatalog(Protocol):
             Eligible selected editions in chronological order.
         """
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read ordered tracks from one selected edition.
 
         Args:
@@ -56,7 +56,7 @@ class StudioObservations:
     releases: dict[str, tuple[DiscographyRelease, ...]] = field(default_factory=dict)
     tracks: dict[str, tuple[ReleaseTrack, ...]] = field(default_factory=dict)
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Read an artist once in this invocation.
 
         Args:
@@ -66,10 +66,12 @@ class StudioObservations:
             Cached or newly observed catalog, including an empty catalog.
         """
         if artist_id not in self.releases:
-            self.releases[artist_id] = self.catalog.discography(artist_id)
+            self.releases[artist_id] = await self.catalog.discography(artist_id)
         return self.releases[artist_id]
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Read a release once in this invocation.
 
         Args:
@@ -79,7 +81,7 @@ class StudioObservations:
             Cached or newly observed playable tracks, including an empty release.
         """
         if release.spotify_id not in self.tracks:
-            self.tracks[release.spotify_id] = self.catalog.tracks(release)
+            self.tracks[release.spotify_id] = await self.catalog.tracks(release)
         return self.tracks[release.spotify_id]
 
 
@@ -97,7 +99,7 @@ class ReleaseOrdering:
     saved: dict[str, object]
     checkpoint: Checkpoint
 
-    def ordered(
+    async def ordered(
         self, artist_id: str, releases: tuple[DiscographyRelease, ...]
     ) -> tuple[DiscographyRelease, ...]:
         """Apply a valid saved order or request and save a replacement.
@@ -120,25 +122,25 @@ class ReleaseOrdering:
         ids = tuple(str(value) for value in stored) if isinstance(stored, list) else ()
         expected = {release.spotify_id for release in releases}
         if len(ids) != len(releases) or set(ids) != expected:
-            ids = self._choose_order(date, releases, expected)
+            ids = await self._choose_order(date, releases, expected)
             self.saved[key] = list(ids)
-            self.checkpoint.save()
+            await self.checkpoint.save()
         by_id = {release.spotify_id: release for release in releases}
         return tuple(by_id[spotify_id] for spotify_id in ids)
 
-    def _choose_order(
+    async def _choose_order(
         self, date: str, releases: tuple[DiscographyRelease, ...], expected: set[str]
     ) -> tuple[str, ...]:
         ids = (
             tuple(release.spotify_id for release in releases)
             if self.choose is None
-            else self.choose.order_releases(date, releases)
+            else (await self.choose.order_releases(date, releases))
         )
         if len(ids) != len(releases) or set(ids) != expected:
             raise SlowListeningError("Release ordering must include every option.")
         return ids
 
-    def following(
+    async def following(
         self, current: DiscographyRelease, discography: tuple[DiscographyRelease, ...]
     ) -> DiscographyRelease | None:
         """Choose a successor, requesting only tie groups reached at this boundary.
@@ -154,16 +156,16 @@ class ReleaseOrdering:
         date = studio_date_key(current.chronology_date)
         for index, group in enumerate(groups):
             if studio_date_key(group[0].chronology_date) == date:
-                return self._successor(current, groups, index)
+                return await self._successor(current, groups, index)
         return None
 
-    def _successor(
+    async def _successor(
         self,
         current: DiscographyRelease,
         groups: tuple[tuple[DiscographyRelease, ...], ...],
         index: int,
     ) -> DiscographyRelease | None:
-        ordered = self.ordered(current.primary_artist_id, groups[index])
+        ordered = await self.ordered(current.primary_artist_id, groups[index])
         ids = [release.spotify_id for release in ordered]
         if current.spotify_id not in ids:
             return None
@@ -172,7 +174,7 @@ class ReleaseOrdering:
             return ordered[position + 1]
         if index + 1 == len(groups):
             return None
-        return self.ordered(current.primary_artist_id, groups[index + 1])[0]
+        return (await self.ordered(current.primary_artist_id, groups[index + 1]))[0]
 
 
 @dataclass(frozen=True)
@@ -187,14 +189,14 @@ class SkippedTracks:
     records: list[str]
     checkpoint: Checkpoint
 
-    def remember(self, spotify_id: str) -> None:
+    async def remember(self, spotify_id: str) -> None:
         """Record a decline before accepting its checkpoint.
 
         Args:
             spotify_id: Newly declined track identity.
         """
         self.records.append(spotify_id)
-        self.checkpoint.save()
+        await self.checkpoint.save()
 
 
 @dataclass
@@ -221,7 +223,7 @@ class TrackSelection:
     skipped: SkippedTracks
     skipped_labels: list[str] = field(default_factory=list)
 
-    def plan(self) -> dict[str, object] | None:
+    async def plan(self) -> dict[str, object] | None:
         """Find the next accepted track or retain an explicit skip/completion plan.
 
         Returns:
@@ -235,50 +237,52 @@ class TrackSelection:
         )
         if release is None:
             return _skip(None, "current release is not an eligible studio album or EP")
-        tracks = self.observations.release_tracks(release)
+        tracks = await self.observations.release_tracks(release)
         index = track_index(tracks, self.source)
         if index is None:
             return _skip(
                 release, "current track could not be mapped to the preferred edition"
             )
-        return self._scan(release, tracks, index + 1)
+        return await self._scan(release, tracks, index + 1)
 
-    def _scan(
+    async def _scan(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...], index: int
     ) -> dict[str, object] | None:
         while True:
-            release, tracks, index, terminal = self._boundary(release, tracks, index)
+            release, tracks, index, terminal = await self._boundary(
+                release, tracks, index
+            )
             if terminal is not None:
                 return terminal
             target = tracks[index]
-            choice = self._choice(target, release)
+            choice = await self._choice(target, release)
             if choice == "quit":
                 return None
             if choice == "advance":
                 return self._advance(target, release)
             index += 1
 
-    def _boundary(
+    async def _boundary(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...], index: int
     ) -> tuple[
         DiscographyRelease, tuple[ReleaseTrack, ...], int, dict[str, object] | None
     ]:
         if index < len(tracks):
             return release, tracks, index, None
-        following = self.ordering.following(release, self.discography)
+        following = await self.ordering.following(release, self.discography)
         if following is None:
             return release, tracks, index, self._complete(release)
-        tracks = self.observations.release_tracks(following)
+        tracks = await self.observations.release_tracks(following)
         if not tracks:
             return following, tracks, 0, self._empty_release(following)
         return following, tracks, 0, None
 
-    def _choice(self, target: ReleaseTrack, release: DiscographyRelease) -> str:
+    async def _choice(self, target: ReleaseTrack, release: DiscographyRelease) -> str:
         label = f"{target.name} ({release.name})"
         if target.spotify_id in self.skipped_ids:
             self.skipped_labels.append(label)
             return "skip"
-        choice = self.choose.choose_track(self.source, target, release)
+        choice = await self.choose.choose_track(self.source, target, release)
         if choice == "quit" or choice == "advance":
             return choice
         if choice != "skip":
@@ -286,7 +290,7 @@ class TrackSelection:
                 "Track action must be add, skip candidate, or quit."
             )
         self.skipped_ids.add(target.spotify_id)
-        self.skipped.remember(target.spotify_id)
+        await self.skipped.remember(target.spotify_id)
         self.skipped_labels.append(label)
         return choice
 

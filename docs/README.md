@@ -41,6 +41,8 @@ The [item 7a simplification plan](refactor/CALL_PATH_SIMPLIFICATION.md) and
 [ADR 003](adr/003-direct-use-case-paths.md) define the owner-approved call-path
 cleanup before async work. Frontend source restructuring remains a future
 targeted refactor; its current behavior is covered by compatibility checks.
+The [Item 9 async execution guide](refactor/ASYNC_EXECUTION.md) follows native
+request paths, resource ownership and retained synchronous Python APIs.
 
 ### Operating the Hugging Face Space
 

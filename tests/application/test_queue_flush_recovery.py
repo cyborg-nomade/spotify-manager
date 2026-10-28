@@ -13,7 +13,9 @@ from tests.support.queue_flush_application import queue_workflow
 @pytest.mark.parametrize(
     "name,case", restart_cases(), ids=[name for name, _case in restart_cases()]
 )
-def test_queue_restart_matches_original(name: str, case: dict[str, object]) -> None:
+async def test_queue_restart_matches_original(
+    name: str, case: dict[str, object]
+) -> None:
     """Re-read accepted state and live membership before replaying stored plans.
 
     Args:
@@ -22,7 +24,9 @@ def test_queue_restart_matches_original(name: str, case: dict[str, object]) -> N
     """
     assert name
     edge = restart_observations(case)
-    outcome: dict[str, object] = {"result": asdict(queue_workflow(edge).run(False))}
+    outcome: dict[str, object] = {
+        "result": asdict(await queue_workflow(edge).run(False))
+    }
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)
     playlists: dict[str, list[str]] = {}
     for playlist, tracks in edge.playlists.items():

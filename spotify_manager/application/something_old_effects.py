@@ -28,7 +28,7 @@ class SomethingOldEffects(Protocol):
             message: Original stage text.
         """
 
-    def playlist_length(self, recheck: bool) -> int:
+    async def playlist_length(self, recheck: bool) -> int:
         """Read initial membership or the original pre-write recheck.
 
         Args:
@@ -48,7 +48,7 @@ class SomethingOldEffects(Protocol):
             Original eligible ordered artists.
         """
 
-    def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
+    async def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
         """Interact only when original exact-artist mapping requires a choice.
 
         Args:
@@ -58,7 +58,9 @@ class SomethingOldEffects(Protocol):
             Original accepted mapping or artist-choice cancellation.
         """
 
-    def mode(self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate) -> str:
+    async def mode(
+        self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
+    ) -> str:
         """Request the original selection mode after accepting an artist.
 
         Args:
@@ -69,7 +71,9 @@ class SomethingOldEffects(Protocol):
             Original requested mode or cancellation.
         """
 
-    def lastfm_tracks(self, artist: GoldenOldieArtist) -> tuple[SelectedTrack, ...]:
+    async def lastfm_tracks(
+        self, artist: GoldenOldieArtist
+    ) -> tuple[SelectedTrack, ...]:
         """Resolve original most-scrobbled title markers.
 
         Args:
@@ -79,7 +83,7 @@ class SomethingOldEffects(Protocol):
             Original ordered selected markers.
         """
 
-    def spotify_tracks(
+    async def spotify_tracks(
         self, artist: SpotifyArtistCandidate
     ) -> tuple[SelectedTrack, ...]:
         """Resolve original popular-track markers.
@@ -91,7 +95,7 @@ class SomethingOldEffects(Protocol):
             Original ordered selected markers.
         """
 
-    def album_tracks(
+    async def album_tracks(
         self,
         artist: GoldenOldieArtist,
         mapped: SpotifyArtistCandidate,
@@ -106,14 +110,14 @@ class SomethingOldEffects(Protocol):
             Original release/markers or album-choice cancellation.
         """
 
-    def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
+    async def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
         """Accept the original complete marker append after the empty recheck.
 
         Args:
             tracks: Original selected markers in source order.
         """
 
-    def audit(self, summary: SomethingOldSummary) -> None:
+    async def audit(self, summary: SomethingOldSummary) -> None:
         """Accept the original real-run audit after the complete append.
 
         Args:

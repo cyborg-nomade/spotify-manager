@@ -4,9 +4,11 @@ import shutil
 from pathlib import Path
 from typing import cast
 
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.domain.library_analysis_values import LibrarySyncRestoreError
+from spotify_manager.infrastructure.analysis_file_ports import (
+    BlockingAnalysisFiles as AnalysisFiles,
+)
 from spotify_manager.infrastructure.library_analysis_backups import backup_targets
 
 

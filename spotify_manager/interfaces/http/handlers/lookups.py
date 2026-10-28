@@ -4,9 +4,9 @@ from typing import Protocol
 
 from fastapi import HTTPException
 from requests.exceptions import RequestException
-from spotipy import Spotify
 
 from spotify_manager.application.album_review import AlbumReviewRequest
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.common import CommandResult
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
@@ -47,7 +47,7 @@ def refresh_library() -> CommandResult:
     return CommandResult(command="library_refresh")
 
 
-def artist_stats(
+async def artist_stats(
     client: Spotify, reference: str | None, name: str | None, artist_id: str | None
 ) -> ArtistLibraryStats:
     """Return live Liked Songs and Saved Albums counts for one artist.
@@ -74,7 +74,7 @@ def artist_stats(
             status_code=400, detail="provide an artist name, ID, or Spotify link"
         )
     try:
-        return jobs.get_live_artist_library_stats(
+        return await jobs.get_live_artist_library_stats(
             client, name=name, artist_id=artist_id
         )
     except RequestException as exc:
@@ -118,7 +118,7 @@ def album_request(
     return AlbumReviewRequest(name, album_id, artist, threshold)
 
 
-def track_scrobble_status(
+async def track_scrobble_status(
     client: Spotify, reference: str | None, name: str | None, track_id: str | None
 ) -> TrackScrobbleStatus:
     """Return the latest Last.fm scrobble for one live Spotify track.
@@ -145,7 +145,7 @@ def track_scrobble_status(
             status_code=400, detail="provide a track name, ID, or Spotify link"
         )
     try:
-        return jobs.get_track_scrobble_status(
+        return await jobs.get_track_scrobble_status(
             client,
             name=name,
             track_id=track_id,

@@ -1,5 +1,6 @@
 """Advance the New Wine from Old Bottles playlist safely by release."""
 
+import asyncio
 import json
 import re
 from dataclasses import asdict
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Literal
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine import new_run
@@ -43,19 +44,27 @@ from spotify_manager.application.new_wine_values import (
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
-from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.domain import new_wine as wine_policy
-
-# UFI
 from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+
+# UFI
 from spotify_manager.infrastructure.routine_state_codecs import NewWineStateCodec
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 from spotify_manager.models.lookups import AlbumEvaluation
@@ -238,13 +247,13 @@ def _playlist_track(raw_entry: object) -> PlaylistTrack | None:
     )
 
 
-def _playlist_request(sp: Spotify, playlist_id: str, offset: int) -> object:
-    return sp._get(
+async def _playlist_request(sp: Spotify, playlist_id: str, offset: int) -> object:
+    return await sp._get(
         f"playlists/{playlist_id}/items", limit=PLAYLIST_PAGE_LIMIT, offset=offset
     )
 
 
-def load_playlist_tracks(
+async def async_load_playlist_tracks(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
@@ -265,7 +274,9 @@ def load_playlist_tracks(
     tracks: list[PlaylistTrack] = []
     offset = 0
     while True:
-        accepted_response = _read_playlist_page(retry_call, playlist_id, offset, sp)
+        accepted_response = await _read_playlist_page(
+            retry_call, playlist_id, offset, sp
+        )
         response = accepted_response
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
@@ -284,7 +295,7 @@ def load_playlist_tracks(
             raise NewWineError("Spotify returned an empty playlist page.")
 
 
-def load_release_tracks(
+async def async_load_release_tracks(
     sp: Spotify,
     release: ReleaseCandidate,
     retry_call: RetryCall,
@@ -305,7 +316,7 @@ def load_release_tracks(
     tracks: list[ReleaseTrack] = []
     offset = 0
     while True:
-        response = _read_release_page(retry_call, offset, release, sp)
+        response = await _read_release_page(retry_call, offset, release, sp)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -324,7 +335,7 @@ def load_release_tracks(
     return tuple(sorted(tracks, key=_release_track_order))
 
 
-def current_year_releases(
+async def async_current_year_releases(
     sp: Spotify,
     artist_id: str,
     year: int,
@@ -347,7 +358,9 @@ def current_year_releases(
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
-        response = _read_year_release_page(retry_call, year, artist_id, offset, sp)
+        response = await _read_year_release_page(
+            retry_call, year, artist_id, offset, sp
+        )
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -370,7 +383,7 @@ def _track_index(
     return wine_policy.track_index(tracks, source)
 
 
-def get_liked_statuses(
+async def async_get_liked_statuses(
     sp: Spotify,
     track_ids: list[str],
     cache: dict[str, bool],
@@ -393,7 +406,7 @@ def get_liked_statuses(
     missing = _missing_track_ids(track_ids, cache)
     for start in range(0, len(missing), LIKED_TRACK_BATCH_SIZE):
         batch = missing[start : start + LIKED_TRACK_BATCH_SIZE]
-        response = _read_liked_status_batch(retry_call, batch, sp)
+        response = await _read_liked_status_batch(retry_call, batch, sp)
         if not isinstance(response, list) or len(response) != len(batch):
             raise NewWineError("Spotify returned invalid Liked Songs statuses.")
         for track_id, liked in zip(batch, response, strict=True):
@@ -487,15 +500,20 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "new_wine",
         NewWineStateCodec(),
         StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
+
+
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
 
 
 def append_log(
@@ -585,7 +603,7 @@ def _load_no_discovery_inventory(
     return _unique_inventory_ids(track_ids), _unique_inventory_ids(album_ids)
 
 
-def _live_no_discovery_counts(
+async def _live_no_discovery_counts(
     sp: Spotify,
     artist_name: str,
     track_ids_by_artist: dict[str, tuple[str, ...]],
@@ -598,7 +616,7 @@ def _live_no_discovery_counts(
     )
 
     key = _artist_key(artist_name)
-    return observe_library_affinity(
+    return await observe_library_affinity(
         sp,
         retry_call,
         artist_name,
@@ -677,9 +695,13 @@ def _write_local_albums(albums: list[YourLibraryAlbum], path: Path) -> None:
         sync_stats_history_counts(total_albums=len(albums))
 
 
-def _add_local_album(release: ReleaseCandidate, path: Path) -> bool:
+async def _add_local_album(release: ReleaseCandidate, path: Path) -> bool:
     """Add one newly saved release to albums_total_new.json."""
-    albums = _load_local_albums(path)
+    async with blocking_capacity():
+        file_operation_0 = asyncio.create_task(
+            asyncio.to_thread(_load_local_albums, path)
+        )
+        albums = await finish_blocking(file_operation_0)
     if any(album.spotify_id == release.spotify_id for album in albums):
         return False
     albums.append(
@@ -690,17 +712,29 @@ def _add_local_album(release: ReleaseCandidate, path: Path) -> bool:
         )
     )
     albums.sort(key=album_sort_key)
-    _write_local_albums(albums, path)
+    async with blocking_capacity():
+        file_operation_1 = asyncio.create_task(
+            asyncio.to_thread(_write_local_albums, albums, path)
+        )
+        await finish_blocking(file_operation_1)
     return True
 
 
-def _remove_local_album(album_id: str, path: Path) -> bool:
+async def _remove_local_album(album_id: str, path: Path) -> bool:
     """Remove a live-unsaved album from albums_total_new.json when present."""
-    albums = _load_local_albums(path)
+    async with blocking_capacity():
+        file_operation_0 = asyncio.create_task(
+            asyncio.to_thread(_load_local_albums, path)
+        )
+        albums = await finish_blocking(file_operation_0)
     updated = [album for album in albums if album.spotify_id != album_id]
     if len(updated) == len(albums):
         return False
-    _write_local_albums(updated, path)
+    async with blocking_capacity():
+        file_operation_1 = asyncio.create_task(
+            asyncio.to_thread(_write_local_albums, updated, path)
+        )
+        await finish_blocking(file_operation_1)
     return True
 
 
@@ -712,7 +746,7 @@ def _record_album_evaluation(
     record_evaluation(plan, evaluation)
 
 
-def _add_playlist_track(
+async def _add_playlist_track(
     sp: Spotify,
     playlist_id: str,
     track: ReleaseTrack,
@@ -722,11 +756,11 @@ def _add_playlist_track(
     for attempt in retry_call.attempts(
         f"adding {track.name} to playlist {playlist_id}"
     ):
-        with attempt:
-            _post_track(sp, playlist_id, track)
+        async with attempt:
+            await _post_track(sp, playlist_id, track)
 
 
-def _remove_playlist_track(
+async def _remove_playlist_track(
     sp: Spotify,
     playlist_id: str,
     track: PlaylistTrack,
@@ -736,11 +770,11 @@ def _remove_playlist_track(
     for attempt in retry_call.attempts(
         f"removing {track.name} from playlist {playlist_id}"
     ):
-        with attempt:
-            _delete_track(sp, playlist_id, track)
+        async with attempt:
+            await _delete_track(sp, playlist_id, track)
 
 
-def _refill_new_wine(
+async def _refill_new_wine(
     sp: Spotify,
     new_wine_playlist_id: str,
     wine_cellar_playlist_id: str,
@@ -759,7 +793,7 @@ def _refill_new_wine(
     from spotify_manager.application.wine_cellar import CellarOptions
     from spotify_manager.interfaces.operations.wine_cellar import run_cellar_refill
 
-    state_access = state_access or _state_access(storage.state_path, None)
+    state_access = state_access or _async_state_access(storage.state_path, None)
     options = CellarOptions(
         new_wine_playlist_id,
         wine_cellar_playlist_id,
@@ -768,7 +802,7 @@ def _refill_new_wine(
         NEW_WINE_TARGET_SIZE,
         projected_new_wine_ids,
     )
-    return run_cellar_refill(
+    return await run_cellar_refill(
         sp,
         retry_call,
         state_access,
@@ -811,7 +845,7 @@ def _drop_plan(
     )
 
 
-def flush_new_wine(
+async def async_flush_new_wine(
     sp: Spotify,
     options: NewWineOptions,
     callbacks: NewWineCallbacks,
@@ -835,26 +869,26 @@ def flush_new_wine(
     """
     from spotify_manager.interfaces.operations.new_wine import flush_new_wine as invoke
 
-    return invoke(sp, options, callbacks, storage, year)
+    return await invoke(sp, options, callbacks, storage, year)
 
 
-def _affinity_album_statuses(
+async def _affinity_album_statuses(
     sp: Spotify, artist_name: str, batch: list[str], retry_call: RetryCall
 ) -> tuple[bool, ...]:
     for attempt in retry_call.attempts(f"checking saved albums for {artist_name}"):
-        with attempt:
-            response = sp.current_user_saved_albums_contains(batch)
+        async with attempt:
+            response = await sp.current_user_saved_albums_contains(batch)
     if not isinstance(response, list) or len(response) != len(batch):
         raise NewWineError("Spotify returned invalid saved-album statuses.")
     return tuple(bool(saved) for saved in response)
 
 
-def _affinity_track_statuses(
+async def _affinity_track_statuses(
     sp: Spotify, artist_name: str, batch: list[str], retry_call: RetryCall
 ) -> tuple[bool, ...]:
     for attempt in retry_call.attempts(f"checking liked tracks for {artist_name}"):
-        with attempt:
-            response = sp.current_user_saved_tracks_contains(batch)
+        async with attempt:
+            response = await sp.current_user_saved_tracks_contains(batch)
     if not isinstance(response, list) or len(response) != len(batch):
         raise NewWineError("Spotify returned invalid Liked Songs statuses.")
     return tuple(bool(liked) for liked in response)
@@ -898,42 +932,50 @@ class LocalYearClock:
 _LOCAL_YEAR_RESOURCE = LocalYearClock()
 
 
-def _post_track(sp: Spotify, playlist_id: str, track: ReleaseTrack) -> object:
-    return sp._post(f"playlists/{playlist_id}/items", payload={"uris": [track.uri]})
+async def _post_track(sp: Spotify, playlist_id: str, track: ReleaseTrack) -> object:
+    return await sp._post(
+        f"playlists/{playlist_id}/items", payload={"uris": [track.uri]}
+    )
 
 
-def _delete_track(sp: Spotify, playlist_id: str, track: PlaylistTrack) -> object:
-    return sp._delete(
+async def _delete_track(sp: Spotify, playlist_id: str, track: PlaylistTrack) -> object:
+    return await sp._delete(
         f"playlists/{playlist_id}/items", payload={"items": [{"uri": track.uri}]}
     )
 
 
-def _saved_for_keep(
+async def _saved_for_keep(
     sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall
 ) -> bool:
     for attempt in retry_call.attempts(f"checking whether {release.name} is saved"):
-        with attempt:
-            response = sp.current_user_saved_albums_contains([release.spotify_id])
+        async with attempt:
+            response = await sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
-def _saved_for_drop(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> bool:
+async def _saved_for_drop(
+    sp: Spotify, release: ReleaseCandidate, retry: RetryCall
+) -> bool:
     for attempt in retry.attempts(f"checking whether {release.name} is saved"):
-        with attempt:
-            response = sp.current_user_saved_albums_contains([release.spotify_id])
+        async with attempt:
+            response = await sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
-def _save_album(sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall) -> None:
+async def _save_album(
+    sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall
+) -> None:
     for attempt in retry_call.attempts(f"saving {release.name}"):
-        with attempt:
-            sp.current_user_saved_albums_add([release.spotify_id])
+        async with attempt:
+            await sp.current_user_saved_albums_add([release.spotify_id])
 
 
-def _unsave_album(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> None:
+async def _unsave_album(
+    sp: Spotify, release: ReleaseCandidate, retry: RetryCall
+) -> None:
     for attempt in retry.attempts(f"unsaving {release.name}"):
-        with attempt:
-            sp.current_user_saved_albums_delete([release.spotify_id])
+        async with attempt:
+            await sp.current_user_saved_albums_delete([release.spotify_id])
 
 
 def _append_playlist_items(
@@ -1017,34 +1059,34 @@ def _unique_inventory_ids(
     return unique
 
 
-def _read_playlist_page(
+async def _read_playlist_page(
     retry_call: RetryCall, playlist_id: str, offset: int, sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(
         f"loading playlist {playlist_id} at offset {offset}"
     ):
-        with attempt:
-            return _playlist_request(sp, playlist_id, offset)
+        async with attempt:
+            return await _playlist_request(sp, playlist_id, offset)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _read_release_page(
+async def _read_release_page(
     retry_call: RetryCall, offset: int, release: ReleaseCandidate, sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"loading {release.name} at offset {offset}"):
-        with attempt:
-            return sp.album_tracks(release.spotify_id, limit=50, offset=offset)
+        async with attempt:
+            return await sp.album_tracks(release.spotify_id, limit=50, offset=offset)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _read_year_release_page(
+async def _read_year_release_page(
     retry_call: RetryCall, year: int, artist_id: str, offset: int, sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(
         f"loading {year} releases for artist {artist_id} at offset {offset}"
     ):
-        with attempt:
-            return sp.artist_albums(
+        async with attempt:
+            return await sp.artist_albums(
                 artist_id,
                 include_groups="album,single",
                 limit=ARTIST_RELEASE_PAGE_LIMIT,
@@ -1053,12 +1095,162 @@ def _read_year_release_page(
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _read_liked_status_batch(
+async def _read_liked_status_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(
         f"checking {len(batch)} live Liked Songs statuses"
     ):
-        with attempt:
-            return sp.current_user_saved_tracks_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_tracks_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
+
+
+def load_playlist_tracks(
+    sp: LegacySpotify, playlist_id: str, retry_call: RetryCall | LegacyRetry
+) -> tuple[PlaylistTrack, ...]:
+    """Load every playable item in playlist order.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        playlist_id: Playlist to observe.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Ordered playable markers, preserving duplicate observations.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_playlist_tracks(
+            legacy_spotify(sp), playlist_id, PythonRetry(retry_call)
+        )
+    )
+
+
+def load_release_tracks(
+    sp: LegacySpotify, release: ReleaseCandidate, retry_call: RetryCall | LegacyRetry
+) -> tuple[ReleaseTrack, ...]:
+    """Load and order a release's complete Spotify track list.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        release: Selected release to observe.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Playable tracks ordered by disc and track position.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_release_tracks(legacy_spotify(sp), release, PythonRetry(retry_call))
+    )
+
+
+def current_year_releases(
+    sp: LegacySpotify, artist_id: str, year: int, retry_call: RetryCall | LegacyRetry
+) -> tuple[ReleaseCandidate, ...]:
+    """Return current-year primary-artist albums, EPs, and singles.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Required first credited artist.
+        year: Existing invocation year.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Deduplicated candidates in the original date/type/title/ID order.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_current_year_releases(
+            legacy_spotify(sp), artist_id, year, PythonRetry(retry_call)
+        )
+    )
+
+
+def get_liked_statuses(
+    sp: LegacySpotify,
+    track_ids: list[str],
+    cache: dict[str, bool],
+    retry_call: RetryCall | LegacyRetry,
+) -> dict[str, bool]:
+    """Fill and return live Liked Songs statuses in conservative batches.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        track_ids: Requested IDs in observation order.
+        cache: Run-scoped statuses, updated in place.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        The supplied cache with missing memberships populated.
+
+    Raises:
+        NewWineError: Spotify returns an invalid batch response.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_get_liked_statuses(
+            legacy_spotify(sp), track_ids, cache, PythonRetry(retry_call)
+        )
+    )
+
+
+def flush_new_wine(
+    sp: LegacySpotify,
+    options: NewWineOptions,
+    callbacks: NewWineCallbacks,
+    storage: NewWineStorage | None = None,
+    year: int | None = None,
+) -> FlushSummary:
+    """Keep the historical import as a typed external entry point.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        options: Destinations and execution modes.
+        callbacks: Operator decisions and notifications.
+        storage: Namespace, mirrors and audit files.
+        year: Optional review year.
+
+    Returns:
+        The original New Wine summary.
+
+    Raises:
+        NewWineError: Observations, choices or persistence are invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_new_wine_callbacks,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_new_wine(
+            legacy_spotify(sp),
+            options,
+            python_new_wine_callbacks(callbacks),
+            storage,
+            year,
+        )
+    )

@@ -21,7 +21,7 @@ from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
-def analyse_export(
+async def analyse_export(
     session: AnalysisSession, publication: AnalysisPublication
 ) -> LibrarySyncSummary:
     """Build original offline export mirrors without reading the live library.
@@ -35,24 +35,24 @@ def analyse_export(
     """
     if session.checkpoint["status"] == "finalizing":
         paths = session.paths
-        albums = session.files.models(paths.stage("albums"), YourLibraryAlbum)
-        tracks = session.files.models(paths.stage("tracks"), YourLibraryTrack)
-        followed = session.files.models(paths.stage("artists"), YourLibraryArtist)
-        return finalize_analysis(session, publication, albums, tracks, followed)
-    library = session.files.export(session.paths)
-    albums = prepare_export_resource(
+        albums = await session.files.models(paths.stage("albums"), YourLibraryAlbum)
+        tracks = await session.files.models(paths.stage("tracks"), YourLibraryTrack)
+        followed = await session.files.models(paths.stage("artists"), YourLibraryArtist)
+        return await finalize_analysis(session, publication, albums, tracks, followed)
+    library = await session.files.export(session.paths)
+    albums = await prepare_export_resource(
         session, "albums", library.albums, YourLibraryAlbum
     )
-    tracks = prepare_export_resource(
+    tracks = await prepare_export_resource(
         session, "tracks", library.tracks, YourLibraryTrack
     )
-    followed = prepare_export_resource(
+    followed = await prepare_export_resource(
         session, "artists", library.artists, YourLibraryArtist
     )
-    return finalize_analysis(session, publication, albums, tracks, followed)
+    return await finalize_analysis(session, publication, albums, tracks, followed)
 
 
-def analyse_live(
+async def analyse_live(
     session: AnalysisSession, publication: AnalysisPublication
 ) -> LibrarySyncSummary:
     """Gather original complete live-only sources before publishing sync mirrors.
@@ -66,17 +66,17 @@ def analyse_live(
     """
     if session.checkpoint["status"] != "finalizing":
         for resource in ("albums", "tracks"):
-            refresh_offset(session, resource, True)
-        artists.scan_initial(session)
-        artists.reconcile(session)
+            await refresh_offset(session, resource, True)
+        await artists.scan_initial(session)
+        await artists.reconcile(session)
     paths = session.paths
-    albums = session.files.staged(paths.stage("albums"), YourLibraryAlbum)
-    tracks = session.files.staged(paths.stage("tracks"), YourLibraryTrack)
-    followed = session.files.staged(paths.stage("artists"), YourLibraryArtist)
-    return finalize_analysis(session, publication, albums, tracks, followed)
+    albums = await session.files.staged(paths.stage("albums"), YourLibraryAlbum)
+    tracks = await session.files.staged(paths.stage("tracks"), YourLibraryTrack)
+    followed = await session.files.staged(paths.stage("artists"), YourLibraryArtist)
+    return await finalize_analysis(session, publication, albums, tracks, followed)
 
 
-def refresh_offset(
+async def refresh_offset(
     session: AnalysisSession, resource: offsets.OffsetResource, full: bool
 ) -> None:
     """Select original full-scan or incremental-seed behavior before reconciliation.
@@ -87,13 +87,13 @@ def refresh_offset(
         full: Original explicit full rebuild choice.
     """
     if full:
-        offsets.scan_initial(session, resource)
+        await offsets.scan_initial(session, resource)
     else:
-        offsets.seed_incremental(session, resource)
-    offsets.reconcile(session, resource)
+        await offsets.seed_incremental(session, resource)
+    await offsets.reconcile(session, resource)
 
 
-def refresh_mirrors(
+async def refresh_mirrors(
     session: AnalysisSession, publication: AnalysisPublication, full: bool
 ) -> LibrarySyncSummary:
     """Refresh original canonical albums and tracks without publishing other files.
@@ -108,13 +108,13 @@ def refresh_mirrors(
     """
     if session.checkpoint["status"] != "finalizing":
         for resource in ("albums", "tracks"):
-            refresh_offset(session, resource, full)
-    albums = session.files.staged(session.paths.stage("albums"), YourLibraryAlbum)
-    tracks = session.files.staged(session.paths.stage("tracks"), YourLibraryTrack)
-    return finalize_mirrors(session, publication, albums, tracks)
+            await refresh_offset(session, resource, full)
+    albums = await session.files.staged(session.paths.stage("albums"), YourLibraryAlbum)
+    tracks = await session.files.staged(session.paths.stage("tracks"), YourLibraryTrack)
+    return await finalize_mirrors(session, publication, albums, tracks)
 
 
-def refresh_resource(
+async def refresh_resource(
     session: AnalysisSession,
     publication: AnalysisPublication,
     resource: ResourceName,
@@ -134,41 +134,41 @@ def refresh_resource(
     if session.checkpoint["status"] == "finalizing":
         _target, model_type, _sort_key = resource_config(session.paths, resource)
     else:
-        model_type = _refresh_resource(session, resource, full)
-    models = session.files.staged(session.paths.stage(resource), model_type)
-    return finalize_resource(session, publication, resource, models)
+        model_type = await _refresh_resource(session, resource, full)
+    models = await session.files.staged(session.paths.stage(resource), model_type)
+    return await finalize_resource(session, publication, resource, models)
 
 
-def _refresh_resource(
+async def _refresh_resource(
     session: AnalysisSession, resource: ResourceName, full: bool
 ) -> type[YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist]:
     if resource in {"albums", "tracks"}:
-        refresh_offset(session, cast(offsets.OffsetResource, resource), full)
+        await refresh_offset(session, cast(offsets.OffsetResource, resource), full)
         return YourLibraryAlbum if resource == "albums" else YourLibraryTrack
-    _refresh_artists(session, full)
+    await _refresh_artists(session, full)
     return YourLibraryArtist
 
 
-def _refresh_artists(session: AnalysisSession, full: bool) -> None:
+async def _refresh_artists(session: AnalysisSession, full: bool) -> None:
     if not full:
-        artists.prepare_verification(
+        await artists.prepare_verification(
             session,
             full_rebuild=False,
             reason="using the fast incremental candidate refresh",
         )
-        artists.verify(session)
+        await artists.verify(session)
         return
     state = session.checkpoint["resources"]["artists"]
     if state["status"] != "verifying_fallback":
-        _discover_artists(session)
+        await _discover_artists(session)
     if state["status"] == "verifying_fallback":
-        artists.verify(session)
+        await artists.verify(session)
         return
-    artists.reconcile(session)
+    await artists.reconcile(session)
 
 
-def _discover_artists(session: AnalysisSession) -> None:
+async def _discover_artists(session: AnalysisSession) -> None:
     try:
-        artists.scan_initial(session)
+        await artists.scan_initial(session)
     except _FollowedArtistsEndpointUnavailableError as exc:
-        artists.prepare_verification(session, full_rebuild=True, reason=str(exc))
+        await artists.prepare_verification(session, full_rebuild=True, reason=str(exc))

@@ -6,9 +6,8 @@ from datetime import timedelta
 from threading import Lock
 from typing import Protocol
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http.job_records import AnalysisJob
 from spotify_manager.interfaces.operations import analyse_library as analysis
 
@@ -135,7 +134,7 @@ class AnalysisWorker:
             if self.job.result.status not in {"waiting", "cancelling"}:
                 self.job.result.detail = line
 
-    def wait(self, notice: analysis.RetryNotice) -> bool:
+    async def wait(self, notice: analysis.RetryNotice) -> bool:
         """Wait on this job's original cancellation signal and present retries.
 
         Args:
@@ -147,7 +146,7 @@ class AnalysisWorker:
         retry_at = self.context.now() + timedelta(seconds=notice.delay_seconds)
         failure = _retry_failure(notice)
         self._waiting(notice, retry_at, failure)
-        cancelled = self.job.cancel_event.wait(notice.delay_seconds)
+        cancelled = await self.job.cancel_event.wait(notice.delay_seconds)
         self._retry_finished(cancelled)
         return not cancelled
 
@@ -176,7 +175,7 @@ class AnalysisWorker:
             self.job.result.detail = "Retrying Spotify request"
             self.context.append(self.job, "Retrying Spotify request now.")
 
-    def execute(self) -> analysis.LibrarySyncSummary:
+    async def execute(self) -> analysis.LibrarySyncSummary:
         """Dispatch the original mode with this job's explicit callbacks.
 
         Returns:
@@ -188,17 +187,17 @@ class AnalysisWorker:
             analysis.SpotifyRateLimitError: The original routine pauses its progress.
         """
         if self.mode == "async":
-            return analysis.analyse_library_async_routine(
+            return await analysis.analyse_library_async_routine(
                 echo=self,
                 progress_callback=self,
                 cancel_check=self.job.cancel_event,
             )
         spotify = self._require_spotify()
         if self.mode == "sync":
-            return self._analyse_live(spotify)
+            return await self._analyse_live(spotify)
         if self.mirror_resource is None:
-            return self._refresh_mirrors(spotify)
-        return self._refresh_resource(spotify, self.mirror_resource)
+            return await self._refresh_mirrors(spotify)
+        return await self._refresh_resource(spotify, self.mirror_resource)
 
     def _require_spotify(self) -> Spotify:
         if self.spotify is not None:
@@ -208,8 +207,8 @@ class AnalysisWorker:
             f"A Spotify client is required for {operation}."
         )
 
-    def _analyse_live(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
-        return analysis.analyse_library_sync_routine(
+    async def _analyse_live(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
+        return await analysis.analyse_library_sync_routine(
             spotify,
             echo=self,
             progress_callback=self,
@@ -217,8 +216,8 @@ class AnalysisWorker:
             cancel_check=self.job.cancel_event,
         )
 
-    def _refresh_mirrors(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
-        return analysis.refresh_live_library_mirrors_routine(
+    async def _refresh_mirrors(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
+        return await analysis.refresh_live_library_mirrors_routine(
             spotify,
             echo=self,
             progress_callback=self,
@@ -227,10 +226,10 @@ class AnalysisWorker:
             full_rebuild=self.full_rebuild,
         )
 
-    def _refresh_resource(
+    async def _refresh_resource(
         self, spotify: Spotify, resource: analysis.ResourceName
     ) -> analysis.LibrarySyncSummary:
-        return analysis.refresh_live_library_resource_routine(
+        return await analysis.refresh_live_library_resource_routine(
             spotify,
             resource,
             echo=self,

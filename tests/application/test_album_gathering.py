@@ -40,7 +40,9 @@ class AlbumMemory:
         if self.failure == message:
             raise OSError(message)
 
-    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+    async def search(
+        self, candidate: FoundArtCandidate
+    ) -> tuple[SpotifyAlbumOption, ...]:
         """Read the original ordered eligible editions for one candidate.
 
         Args:
@@ -67,7 +69,7 @@ class AlbumMemory:
         """
         self._step(message)
 
-    def run(self) -> tuple[AlbumRecommendation, ...]:
+    async def run(self) -> tuple[AlbumRecommendation, ...]:
         """Compose and execute an independent original album evidence scenario.
 
         Returns:
@@ -77,7 +79,7 @@ class AlbumMemory:
             OSError: An injected observation fails.
         """
         workflow = AlbumGathering(self, self)
-        return workflow.run(
+        return await workflow.run(
             self.case.candidates,
             self.case.excluded,
             self.case.existing,
@@ -97,14 +99,14 @@ class AlbumMemory:
 @pytest.mark.parametrize(
     "name", ["grouped", "duplicates", "exclusions", "negative-limit", "empty"]
 )
-def test_original_album_observation_and_result_snapshots(name: str) -> None:
+async def test_original_album_observation_and_result_snapshots(name: str) -> None:
     """Observe identical original inputs in order and retain exact serialized results.
 
     Args:
         name: Immutable original scenario name.
     """
     memory = AlbumMemory(read_case(name))
-    result = memory.run()
+    result = await memory.run()
     assert recommendation_records(result) == memory.case.expected
     assert memory.events == memory.case.events
 
@@ -118,7 +120,7 @@ def test_original_album_observation_and_result_snapshots(name: str) -> None:
         "search:Second",
     ],
 )
-def test_observation_failure_stops_at_original_prefix(failure: str) -> None:
+async def test_observation_failure_stops_at_original_prefix(failure: str) -> None:
     """Stop immediately on failed progress or search without later observations.
 
     Args:
@@ -127,35 +129,37 @@ def test_observation_failure_stops_at_original_prefix(failure: str) -> None:
     case = read_case("grouped")
     memory = AlbumMemory(case, failure=failure)
     with pytest.raises(OSError, match=failure):
-        memory.run()
+        (await memory.run())
     assert memory.events == case.events[: case.events.index(failure) + 1]
 
 
-def test_all_excluded_options_still_observe_every_considered_search() -> None:
+async def test_all_excluded_options_still_observe_every_considered_search() -> None:
     """Destination IDs filter evidence after each read rather than skip reads."""
     case = read_case("grouped")
     for group in case.observations.values():
         case.existing.update(option.spotify_id for option in group)
     original_existing = case.existing.copy()
     memory = AlbumMemory(case)
-    assert memory.run() == ()
+    assert (await memory.run()) == ()
     assert memory.events == case.events
     assert case.existing == original_existing
 
 
-def test_empty_pool_has_no_progress_or_search_observations() -> None:
+async def test_empty_pool_has_no_progress_or_search_observations() -> None:
     """An empty candidate pool does not invent read or presentation effects."""
     case = read_case("empty")
     memory = AlbumMemory(case)
     workflow = AlbumGathering(memory, memory)
-    assert workflow.run((), set(), set(), 10, WEEK) == ()
+    assert (await workflow.run((), set(), set(), 10, WEEK)) == ()
     assert memory.events == []
 
 
 class InvalidAlbumSearch:
     """Reject the original catalog observation with its original typed error."""
 
-    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+    async def search(
+        self, candidate: FoundArtCandidate
+    ) -> tuple[SpotifyAlbumOption, ...]:
         """Fail before returning any catalog facts.
 
         Args:
@@ -167,13 +171,13 @@ class InvalidAlbumSearch:
         raise SauvignonSpotifyError("invalid catalog")
 
 
-def test_catalog_error_propagates_after_original_candidate_progress() -> None:
+async def test_catalog_error_propagates_after_original_candidate_progress() -> None:
     """Retain the public catalog-error hierarchy, message and observation boundary."""
     case = read_case("grouped")
     messages: list[str] = []
     workflow = AlbumGathering(InvalidAlbumSearch(), MessageList(messages))
     with pytest.raises(SauvignonSpotifyError, match="invalid catalog") as raised:
-        workflow.run(case.candidates, set(), set(), 2, WEEK)
+        (await workflow.run(case.candidates, set(), set(), 2, WEEK))
     assert isinstance(raised.value, SauvignonError)
     assert isinstance(raised.value, RuntimeError)
     assert raised.value.__cause__ is None

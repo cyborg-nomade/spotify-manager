@@ -27,7 +27,7 @@ class DiscographyPage:
 class DiscographyCatalogSource(Protocol):
     """Read raw-row catalog pages and checked saved membership."""
 
-    def page(self, artist: str, offset: int) -> DiscographyPage:
+    async def page(self, artist: str, offset: int) -> DiscographyPage:
         """Read a catalog page at its original raw offset.
 
         Args:
@@ -38,7 +38,7 @@ class DiscographyCatalogSource(Protocol):
             Parsed releases and complete raw pagination facts.
         """
 
-    def saved(self, identities: list[str]) -> list[bool]:
+    async def saved(self, identities: list[str]) -> list[bool]:
         """Read checked saved statuses in original input order.
 
         Args:
@@ -61,7 +61,7 @@ class DiscographyCatalog:
     source: DiscographyCatalogSource
     batch_size: int = 20
 
-    def run(self, artist: str) -> tuple[CatalogRelease, ...]:
+    async def run(self, artist: str) -> tuple[CatalogRelease, ...]:
         """Read every page, then saved batches, then select canonical editions.
 
         Args:
@@ -73,20 +73,20 @@ class DiscographyCatalog:
         Raises:
             DiscographyError: Original next-page authority has no raw rows.
         """
-        releases = self._releases(artist)
+        releases = await self._releases(artist)
         observed = []
         for start in range(0, len(releases), self.batch_size):
             batch = releases[start : start + self.batch_size]
             identities = [release.spotify_id for release in batch]
-            statuses = self.source.saved(identities)
+            statuses = await self.source.saved(identities)
             observed.extend(_saved_releases(batch, statuses))
         return canonical_releases(observed)
 
-    def _releases(self, artist: str) -> list[CatalogRelease]:
+    async def _releases(self, artist: str) -> list[CatalogRelease]:
         candidates: dict[str, CatalogRelease] = {}
         offset = 0
         while True:
-            page = self.source.page(artist, offset)
+            page = await self.source.page(artist, offset)
             for release in page.releases:
                 candidates[release.spotify_id] = release
             offset += page.rows

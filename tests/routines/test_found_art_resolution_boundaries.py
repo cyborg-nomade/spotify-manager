@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.routines.test_found_art import candidate
@@ -93,11 +94,15 @@ class MatchingSteps:
 
 
 def _install(steps: MatchingSteps, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(blast, "search_spotify_matches", steps.search)
-    monkeypatch.setattr(blast, "liked_spotify_track_ids", steps.liked)
+    monkeypatch.setattr(
+        blast, "async_search_spotify_matches", AsyncMock(side_effect=steps.search)
+    )
+    monkeypatch.setattr(
+        blast, "async_liked_spotify_track_ids", AsyncMock(side_effect=steps.liked)
+    )
 
 
-def _resolve(
+async def _resolve(
     candidates: tuple[found_art.FoundArtCandidate, ...],
     steps: MatchingSteps,
     count: int = 1,
@@ -115,7 +120,7 @@ def _resolve(
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_batch_is_fully_observed_before_artist_and_capacity_decisions(
+async def test_batch_is_fully_observed_before_artist_and_capacity_decisions(
     monkeypatch: pytest.MonkeyPatch,
     dry_run: bool,
 ) -> None:
@@ -143,7 +148,7 @@ def test_batch_is_fully_observed_before_artist_and_capacity_decisions(
         candidate("Stop", "Stop", 1),
         candidate("Later", "Later", 1),
     )
-    results, pending = _resolve(candidates, steps, dry_run=dry_run)
+    results, pending = await _resolve(candidates, steps, dry_run=dry_run)
     assert [result.action for result in results] == [
         "would add" if dry_run else "added",
         "artist already selected",
@@ -156,7 +161,7 @@ def test_batch_is_fully_observed_before_artist_and_capacity_decisions(
     assert len(steps.messages) == 7
 
 
-def test_liked_identity_wins_over_playlist_membership_and_rank_ignores_album(
+async def test_liked_identity_wins_over_playlist_membership_and_rank_ignores_album(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Liked matches suppress additions even when present or weaker than unliked ones.
@@ -171,7 +176,7 @@ def test_liked_identity_wins_over_playlist_membership_and_rank_ignores_album(
         {"liked-low", "liked-high"},
     )
     _install(steps, monkeypatch)
-    results, pending = _resolve(
+    results, pending = await _resolve(
         (candidate("Artist", "Song", 1),),
         steps,
         playlist=blast.PlaylistState(1, frozenset({"liked-low"})),
@@ -181,7 +186,7 @@ def test_liked_identity_wins_over_playlist_membership_and_rank_ignores_album(
     assert results[0].match == replace(low_album, liked=True)
 
 
-def test_key_membership_skips_search_but_retains_empty_liked_batch(
+async def test_key_membership_skips_search_but_retains_empty_liked_batch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Read liked status even when every candidate key skips catalog search.
@@ -192,7 +197,7 @@ def test_key_membership_skips_search_but_retains_empty_liked_batch(
     item = candidate("Artist", "Song", 1)
     steps = MatchingSteps()
     _install(steps, monkeypatch)
-    results, pending = _resolve(
+    results, pending = await _resolve(
         (item,),
         steps,
         playlist=blast.PlaylistState(1, frozenset(), frozenset({item.key})),
@@ -203,7 +208,7 @@ def test_key_membership_skips_search_but_retains_empty_liked_batch(
 
 
 @pytest.mark.parametrize("count", [0, -1])
-def test_nonpositive_helper_count_has_no_observations(
+async def test_nonpositive_helper_count_has_no_observations(
     monkeypatch: pytest.MonkeyPatch,
     count: int,
 ) -> None:
@@ -215,7 +220,7 @@ def test_nonpositive_helper_count_has_no_observations(
     """
     steps = MatchingSteps()
     _install(steps, monkeypatch)
-    assert _resolve((candidate("Artist", "Song", 1),), steps, count) == ((), ())
+    assert (await _resolve((candidate("Artist", "Song", 1),), steps, count)) == ((), ())
     assert steps.events == []
     assert steps.messages == []
 
@@ -227,7 +232,7 @@ def test_nonpositive_helper_count_has_no_observations(
         ("liked", [("search", "One"), ("search", "Two"), ("liked", ((), ()))]),
     ],
 )
-def test_failed_batch_observation_prevents_projection(
+async def test_failed_batch_observation_prevents_projection(
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
     events: list[MatchEvent],
@@ -242,11 +247,15 @@ def test_failed_batch_observation_prevents_projection(
     steps = MatchingSteps(failure=failure)
     _install(steps, monkeypatch)
     with pytest.raises(OSError, match=failure):
-        _resolve((candidate("One", "One", 1), candidate("Two", "Two", 1)), steps)
+        (
+            await _resolve(
+                (candidate("One", "One", 1), candidate("Two", "Two", 1)), steps
+            )
+        )
     assert steps.events == events
 
 
-def test_final_batch_retains_original_slice_beyond_search_maximum(
+async def test_final_batch_retains_original_slice_beyond_search_maximum(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Retain full final slices when configured limits do not divide the batch size.
@@ -259,7 +268,7 @@ def test_final_batch_retains_original_slice_beyond_search_maximum(
     steps = MatchingSteps()
     _install(steps, monkeypatch)
     candidates = tuple(candidate(str(index), str(index), 1) for index in range(5))
-    results, pending = _resolve(candidates, steps, count=4)
+    results, pending = await _resolve(candidates, steps, count=4)
     assert len(results) == 5 and pending == ()
     assert steps.messages[-2:] == [
         "Searching Spotify candidate 5/4",

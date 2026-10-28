@@ -15,7 +15,7 @@ type FlushAction = Literal["advance", "drop", "sauvignon", "complete single", "s
 class ReleaseChoiceReader(Protocol):
     """Own the operator interaction for choose release."""
 
-    def choose_release(
+    async def choose_release(
         self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...], /
     ) -> str:
         """Read or report the original operator interaction.
@@ -33,7 +33,7 @@ class ReleaseChoiceReader(Protocol):
 class EndpointChoiceReader(Protocol):
     """Own the operator interaction for choose endpoint."""
 
-    def choose_endpoint(
+    async def choose_endpoint(
         self,
         source: PlaylistTrack,
         tracks: tuple[ReleaseTrack, ...],

@@ -1,5 +1,6 @@
 """Tests for the FastAPI interface with isolated Spotify and file dependencies."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
@@ -11,6 +12,7 @@ from time import monotonic
 from time import sleep
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -24,14 +26,18 @@ from spotify_manager.api import get_analysis_client
 from spotify_manager.api import get_client
 from spotify_manager.api import get_interactive_client
 from spotify_manager.api import get_library
+from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.core.library_data.service import ArtifactStatus
 from spotify_manager.infrastructure.routine_state_codecs import ReleaseCheckStateCodec
+from spotify_manager.infrastructure.spotify_async.oauth import OAuthProvisioner
+from spotify_manager.infrastructure.spotify_async.retries import RetryProfile
 from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.interfaces.http.workers.slow_listening import SlowListeningWorker
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+from tests.spotify_async.memory import TokenMemory
 from tests.support.feature_invocation import FeatureInvocation
 from tests.support.runtime_resources import UnexpectedInteraction
 from tests.support.wine_invocation import WineInvocation
@@ -73,7 +79,7 @@ class FakeSpotify:
         self.event_callback = callback
         return previous
 
-    def search(
+    async def search(
         self,
         q,
         limit=10,
@@ -96,10 +102,10 @@ class FakeSpotify:
             return {"albums": {"items": items}}
         raise AssertionError(f"unexpected search type: {type}")
 
-    def artist(self, artist_id):
+    async def artist(self, artist_id):
         return {"id": artist_id, "name": "Radiohead"}
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id,
         album_type=None,
@@ -119,27 +125,27 @@ class FakeSpotify:
             "next": None,
         }
 
-    def albums(self, album_ids, market=None):
+    async def albums(self, album_ids, market=None):
         return {
             "albums": [
                 {
                     "id": album_id,
                     "name": "OK Computer",
                     "artists": [{"id": "art1", "name": "Radiohead"}],
-                    "tracks": self.album_tracks(album_id),
+                    "tracks": await self.album_tracks(album_id),
                 }
                 for album_id in album_ids
             ]
         }
 
-    def album(self, album_id, market=None):
+    async def album(self, album_id, market=None):
         return {
             "id": album_id,
             "name": "OK Computer",
             "artists": [{"id": "art1", "name": "Radiohead"}],
         }
 
-    def album_tracks(self, album_id, limit=50, offset=0):
+    async def album_tracks(self, album_id, limit=50, offset=0):
         return {
             "items": [
                 {
@@ -164,10 +170,10 @@ class FakeSpotify:
             "next": None,
         }
 
-    def current_user_saved_albums_contains(self, album_ids):
+    async def current_user_saved_albums_contains(self, album_ids):
         return [album_id == "alb1" for album_id in album_ids]
 
-    def current_user_saved_tracks_contains(self, track_ids=None):
+    async def current_user_saved_tracks_contains(self, track_ids=None):
         return [track_id in {"t1", "t2"} for track_id in (track_ids or [])]
 
 
@@ -489,7 +495,7 @@ def test_artist_stats_endpoint(client: TestClient) -> None:
         resp = client.get("/artists/stats", params={"name": "radiohead"})
     finally:
         app.dependency_overrides[get_library] = _library
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["artist_id"] == "art1"
     assert body["liked_tracks"] == 2
@@ -572,7 +578,9 @@ def test_track_scrobble_endpoint_accepts_spotify_share_link(
             source="spotify-live + lastfm-history",
         )
 
-    monkeypatch.setattr(http_jobs, "get_track_scrobble_status", lookup)
+    monkeypatch.setattr(
+        http_jobs, "get_track_scrobble_status", AsyncMock(side_effect=lookup)
+    )
 
     response = client.get(
         "/tracks/scrobbles",
@@ -609,7 +617,9 @@ def test_track_scrobble_ambiguity_returns_candidates(
             [{"track": "Song", "artist": "Artist", "album": "Album", "id": "id"}],
         )
 
-    monkeypatch.setattr(http_jobs, "get_track_scrobble_status", fail)
+    monkeypatch.setattr(
+        http_jobs, "get_track_scrobble_status", AsyncMock(side_effect=fail)
+    )
 
     response = client.get("/tracks/scrobbles", params={"name": "Song"})
 
@@ -621,7 +631,7 @@ def test_live_lookup_spotify_500_is_reported_as_bad_gateway(
     client: TestClient,
 ) -> None:
     class FailingSpotify:
-        def search(self, **kwargs):
+        async def search(self, **kwargs):
             raise SpotifyException(500, -1, "Spotify unavailable")
 
     app.dependency_overrides[get_client] = FailingSpotify
@@ -638,7 +648,7 @@ def test_live_lookup_connection_failure_is_reported_as_bad_gateway(
     client: TestClient,
 ) -> None:
     class FailingSpotify:
-        def search(self, **kwargs):
+        async def search(self, **kwargs):
             raise RequestsConnectionError("connection reset")
 
     app.dependency_overrides[get_client] = FailingSpotify
@@ -654,7 +664,9 @@ def test_live_lookup_connection_failure_is_reported_as_bad_gateway(
 def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:
     from spotify_manager.interfaces.http import jobs as http_jobs
 
-    monkeypatch.setattr(http_jobs, "count_artists_in_library", lambda: 42)
+    monkeypatch.setattr(
+        http_jobs, "count_artists_in_library", AsyncMock(side_effect=lambda: 42)
+    )
     resp = client.get("/commands/count-artists")
     assert resp.json() == {"count": 42}
 
@@ -680,34 +692,36 @@ def test_legacy_command_endpoints_delegate_to_workflows(
     monkeypatch.setattr(
         http_jobs,
         "compare_your_library_and_all_albums",
-        lambda: calls.append(("compare", None)),
+        AsyncMock(side_effect=lambda: calls.append(("compare", None))),
     )
     monkeypatch.setattr(
         http_jobs,
         "convert_your_library_file",
-        lambda spotify: calls.append(("convert", spotify)),
+        AsyncMock(side_effect=lambda spotify: calls.append(("convert", spotify))),
     )
     monkeypatch.setattr(
         http_jobs,
         "run_monthly_routines",
-        lambda spotify: calls.append(("monthly", spotify)),
+        AsyncMock(side_effect=lambda spotify: calls.append(("monthly", spotify))),
     )
     monkeypatch.setattr(
         http_jobs,
         "update_total_album_list",
-        lambda spotify, just_update: (
-            calls.append((f"update:{just_update}", spotify)) or [1, 2]
+        AsyncMock(
+            side_effect=lambda spotify, just_update: (
+                calls.append((f"update:{just_update}", spotify)) or [1, 2]
+            )
         ),
     )
     monkeypatch.setattr(
         http_jobs,
         "restore_your_library_from_file",
-        lambda spotify: calls.append(("restore", spotify)),
+        AsyncMock(side_effect=lambda spotify: calls.append(("restore", spotify))),
     )
     monkeypatch.setattr(
         http_jobs,
         "analyse_comparison",
-        lambda spotify: calls.append(("analyse", spotify)),
+        AsyncMock(side_effect=lambda spotify: calls.append(("analyse", spotify))),
     )
 
     monthly = client.post("/commands/monthly-routines")
@@ -767,7 +781,9 @@ def test_artist_lookup_domain_errors_use_structured_responses(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(
+        http_jobs, "get_live_artist_library_stats", AsyncMock(side_effect=fail)
+    )
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -800,7 +816,7 @@ def test_album_lookup_domain_errors_use_structured_responses(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr(api, "review_album", fail)
+    monkeypatch.setattr(api, "review_album", AsyncMock(side_effect=fail))
 
     response = client.get("/albums/evaluation", params={"name": "Album"})
 
@@ -825,7 +841,9 @@ def test_spotify_lookup_error_preserves_only_safe_client_statuses(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise SpotifyException(status_code, -1, "Spotify failed")
 
-    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(
+        http_jobs, "get_live_artist_library_stats", AsyncMock(side_effect=fail)
+    )
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -847,7 +865,9 @@ def test_spotify_lookup_rate_limit_returns_retry_header(
             headers={"Retry-After": "120"},
         )
 
-    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(
+        http_jobs, "get_live_artist_library_stats", AsyncMock(side_effect=fail)
+    )
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -892,7 +912,7 @@ def test_album_evaluation_connection_failure_is_reported_as_bad_gateway(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise RequestsConnectionError("connection reset")
 
-    monkeypatch.setattr(api, "review_album", fail)
+    monkeypatch.setattr(api, "review_album", AsyncMock(side_effect=fail))
 
     response = client.get("/albums/evaluation", params={"name": "Album"})
 
@@ -900,51 +920,35 @@ def test_album_evaluation_connection_failure_is_reported_as_bad_gateway(
     assert "could not be reached" in response.json()["detail"]
 
 
-def test_cached_dependency_factories_use_expected_client_modes(
+async def test_native_dependency_factories_retain_client_profiles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[dict[str, object]] = []
-    clients = iter([object(), object(), object()])
-    monkeypatch.setattr(
-        http_jobs,
-        "get_spotipy_client",
-        lambda **kwargs: calls.append(kwargs) or next(clients),
-    )
-    monkeypatch.setattr(http_jobs, "load_your_library_file", _library)
-    for dependency in (
-        api.get_client,
-        api.get_analysis_client,
-        api.get_interactive_client,
-        api.get_library,
-    ):
-        dependency.cache_clear()
+    """Reuse lifespan-owned profiles and retain the process-local library cache.
 
-    assert api.get_client() is api.get_client()
-    assert api.get_analysis_client() is api.get_analysis_client()
-    assert api.get_interactive_client() is api.get_interactive_client()
-    assert api.get_library() is api.get_library()
-    assert calls == [
-        {"allow_interactive_auth": False},
-        {
-            "retries": 0,
-            "status_retries": 0,
-            "status_forcelist": (999,),
-            "allow_interactive_auth": False,
-        },
-        {
-            "retries": 0,
-            "status_retries": 0,
-            "status_forcelist": (999,),
-            "allow_interactive_auth": False,
-        },
-    ]
-    for dependency in (
-        api.get_client,
-        api.get_analysis_client,
-        api.get_interactive_client,
-        api.get_library,
-    ):
-        dependency.cache_clear()
+    Args:
+        monkeypatch: Isolated OAuth and file resources.
+    """
+    token = TokenMemory()
+    monkeypatch.setattr(OAuthProvisioner, "open_sources", Mock(return_value=(token,)))
+    monkeypatch.setattr(http_jobs, "load_your_library_file", _library)
+    api.get_library.cache_clear()
+    try:
+        async with ExecutionRuntime():
+            standard = await api.get_client()
+            analysis = await api.get_analysis_client()
+            interactive = await api.get_interactive_client()
+            assert standard is await api.get_client()
+            assert analysis is await api.get_analysis_client()
+            assert interactive is await api.get_interactive_client()
+            assert analysis is not interactive
+            assert analysis.transport.profile == RetryProfile(0, 0, (999,))
+            assert interactive.transport.profile == RetryProfile(0, 0, (999,))
+            assert standard.transport.http is analysis.transport.http
+            assert standard.transport.http is interactive.transport.http
+            assert api.get_library() is api.get_library()
+        assert standard.transport.http.is_closed and token.closed
+    finally:
+        api.get_library.cache_clear()
 
 
 def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
@@ -1215,7 +1219,9 @@ def test_blast_from_the_past_endpoint_runs_background_job(
         ),
     )
     monkeypatch.setattr(
-        api.blast_from_past, "add_blast_from_past_to_spotify", scenario.complete
+        api.blast_from_past,
+        "add_blast_from_past_to_spotify",
+        AsyncMock(side_effect=scenario.complete),
     )
     response = client.post("/commands/blast-from-the-past")
     assert response.status_code == 202
@@ -1253,7 +1259,7 @@ def test_blast_from_the_past_artists_endpoint_runs_background_job(
     monkeypatch.setattr(
         api.blast_from_past_artists,
         "add_dormant_artists_to_blast_from_past",
-        scenario.complete,
+        AsyncMock(side_effect=scenario.complete),
     )
     response = client.post("/commands/blast-from-the-past-artists")
     assert response.status_code == 202
@@ -1326,7 +1332,9 @@ def test_daily_mind_radio_endpoint_runs_background_job(
         batch=batch, match=match, selection=selection
     )
     monkeypatch.setattr(
-        api.daily_mind_radio, "add_daily_mind_radio_to_spotify", scenario.complete
+        api.daily_mind_radio,
+        "add_daily_mind_radio_to_spotify",
+        AsyncMock(side_effect=scenario.complete),
     )
     response = client.post("/commands/daily-mind-radio")
     assert response.status_code == 202
@@ -1376,7 +1384,9 @@ def test_active_daily_mind_radio_job_can_be_restored(
         batch=batch, release=release
     )
     monkeypatch.setattr(
-        api.daily_mind_radio, "add_daily_mind_radio_to_spotify", scenario.blocked
+        api.daily_mind_radio,
+        "add_daily_mind_radio_to_spotify",
+        AsyncMock(side_effect=scenario.blocked),
     )
     started = client.post("/commands/daily-mind-radio")
     active = client.get("/commands/daily-mind-radio-jobs")
@@ -1440,13 +1450,15 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
     scenario = FoundArtEndpointRunsBackgroundJobWithRequestedCountScenario(
         candidate=candidate, match=match, received=received
     )
-    monkeypatch.setattr(api.found_art, "run_found_art", scenario.complete)
+    monkeypatch.setattr(
+        api.found_art, "run_found_art", AsyncMock(side_effect=scenario.complete)
+    )
     response = client.post("/commands/found-art", params={"count": 7})
     assert response.status_code == 202
     result = wait_for_found_art_status(client, response.json()["job_id"], {"completed"})
     assert received["playlist_id"] == "found"
     assert received["count"] == 7
-    assert received["lastfm"].api_key == "lastfm-key"
+    assert received["lastfm"].client.api_key == "lastfm-key"
     assert received["lastfm"].username == "lastfm-user"
     assert result["command"] == "found_art"
     assert result["requested_count"] == 7
@@ -1683,7 +1695,9 @@ def test_queue_flush_web_job_returns_live_decisions(
         ),
     )
     scenario = QueueFlushWebJobReturnsLiveDecisionsScenario(received=received)
-    monkeypatch.setattr(api.the_queue, "flush_queue", scenario.flush)
+    monkeypatch.setattr(
+        api.the_queue, "flush_queue", AsyncMock(side_effect=scenario.flush)
+    )
     started = client.post("/commands/flush-queue", params={"dry_run": "true"})
     assert started.status_code == 202
     job_id = started.json()["job_id"]
@@ -1848,7 +1862,9 @@ def test_queue_3_previous_year_import_has_a_separate_web_action(
     )
     scenario = Queue3PreviousYearImportHasASeparateWebActionScenario(received=received)
     monkeypatch.setattr(
-        api.queue_3, "import_previous_year_discoveries", scenario.import_previous_year
+        api.queue_3,
+        "import_previous_year_discoveries",
+        AsyncMock(side_effect=scenario.import_previous_year),
     )
     monkeypatch.setattr(
         api.queue_3,
@@ -2102,7 +2118,11 @@ def test_slow_listening_web_job_handles_all_interactive_choices(
             )
         ),
     )
-    monkeypatch.setattr(api.slow_listening, "flush_slow_listening", scenario.flush)
+    monkeypatch.setattr(
+        api.slow_listening,
+        "flush_slow_listening",
+        AsyncMock(side_effect=scenario.flush),
+    )
     started = client.post("/commands/flush-slow-listening", params={"dry_run": "false"})
     assert started.status_code == 202
     job_id = started.json()["job_id"]
@@ -2159,9 +2179,15 @@ def test_slow_listening_web_job_retries_a_connection_reset(
             )
         ),
     )
-    monkeypatch.setattr(SlowListeningWorker, "sleep", Mock(return_value=None))
+    monkeypatch.setattr(
+        SlowListeningWorker, "sleep", AsyncMock(side_effect=Mock(return_value=None))
+    )
     scenario = SlowListeningWebJobRetriesAConnectionResetScenario(attempts=attempts)
-    monkeypatch.setattr(api.slow_listening, "flush_slow_listening", scenario.flush)
+    monkeypatch.setattr(
+        api.slow_listening,
+        "flush_slow_listening",
+        AsyncMock(side_effect=scenario.flush),
+    )
     started = client.post("/commands/flush-slow-listening", params={"dry_run": "true"})
     assert started.status_code == 202
     completed = wait_for_slow_listening_status(
@@ -2315,8 +2341,12 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
             )
         ),
     )
-    monkeypatch.setattr(api.discography, "build_discography_plan", scenario.build)
-    monkeypatch.setattr(api.discography, "apply_discography_plan", scenario.apply)
+    monkeypatch.setattr(
+        api.discography, "build_discography_plan", AsyncMock(side_effect=scenario.build)
+    )
+    monkeypatch.setattr(
+        api.discography, "apply_discography_plan", AsyncMock(side_effect=scenario.apply)
+    )
     started = client.post("/commands/plan-discographies", params={"dry_run": "false"})
     assert started.status_code == 202
     job_id = started.json()["job_id"]
@@ -2364,7 +2394,9 @@ def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
         ),
     )
     monkeypatch.setattr(
-        api.requeue_for_a_dream, "flush_requeue_for_a_dream", scenario.run
+        api.requeue_for_a_dream,
+        "flush_requeue_for_a_dream",
+        AsyncMock(side_effect=scenario.run),
     )
     started = client.post(
         "/commands/flush-requeue-for-a-dream", params={"dry_run": "true"}
@@ -2430,7 +2462,9 @@ def test_palace_web_can_persist_only_cursor_without_playlist_config(
 
     scenario = PalaceWebCanPersistOnlyCursorWithoutPlaylistConfigScenario()
     monkeypatch.setattr(
-        api.palace_of_memory, "set_alphabetical_cursor", scenario.set_cursor
+        api.palace_of_memory,
+        "set_alphabetical_cursor",
+        AsyncMock(side_effect=scenario.set_cursor),
     )
     monkeypatch.setattr(
         http_jobs,
@@ -2489,7 +2523,9 @@ def test_scrobble_history_web_job_reports_refresh_summary(
         history=history, received=received
     )
     monkeypatch.setattr(
-        api.scrobble_history, "refresh_scrobble_history", scenario.refresh
+        api.scrobble_history,
+        "refresh_scrobble_history",
+        AsyncMock(side_effect=scenario.refresh),
     )
     started = client.post(
         "/commands/update-scrobble-history", params={"dry_run": "false"}
@@ -2866,7 +2902,9 @@ def test_async_analysis_endpoint_runs_background_job_without_client(
 
     scenario = AsyncAnalysisEndpointRunsBackgroundJobWithoutClientScenario()
     monkeypatch.setattr(
-        api.library_analysis, "analyse_library_async_routine", scenario.complete_export
+        api.library_analysis,
+        "analyse_library_async_routine",
+        AsyncMock(side_effect=scenario.complete_export),
     )
     response = client.post("/commands/analyse-library-async")
     assert response.status_code == 202
@@ -2894,7 +2932,9 @@ def test_sync_analysis_endpoint_uses_injected_no_retry_client(
     calls = []
     scenario = SyncAnalysisEndpointUsesInjectedNoRetryClientScenario(calls=calls)
     monkeypatch.setattr(
-        api.library_analysis, "analyse_library_sync_routine", scenario.complete_sync
+        api.library_analysis,
+        "analyse_library_sync_routine",
+        AsyncMock(side_effect=scenario.complete_sync),
     )
     response = client.post("/commands/analyse-library-sync")
     assert response.status_code == 202
@@ -2926,7 +2966,7 @@ def test_live_mirror_refresh_endpoint_skips_artist_progress(
     monkeypatch.setattr(
         api.library_analysis,
         "refresh_live_library_mirrors_routine",
-        scenario.complete_refresh,
+        AsyncMock(side_effect=scenario.complete_refresh),
     )
     response = client.post(
         "/commands/refresh-library-mirrors",
@@ -2975,7 +3015,7 @@ def test_independent_live_mirror_refresh_endpoint(
     monkeypatch.setattr(
         api.library_analysis,
         "refresh_live_library_resource_routine",
-        scenario.complete_resource,
+        AsyncMock(side_effect=scenario.complete_resource),
     )
     response = client.post(
         f"/commands/refresh-library-mirrors/{resource}",
@@ -3017,7 +3057,9 @@ def test_live_analysis_job_can_be_cancelled_during_retry_wait(
         http_status=http_status
     )
     monkeypatch.setattr(
-        api.library_analysis, "analyse_library_sync_routine", scenario.wait_for_server
+        api.library_analysis,
+        "analyse_library_sync_routine",
+        AsyncMock(side_effect=scenario.wait_for_server),
     )
     started = client.post("/commands/analyse-library-sync")
     job_id = started.json()["job_id"]
@@ -3043,14 +3085,12 @@ def test_duplicate_active_analysis_is_rejected(
 
     release = api.Event()
 
-    def blocked_export(**_kwargs):
-        release.wait(2)
-        return analysis_summary("async")
+    scenario = ActiveAnalysisJobsCanBeRestoredAfterReloadScenario(release=release)
 
     monkeypatch.setattr(
         api.library_analysis,
         "analyse_library_async_routine",
-        blocked_export,
+        AsyncMock(side_effect=scenario.blocked_export),
     )
 
     first = client.post("/commands/analyse-library-async")
@@ -3077,7 +3117,9 @@ def test_active_analysis_jobs_can_be_restored_after_reload(
     release = api.Event()
     scenario = ActiveAnalysisJobsCanBeRestoredAfterReloadScenario(release=release)
     monkeypatch.setattr(
-        api.library_analysis, "analyse_library_async_routine", scenario.blocked_export
+        api.library_analysis,
+        "analyse_library_async_routine",
+        AsyncMock(side_effect=scenario.blocked_export),
     )
     started = client.post("/commands/analyse-library-async").json()
     active = client.get("/commands/library-analysis-jobs")
@@ -3114,7 +3156,9 @@ def test_new_year_web_job_routes_and_errors(
     )
     received = {}
     scenario = NewYearWebJobRoutesAndErrorsScenario(outcome=outcome, received=received)
-    monkeypatch.setattr(api.new_year, "run_new_year", scenario.routine)
+    monkeypatch.setattr(
+        api.new_year, "run_new_year", AsyncMock(side_effect=scenario.routine)
+    )
     started = client.post("/commands/new-year?year=2025")
     assert started.status_code == 202
     identity = started.json()["job_id"]
@@ -3135,9 +3179,7 @@ def test_new_year_web_job_routes_and_errors(
 
 
 def test_new_year_job_conflicts_reconnects_and_cancels(client, monkeypatch):
-    monkeypatch.setattr(
-        http_jobs, "Thread", lambda **kwargs: SimpleNamespace(start=lambda: None)
-    )
+    monkeypatch.setattr(api.new_year, "run_new_year", PendingAnnualRun())
     started = client.post("/commands/new-year")
     identity = started.json()["job_id"]
     conflict = client.post("/commands/new-year")
@@ -3406,7 +3448,7 @@ class ActiveDailyMindRadioJobCanBeRestoredScenario:
     batch: api.daily_mind_radio.DailyMindRadioBatch
     release: api.Event
 
-    def blocked(
+    async def blocked(
         self, _spotify: Any, playlist_id: Any, **kwargs: Any
     ) -> api.daily_mind_radio.DailyMindRadioSpotifySummary:
         """Execute the original blocked mock boundary.
@@ -3420,7 +3462,7 @@ class ActiveDailyMindRadioJobCanBeRestoredScenario:
             Original fixture result.
         """
         kwargs["progress_callback"].echo("Reading anniversary dates")
-        self.release.wait(2)
+        await self.release.wait(2)
         return api.daily_mind_radio.DailyMindRadioSpotifySummary(
             playlist_id=playlist_id,
             batch=self.batch,
@@ -3505,7 +3547,7 @@ class SauvignonWebJobWaitsForAlbumChoiceAndCompletesScenario:
     recommendation: api.sauvignon.AlbumRecommendation
     second_option: api.sauvignon.SpotifyAlbumOption
 
-    def __call__(
+    async def __call__(
         self,
         spotify: Any,
         lastfm: Any,
@@ -3535,7 +3577,7 @@ class SauvignonWebJobWaitsForAlbumChoiceAndCompletesScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].echo("Resolving album recommendations")
-        choice = choice_reader.choose_album(
+        choice = await choice_reader.choose_album(
             self.recommendation, self.recommendation.options
         )
         self.received["choice"] = choice
@@ -3686,7 +3728,7 @@ class NewKidsWebJobWaitsForAndAppliesReleaseChoiceScenario:
     received: dict[str, object]
     release: api.new_kids.RankedRelease
 
-    def __call__(
+    async def __call__(
         self,
         spotify: Any,
         new_playlist_id: Any,
@@ -3720,7 +3762,7 @@ class NewKidsWebJobWaitsForAndAppliesReleaseChoiceScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].progress(0, 1, "Reviewing Artist")
-        choice = kwargs["choice_reader"].choose(
+        choice = await kwargs["choice_reader"].choose(
             "Artist", (self.composer_playlist, self.release)
         )
         self.received["choice"] = choice
@@ -3867,7 +3909,7 @@ class QueueFillWebJobWaitsForArtistMappingScenario:
     recommendation: api.the_queue.ArtistRecommendation
     track: api.new_kids.CatalogTrack
 
-    def __call__(
+    async def __call__(
         self,
         spotify: Any,
         lastfm: Any,
@@ -3896,7 +3938,7 @@ class QueueFillWebJobWaitsForArtistMappingScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].progress(0, 1, "Resolving Last.fm Artist")
-        self.received["choice"] = choice_reader.choose_artist(
+        self.received["choice"] = await choice_reader.choose_artist(
             self.recommendation, (self.artist,)
         )
         kwargs["echo"].echo("Would add Spotify Artist - Queue Marker to The Queue.")
@@ -4107,7 +4149,7 @@ class Queue2WebJobWaitsForAndAppliesReleaseChoiceScenario:
     received: dict[str, object]
     release: api.new_kids.RankedRelease
 
-    def __call__(
+    async def __call__(
         self,
         spotify: Any,
         new_playlist_id: Any,
@@ -4141,7 +4183,7 @@ class Queue2WebJobWaitsForAndAppliesReleaseChoiceScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].progress(0, 1, "Reviewing Artist")
-        choice = kwargs["choice_reader"].choose("Artist", (self.release,))
+        choice = await kwargs["choice_reader"].choose("Artist", (self.release,))
         self.received["choice"] = choice
         kwargs["echo"].echo(f"Selected {choice}")
         return api.new_kids.Queue2Summary(
@@ -4214,7 +4256,7 @@ class Queue3WebJobHandlesReleaseAndComposerChoicesScenario:
             edition_rank=0,
         )
 
-    def __call__(
+    async def __call__(
         self, spotify: Any, playlist_id: Any, transition_reader: Any, **kwargs: Any
     ) -> api.queue_3.FlushSummary:
         """Execute the original flush mock boundary.
@@ -4234,12 +4276,12 @@ class Queue3WebJobHandlesReleaseAndComposerChoicesScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].progress(0, 2, "Reviewing Artist")
-        self.received["release_choice"] = transition_reader.choose_transition(
+        self.received["release_choice"] = await transition_reader.choose_transition(
             self.source,
             self.boundary_release("current", "Current Release", "2020-01-01"),
             self.boundary_release("next", "Next Release", "2021-01-01"),
         )
-        self.received["composer_choice"] = kwargs[
+        self.received["composer_choice"] = await kwargs[
             "composer_playlist_reader"
         ].choose_composer(
             "Johann Sebastian Bach",
@@ -4435,7 +4477,7 @@ class NewWineWebJobWaitsForAndAppliesReleaseChoiceScenario:
     received: dict[str, object]
     source: api.new_wine.PlaylistTrack
 
-    def __call__(
+    async def __call__(
         self,
         spotify: Any,
         new_playlist_id: Any,
@@ -4462,7 +4504,7 @@ class NewWineWebJobWaitsForAndAppliesReleaseChoiceScenario:
             no_discovery=kwargs["no_discovery"],
         )
         kwargs["progress_callback"].progress(0, 1, "Reviewing Current Track")
-        choice = kwargs["choice_reader"].choose_release(
+        choice = await kwargs["choice_reader"].choose_release(
             self.source, (self.current, self.alternative)
         )
         self.received["choice"] = choice
@@ -4642,7 +4684,7 @@ class NewWineWebJobAcceptsCanonicalAlbumEndpointScenario:
     source: api.new_wine.PlaylistTrack
     tracks: tuple[object, ...]
 
-    def __call__(
+    async def __call__(
         self, _spotify: Any, _new_playlist: Any, _sauvignon_playlist: Any, **kwargs: Any
     ) -> api.new_wine.FlushSummary:
         """Execute the original flush mock boundary.
@@ -4657,9 +4699,9 @@ class NewWineWebJobAcceptsCanonicalAlbumEndpointScenario:
             Original fixture result.
         """
         self.received["enabled"] = kwargs["choose_album_endpoints"]
-        self.received["choice"] = kwargs["endpoint_choice_reader"].choose_endpoint(
-            self.source, self.tracks, 4
-        )
+        self.received["choice"] = await kwargs[
+            "endpoint_choice_reader"
+        ].choose_endpoint(self.source, self.tracks, 4)
         return api.new_wine.FlushSummary(
             run_id="run",
             total=1,
@@ -4712,7 +4754,7 @@ class SlowListeningWebJobHandlesAllInteractiveChoicesScenario:
     source_release: api.new_wine.ReleaseCandidate
     target: api.new_wine.ReleaseTrack
 
-    def flush(
+    async def flush(
         self, spotify: Any, playlist_id: Any, **kwargs: Any
     ) -> api.slow_listening.FlushSummary:
         """Execute the original flush mock boundary.
@@ -4729,13 +4771,13 @@ class SlowListeningWebJobHandlesAllInteractiveChoicesScenario:
             spotify=spotify, playlist_id=playlist_id, dry_run=kwargs["dry_run"]
         )
         kwargs["progress_callback"].progress(0, 1, "Reviewing Source Track")
-        self.received["track_choice"] = kwargs["action_reader"].choose_track(
+        self.received["track_choice"] = await kwargs["action_reader"].choose_track(
             self.source, self.target, self.first_release
         )
-        self.received["release_order"] = kwargs["order_reader"].order_releases(
+        self.received["release_order"] = await kwargs["order_reader"].order_releases(
             "2021-01-01", (self.first_release, self.second_release)
         )
-        kwargs["completion_notifier"].complete(self.source)
+        await kwargs["completion_notifier"].complete(self.source)
         kwargs["echo"].echo("Slow Listening choices applied")
         return api.slow_listening.FlushSummary(
             run_id="run",
@@ -4909,7 +4951,7 @@ class SlowListeningWebJobRetriesAConnectionResetScenario:
 
     attempts: int
 
-    def flush(
+    async def flush(
         self, _spotify: Any, _playlist_id: Any, **kwargs: Any
     ) -> api.slow_listening.FlushSummary:
         """Execute the original flush mock boundary.
@@ -4925,7 +4967,7 @@ class SlowListeningWebJobRetriesAConnectionResetScenario:
         for attempt in kwargs["retry_call"].attempts(
             "loading the Slow Listening playlist"
         ):
-            with attempt:
+            async with attempt:
                 self.load_playlist()
         return api.slow_listening.FlushSummary(
             run_id="run",
@@ -4973,7 +5015,7 @@ class SomethingOldWebJobHandlesAllInteractiveChoicesScenario:
     second_spotify_artist: api.something_old.SpotifyArtistCandidate
     selected_track: api.something_old.SelectedTrack
 
-    def __call__(
+    async def __call__(
         self, spotify: Any, lastfm: Any, playlist_id: Any, **kwargs: Any
     ) -> api.something_old.SomethingOldSummary:
         """Execute the original run mock boundary.
@@ -4994,15 +5036,17 @@ class SomethingOldWebJobHandlesAllInteractiveChoicesScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].echo("Calculating Golden Oldies")
-        self.received["artist_choice"] = kwargs["artist_choice_reader"].choose_artist(
+        self.received["artist_choice"] = await kwargs[
+            "artist_choice_reader"
+        ].choose_artist(
             self.artist, (self.first_spotify_artist, self.second_spotify_artist)
         )
-        self.received["mode_choice"] = kwargs["mode_reader"].choose_mode(
+        self.received["mode_choice"] = await kwargs["mode_reader"].choose_mode(
             self.artist, self.first_spotify_artist
         )
-        self.received["album_choice"] = kwargs["album_choice_reader"].choose_album(
-            self.artist, (self.release,)
-        )
+        self.received["album_choice"] = await kwargs[
+            "album_choice_reader"
+        ].choose_album(self.artist, (self.release,))
         return api.something_old.SomethingOldSummary(
             generated_at=datetime(2026, 8, 4, tzinfo=UTC),
             playlist_id=playlist_id,
@@ -5198,7 +5242,7 @@ class ReleaseCheckWebJobHandlesSearchMappingAndReleaseChoiceScenario:
     selected_candidate: api.release_check.SpotifyArtistCandidate
     track: api.release_check.ReleaseTrack
 
-    def __call__(
+    async def __call__(
         self, spotify: Any, lastfm: Any, playlists: Any, **kwargs: Any
     ) -> api.release_check.ReleaseCheckSummary:
         """Execute the original run mock boundary.
@@ -5219,13 +5263,13 @@ class ReleaseCheckWebJobHandlesSearchMappingAndReleaseChoiceScenario:
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"].progress(0, 1, "Resolving release-check artist")
-        self.received["search_choice"] = kwargs["artist_choice_reader"].choose_artist(
-            self.artist, (self.first_candidate,)
-        )
-        self.received["artist_choice"] = kwargs["artist_choice_reader"].choose_artist(
-            self.artist, (self.selected_candidate,)
-        )
-        self.received["release_choice"] = kwargs[
+        self.received["search_choice"] = await kwargs[
+            "artist_choice_reader"
+        ].choose_artist(self.artist, (self.first_candidate,))
+        self.received["artist_choice"] = await kwargs[
+            "artist_choice_reader"
+        ].choose_artist(self.artist, (self.selected_candidate,))
+        self.received["release_choice"] = await kwargs[
             "release_choice_reader"
         ].choose_release(
             self.artist, self.release, self.track, ("Wine Cellar", "New Vintage"), False
@@ -5427,7 +5471,7 @@ class DiscographyWebJobCollectsReleasesAndConfirmsRemovalScenario:
     received: dict[str, object]
     studio: api.discography.CatalogRelease
 
-    def build(
+    async def build(
         self, _spotify: Any, playlist_ids: Any, release_selector: Any, **kwargs: Any
     ) -> api.discography.DiscographyPlan:
         """Execute the original build mock boundary.
@@ -5444,10 +5488,10 @@ class DiscographyWebJobCollectsReleasesAndConfirmsRemovalScenario:
         self.received["playlist_ids"] = playlist_ids
         self.received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
         kwargs["progress_callback"].echo("Loading next discography artist")
-        self.received["mapped_artist_id"] = kwargs[
+        self.received["mapped_artist_id"] = await kwargs[
             "historical_artist_choice_reader"
         ].choose_artist("Artist", self.artist_candidates)
-        selected_ids = release_selector.select_releases(
+        selected_ids = await release_selector.select_releases(
             self.artist, (self.studio, self.live)
         )
         self.received["selected_ids"] = selected_ids
@@ -5664,7 +5708,7 @@ class RequeueForADreamWebJobReportsTransitionAndReconnectsScenario:
     received: dict[str, object]
     release_worker: Event
 
-    def run(
+    async def run(
         self, spotify: Any, playlist_id: Any, **kwargs: Any
     ) -> api.requeue_for_a_dream.RequeueForADreamSummary:
         """Execute the original run mock boundary.
@@ -5682,7 +5726,7 @@ class RequeueForADreamWebJobReportsTransitionAndReconnectsScenario:
         )
         kwargs["progress_callback"].echo("Loading Artist's discography")
         self.entered.set()
-        assert self.release_worker.wait(2)
+        assert await asyncio.to_thread(self.release_worker.wait, 2)
         return api.requeue_for_a_dream.RequeueForADreamSummary(
             recorded_at=datetime(2026, 8, 4, tzinfo=UTC),
             playlist_id=playlist_id,
@@ -5766,7 +5810,7 @@ class PalaceOfMemoryWebJobReportsResultsAndReconnectsScenario:
     received: dict[str, object]
     release_worker: Event
 
-    def __call__(
+    async def __call__(
         self, spotify: Any, playlist_id: Any, **kwargs: Any
     ) -> api.palace_of_memory.PalaceOfMemorySummary:
         """Execute the original run mock boundary.
@@ -5787,7 +5831,7 @@ class PalaceOfMemoryWebJobReportsResultsAndReconnectsScenario:
         )
         kwargs["progress_callback"].echo("Refreshing saved albums at offset 50")
         self.entered.set()
-        assert self.release_worker.wait(2)
+        assert await asyncio.to_thread(self.release_worker.wait, 2)
         spotify_album = api.palace_of_memory.SpotifyAlbum(
             spotify_id="album-id",
             uri="spotify:album:album-id",
@@ -6080,7 +6124,7 @@ class LiveAnalysisJobCanBeCancelledDuringRetryWaitScenario:
 
     http_status: int | None
 
-    def wait_for_server(self, _spotify: Any, **kwargs: Any) -> Any:
+    async def wait_for_server(self, _spotify: Any, **kwargs: Any) -> Any:
         """Execute the original wait for server mock boundary.
 
         Args:
@@ -6090,7 +6134,7 @@ class LiveAnalysisJobCanBeCancelledDuringRetryWaitScenario:
         Returns:
             Original fixture result.
         """
-        keep_waiting = kwargs["retry_wait"].wait(
+        keep_waiting = await kwargs["retry_wait"].wait(
             api.library_analysis.RetryNotice(
                 http_status=self.http_status,
                 operation="reading artists",
@@ -6113,7 +6157,7 @@ class ActiveAnalysisJobsCanBeRestoredAfterReloadScenario:
 
     release: api.Event
 
-    def blocked_export(self, **kwargs: Any) -> Any:
+    async def blocked_export(self, **kwargs: Any) -> Any:
         """Execute the original blocked export mock boundary.
 
         Args:
@@ -6123,7 +6167,7 @@ class ActiveAnalysisJobsCanBeRestoredAfterReloadScenario:
             Original fixture result.
         """
         kwargs["echo"].echo("Still reading exported albums.")
-        self.release.wait(2)
+        await self.release.wait(2)
         return analysis_summary("async")
 
 
@@ -6160,3 +6204,18 @@ class NewYearWebJobRoutesAndErrorsScenario:
         if self.outcome == "cancelled":
             raise api.scrobble_history.ScrobbleHistoryCancelledError("cancelled")
         return {"year": 2025, "dry_run": True, "plan": {}}
+
+
+class PendingAnnualRun:
+    """Keep a synthetic annual worker active until its HTTP stop is accepted."""
+
+    async def __call__(self, *inputs: object, **kwargs: Any) -> None:
+        """Wait at a named resource boundary without making external requests.
+
+        Args:
+            inputs: Original annual operation inputs.
+            kwargs: Original optional cancellation resource.
+        """
+        signal = kwargs["cancel_check"]
+        await signal.wait()
+        raise api.blast_from_past.BlastFromPastCancelledError("Cancelled")

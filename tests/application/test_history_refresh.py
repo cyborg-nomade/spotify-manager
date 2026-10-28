@@ -65,11 +65,11 @@ class HistoryMemory:
         if name == self.failure:
             raise OSError(name)
 
-    def hydrate(self) -> None:
+    async def hydrate(self) -> None:
         """Observe managed hydration."""
         self._step("hydrate")
 
-    def load(self) -> HistoryExport:
+    async def load(self) -> HistoryExport:
         """Return validated original contents.
 
         Returns:
@@ -78,7 +78,7 @@ class HistoryMemory:
         self._step("load")
         return self.export
 
-    def legacy(self) -> tuple[HistoryRecord, ...]:
+    async def legacy(self) -> tuple[HistoryRecord, ...]:
         """Return legacy records.
 
         Returns:
@@ -87,7 +87,7 @@ class HistoryMemory:
         self._step("legacy")
         return self.delta
 
-    def backup(self, export: HistoryExport, checked_at: datetime) -> Path:
+    async def backup(self, export: HistoryExport, checked_at: datetime) -> Path:
         """Observe backup before replacement.
 
         Args:
@@ -120,7 +120,7 @@ class HistoryMemory:
         """
         self._step("mark")
 
-    def publish(self, full_rebuild: bool) -> None:
+    async def publish(self, full_rebuild: bool) -> None:
         """Observe publication after timestamp recording.
 
         Args:
@@ -128,7 +128,7 @@ class HistoryMemory:
         """
         self._step("publish")
 
-    def audit(self, summary: ScrobbleHistorySummary) -> None:
+    async def audit(self, summary: ScrobbleHistorySummary) -> None:
         """Accept the final audit.
 
         Args:
@@ -137,7 +137,7 @@ class HistoryMemory:
         self._step("audit")
         self.summaries.append(summary)
 
-    def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
+    async def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
         """Observe the API range.
 
         Args:
@@ -189,7 +189,7 @@ def _workflow(memory: HistoryMemory) -> HistoryRefresh:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_overlap_counts_extra_occurrences_and_preserves_record_order(
+async def test_overlap_counts_extra_occurrences_and_preserves_record_order(
     dry_run: bool,
 ) -> None:
     """Merge occurrence counts separately for legacy and live overlap.
@@ -205,7 +205,7 @@ def test_overlap_counts_extra_occurrences_and_preserves_record_order(
         live=(overlap, overlap, overlap, _record("Earlier", 500)),
     )
     memory.export.records[:] = [original]
-    result = _workflow(memory).run("USER", dry_run, False)
+    result = await _workflow(memory).run("USER", dry_run, False)
     assert (
         result.export_scrobbles,
         result.legacy_scrobbles_added,
@@ -237,7 +237,9 @@ def test_overlap_counts_extra_occurrences_and_preserves_record_order(
 
 
 @pytest.mark.parametrize("recovered", [False, True])
-def test_unchanged_history_marks_and_publishes_without_backup(recovered: bool) -> None:
+async def test_unchanged_history_marks_and_publishes_without_backup(
+    recovered: bool,
+) -> None:
     """Keep publication on successful checks, including fallback recovery.
 
     Args:
@@ -247,7 +249,7 @@ def test_unchanged_history_marks_and_publishes_without_backup(recovered: bool) -
     memory.export = HistoryExport(
         memory.export.payload, memory.export.records, recovered
     )
-    result = _workflow(memory).run(None, False, False)
+    result = await _workflow(memory).run(None, False, False)
     assert not result.persisted and result.backup_path is None
     assert memory.events[-3:] == ["mark", "publish", "audit"]
     assert "backup" not in memory.events
@@ -260,14 +262,14 @@ def test_unchanged_history_marks_and_publishes_without_backup(recovered: bool) -
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_rebuild_ignores_legacy_and_replaces_history(dry_run: bool) -> None:
+async def test_rebuild_ignores_legacy_and_replaces_history(dry_run: bool) -> None:
     """Full rebuild starts at zero and stamps only the replacement metadata.
 
     Args:
         dry_run: Whether replacement effects are suppressed.
     """
     memory = HistoryMemory(delta=(_record("Legacy"),), live=(_record("Corrected"),))
-    result = _workflow(memory).run(None, dry_run, True)
+    result = await _workflow(memory).run(None, dry_run, True)
     assert memory.requests == [(0, 10)]
     assert "legacy" not in memory.events
     assert result.legacy_scrobbles_added == 0 and result.live_scrobbles_added == 1
@@ -282,11 +284,11 @@ def test_rebuild_ignores_legacy_and_replaces_history(dry_run: bool) -> None:
     )
 
 
-def test_rebuild_stamp_prevents_deleted_legacy_from_returning() -> None:
+async def test_rebuild_stamp_prevents_deleted_legacy_from_returning() -> None:
     """A truthy rebuild stamp suppresses the legacy delta on later refreshes."""
     memory = HistoryMemory(delta=(_record("Deleted"),))
     memory.export.payload["full_rebuilt_at"] = "recorded"
-    result = _workflow(memory).run(None, False, False)
+    result = await _workflow(memory).run(None, False, False)
     assert "legacy" not in memory.events
     assert result.total_scrobbles == 1
 
@@ -295,7 +297,9 @@ def test_rebuild_stamp_prevents_deleted_legacy_from_returning() -> None:
     "username,expected,result",
     [("", "Expected", "Expected"), ("", None, ""), ("user", "", "user")],
 )
-def test_username_fallback(username: str, expected: str | None, result: str) -> None:
+async def test_username_fallback(
+    username: str, expected: str | None, result: str
+) -> None:
     """Preserve optional ownership constraints and original fallback spelling.
 
     Args:
@@ -305,54 +309,54 @@ def test_username_fallback(username: str, expected: str | None, result: str) -> 
     """
     memory = HistoryMemory()
     memory.export.payload["username"] = username
-    assert _workflow(memory).run(expected, True, False).username == result
+    assert (await _workflow(memory).run(expected, True, False)).username == result
 
 
-def test_username_mismatch_stops_before_legacy_and_api_reads() -> None:
+async def test_username_mismatch_stops_before_legacy_and_api_reads() -> None:
     """Reject ownership mismatches after hydration and export observation."""
     memory = HistoryMemory()
     with pytest.raises(ScrobbleHistoryError, match="belongs to user, not other"):
-        _workflow(memory).run("other", False, False)
+        (await _workflow(memory).run("other", False, False))
     assert memory.events == ["hydrate", "cancel", "clock", "load", "cancel"]
 
 
-def test_future_local_history_skips_live_request() -> None:
+async def test_future_local_history_skips_live_request() -> None:
     """Preserve the no-request path when local timestamps exceed the check time."""
     memory = HistoryMemory()
     memory.export.records[:] = [_record(timestamp=11000)]
-    result = _workflow(memory).run(None, False, False)
+    result = await _workflow(memory).run(None, False, False)
     assert not memory.requests
     assert memory.checks == 3 and result.live_scrobbles_added == 0
 
 
-def test_empty_incremental_history_fails_before_fetch() -> None:
+async def test_empty_incremental_history_fails_before_fetch() -> None:
     """Empty local history requires an explicit rebuild."""
     memory = HistoryMemory()
     memory.export.records.clear()
     with pytest.raises(ScrobbleHistoryError, match="history is empty"):
-        _workflow(memory).run(None, False, False)
+        (await _workflow(memory).run(None, False, False))
     assert not memory.requests
 
 
-def test_empty_rebuild_cannot_replace_existing_history() -> None:
+async def test_empty_rebuild_cannot_replace_existing_history() -> None:
     """An empty API response leaves nonempty history untouched."""
     memory = HistoryMemory()
     with pytest.raises(ScrobbleHistoryError, match="empty API response"):
-        _workflow(memory).run(None, False, True)
+        (await _workflow(memory).run(None, False, True))
     assert "backup" not in memory.events and memory.checks == 3
 
 
-def test_empty_rebuild_can_replace_empty_history() -> None:
+async def test_empty_rebuild_can_replace_empty_history() -> None:
     """An explicitly rebuilt empty export still persists its rebuild stamp."""
     memory = HistoryMemory()
     memory.export.records.clear()
-    result = _workflow(memory).run(None, False, True)
+    result = await _workflow(memory).run(None, False, True)
     assert result.persisted and not result.history
     assert memory.saved[0][1] == []
 
 
 @pytest.mark.parametrize("check", [1, 2, 3, 4])
-def test_cancellation_stops_before_any_persistence(check: int) -> None:
+async def test_cancellation_stops_before_any_persistence(check: int) -> None:
     """Check cancellation before loading, merging live records and persistence.
 
     Args:
@@ -360,13 +364,13 @@ def test_cancellation_stops_before_any_persistence(check: int) -> None:
     """
     memory = HistoryMemory(live=(_record("New"),), cancel_at=check)
     with pytest.raises(ScrobbleHistoryCancelledError):
-        _workflow(memory).run(None, False, False)
+        (await _workflow(memory).run(None, False, False))
     assert memory.checks == check and "backup" not in memory.events
     assert memory.events[0] == "hydrate" and memory.events[-1] == "cancel"
 
 
 @pytest.mark.parametrize("failure", ["backup", "write", "mark", "publish", "audit"])
-def test_effect_failure_prevents_later_effects(failure: str) -> None:
+async def test_effect_failure_prevents_later_effects(failure: str) -> None:
     """Keep the original failure order after merging succeeds.
 
     Args:
@@ -374,7 +378,7 @@ def test_effect_failure_prevents_later_effects(failure: str) -> None:
     """
     memory = HistoryMemory(live=(_record("New"),), failure=failure)
     with pytest.raises(OSError, match=failure):
-        _workflow(memory).run(None, False, False)
+        (await _workflow(memory).run(None, False, False))
     effects = ["backup", "write", "mark", "publish", "audit"]
     assert (
         memory.events[-(effects.index(failure) + 1) :]

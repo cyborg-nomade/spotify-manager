@@ -11,7 +11,7 @@ from tests.support.discovery_values import release
 from tests.support.discovery_values import track
 
 
-def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
+async def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
     """Duplicate releases count as entries but tracks and likes count unique IDs."""
     first, second = track("first"), track("second")
     guest = replace(track("guest"), primary_artist_id="guest")
@@ -22,7 +22,7 @@ def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
         top=(second, first),
     )
     cache: dict[str, tuple[CatalogTrack, ...]] = {}
-    result = assess_artist(
+    result = await assess_artist(
         catalog, "artist", (release("album"), release("album")), cache
     )
     assert catalog.events == [
@@ -43,10 +43,10 @@ def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
     assert cache == {"album": (first, second, guest)}
 
 
-def test_existing_empty_cache_is_used_without_catalog_refetch() -> None:
+async def test_existing_empty_cache_is_used_without_catalog_refetch() -> None:
     """An empty cached release is an accepted observation."""
     catalog = Catalog(releases={"album": (track("unobserved"),)})
-    result = assess_artist(catalog, "artist", (release("album"),), {"album": ()})
+    result = await assess_artist(catalog, "artist", (release("album"),), {"album": ()})
     assert result.total_primary_tracks == 0 and result.representative_track is None
     assert catalog.events == [
         ("saved", ["album"]),
@@ -56,7 +56,7 @@ def test_existing_empty_cache_is_used_without_catalog_refetch() -> None:
     ]
 
 
-def test_repeated_tracks_keep_first_encountered_catalog_facts() -> None:
+async def test_repeated_tracks_keep_first_encountered_catalog_facts() -> None:
     """Primary-credit filtering happens before ID deduplication."""
     original = track("same")
     other = replace(original, name="Another edition")
@@ -67,14 +67,14 @@ def test_repeated_tracks_keep_first_encountered_catalog_facts() -> None:
         liked_statuses={"same": True},
         top=(),
     )
-    result = assess_artist(catalog, "artist", (release("a"), release("b")), {})
+    result = await assess_artist(catalog, "artist", (release("a"), release("b")), {})
     assert result.total_primary_tracks == 2
     assert result.top_liked_track == original
     assert ("likes", ["same", "guest"]) in catalog.events
 
 
 @pytest.mark.parametrize("top_liked", [False, True])
-def test_top_likes_precede_popularity_fallback(top_liked: bool) -> None:
+async def test_top_likes_precede_popularity_fallback(top_liked: bool) -> None:
     """Fallback popularity is requested only if artist top tracks have no liked marker.
 
     Args:
@@ -87,16 +87,16 @@ def test_top_likes_precede_popularity_fallback(top_liked: bool) -> None:
         top=(first,) if top_liked else (),
         popularity={"second": 100},
     )
-    result = assess_artist(catalog, "artist", (release("album"),), {})
+    result = await assess_artist(catalog, "artist", (release("album"),), {})
     assert result.top_liked_track == (first if top_liked else second)
     assert (("popularity", ["first", "second"]) in catalog.events) == (not top_liked)
 
 
-def test_empty_catalog_can_still_supply_a_liked_top_marker() -> None:
+async def test_empty_catalog_can_still_supply_a_liked_top_marker() -> None:
     """Catalog qualification does not short-circuit the later top-track observation."""
     marker = track("top")
     catalog = Catalog(top=(marker,), liked_statuses={"top": True})
-    result = assess_artist(catalog, "artist", (), {})
+    result = await assess_artist(catalog, "artist", (), {})
     assert result.top_liked_track == marker and result.representative_track is None
     assert result.liked_tracks == result.total_releases == 0 and not result.qualifies
     assert catalog.events == [

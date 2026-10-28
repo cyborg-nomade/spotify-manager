@@ -104,7 +104,7 @@ class RefreshBoundary:
         ]
         return {"username": "user", "scrobbles": records}, records, False
 
-    def recent_tracks(
+    async def recent_tracks(
         self, *, from_timestamp: int, to_timestamp: int, limit: int = 200
     ) -> tuple[LastFmRecentTrack, ...]:
         """Observe the request and return a new play.
@@ -196,7 +196,7 @@ def _install(boundary: RefreshBoundary, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(routine, "_append_log", boundary.audit)
 
 
-def _refresh(
+async def _refresh(
     boundary: RefreshBoundary, dry_run: bool
 ) -> routine.ScrobbleHistorySummary:
     return routine.refresh_scrobble_history(
@@ -211,7 +211,7 @@ def _refresh(
 @pytest.mark.parametrize(
     "failure", ["hydrate", "fetch", "backup", "write", "mark", "publish", "audit"]
 )
-def test_failure_stops_after_accepted_effects(
+async def test_failure_stops_after_accepted_effects(
     failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Retain accepted effects and suppress every later step on failure.
@@ -237,11 +237,11 @@ def test_failure_stops_after_accepted_effects(
         "audit",
     ]
     with pytest.raises(OSError, match=failure):
-        _refresh(boundary, False)
+        (await _refresh(boundary, False))
     assert boundary.events == expected[: expected.index(failure) + 1]
 
 
-def test_preview_still_hydrates_and_checks_cancellation(
+async def test_preview_still_hydrates_and_checks_cancellation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Preview retains observations but suppresses persistence and publication.
@@ -251,7 +251,7 @@ def test_preview_still_hydrates_and_checks_cancellation(
     """
     boundary = RefreshBoundary()
     _install(boundary, monkeypatch)
-    result = _refresh(boundary, True)
+    result = await _refresh(boundary, True)
     assert boundary.events == [
         "hydrate",
         "cancel",

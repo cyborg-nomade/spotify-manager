@@ -28,7 +28,7 @@ from spotify_manager.domain.release_check_values import ReleaseTrack
 class ReleaseChoiceReader(Protocol):
     """Own the operator interaction for choose release."""
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: RankedArtist,
         release: ReleaseCandidate,
@@ -104,7 +104,7 @@ class ReleaseReview:
     reader: ReleaseChoiceReader | None
     matching: FutureRecordMatching
 
-    def check_artist(
+    async def check_artist(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate
     ) -> bool:
         """Review an artist's current and pending releases before marking completion.
@@ -117,22 +117,24 @@ class ReleaseReview:
             Whether the artist completed rather than pausing at a release choice.
         """
         self.progress.notify(f"#{artist.rank} {artist.name}: checking releases")
-        plan = self._catalog(artist, mapped)
+        plan = await self._catalog(artist, mapped)
         for release in plan.releases:
             pending = plan.pending.get(release.spotify_id)
             if release.spotify_id in self.progress.processed and pending is None:
                 continue
-            if not self._review(artist, mapped, release, pending, plan):
+            if not (await self._review(artist, mapped, release, pending, plan)):
                 return False
-        self.progress.complete(artist)
+        await self.progress.complete(artist)
         self.progress.notify(f"#{artist.rank} {artist.name}: complete")
         return True
 
-    def _catalog(
+    async def _catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate
     ) -> ReleaseCatalog:
         opening = self.progress.opening
-        catalog = self.progress.effects.catalog(artist, mapped, opening.checked_from)
+        catalog = await self.progress.effects.catalog(
+            artist, mapped, opening.checked_from
+        )
         future: list[ReleaseCandidate] = []
         for release in catalog:
             if future_record(release, opening.checked_through, artist.rank):
@@ -140,14 +142,14 @@ class ReleaseReview:
         current, duplicates = current_editions(
             catalog, opening.checked_from, opening.checked_through
         )
-        self._record_duplicates(artist, mapped, duplicates)
+        await self._record_duplicates(artist, mapped, duplicates)
         records = eligible_records(current, artist.rank)
         pending = self._pending(artist)
         return ReleaseCatalog(
             tuple(future), records, pending, ordered_releases(current, pending)
         )
 
-    def _record_duplicates(
+    async def _record_duplicates(
         self,
         artist: RankedArtist,
         mapped: SpotifyArtistCandidate,
@@ -163,7 +165,7 @@ class ReleaseReview:
                 reason="duplicate Spotify market edition",
                 dry_run=self.progress.preview,
             )
-            self.progress.record(result)
+            await self.progress.record(result)
 
     def _pending(self, artist: RankedArtist) -> dict[str, PendingSingle]:
         pending: dict[str, PendingSingle] = {}
@@ -173,7 +175,7 @@ class ReleaseReview:
                 pending[release_id] = single
         return pending
 
-    def _assess(
+    async def _assess(
         self,
         artist: RankedArtist,
         release: ReleaseCandidate,
@@ -185,35 +187,35 @@ class ReleaseReview:
             track = (
                 track
                 if track is not None
-                else self.progress.effects.first_track(release)
+                else (await self.progress.effects.first_track(release))
             )
-            return self._single(artist, track, plan)
+            return await self._single(artist, track, plan)
         reason = release_scope_reason(release, artist.rank)
         if reason is not None:
             return ReleaseAssessment(track, reason=reason)
-        track = self.progress.effects.first_track(release)
+        track = await self.progress.effects.first_track(release)
         return ReleaseAssessment(
             track, reason=None if track else "release has no playable first track"
         )
 
-    def _single(
+    async def _single(
         self, artist: RankedArtist, track: ReleaseTrack | None, plan: ReleaseCatalog
     ) -> ReleaseAssessment:
         if track is None:
             return ReleaseAssessment(None, reason="release has no playable first track")
         if artist.accepts_all_singles:
             return ReleaseAssessment(track)
-        linked = self.matching.run(track, plan.future, plan.tracks)
+        linked = await self.matching.run(track, plan.future, plan.tracks)
         if linked is not None:
             return ReleaseAssessment(track, linked)
-        current = self.matching.run(track, plan.current, plan.tracks)
+        current = await self.matching.run(track, plan.current, plan.tracks)
         if current is not None:
             return ReleaseAssessment(
                 track, reason="containing album or EP has already been released"
             )
         return ReleaseAssessment(track, unattached=True)
 
-    def _review(
+    async def _review(
         self,
         artist: RankedArtist,
         mapped: SpotifyArtistCandidate,
@@ -222,7 +224,7 @@ class ReleaseReview:
         plan: ReleaseCatalog,
     ) -> bool:
         self.progress.opening.active["pending_release_id"] = release.spotify_id
-        assessment = self._assess(artist, release, pending, plan)
+        assessment = await self._assess(artist, release, pending, plan)
         if assessment.reason is not None:
             result = release_result(
                 artist,
@@ -232,13 +234,13 @@ class ReleaseReview:
                 reason=assessment.reason,
                 dry_run=self.progress.preview,
             )
-            self.progress.record(result)
-            self.progress.finish_release()
+            await self.progress.record(result)
+            await self.progress.finish_release()
             return True
         assert assessment.track is not None
-        return self._eligible(artist, mapped, release, assessment)
+        return await self._eligible(artist, mapped, release, assessment)
 
-    def _eligible(
+    async def _eligible(
         self,
         artist: RankedArtist,
         mapped: SpotifyArtistCandidate,
@@ -257,18 +259,18 @@ class ReleaseReview:
             self.destinations.vintage, assessment.track
         ):
             destinations.append("New Vintage")
-        choice = self._choice(artist, release, assessment, tuple(destinations))
+        choice = await self._choice(artist, release, assessment, tuple(destinations))
         if choice == "quit":
-            self.progress.pause(artist, release.name)
+            await self.progress.pause(artist, release.name)
             return False
-        result = self._decision(
+        result = await self._decision(
             artist, mapped, release, assessment, choice, wine_present, vintage
         )
-        self.progress.record(result, terminal=choice != "pending")
-        self.progress.finish_release()
+        await self.progress.record(result, terminal=choice != "pending")
+        await self.progress.finish_release()
         return True
 
-    def _choice(
+    async def _choice(
         self,
         artist: RankedArtist,
         release: ReleaseCandidate,
@@ -279,13 +281,13 @@ class ReleaseReview:
         if not destinations or self.reader is None:
             return choice
         if not self.progress.preview:
-            self.progress.save()
+            await self.progress.save()
         assert assessment.track is not None
-        return self.reader.choose_release(
+        return await self.reader.choose_release(
             artist, release, assessment.track, destinations, assessment.unattached
         )
 
-    def _decision(
+    async def _decision(
         self,
         artist: RankedArtist,
         mapped: SpotifyArtistCandidate,
@@ -322,9 +324,11 @@ class ReleaseReview:
                 reason="skipped by user",
                 dry_run=self.progress.preview,
             )
-        return self._add(artist, mapped, release, assessment, wine_present, vintage)
+        return await self._add(
+            artist, mapped, release, assessment, wine_present, vintage
+        )
 
-    def _add(
+    async def _add(
         self,
         artist: RankedArtist,
         mapped: SpotifyArtistCandidate,
@@ -336,7 +340,7 @@ class ReleaseReview:
         assert assessment.track is not None
         wine_action: PlaylistAction = "artist already present"
         if not wine_present:
-            wine_action = self.progress.effects.add(
+            wine_action = await self.progress.effects.add(
                 self.destinations.wine_id,
                 self.destinations.wine,
                 assessment.track,
@@ -344,7 +348,7 @@ class ReleaseReview:
             )
         vintage_action: PlaylistAction = "not applicable"
         if vintage:
-            vintage_action = self.progress.effects.add(
+            vintage_action = await self.progress.effects.add(
                 self.destinations.vintage_id,
                 self.destinations.vintage,
                 assessment.track,

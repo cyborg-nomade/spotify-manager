@@ -3,8 +3,6 @@
 from datetime import date as date
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.dormant_values import (
     BlastFromPastArtistsError as BlastFromPastArtistsError,
 )
@@ -12,6 +10,7 @@ from spotify_manager.application.dormant_values import (
     DormantArtistSummary as DormantArtistSummary,
 )
 from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.dormant_artists import dormant_recovery
 from spotify_manager.bootstrap.dormant_artists import dormant_tracks
 from spotify_manager.domain.dormant_artists import (
@@ -33,7 +32,7 @@ from spotify_manager.routines.blast_from_past_artists import (
 from spotify_manager.routines.blast_from_past_artists import RetryCall as RetryCall
 
 
-def most_popular_liked_track(
+async def most_popular_liked_track(
     sp: Spotify, artist_id: str, retry_call: RetryCall
 ) -> new_kids.CatalogTrack | None:
     """Return the original preferred live-liked primary-credit marker.
@@ -50,10 +49,10 @@ def most_popular_liked_track(
         BlastFromPastArtistsError: Original liked/detail response is invalid.
     """
     configured = dormant_tracks(sp, retry_call)
-    return configured.run(artist_id)
+    return await configured.run(artist_id)
 
 
-def add_dormant_artists_to_blast_from_past(
+async def add_dormant_artists_to_blast_from_past(
     sp: Spotify,
     playlist_id: str,
     *,
@@ -91,4 +90,4 @@ def add_dormant_artists_to_blast_from_past(
     configured = dormant_recovery(
         sp, playlist_id, path, today, echo, progress_callback, retry_call, cancel_check
     )
-    return configured.run(count, dry_run)
+    return await configured.run(count, dry_run)

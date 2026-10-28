@@ -1,11 +1,10 @@
 """Invoke review album limits use cases for CLI and HTTP features."""
 
-import time
+import asyncio
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.album_limits import review_albums as review_albums
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService as StateService
 from spotify_manager.infrastructure.legacy.album_limits import (
     LegacyAlbumReview as LegacyAlbumReview,
@@ -57,7 +56,7 @@ from spotify_manager.routines.review_album_limits import (
 )
 
 
-def review_album_limits(
+async def review_album_limits(
     sp: Spotify,
     action_reader: ActionReader,
     threshold: float = 0.5,
@@ -68,7 +67,7 @@ def review_album_limits(
     decisions_path: Path | None = None,
     state_service: StateService | None = None,
     progress_callback: ProgressCallback | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
 ) -> None:
@@ -106,4 +105,6 @@ def review_album_limits(
         transient_retry_delay_seconds,
         transient_max_attempts,
     )
-    review_albums(library, AlbumReviewPresenter(action_reader, echo, progress_callback))
+    await review_albums(
+        library, AlbumReviewPresenter(action_reader, echo, progress_callback)
+    )

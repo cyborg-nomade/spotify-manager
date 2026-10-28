@@ -10,7 +10,9 @@ from tests.support.queue_neighbors import original_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_original_queue_neighbor_contract(name: str, case: dict[str, object]) -> None:
+async def test_original_queue_neighbor_contract(
+    name: str, case: dict[str, object]
+) -> None:
     """Retain original observations from the implementation before extraction.
 
     Args:
@@ -19,8 +21,7 @@ def test_original_queue_neighbor_contract(name: str, case: dict[str, object]) ->
     """
     assert name
     assert (
-        original_outcome(
+        await original_outcome(
             cast(int, case["limit"]), date.fromisoformat(cast(str, case["week"]))
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

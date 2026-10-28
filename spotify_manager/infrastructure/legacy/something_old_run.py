@@ -1,17 +1,19 @@
 """Bind Something Old to original synchronous history, interaction and SDK seams."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.something_old_values import SomethingOldSummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_selection import SelectedTrack
 from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -54,7 +56,7 @@ class LegacySomethingOld:
         if self.callbacks.progress_callback is not None:
             self.callbacks.progress_callback.echo(message)
 
-    def playlist_length(self, recheck: bool) -> int:
+    async def playlist_length(self, recheck: bool) -> int:
         """Read original destination authority with unchanged retry descriptions.
 
         Args:
@@ -70,11 +72,13 @@ class LegacySomethingOld:
             if recheck
             else "checking whether Something Old is empty"
         )
-        return _load_playlist_state(
-            self.spotify,
-            self.options.playlist_id,
-            self.callbacks.retry_call,
-            description,
+        return (
+            await _load_playlist_state(
+                self.spotify,
+                self.options.playlist_id,
+                self.callbacks.retry_call,
+                description,
+            )
         ).total_items
 
     def ranking(self, history: tuple[Scrobble, ...]) -> tuple[GoldenOldieArtist, ...]:
@@ -90,7 +94,7 @@ class LegacySomethingOld:
 
         return rank_golden_oldies(history)
 
-    def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
+    async def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
         """Preserve original optional history-artist interaction adaptation.
 
         Args:
@@ -99,18 +103,22 @@ class LegacySomethingOld:
         Returns:
             Original accepted mapping or cancellation.
         """
-        from spotify_manager.routines.something_old import resolve_spotify_artist
+        from spotify_manager.routines.something_old import (
+            async_resolve_spotify_artist as resolve_spotify_artist,
+        )
 
         reader = (
             GoldenArtistChoice(self.callbacks.artist_choice_reader, artist)
             if self.callbacks.artist_choice_reader is not None
             else None
         )
-        return resolve_spotify_artist(
+        return await resolve_spotify_artist(
             self.spotify, artist.artist, reader, self.callbacks.retry_call
         )
 
-    def mode(self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate) -> str:
+    async def mode(
+        self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
+    ) -> str:
         """Retain original mode interaction after accepting the artist.
 
         Args:
@@ -120,9 +128,11 @@ class LegacySomethingOld:
         Returns:
             Original mode or cancellation text.
         """
-        return self.callbacks.mode_reader.choose_mode(artist, mapped)
+        return await self.callbacks.mode_reader.choose_mode(artist, mapped)
 
-    def lastfm_tracks(self, artist: GoldenOldieArtist) -> tuple[SelectedTrack, ...]:
+    async def lastfm_tracks(
+        self, artist: GoldenOldieArtist
+    ) -> tuple[SelectedTrack, ...]:
         """Retain original strict Last.fm title resolution.
 
         Args:
@@ -131,11 +141,15 @@ class LegacySomethingOld:
         Returns:
             Original ordered selected markers.
         """
-        from spotify_manager.routines.something_old import select_lastfm_top_tracks
+        from spotify_manager.routines.something_old import (
+            async_select_lastfm_top_tracks as select_lastfm_top_tracks,
+        )
 
-        return select_lastfm_top_tracks(self.spotify, artist, self.callbacks.retry_call)
+        return await select_lastfm_top_tracks(
+            self.spotify, artist, self.callbacks.retry_call
+        )
 
-    def spotify_tracks(
+    async def spotify_tracks(
         self, artist: SpotifyArtistCandidate
     ) -> tuple[SelectedTrack, ...]:
         """Retain original popular-track resolution and response validation.
@@ -146,13 +160,15 @@ class LegacySomethingOld:
         Returns:
             Original ordered selected markers.
         """
-        from spotify_manager.routines.something_old import select_spotify_top_tracks
+        from spotify_manager.routines.something_old import (
+            async_select_spotify_top_tracks as select_spotify_top_tracks,
+        )
 
-        return select_spotify_top_tracks(
+        return await select_spotify_top_tracks(
             self.spotify, artist, self.callbacks.retry_call
         )
 
-    def album_tracks(
+    async def album_tracks(
         self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
     ) -> tuple[DiscographyRelease | None, tuple[SelectedTrack, ...]]:
         """Retain original studio-release interaction and complete track selection.
@@ -164,9 +180,11 @@ class LegacySomethingOld:
         Returns:
             Original release/markers or album-choice cancellation.
         """
-        from spotify_manager.routines.something_old import select_album_tracks
+        from spotify_manager.routines.something_old import (
+            async_select_album_tracks as select_album_tracks,
+        )
 
-        return select_album_tracks(
+        return await select_album_tracks(
             self.spotify,
             artist,
             mapped,
@@ -174,7 +192,7 @@ class LegacySomethingOld:
             self.callbacks.retry_call,
         )
 
-    def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
+    async def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
         """Accept the original complete selection without introducing write retries.
 
         Args:
@@ -182,9 +200,9 @@ class LegacySomethingOld:
         """
         from spotify_manager.routines.something_old import _add_tracks
 
-        _add_tracks(self.spotify, self.options.playlist_id, tracks)
+        await _add_tracks(self.spotify, self.options.playlist_id, tracks)
 
-    def audit(self, summary: SomethingOldSummary) -> None:
+    async def audit(self, summary: SomethingOldSummary) -> None:
         """Accept the original real-run completion audit after marker append.
 
         Args:
@@ -192,7 +210,11 @@ class LegacySomethingOld:
         """
         from spotify_manager.routines.something_old import _append_log
 
-        _append_log(summary, self.resources.log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_log, summary, self.resources.log_path)
+            )
+            await finish_blocking(file_operation)
 
 
 @dataclass(frozen=True)
@@ -207,7 +229,7 @@ class GoldenArtistChoice:
     reader: ArtistChoiceReader
     artist: GoldenOldieArtist
 
-    def choose_artist(
+    async def choose_artist(
         self, name: str, candidates: tuple[SpotifyArtistCandidate, ...], /
     ) -> str:
         """Read the original artist prompt using its complete historical context.
@@ -219,4 +241,4 @@ class GoldenArtistChoice:
         Returns:
             Original operator response.
         """
-        return self.reader.choose_artist(self.artist, candidates)
+        return await self.reader.choose_artist(self.artist, candidates)

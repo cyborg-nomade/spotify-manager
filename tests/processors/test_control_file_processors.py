@@ -1,5 +1,7 @@
 """Data processors for control file items."""
 
+import asyncio
+
 from pytest_mock import MockerFixture
 
 # UFI
@@ -58,7 +60,7 @@ def test_get_unevaluated_albums() -> None:
     assert all(item.result == "" for item in result)
 
 
-def test_get_album_results_from_library(mocker: MockerFixture) -> None:
+async def test_get_album_results_from_library(mocker: MockerFixture) -> None:
     """Retain saved-status lookup ordering for each unevaluated album.
 
     Args:
@@ -71,7 +73,9 @@ def test_get_album_results_from_library(mocker: MockerFixture) -> None:
         ControlFileItem(album=album("removed", "Removed"), result=""),
     ]
 
-    result = get_album_results_from_library(spotify, unevaluated_albums)
+    result = await asyncio.to_thread(
+        get_album_results_from_library, spotify, unevaluated_albums
+    )
 
     assert [item.result for item in result] == ["keep", "remove"]
     assert spotify.current_user_saved_albums_contains.call_args_list == [
@@ -80,7 +84,7 @@ def test_get_album_results_from_library(mocker: MockerFixture) -> None:
     ]
 
 
-def test_check_album_results(mocker: MockerFixture) -> None:
+async def test_check_album_results(mocker: MockerFixture) -> None:
     """Update album results and persist the control file after checking Spotify.
 
     Args:
@@ -91,7 +95,7 @@ def test_check_album_results(mocker: MockerFixture) -> None:
     total_albums = [control_file[0].album]
     get_results = mocker.patch(
         "spotify_manager.processors.control_file_processors."
-        "get_album_results_from_library"
+        "async_get_album_results_from_library"
     )
     update_total = mocker.patch(
         "spotify_manager.processors.control_file_processors."
@@ -101,10 +105,13 @@ def test_check_album_results(mocker: MockerFixture) -> None:
         "spotify_manager.processors.control_file_processors.save_control_file"
     )
 
-    result = check_album_results(spotify, control_file, total_albums)
+    result = await asyncio.to_thread(
+        check_album_results, spotify, control_file, total_albums
+    )
 
     assert result is True
-    get_results.assert_called_once_with(spotify, control_file)
+    get_results.assert_called_once_with(mocker.ANY, control_file)
+    assert get_results.call_args.args[0].source is spotify
     update_total.assert_called_once_with(total_albums, control_file)
     save_control.assert_called_once_with(control_file)
 

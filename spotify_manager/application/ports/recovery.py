@@ -12,14 +12,14 @@ from spotify_manager.domain.library import AlbumArtist
 class RecoveryLibrary(Protocol):
     """Run-scoped observations, follow checks, and ordered durable effects."""
 
-    def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
+    async def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
         """Load records, progress, and mirror inputs in their original order.
 
         Returns:
             Review records and mutable completed-work state.
         """
 
-    def albums(
+    async def albums(
         self, records: list[RemovedAlbumRecord]
     ) -> tuple[RecoveryAlbum | None, ...]:
         """Read one original-size batch, including excess response entries.
@@ -31,7 +31,7 @@ class RecoveryLibrary(Protocol):
             Parsed observations padded with unavailable entries when short.
         """
 
-    def follow_artists(
+    async def follow_artists(
         self, artists: list[AlbumArtist], state: RecoveryState, dry_run: bool
     ) -> tuple[int, int]:
         """Check credited artists with original batching and persistence timing.
@@ -45,7 +45,7 @@ class RecoveryLibrary(Protocol):
             Checked and newly followed artist counts.
         """
 
-    def saved(self, record: RemovedAlbumRecord) -> bool:
+    async def saved(self, record: RemovedAlbumRecord) -> bool:
         """Read current saved status for a future release.
 
         Args:
@@ -55,14 +55,16 @@ class RecoveryLibrary(Protocol):
             Existing truthy first-status interpretation.
         """
 
-    def restore(self, record: RemovedAlbumRecord) -> None:
+    async def restore(self, record: RemovedAlbumRecord) -> None:
         """Restore one future album using the original retry policy.
 
         Args:
             record: Original removal-log identity and label.
         """
 
-    def record_album(self, album: RecoveryAlbum, record: RemovedAlbumRecord) -> bool:
+    async def record_album(
+        self, album: RecoveryAlbum, record: RemovedAlbumRecord
+    ) -> bool:
         """Update the mirror and statistics after a future-release check.
 
         Args:
@@ -73,7 +75,7 @@ class RecoveryLibrary(Protocol):
             Whether the local album mirror gained this album.
         """
 
-    def audit(self, event: dict[str, object]) -> None:
+    async def audit(self, event: dict[str, object]) -> None:
         """Append the original album event before marking it complete.
 
         Args:

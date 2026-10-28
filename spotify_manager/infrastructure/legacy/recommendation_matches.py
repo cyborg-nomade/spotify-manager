@@ -2,8 +2,7 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 
@@ -18,7 +17,7 @@ class LegacyRecommendationMatches:
 
     spotify: Spotify
 
-    def search(self, play: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, play: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
         """Observe one original album-free candidate query.
 
         Args:
@@ -27,11 +26,13 @@ class LegacyRecommendationMatches:
         Returns:
             Complete qualified matches in encounter order.
         """
-        from spotify_manager.routines.blast_from_past import search_spotify_matches
+        from spotify_manager.routines.blast_from_past import (
+            async_search_spotify_matches as search_spotify_matches,
+        )
 
-        return search_spotify_matches(self.spotify, play)
+        return await search_spotify_matches(self.spotify, play)
 
-    def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
+    async def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
         """Observe live liked membership for the original complete batch.
 
         Args:
@@ -40,6 +41,8 @@ class LegacyRecommendationMatches:
         Returns:
             Currently liked marker identities.
         """
-        from spotify_manager.routines.blast_from_past import liked_spotify_track_ids
+        from spotify_manager.routines.blast_from_past import (
+            async_liked_spotify_track_ids as liked_spotify_track_ids,
+        )
 
-        return liked_spotify_track_ids(self.spotify, groups)
+        return await liked_spotify_track_ids(self.spotify, groups)

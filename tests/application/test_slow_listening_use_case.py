@@ -48,14 +48,14 @@ def _event_names(memory: MemorySlowListening) -> list[str]:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_complete_effect_order_and_preview_audit(dry_run: bool) -> None:
+async def test_complete_effect_order_and_preview_audit(dry_run: bool) -> None:
     """Preserve every observation, effect, message and checkpoint boundary.
 
     Args:
         dry_run: Whether to preview while still writing the original audit.
     """
     memory = MemorySlowListening([SOURCE])
-    result = flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
+    result = await flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
     expected = ["playlist", "load", "clock", "clock"]
     expected += [] if dry_run else ["save"]
     expected += ["progress", "catalog", "tracks", "choose"]
@@ -76,11 +76,11 @@ def test_complete_effect_order_and_preview_audit(dry_run: bool) -> None:
     )
 
 
-def test_two_marker_limit_and_run_scoped_catalog_cache() -> None:
+async def test_two_marker_limit_and_run_scoped_catalog_cache() -> None:
     """Duplicate markers share observations while the third marker is untouched."""
     third = replace(SOURCE, spotify_id="third")
     memory = MemorySlowListening([SOURCE, SOURCE, third])
-    result = flush_slow_listening("slow", memory.dependencies(progress=False))
+    result = await flush_slow_listening("slow", memory.dependencies(progress=False))
     assert (result.total, result.processed, result.advanced) == (2, 2, 2)
     assert memory.counts["catalog"] == memory.counts["tracks"] == 1
     assert memory.counts["append"] == memory.counts["remove"] == 1
@@ -89,7 +89,7 @@ def test_two_marker_limit_and_run_scoped_catalog_cache() -> None:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_skipped_source_audits_before_output_and_has_no_completion_progress(
+async def test_skipped_source_audits_before_output_and_has_no_completion(
     dry_run: bool,
 ) -> None:
     """An ineligible source retains its playlist marker and original audit timing.
@@ -98,7 +98,7 @@ def test_skipped_source_audits_before_output_and_has_no_completion_progress(
         dry_run: Whether to omit namespace writes.
     """
     memory = MemorySlowListening([SOURCE], releases=())
-    result = flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
+    result = await flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
     assert result.skipped == 1
     assert memory.live == [SOURCE]
     assert memory.counts["progress"] == 1
@@ -107,7 +107,7 @@ def test_skipped_source_audits_before_output_and_has_no_completion_progress(
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_final_track_acknowledges_and_refreshes_only_during_real_execution(
+async def test_final_track_acknowledges_and_refreshes_only_during_real(
     dry_run: bool,
 ) -> None:
     """The completion callback may edit the playlist before the next entry.
@@ -121,7 +121,7 @@ def test_final_track_acknowledges_and_refreshes_only_during_real_execution(
         release_tracks={"first": (release_track("source"),)},
     )
     memory.replacement = [playlist_track("replacement", FIRST)]
-    result = flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
+    result = await flush_slow_listening("slow", memory.dependencies(), dry_run=dry_run)
     assert result.completed_artists == 1
     assert memory.counts.get("complete", 0) == int(not dry_run)
     assert memory.counts["playlist"] == (1 if dry_run else 2)
@@ -131,15 +131,15 @@ def test_final_track_acknowledges_and_refreshes_only_during_real_execution(
     assert result.results[0].reason == "last track of the last studio release"
 
 
-def test_pause_saves_skips_then_resumes_without_asking_them_again() -> None:
+async def test_pause_saves_skips_then_resumes_without_asking_them_again() -> None:
     """A declined candidate persists before a later quit and is not asked twice."""
     memory = MemorySlowListening([SOURCE], choices=["skip", "quit"])
     memory.release_tracks["first"] += (release_track("last"),)
-    first = flush_slow_listening("slow", memory.dependencies())
+    first = await flush_slow_listening("slow", memory.dependencies())
     assert first.paused and first.processed == 0
     assert memory.counts["save"] == 2
     assert not memory.audits
-    second = flush_slow_listening("slow", memory.dependencies())
+    second = await flush_slow_listening("slow", memory.dependencies())
     assert second.resumed and not second.paused
     assert second.results[0].target_track == "last"
     assert second.results[0].skipped_candidates == ("target (First)",)
@@ -148,7 +148,7 @@ def test_pause_saves_skips_then_resumes_without_asking_them_again() -> None:
 
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("boundary", ["append", "remove", "audit", "save"])
-def test_resume_after_accepted_or_rejected_effect(
+async def test_resume_after_accepted_or_rejected_effect(
     boundary: str, accepted: bool
 ) -> None:
     """Restart from the last accepted checkpoint and live effects, avoiding duplicates.
@@ -160,8 +160,8 @@ def test_resume_after_accepted_or_rejected_effect(
     memory = MemorySlowListening([SOURCE], failure=boundary, accepted=accepted)
     memory.occurrence = 3 if boundary == "save" else 1
     with pytest.raises(RuntimeError, match=f"{boundary} interrupted"):
-        flush_slow_listening("slow", memory.dependencies())
-    result = flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
+    result = await flush_slow_listening("slow", memory.dependencies())
     assert result.resumed
     assert [track.spotify_id for track in memory.live] == ["target"]
     assert memory.counts["append"] == (
@@ -173,7 +173,7 @@ def test_resume_after_accepted_or_rejected_effect(
 @pytest.mark.parametrize(
     "boundary", ["playlist", "load", "catalog", "tracks", "choose", "progress", "clock"]
 )
-def test_read_choice_and_cancellation_failures_do_not_mutate_playlist(
+async def test_read_choice_and_cancellation_failures_do_not_mutate_playlist(
     boundary: str,
 ) -> None:
     """Errors before a decision stop execution before remote writes.
@@ -183,12 +183,12 @@ def test_read_choice_and_cancellation_failures_do_not_mutate_playlist(
     """
     memory = MemorySlowListening([SOURCE], failure=boundary)
     with pytest.raises(RuntimeError, match=f"{boundary} interrupted"):
-        flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
     assert memory.live == [SOURCE]
     assert not memory.audits
 
 
-def test_saved_acknowledgement_survives_refresh_failure() -> None:
+async def test_saved_acknowledgement_survives_refresh_failure() -> None:
     """An acknowledged completion survives failure of the subsequent freshness read."""
     memory = MemorySlowListening(
         [SOURCE],
@@ -198,14 +198,14 @@ def test_saved_acknowledgement_survives_refresh_failure() -> None:
         occurrence=2,
     )
     with pytest.raises(RuntimeError, match="playlist interrupted"):
-        flush_slow_listening("slow", memory.dependencies())
-    result = flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
+    result = await flush_slow_listening("slow", memory.dependencies())
     assert result.resumed and result.completed_artists == 1
     assert memory.counts["complete"] == 1
     assert memory.live == []
 
 
-def test_lost_completion_response_repeats_unacknowledged_callback() -> None:
+async def test_lost_completion_response_repeats_unacknowledged_callback() -> None:
     """Preserve the original retry exposure when acknowledgement itself fails."""
     memory = MemorySlowListening(
         [SOURCE],
@@ -215,28 +215,28 @@ def test_lost_completion_response_repeats_unacknowledged_callback() -> None:
         accepted=True,
     )
     with pytest.raises(RuntimeError, match="complete interrupted"):
-        flush_slow_listening("slow", memory.dependencies())
-    flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
+    (await flush_slow_listening("slow", memory.dependencies()))
     assert memory.counts["complete"] == 2
     assert memory.counts["remove"] == 1
 
 
-def test_missing_source_and_missing_replacement_is_an_error() -> None:
+async def test_missing_source_and_missing_replacement_is_an_error() -> None:
     """A saved advance cannot silently complete when neither marker remains."""
     memory = MemorySlowListening()
     _resume(memory, _plan())
     with pytest.raises(
         SlowListeningStateError, match="absent but its planned replacement"
     ):
-        flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
     assert not memory.audits
 
 
-def test_existing_replacement_is_not_appended_again() -> None:
+async def test_existing_replacement_is_not_appended_again() -> None:
     """Existing target membership is preserved while removing the source."""
     memory = MemorySlowListening([SOURCE, playlist_track("target", FIRST)])
     _resume(memory, _plan())
-    result = flush_slow_listening("slow", memory.dependencies())
+    result = await flush_slow_listening("slow", memory.dependencies())
     assert result.advanced == 1
     assert "append" not in _event_names(memory)
     assert "added" not in _event_names(memory)
@@ -244,7 +244,7 @@ def test_existing_replacement_is_not_appended_again() -> None:
 
 
 @pytest.mark.parametrize("action", ["unknown", "advance"])
-def test_saved_action_without_target_keeps_tolerant_legacy_behavior(
+async def test_saved_action_without_target_keeps_tolerant_legacy_behavior(
     action: str,
 ) -> None:
     """Do not add stricter plan validation while moving the application boundary.
@@ -258,19 +258,17 @@ def test_saved_action_without_target_keeps_tolerant_legacy_behavior(
         target=None, target_release=None, skipped_candidates=[1, "Kept"], reason=7
     )
     _resume(memory, plan)
-    result = flush_slow_listening("slow", memory.dependencies())
+    result = await flush_slow_listening("slow", memory.dependencies())
     assert memory.live == [SOURCE]
     assert result.results[0].skipped_candidates == ("Kept",)
     assert result.results[0].reason == "7"
 
 
-def test_non_null_non_mapping_plan_is_recomputed_without_overwriting_saved_field() -> (
-    None
-):
+async def test_non_null_non_mapping_plan_is_recomputed_saved_field() -> None:
     """Preserve the legacy distinction between missing and malformed saved plans."""
     memory = MemorySlowListening([SOURCE])
     _resume(memory, "legacy-invalid-plan")
-    result = flush_slow_listening("slow", memory.dependencies())
+    result = await flush_slow_listening("slow", memory.dependencies())
     run = cast(dict[str, object], memory.state["active_run"])
     entry = cast(list[dict[str, object]], run["entries"])[0]
     assert result.advanced == 1
@@ -285,7 +283,7 @@ def test_non_null_non_mapping_plan_is_recomputed_without_overwriting_saved_field
         ("release_orders", None, "release orders are invalid"),
     ],
 )
-def test_invalid_saved_run_fails_without_losing_its_checkpoint(
+async def test_invalid_saved_run_fails_without_losing_its_checkpoint(
     field: str, value: object, message: str
 ) -> None:
     """Retain validation timing and preserve the saved namespace on failure.
@@ -305,12 +303,14 @@ def test_invalid_saved_run_fails_without_losing_its_checkpoint(
     parent[field] = value
     before = deepcopy(memory.state)
     with pytest.raises(SlowListeningStateError, match=message):
-        flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
     assert memory.state == before
 
 
 @pytest.mark.parametrize("skipped", [None, [1]])
-def test_invalid_skipped_records_stop_before_catalog_reads(skipped: object) -> None:
+async def test_invalid_skipped_records_stop_before_catalog_reads(
+    skipped: object,
+) -> None:
     """Only persisted string IDs can suppress interactive candidates.
 
     Args:
@@ -319,14 +319,14 @@ def test_invalid_skipped_records_stop_before_catalog_reads(skipped: object) -> N
     memory = MemorySlowListening([SOURCE])
     _resume(memory)["skipped_candidates"] = skipped
     with pytest.raises(SlowListeningStateError, match="invalid skipped candidates"):
-        flush_slow_listening("slow", memory.dependencies())
+        (await flush_slow_listening("slow", memory.dependencies()))
     assert "catalog" not in _event_names(memory)
 
 
 @pytest.mark.parametrize(
     "status,playlist_id", [("completed", "slow"), ("active", "other")]
 )
-def test_incompatible_run_starts_a_fresh_snapshot(
+async def test_incompatible_run_starts_a_fresh_snapshot(
     status: str, playlist_id: str
 ) -> None:
     """Only an active run for the same playlist is resumed.
@@ -339,7 +339,7 @@ def test_incompatible_run_starts_a_fresh_snapshot(
     _resume(memory)
     run = cast(dict[str, object], memory.state["active_run"])
     run.update(status=status, playlist_id=playlist_id)
-    assert not flush_slow_listening("slow", memory.dependencies()).resumed
+    assert not (await flush_slow_listening("slow", memory.dependencies())).resumed
 
 
 @pytest.mark.parametrize(

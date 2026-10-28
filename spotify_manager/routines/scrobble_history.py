@@ -28,6 +28,9 @@ from spotify_manager.core.library_data.runtime import (
 from spotify_manager.core.library_data.runtime import (
     get_library_data_service as get_library_data_service,
 )
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingHistoryReader as LegacyHistoryReader,
+)
 from spotify_manager.routines import blast_from_past
 
 
@@ -57,14 +60,23 @@ def check_cancel(cancel_check: CancelCheck | None) -> None:
 class LastFmReader(Protocol):
     """Read the dated Last.fm scrobbles required by history refreshes."""
 
-    def recent_tracks(
+    async def recent_tracks(
         self,
         *,
         from_timestamp: int,
         to_timestamp: int,
         limit: int = 200,
     ) -> tuple[LastFmRecentTrack, ...]:
-        """Return all dated scrobbles in a closed UTC range."""
+        """Return all dated scrobbles in a closed UTC range.
+
+        Args:
+            from_timestamp: Inclusive lower timestamp bound in seconds.
+            to_timestamp: Inclusive upper timestamp bound in seconds.
+            limit: Original request page size.
+
+        Returns:
+            Ordered dated observations within the requested range.
+        """
 
 
 def _normalized_event_key(
@@ -307,7 +319,7 @@ def _mark_export_checked(path: Path, checked_at: datetime) -> None:
         ) from exc
 
 
-def refresh_scrobble_history(
+async def async_refresh_scrobble_history(
     lastfm: LastFmReader,
     *,
     expected_username: str | None = None,
@@ -347,7 +359,7 @@ def refresh_scrobble_history(
         refresh_scrobble_history as operation,
     )
 
-    return operation(
+    return await operation(
         lastfm,
         expected_username=expected_username,
         export_path=export_path,
@@ -359,4 +371,60 @@ def refresh_scrobble_history(
         now=now,
         progress_callback=progress_callback,
         cancel_check=cancel_check,
+    )
+
+
+def refresh_scrobble_history(
+    lastfm: LastFmReader | LegacyHistoryReader,
+    *,
+    expected_username: str | None = None,
+    export_path: Path = DEFAULT_SCROBBLES_PATH,
+    legacy_delta_path: Path | None = DEFAULT_LEGACY_DELTA_PATH,
+    backup_dir: Path = DEFAULT_BACKUP_DIR,
+    log_path: Path = DEFAULT_LOG_PATH,
+    dry_run: bool = False,
+    full_rebuild: bool = False,
+    now: datetime | None = None,
+    progress_callback: ProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
+) -> ScrobbleHistorySummary:
+    """Merge recent plays, or replace all history from a complete API rebuild.
+
+    Args:
+        lastfm: Caller-owned reader for dated Last.fm tracks.
+        expected_username: Optional export ownership constraint.
+        export_path: Canonical export file.
+        legacy_delta_path: Optional legacy Found Art delta.
+        backup_dir: Destination for compressed original-history backups.
+        log_path: Append-only refresh audit destination.
+        dry_run: Suppress persistence while retaining observations.
+        full_rebuild: Replace local history from the entire live API range.
+        now: Optional effective refresh timestamp.
+        progress_callback: Optional existing progress presenter.
+        cancel_check: Optional predicate checked before expensive or mutating steps.
+
+    Returns:
+        Complete merged history and accepted persistence effects.
+
+    Raises:
+        ScrobbleHistoryError: Export validation, ownership or persistence fails.
+        ScrobbleHistoryCancelledError: Cancellation is requested at a boundary.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import PythonHistoryReader
+
+    return run_python(
+        async_refresh_scrobble_history(
+            PythonHistoryReader(lastfm),
+            expected_username=expected_username,
+            export_path=export_path,
+            legacy_delta_path=legacy_delta_path,
+            backup_dir=backup_dir,
+            log_path=log_path,
+            dry_run=dry_run,
+            full_rebuild=full_rebuild,
+            now=now,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
+        )
     )

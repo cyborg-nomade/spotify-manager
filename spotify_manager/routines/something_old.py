@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Protocol
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application import golden_selection as selections
 from spotify_manager.application.golden_selection import (
@@ -16,11 +16,10 @@ from spotify_manager.application.golden_selection import (
 )
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.something_old_values import (
     SomethingOldConfigError as SomethingOldConfigError,
 )
-
-# UFI
 from spotify_manager.application.something_old_values import (
     SomethingOldError as SomethingOldError,
 )
@@ -43,12 +42,27 @@ from spotify_manager.domain.golden_selection import (
 )
 from spotify_manager.infrastructure import golden_records
 from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
+from spotify_manager.infrastructure.python_compat.golden import (
+    BlockingGoldenAlbumChoice as LegacyGoldenAlbumChoice,
+)
+from spotify_manager.infrastructure.python_compat.golden import (
+    BlockingGoldenArtistChoice as LegacyGoldenArtistChoice,
+)
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingHistoryReader as LegacyHistoryReader,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
+
+
+# UFI
 
 
 type ProgressCallback = Messages
@@ -71,7 +85,7 @@ class LastFmReader(scrobble_history.LastFmReader, Protocol):
 class ArtistChoiceReader(Protocol):
     """Own the operator interaction for choose artist."""
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist: GoldenOldieArtist,
         candidates: tuple[SpotifyArtistCandidate, ...],
@@ -92,7 +106,7 @@ class ArtistChoiceReader(Protocol):
 class ModeReader(Protocol):
     """Own the operator interaction for choose mode."""
 
-    def choose_mode(
+    async def choose_mode(
         self, artist: GoldenOldieArtist, target: SpotifyArtistCandidate, /
     ) -> str:
         """Read or report the original operator interaction.
@@ -152,7 +166,7 @@ def _spotify_artist(raw: object, rank: int) -> SpotifyArtistCandidate | None:
     return golden_records.artist_record(raw, rank)
 
 
-def resolve_spotify_artist(
+async def async_resolve_spotify_artist(
     sp: Spotify,
     artist_name: str,
     artist_choice_reader: ArtistSearchChoiceReader | None,
@@ -173,14 +187,14 @@ def resolve_spotify_artist(
         SomethingOldSpotifyError: Original search or ambiguity choice is unusable.
     """
     for attempt in retry_call.attempts(f"searching Spotify for {artist_name}"):
-        with attempt:
-            response = sp.search(
+        async with attempt:
+            response = await sp.search(
                 q=f'''artist:"{artist_name.replace(chr(34), " ")}"''',
                 type="artist",
                 limit=ARTIST_SEARCH_LIMIT,
                 offset=0,
             )
-    return selections.resolve_artist(
+    return await selections.resolve_artist(
         artist_name,
         golden_records.artist_search(response, artist_name),
         artist_choice_reader,
@@ -196,7 +210,7 @@ def _selected_from_match(
     return golden_markers.from_match(match, source, lastfm_scrobbles)
 
 
-def select_lastfm_top_tracks(
+async def async_select_lastfm_top_tracks(
     sp: Spotify,
     artist: GoldenOldieArtist,
     retry_call: RetryCall,
@@ -214,22 +228,22 @@ def select_lastfm_top_tracks(
     Raises:
         SomethingOldSpotifyError: Original catalog data or selection is unusable.
     """
-    return selections.select_lastfm(
+    return await selections.select_lastfm(
         artist,
         GoldenCatalog(sp, retry_call),
         blast_from_past.ALBUM_MATCH_THRESHOLD,
     )
 
 
-def _read_lastfm_matches(
+async def _read_lastfm_matches(
     sp: Spotify,
     artist: GoldenOldieArtist,
     retry_call: RetryCall,
     track: LastFmTrackStat,
 ) -> tuple[blast_from_past.SpotifyTrackMatch, ...]:
     for attempt in retry_call.attempts(f"matching {artist.artist} - {track.track}"):
-        with attempt:
-            matches = blast_from_past.search_spotify_matches(
+        async with attempt:
+            matches = await blast_from_past.async_search_spotify_matches(
                 sp,
                 blast_from_past.Scrobble(
                     track=track.track,
@@ -245,7 +259,7 @@ def _read_lastfm_matches(
     return matches
 
 
-def _read_lastfm_liked(
+async def _read_lastfm_liked(
     sp: Spotify,
     artist: GoldenOldieArtist,
     retry_call: RetryCall,
@@ -254,8 +268,8 @@ def _read_lastfm_liked(
     for attempt in retry_call.attempts(
         f"checking liked Spotify tracks for {artist.artist}"
     ):
-        with attempt:
-            raw = blast_from_past.liked_spotify_track_ids(sp, groups)
+        async with attempt:
+            raw = await blast_from_past.async_liked_spotify_track_ids(sp, groups)
     if not isinstance(raw, set):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid liked-track data for {artist.artist}."
@@ -273,7 +287,7 @@ def _spotify_top_track(
     return golden_records.popular_track(raw, artist)
 
 
-def select_spotify_top_tracks(
+async def async_select_spotify_top_tracks(
     sp: Spotify,
     artist: SpotifyArtistCandidate,
     retry_call: RetryCall,
@@ -292,14 +306,14 @@ def select_spotify_top_tracks(
         SomethingOldSpotifyError: Original top-track data is unusable.
     """
     for attempt in retry_call.attempts(f"loading Spotify top tracks for {artist.name}"):
-        with attempt:
-            response = sp.artist_top_tracks(artist.spotify_id)
+        async with attempt:
+            response = await sp.artist_top_tracks(artist.spotify_id)
     return selections.select_popular(
         artist, golden_records.popular_tracks(response, artist), TOP_TRACK_LIMIT
     )
 
 
-def select_album_tracks(
+async def async_select_album_tracks(
     sp: Spotify,
     artist: GoldenOldieArtist,
     spotify_artist: SpotifyArtistCandidate,
@@ -321,8 +335,8 @@ def select_album_tracks(
     Raises:
         SomethingOldSpotifyError: Original catalog or release choice is unusable.
     """
-    releases = _read_studio_releases(sp, spotify_artist, retry_call)
-    return selections.select_album(
+    releases = await _read_studio_releases(sp, spotify_artist, retry_call)
+    return await selections.select_album(
         artist,
         spotify_artist,
         releases,
@@ -331,29 +345,31 @@ def select_album_tracks(
     )
 
 
-def _read_studio_releases(
+async def _read_studio_releases(
     sp: Spotify,
     artist: SpotifyArtistCandidate,
     retry_call: RetryCall,
 ) -> tuple[slow_listening.DiscographyRelease, ...]:
     try:
-        return slow_listening.load_discography(sp, artist.spotify_id, retry_call)
+        return await slow_listening.async_load_discography(
+            sp, artist.spotify_id, retry_call
+        )
     except slow_listening.SlowListeningError as exc:
         raise SomethingOldSpotifyError(str(exc)) from exc
 
 
-def _read_studio_tracks(
+async def _read_studio_tracks(
     sp: Spotify,
     retry_call: RetryCall,
     release: slow_listening.DiscographyRelease,
 ) -> tuple[slow_listening.new_wine.ReleaseTrack, ...]:
     try:
-        return slow_listening.load_release_tracks(sp, release, retry_call)
+        return await slow_listening.async_load_release_tracks(sp, release, retry_call)
     except slow_listening.SlowListeningError as exc:
         raise SomethingOldSpotifyError(str(exc)) from exc
 
 
-def _load_playlist_state(
+async def _load_playlist_state(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
@@ -361,8 +377,8 @@ def _load_playlist_state(
 ) -> blast_from_past.PlaylistState:
     """Load the destination through the routine's read-only retry policy."""
     for attempt in retry_call.attempts(description):
-        with attempt:
-            playlist = blast_from_past.load_playlist_state(sp, playlist_id)
+        async with attempt:
+            playlist = await blast_from_past.async_load_playlist_state(sp, playlist_id)
     if not isinstance(playlist, blast_from_past.PlaylistState):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid playlist data for {playlist_id}."
@@ -370,13 +386,13 @@ def _load_playlist_state(
     return playlist
 
 
-def _add_tracks(
+async def _add_tracks(
     sp: Spotify, playlist_id: str, tracks: tuple[SelectedTrack, ...]
 ) -> None:
     """Append one complete Something Old selection in Spotify-sized batches."""
     uris = [track.uri for track in tracks]
     for start in range(0, len(uris), blast_from_past.SPOTIFY_PLAYLIST_ADD_BATCH_SIZE):
-        sp._post(
+        await sp._post(
             f"playlists/{playlist_id}/items",
             payload={
                 "uris": uris[
@@ -392,7 +408,7 @@ def _append_log(summary: SomethingOldSummary, path: Path) -> None:
     append_log(summary, path)
 
 
-def run_something_old(
+async def async_run_something_old(
     sp: Spotify,
     lastfm: LastFmReader,
     options: SomethingOldOptions,
@@ -402,20 +418,195 @@ def run_something_old(
     """Refresh history and fill an empty Something Old playlist cautiously.
 
     Args:
-    sp: Caller-owned client.
-    lastfm: Caller-owned client.
-    options: Destinations and execution mode.
-    callbacks: Operator decisions, notifications and retry ownership.
-    resources: Persistent files and checkpoint authority.
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-    The original typed summary and accepted effects.
+        The original typed summary and accepted effects.
 
     Raises:
-    RuntimeError: Observations, selections or persistence cannot complete.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.operations.something_old import (
         run_something_old as operation,
     )
 
-    return operation(sp, lastfm, options, callbacks, resources)
+    return await operation(sp, lastfm, options, callbacks, resources)
+
+
+def resolve_spotify_artist(
+    sp: LegacySpotify,
+    artist_name: str,
+    artist_choice_reader: ArtistSearchChoiceReader | None | LegacyGoldenArtistChoice,
+    retry_call: RetryCall | LegacyRetry,
+) -> SpotifyArtistCandidate | None:
+    """Resolve one exact normalized artist, prompting only on ambiguity.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist_name: Original expected artist spelling.
+        artist_choice_reader: Optional original ambiguity interaction.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original accepted mapping or cancellation.
+
+    Raises:
+        SomethingOldSpotifyError: Original search or ambiguity choice is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.golden import (
+        PythonGoldenArtistChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_spotify_artist(
+            legacy_spotify(sp),
+            artist_name,
+            PythonGoldenArtistChoice(artist_choice_reader)
+            if artist_choice_reader is not None
+            else None,
+            PythonRetry(retry_call),
+        )
+    )
+
+
+def select_lastfm_top_tracks(
+    sp: LegacySpotify, artist: GoldenOldieArtist, retry_call: RetryCall | LegacyRetry
+) -> tuple[SelectedTrack, ...]:
+    """Resolve the artist's ranked titles before one live liked-membership read.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Selected history artist and original ranked titles.
+        retry_call: Caller-owned read retry policy.
+
+    Returns:
+        Original ordered safe distinct markers.
+
+    Raises:
+        SomethingOldSpotifyError: Original catalog data or selection is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_select_lastfm_top_tracks(
+            legacy_spotify(sp), artist, PythonRetry(retry_call)
+        )
+    )
+
+
+def select_spotify_top_tracks(
+    sp: LegacySpotify,
+    artist: SpotifyArtistCandidate,
+    retry_call: RetryCall | LegacyRetry,
+) -> tuple[SelectedTrack, ...]:
+    """Return up to ten of Spotify's current top tracks for the artist.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original accepted artist mapping.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original capped distinct popular markers in response order.
+
+    Raises:
+        SomethingOldSpotifyError: Original top-track data is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_select_spotify_top_tracks(
+            legacy_spotify(sp), artist, PythonRetry(retry_call)
+        )
+    )
+
+
+def select_album_tracks(
+    sp: LegacySpotify,
+    artist: GoldenOldieArtist,
+    spotify_artist: SpotifyArtistCandidate,
+    album_choice_reader: AlbumChoiceReader | LegacyGoldenAlbumChoice,
+    retry_call: RetryCall | LegacyRetry,
+) -> tuple[slow_listening.DiscographyRelease | None, tuple[SelectedTrack, ...]]:
+    """Request one studio release before reading its complete ordered tracklist.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original selected history artist.
+        spotify_artist: Original accepted mapping.
+        album_choice_reader: Caller-owned release interaction.
+        retry_call: Original read retry policy.
+
+    Returns:
+        Original release and full track selection or cancellation.
+
+    Raises:
+        SomethingOldSpotifyError: Original catalog or release choice is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.golden import (
+        PythonGoldenAlbumChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_select_album_tracks(
+            legacy_spotify(sp),
+            artist,
+            spotify_artist,
+            PythonGoldenAlbumChoice(album_choice_reader),
+            PythonRetry(retry_call),
+        )
+    )
+
+
+def run_something_old(
+    sp: LegacySpotify,
+    lastfm: LastFmReader | LegacyHistoryReader,
+    options: SomethingOldOptions,
+    callbacks: SomethingOldCallbacks,
+    resources: SomethingOldResources | None = None,
+) -> SomethingOldSummary:
+    """Refresh history and fill an empty Something Old playlist cautiously.
+
+    Args:
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
+
+    Returns:
+        The original typed summary and accepted effects.
+
+    Raises:
+        RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import PythonHistoryReader
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_something_old_callbacks,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_run_something_old(
+            legacy_spotify(sp),
+            PythonHistoryReader(lastfm),
+            options,
+            python_something_old_callbacks(callbacks),
+            resources,
+        )
+    )

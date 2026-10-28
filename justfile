@@ -72,6 +72,31 @@ test-spotify-async:
     uv run mypy --strict spotify_manager/infrastructure/spotify_async spotify_manager/bootstrap/spotify_async.py spotify_manager/application/ports/spotify_async.py spotify_manager/client/events.py tests/spotify_async
     uv run pytest --cov=spotify_manager.infrastructure.spotify_async --cov=spotify_manager.bootstrap.spotify_async --cov=spotify_manager.client.events --cov-branch --cov-fail-under=100 tests/spotify_async tests/bootstrap/test_callback_dependencies.py
 
+# Verify runtime ownership, interaction, SDK compatibility and callback boundaries.
+test-async-execution:
+    uv run ruff check spotify_manager tests/async_execution tests/bootstrap
+    uv run ruff format --check spotify_manager tests/async_execution tests/bootstrap
+    uv run mypy --strict \
+        spotify_manager/bootstrap/execution.py \
+        spotify_manager/application/ports/spotify_client.py \
+        spotify_manager/infrastructure/analysis_async_files.py \
+        spotify_manager/infrastructure/analysis_file_ports.py \
+        spotify_manager/infrastructure/async_jobs.py \
+        spotify_manager/infrastructure/async_signal.py \
+        spotify_manager/infrastructure/async_state.py \
+        spotify_manager/infrastructure/async_work.py \
+        spotify_manager/infrastructure/cli_cancellation.py \
+        spotify_manager/infrastructure/lastfm_async.py \
+        spotify_manager/infrastructure/library_administration.py \
+        spotify_manager/infrastructure/state_administration.py \
+        spotify_manager/infrastructure/sync_compat.py \
+        spotify_manager/infrastructure/spotify_compat.py \
+        spotify_manager/infrastructure/python_compat \
+        spotify_manager/interfaces/cli/compatibility_retry.py \
+        spotify_manager/interfaces/cli/terminal.py \
+        spotify_manager/interfaces/http/execution.py tests/async_execution
+    uv run pytest tests/async_execution tests/bootstrap
+
 # Verify pure policies without application fixtures, configuration, or SDKs.
 test-domain:
     uv run ruff check spotify_manager/domain tests/domain

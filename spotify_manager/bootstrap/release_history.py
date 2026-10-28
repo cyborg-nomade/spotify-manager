@@ -1,8 +1,7 @@
 """Compose historical release completion for New Kids and Queue 2."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.release_history import played_releases
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
@@ -10,7 +9,7 @@ from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
 from spotify_manager.infrastructure.legacy.release_history import LegacyReleaseHistory
 
 
-def observe_played_releases(
+async def observe_played_releases(
     client: Spotify,
     catalog: tuple[RankedRelease, ...],
     history: AnnualScrobbleIndex,
@@ -36,7 +35,7 @@ def observe_played_releases(
     Returns:
         Completed entries in catalog order, retaining duplicates.
     """
-    return played_releases(
+    return await played_releases(
         LegacyReleaseHistory(client, retry),
         catalog,
         history,

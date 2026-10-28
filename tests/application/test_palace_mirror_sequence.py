@@ -37,7 +37,7 @@ class MemoryMirror:
     edge: MirrorReads
     audits: list[SavedAlbumRefresh] = field(default_factory=list)
 
-    def previous(self) -> tuple[YourLibraryAlbum, ...]:
+    async def previous(self) -> tuple[YourLibraryAlbum, ...]:
         """Supply original usable previous facts or invalid-mirror boundary.
 
         Returns:
@@ -63,7 +63,7 @@ class MemoryMirror:
         """
         self.edge.progress(message)
 
-    def page(self, offset: int) -> SavedAlbumPage:
+    async def page(self, offset: int) -> SavedAlbumPage:
         """Supply complete original parsed live rows and raw accounting facts.
 
         Args:
@@ -75,7 +75,7 @@ class MemoryMirror:
         Raises:
             PalaceOfMemoryDataError: The configured original raw page is invalid.
         """
-        response = self.edge.current_user_saved_albums(50, offset)
+        response = await self.edge.current_user_saved_albums(50, offset)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -106,7 +106,7 @@ class MemoryMirror:
                 by_id[album.spotify_id] = album
         return tuple(sorted(by_id.values(), key=album_sort_key))
 
-    def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
+    async def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
         """Observe original publication and preserve its translated boundary error.
 
         Args:
@@ -143,7 +143,7 @@ class MemoryMirror:
         """
         return NOW
 
-    def audit(self, refresh: SavedAlbumRefresh) -> None:
+    async def audit(self, refresh: SavedAlbumRefresh) -> None:
         """Accept original preflight audit even for an unchanged mirror.
 
         Args:
@@ -152,12 +152,12 @@ class MemoryMirror:
         self.audits.append(refresh)
 
 
-def _outcome(profile: str) -> object:
+async def _outcome(profile: str) -> object:
     edge = MirrorReads(profile)
     memory = MemoryMirror(edge)
     result: dict[str, object] = {}
     try:
-        albums, refresh = SavedMirror(memory).run()
+        albums, refresh = await SavedMirror(memory).run()
         assert memory.audits == [refresh]
         result["result"] = {
             "albums": [album.model_dump() for album in albums],
@@ -171,7 +171,7 @@ def _outcome(profile: str) -> object:
 
 
 @pytest.mark.parametrize("case", cases())
-def test_palace_live_mirror_matches_original_bytes_and_publication(
+async def test_palace_live_mirror_matches_original_bytes_and_publication(
     case: dict[str, object],
 ) -> None:
     """Compare original exact artifacts and independent complete refresh execution.
@@ -180,7 +180,7 @@ def test_palace_live_mirror_matches_original_bytes_and_publication(
         case: Original immutable live paging and publication evidence.
     """
     profile = cast(str, case["profile"])
-    assert original_outcome(profile) == case["outcome"]
+    assert (await original_outcome(profile)) == case["outcome"]
     expected = dict(cast(dict[str, object], case["outcome"]))
     del expected["artifacts"]
-    assert _outcome(profile) == expected
+    assert (await _outcome(profile)) == expected

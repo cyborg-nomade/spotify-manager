@@ -1,8 +1,8 @@
 """Validate and present something old HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.something_old import (
@@ -16,7 +16,7 @@ from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import something_old as something_old
 
 
-def cmd_something_old(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_something_old(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start an interactive Something Old selection with reconnectable state.
 
     Args:
@@ -42,7 +42,7 @@ def cmd_something_old(client: Spotify, dry_run: bool) -> BlastJobResult:
         found_art.FoundArtConfigError,
     ) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_something_old_job(
+    return await jobs.start_something_old_job(
         client, playlist_id, api_key, username, dry_run=dry_run
     )
 

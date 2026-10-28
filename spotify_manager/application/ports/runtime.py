@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import date
@@ -46,7 +46,7 @@ class ReviewProgress(Protocol):
 class Retry(Protocol):
     """Provide retry scopes while keeping the operation visible at its call site."""
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly named operation.
 
         Args:
@@ -61,7 +61,7 @@ class Retry(Protocol):
 class NoRetry:
     """Execute a direct operation once, propagating its original failure."""
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Provide one scope without changing the original exception.
 
         Args:
@@ -251,7 +251,7 @@ class Cancellation(Protocol):
 class Wait(Protocol):
     """Own the sleep observation without an injected function."""
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Observe the original runtime boundary.
 
         Args:
@@ -263,7 +263,7 @@ class Wait(Protocol):
 class RandomIndexes(Protocol):
     """Read an external random index set."""
 
-    def sample(self, population: int, count: int) -> RandomIndexSet:
+    async def sample(self, population: int, count: int) -> RandomIndexSet:
         """Read indexes using the original external random source.
 
         Args:
@@ -272,5 +272,29 @@ class RandomIndexes(Protocol):
 
         Returns:
             Original random index response.
+        """
+        ...
+
+
+class BlockingWait(Protocol):
+    """Retain the external synchronous SDK's original delay resource."""
+
+    def sleep(self, seconds: float) -> None:
+        """Wait inside the SDK's bounded blocking worker.
+
+        Args:
+            seconds: Original SDK retry delay.
+        """
+        ...
+
+
+class RandomTimestampClock(Protocol):
+    """Await an external Random.org timestamp without changing local clock rules."""
+
+    async def now(self) -> datetime:
+        """Read the timestamp at the original external observation boundary.
+
+        Returns:
+            Original Random.org timestamp with its existing timezone semantics.
         """
         ...

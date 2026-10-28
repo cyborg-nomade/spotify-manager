@@ -25,16 +25,16 @@ def interrupted() -> Never:
     raise RuntimeError("interrupted")
 
 
-def test_direct_observation_retains_result_and_failure() -> None:
+async def test_direct_observation_retains_result_and_failure() -> None:
     """Keep the description passive and propagate the original observation failure."""
     for attempt in NoRetry().attempts("reading"):
-        with attempt:
+        async with attempt:
             assert observation() == "observed"
     with pytest.raises(RuntimeError, match="interrupted"):
-        _interrupted_without_retry()
+        (await _interrupted_without_retry())
 
 
-def _interrupted_without_retry() -> None:
+async def _interrupted_without_retry() -> None:
     for attempt in NoRetry().attempts("reading"):
-        with attempt:
+        async with attempt:
             interrupted()

@@ -81,7 +81,7 @@ class MemorySlowListening:
         self.failure = None
         raise RuntimeError(f"{name} interrupted")
 
-    def playlist(self) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self) -> tuple[PlaylistTrack, ...]:
         """Read current remote markers.
 
         Returns:
@@ -90,7 +90,7 @@ class MemorySlowListening:
         self._before("playlist")
         return tuple(self.live)
 
-    def load_state(self, dry_run: bool) -> dict[str, object]:
+    async def load_state(self, dry_run: bool) -> dict[str, object]:
         """Detach durable state, or start a fresh preview.
 
         Args:
@@ -102,7 +102,7 @@ class MemorySlowListening:
         self._before("load", dry_run)
         return _state() if dry_run else deepcopy(self.state)
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Accept a complete namespace checkpoint.
 
         Args:
@@ -115,7 +115,7 @@ class MemorySlowListening:
         self.state = deepcopy(state)
         self._fault("save", True)
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Return the scripted selected catalog.
 
         Args:
@@ -127,7 +127,7 @@ class MemorySlowListening:
         self._before("catalog", artist_id)
         return self.releases
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Return one scripted release's tracks.
 
         Args:
@@ -139,7 +139,7 @@ class MemorySlowListening:
         self._before("tracks", release.spotify_id)
         return self.release_tracks.get(release.spotify_id, ())
 
-    def append(self, target: ReleaseTrack) -> None:
+    async def append(self, target: ReleaseTrack) -> None:
         """Append a replacement to the simulated remote playlist.
 
         Args:
@@ -152,7 +152,7 @@ class MemorySlowListening:
         self.live.append(playlist_track(target.spotify_id, FIRST))
         self._fault("append", True)
 
-    def remove(self, source: PlaylistTrack) -> None:
+    async def remove(self, source: PlaylistTrack) -> None:
         """Remove every marker with the source ID.
 
         Args:
@@ -169,7 +169,7 @@ class MemorySlowListening:
         self.live = remaining
         self._fault("remove", True)
 
-    def audit(self, run_id: str, result: FlushResult) -> None:
+    async def audit(self, run_id: str, result: FlushResult) -> None:
         """Accept a completed or previewed result.
 
         Args:
@@ -218,7 +218,7 @@ class MemorySlowListening:
         )
         return self.choices.pop(0) if self.choices else "advance"
 
-    def complete(self, source: PlaylistTrack) -> None:
+    async def complete(self, source: PlaylistTrack) -> None:
         """Acknowledge an artist completion, optionally replacing the live list.
 
         Args:
@@ -313,7 +313,7 @@ class MemorySlowListening:
             self if progress else None,
         )
 
-    def order_releases(
+    async def order_releases(
         self, date: str, releases: tuple[DiscographyRelease, ...]
     ) -> tuple[str, ...]:
         """Observe the same fixture boundary through its named resource method.
@@ -327,7 +327,7 @@ class MemorySlowListening:
         """
         return self.order(date, releases)
 
-    def choose_track(
+    async def choose_track(
         self, source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
     ) -> str:
         """Observe the same fixture boundary through its named resource method.

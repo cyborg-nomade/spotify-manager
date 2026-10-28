@@ -132,7 +132,9 @@ class RunObservations:
         if event == self.failure:
             raise RuntimeError(event)
 
-    def refresh(self, *args: object, **kwargs: object) -> tuple[list[Scrobble], int]:
+    async def refresh(
+        self, *args: object, **kwargs: object
+    ) -> tuple[list[Scrobble], int]:
         """Return canonical history after its observable refresh.
 
         Args:
@@ -145,7 +147,7 @@ class RunObservations:
         self.record("refresh")
         return [Scrobble("Known", "Known", "Heard", 1)], 2
 
-    def read(self, *args: object, **kwargs: object) -> tuple[PlaylistTrack, ...]:
+    async def read(self, *args: object, **kwargs: object) -> tuple[PlaylistTrack, ...]:
         """Return initial or fresh membership in read order.
 
         Args:
@@ -185,7 +187,7 @@ class RunObservations:
         self.record("tracks")
         return (FoundArtCandidate("New", "Song", ("new", "song"), 1, 1, ("Seed",)),)
 
-    def previous(self, *args: object) -> set[tuple[str, str]]:
+    async def previous(self, *args: object) -> set[tuple[str, str]]:
         """Return empty accepted-history exclusions.
 
         Args:
@@ -212,7 +214,7 @@ class RunObservations:
         self.record("albums")
         return self.recommendations
 
-    def choose(
+    async def choose(
         self, item: AlbumRecommendation, *args: object
     ) -> SpotifyAlbumOption | str:
         """Return the explicit choice or first edition.
@@ -227,7 +229,7 @@ class RunObservations:
         self.record(f"choose:{item.album}")
         return self.choices.get(item.album, item.options[0])
 
-    def first(self, album: SpotifyAlbumOption) -> FirstTrack:
+    async def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Return one original playable marker.
 
         Args:
@@ -241,7 +243,7 @@ class RunObservations:
             f"track-{album.spotify_id}", f"spotify:track:{album.spotify_id}", "Opening"
         )
 
-    def audit(self, summary: object, *args: object) -> None:
+    async def audit(self, summary: object, *args: object) -> None:
         """Record the accepted result before a possible audit failure.
 
         Args:

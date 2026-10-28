@@ -1,7 +1,7 @@
 """Explicit historical CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import date
 from typing import Never
@@ -11,15 +11,14 @@ from rich.console import Console
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.formatting import scrobble_date
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
-from spotify_manager.interfaces.operations import (
-    blast_from_past_artists as blast_from_past_artists,
-)
+from spotify_manager.interfaces.operations import blast_from_past_artists as dormant
 from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
 from spotify_manager.interfaces.operations import new_kids as new_kids
 from spotify_manager.interfaces.operations import (
@@ -53,7 +52,7 @@ class HistoricalCLI:
         """
         return scrobble_date(timestamp_ms)
 
-    def _run_blast_from_the_past(
+    async def _run_blast_from_the_past(
         self, count: int | None, max_playlist_length: int | None, dry_run: bool
     ) -> None:
         """Select past scrobbles and add their Spotify matches to the playlist.
@@ -68,7 +67,7 @@ class HistoricalCLI:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.blast_from_the_past_playlist
@@ -81,8 +80,8 @@ class HistoricalCLI:
             status_text += " (dry run)"
         try:
             with console.status(status_text) as status:
-                summary = blast_from_past.add_blast_from_past_to_spotify(
-                    self.runtime.client(),
+                summary = await blast_from_past.add_blast_from_past_to_spotify(
+                    (await self.runtime.client()),
                     playlist_id,
                     count=effective_count,
                     max_playlist_length=max_playlist_length,
@@ -130,7 +129,7 @@ class HistoricalCLI:
             style="bold cyan" if dry_run else "bold",
         )
 
-    def _run_blast_from_the_past_artists(self, count: int, dry_run: bool) -> None:
+    async def _run_blast_from_the_past_artists(self, count: int, dry_run: bool) -> None:
         """Add liked tracks from artists heard recently, but not this year.
 
         Args:
@@ -140,7 +139,7 @@ class HistoricalCLI:
         self._blast_from_the_past_artists_console = self.display.create_console()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
-                self.runtime.configuration().blast_from_the_past_playlist
+                (await self.runtime.configuration()).blast_from_the_past_playlist
             )
         except blast_from_past.BlastFromPastConfigError as exc:
             self._report_blast_from_the_past_artists_configuration_failure(exc)
@@ -148,16 +147,14 @@ class HistoricalCLI:
             with self._blast_from_the_past_artists_console.status(
                 "Reading dormant artists"
             ) as self._blast_from_the_past_artists_status:
-                summary = (
-                    blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-                        self.runtime.review_client(),
-                        playlist_id,
-                        count=count,
-                        echo=BlastFromThePastArtistsInteraction(self),
-                        progress_callback=BlastFromThePastArtistsDiagnostics(self),
-                        retry_call=BlastFromThePastArtistsInteraction(self),
-                        dry_run=dry_run,
-                    )
+                summary = await dormant.add_dormant_artists_to_blast_from_past(
+                    (await self.runtime.review_client()),
+                    playlist_id,
+                    count=count,
+                    echo=BlastFromThePastArtistsInteraction(self),
+                    progress_callback=BlastFromThePastArtistsDiagnostics(self),
+                    retry_call=BlastFromThePastArtistsInteraction(self),
+                    dry_run=dry_run,
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_blast_from_the_past_artists_rate_limit(exc)
@@ -209,14 +206,14 @@ class HistoricalCLI:
     ) -> None:
         return self._blast_from_the_past_artists_status.update(message)
 
-    def _run_daily_mind_radio(self, dry_run: bool) -> None:
+    async def _run_daily_mind_radio(self, dry_run: bool) -> None:
         """Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.daily_mind_radio_playlist,
@@ -226,8 +223,8 @@ class HistoricalCLI:
             self._report_daily_mind_radio_configuration_failure(exc, console)
         try:
             with console.status("Preparing anniversary scrobbles") as status:
-                summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
-                    self.runtime.client(),
+                summary = await daily_mind_radio.add_daily_mind_radio_to_spotify(
+                    (await self.runtime.client()),
                     playlist_id,
                     progress_callback=StatusOutput(status),
                     dry_run=dry_run,
@@ -456,7 +453,7 @@ class BlastFromThePastArtistsInteraction:
 
     owner: HistoricalCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -494,4 +491,5 @@ class BlastFromThePastArtistsDiagnostics:
             _total: Original  total.
             message: Original message.
         """
+        check_cli_interruption()
         self.owner._blast_from_the_past_artists_log(_done, _total, message)

@@ -52,7 +52,7 @@ class MemoryCellar:
         self.failure = None
         raise RuntimeError(f"{name} interrupted")
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read ordered live markers.
 
         Args:
@@ -64,7 +64,7 @@ class MemoryCellar:
         self._before("playlist", playlist_id)
         return tuple(self.playlists[playlist_id])
 
-    def inventory(self) -> Inventory:
+    async def inventory(self) -> Inventory:
         """Record the point at which mirror inventory is requested.
 
         Returns:
@@ -73,7 +73,7 @@ class MemoryCellar:
         self._before("inventory")
         return {}, {}
 
-    def counts(self, artist: str, inventory: Inventory) -> LibraryCounts:
+    async def counts(self, artist: str, inventory: Inventory) -> LibraryCounts:
         """Read scripted live affinity counts.
 
         Args:
@@ -86,7 +86,7 @@ class MemoryCellar:
         self._before("counts", artist)
         return self.eligibility.get(artist.strip().casefold(), (0, 0, False))
 
-    def append(self, playlist_id: str, source: PlaylistTrack) -> None:
+    async def append(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Accept a destination marker before removing its source.
 
         Args:
@@ -100,7 +100,7 @@ class MemoryCellar:
         self.playlists[playlist_id].append(source)
         self._fault("append", True)
 
-    def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Accept removal of matching source markers.
 
         Args:
@@ -118,7 +118,7 @@ class MemoryCellar:
         self.playlists[playlist_id] = remaining
         self._fault("remove", True)
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Accept a detached namespace snapshot.
 
         Args:
@@ -131,7 +131,7 @@ class MemoryCellar:
         self.stored = deepcopy(state)
         self._fault("save", True)
 
-    def audit(self, run_id: str, result: CellarRefillResult) -> None:
+    async def audit(self, run_id: str, result: CellarRefillResult) -> None:
         """Accept one refill audit record.
 
         Args:

@@ -2,8 +2,7 @@
 
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.slow_listening import (
     flush_slow_listening as execute_flush_slow_listening,
 )
@@ -52,7 +51,7 @@ from spotify_manager.routines.slow_listening import (
 from spotify_manager.routines.slow_listening import validate_state as validate_state
 
 
-def flush_slow_listening(
+async def flush_slow_listening(
     sp: Spotify,
     playlist_id: str,
     order_reader: ReleaseOrderReader,
@@ -103,4 +102,4 @@ def flush_slow_listening(
         log_path,
         _CLOCK_RESOURCE,
     )
-    return execute_flush_slow_listening(playlist_id, configured, dry_run=dry_run)
+    return await execute_flush_slow_listening(playlist_id, configured, dry_run=dry_run)

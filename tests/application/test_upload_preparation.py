@@ -27,7 +27,7 @@ def read_export(path: Path, key: str) -> tuple[bytes, int]:
 
 
 @pytest.mark.parametrize("library,lastfm", [(True, True), (True, False), (False, True)])
-def test_preparation_retains_selection_order(
+async def test_preparation_retains_selection_order(
     library: bool, lastfm: bool, tmp_path: Path
 ) -> None:
     """Prepare exact manifests without materializing a single file.
@@ -37,7 +37,7 @@ def test_preparation_retains_selection_order(
         lastfm: Original history selection.
         tmp_path: Isolated managed directory.
     """
-    plan = prepare(
+    plan = await prepare(
         RecordedPreparation(),
         tmp_path,
         library,
@@ -58,27 +58,29 @@ def test_preparation_retains_selection_order(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_preparation_rejects_empty_selection(tmp_path: Path) -> None:
+async def test_preparation_rejects_empty_selection(tmp_path: Path) -> None:
     """Reject no selection before invoking any external observation.
 
     Args:
         tmp_path: Isolated managed directory.
     """
     with pytest.raises(LibraryFilesUploadError, match="at least one"):
-        prepare(
-            RecordedPreparation(),
-            tmp_path,
-            False,
-            False,
-            "repo",
-            "main",
+        (
+            await prepare(
+                RecordedPreparation(),
+                tmp_path,
+                False,
+                False,
+                "repo",
+                "main",
+            )
         )
 
 
 class RecordedPreparation(ExportPreparation):
     """Read recorded source bytes through the real deterministic part encoder."""
 
-    def read(self, path: Path, key: str) -> tuple[bytes, int]:
+    async def read(self, path: Path, key: str) -> tuple[bytes, int]:
         """Observe selected source bytes.
 
         Args:

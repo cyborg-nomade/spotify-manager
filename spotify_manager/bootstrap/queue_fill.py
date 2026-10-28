@@ -1,7 +1,6 @@
 """Compose The Queue's fill workflow with original caller-owned boundaries."""
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
 from spotify_manager.application.queue_fill import QueueFill
 from spotify_manager.application.queue_fill import QueueFillStages

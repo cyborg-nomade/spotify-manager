@@ -158,7 +158,7 @@ class FakeSpotify:
         self.mutations: list[tuple[str, str, str]] = []
         self.fail_playlist_delete_once: str | None = None
 
-    def current_user_playlists(self, *, limit: int, offset: int):
+    async def current_user_playlists(self, *, limit: int, offset: int):
         summaries = [
             {
                 "id": playlist_id,
@@ -182,7 +182,7 @@ class FakeSpotify:
             for track in release_tracks
         ]
 
-    def _get(self, path: str, *, limit: int, offset: int):
+    async def _get(self, path: str, *, limit: int, offset: int):
         playlist_id = path.split("/")[1]
         tracks = self.playlists[playlist_id]
         page = tracks[offset : offset + limit]
@@ -192,7 +192,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def _post(self, path: str, *, payload: dict[str, object]):
+    async def _post(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         uri = str(payload["uris"][0])  # type: ignore[index]
         track_id = uri.removeprefix("spotify:track:")
@@ -201,7 +201,7 @@ class FakeSpotify:
         self.mutations.append(("add", playlist_id, track_id))
         return {}
 
-    def _delete(
+    async def _delete(
         self,
         path: str,
         *,
@@ -226,7 +226,7 @@ class FakeSpotify:
         self.mutations.append(("remove", playlist_id, track_id))
         return {}
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -242,7 +242,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(releases) else None,
         }
 
-    def albums(self, album_ids: list[str]):
+    async def albums(self, album_ids: list[str]):
         releases = {
             str(release["id"]): release
             for values in self.artist_releases.values()
@@ -250,7 +250,7 @@ class FakeSpotify:
         }
         return {"albums": [releases[album_id] for album_id in album_ids]}
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
         return {
@@ -258,7 +258,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def artist_top_tracks(self, artist_id: str):
+    async def artist_top_tracks(self, artist_id: str):
         tracks = [
             track
             for track in self._all_tracks()
@@ -267,29 +267,29 @@ class FakeSpotify:
         tracks.sort(key=lambda track: int(track.get("popularity", 0)), reverse=True)
         return {"tracks": tracks[:10]}
 
-    def tracks(self, track_ids: list[str]):
+    async def tracks(self, track_ids: list[str]):
         by_id = {str(track["id"]): track for track in self._all_tracks()}
         return {"tracks": [by_id[track_id] for track_id in track_ids]}
 
-    def current_user_saved_tracks_contains(self, track_ids: list[str]):
+    async def current_user_saved_tracks_contains(self, track_ids: list[str]):
         return [track_id in self.liked_ids for track_id in track_ids]
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def current_user_saved_albums_add(self, album_ids: list[str]):
+    async def current_user_saved_albums_add(self, album_ids: list[str]):
         for album_id in album_ids:
             self.saved_album_ids.add(album_id)
             self.mutations.append(("save", "library", album_id))
         return None
 
-    def current_user_saved_albums_delete(self, album_ids: list[str]):
+    async def current_user_saved_albums_delete(self, album_ids: list[str]):
         for album_id in album_ids:
             self.saved_album_ids.discard(album_id)
             self.mutations.append(("unsave", "library", album_id))
         return None
 
-    def current_user_following_artists(self, artist_ids: list[str]):
+    async def current_user_following_artists(self, artist_ids: list[str]):
         return [artist_id in self.followed_artist_ids for artist_id in artist_ids]
 
 
@@ -504,7 +504,7 @@ def seed_string_band_with_unrelated_band_playlist(
     return string_band_tracks, dave_tracks
 
 
-def flush(
+async def flush(
     spotify: FakeSpotify,
     tmp_path: Path,
     choice_reader: DiscoveryInteraction | None = None,
@@ -526,7 +526,7 @@ def flush(
     )
 
 
-def test_annual_scrobble_index_uses_only_the_requested_calendar_year(
+async def test_annual_scrobble_index_uses_only_the_requested_calendar_year(
     tmp_path: Path,
 ) -> None:
     """The same release heard outside the active year does not count."""
@@ -645,7 +645,7 @@ def test_full_discography_excludes_fallbacks_from_the_four_release_set() -> None
     assert new_kids.release_review_catalog((*albums, single)) == albums
 
 
-def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> None:
+async def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> None:
     """A release completed in the live delta must not reappear in the prompt."""
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=3)
@@ -672,7 +672,7 @@ def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> Non
 
     interaction = DiscoveryScript(select_first=True, offered=offered)
 
-    summary = flush(
+    summary = await flush(
         spotify,
         tmp_path,
         interaction,
@@ -686,7 +686,9 @@ def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> Non
     assert len(saved["scrobbles"]) == 3
 
 
-def test_queue_2_refreshes_history_before_touching_playlists(tmp_path: Path) -> None:
+async def test_queue_2_refreshes_history_before_touching_playlists(
+    tmp_path: Path,
+) -> None:
     """Queue 2 shares the same live-history prerequisite as New Kids."""
     spotify = FakeSpotify()
     timestamp = int(datetime(2026, 6, 1, tzinfo=UTC).timestamp())
@@ -759,7 +761,9 @@ def test_next_release_options_hides_fallback_tiers_until_needed() -> None:
     ] == [1]
 
 
-def test_catalog_keeps_same_named_album_and_compilation_in_separate_tiers() -> None:
+async def test_catalog_keeps_same_named_album_and_compilation_in_separate_tiers() -> (
+    None
+):
     """Edition collapsing must not erase a preferred studio release."""
     spotify = FakeSpotify()
     album = raw_release("album", "Shared Title", popularity=20)
@@ -783,7 +787,7 @@ def test_catalog_keeps_same_named_album_and_compilation_in_separate_tiers() -> N
     ]
 
 
-def test_flush_adds_next_track_before_removing_current(tmp_path: Path) -> None:
+async def test_flush_adds_next_track_before_removing_current(tmp_path: Path) -> None:
     """A normal advancement is ordered safely and stores streak progress."""
     spotify = FakeSpotify()
     release = raw_release("r1", "First")
@@ -795,7 +799,7 @@ def test_flush_adds_next_track_before_removing_current(tmp_path: Path) -> None:
     spotify.release_tracks["r1"] = tracks
     spotify.playlists["new"] = [tracks[0]]
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "advance"
     assert [track["id"] for track in spotify.playlists["new"]] == ["t2"]
@@ -807,7 +811,7 @@ def test_flush_adds_next_track_before_removing_current(tmp_path: Path) -> None:
     assert state["artists"]["artist"]["prior_unliked_streak"] == 1
 
 
-def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
+async def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
     tmp_path: Path,
 ) -> None:
     """Performer credits must not replace the routed composer on later runs."""
@@ -815,14 +819,14 @@ def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
     marker, works = seed_composer(spotify)
     spotify.playlists["new"] = [marker]
 
-    first = flush(spotify, tmp_path)
+    first = await flush(spotify, tmp_path)
 
     assert first.results[0].artist == "Johann Sebastian Bach"
     assert first.results[0].composer_playlist == "[CD] Complete Bach works"
     assert first.results[0].target_track == "BWV 1"
     assert [track["id"] for track in spotify.playlists["new"]] == ["bach-work-1"]
 
-    second = flush(spotify, tmp_path)
+    second = await flush(spotify, tmp_path)
 
     assert second.results[0].artist == "Johann Sebastian Bach"
     assert second.results[0].source_track == "BWV 1"
@@ -833,7 +837,7 @@ def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
     assert state["composer_routes"]["bach"]["current_track_id"] == "bach-work-2"
 
 
-def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
+async def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
     tmp_path: Path,
 ) -> None:
     """The 40th ordered playlist item replaces the four-release boundary."""
@@ -843,7 +847,7 @@ def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
     spotify.followed_artist_ids.add("bach")
     save_composer_completion_state(tmp_path)
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.action == "unfollowed"
@@ -856,7 +860,7 @@ def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
     assert "bach" not in state["composer_routes"]
 
 
-def test_qualifying_composer_uses_first_work_for_discovery_playlists(
+async def test_qualifying_composer_uses_first_work_for_discovery_playlists(
     tmp_path: Path,
 ) -> None:
     """Composer promotion is represented by the works-list opener."""
@@ -866,7 +870,7 @@ def test_qualifying_composer_uses_first_work_for_discovery_playlists(
     spotify.liked_ids.add(str(marker["id"]))
     save_composer_completion_state(tmp_path)
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "great discovery"
     assert [track["id"] for track in spotify.playlists["great"]] == ["bach-work-1"]
@@ -875,7 +879,7 @@ def test_qualifying_composer_uses_first_work_for_discovery_playlists(
     ]
 
 
-def test_unlucky_composer_uses_first_work_instead_of_top_liked_track(
+async def test_unlucky_composer_uses_first_work_instead_of_top_liked_track(
     tmp_path: Path,
 ) -> None:
     """Composer rejection also uses the works-list opener."""
@@ -898,13 +902,15 @@ def test_unlucky_composer_uses_first_work_instead_of_top_liked_track(
     spotify.followed_artist_ids.add("bach")
     save_composer_completion_state(tmp_path)
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "unlucky"
     assert [track["id"] for track in spotify.playlists["unlucky"]] == ["bach-work-1"]
 
 
-def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> None:
+async def test_queue_2_uses_the_same_composer_playlist_progression(
+    tmp_path: Path,
+) -> None:
     """Queue 2 should use the works route even before transfer to New Kids."""
     spotify = FakeSpotify()
     marker, _works = seed_composer(spotify)
@@ -933,7 +939,7 @@ def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> 
     assert [track["id"] for track in spotify.playlists["queue"]] == ["bach-work-1"]
 
 
-def test_ambiguous_composer_playlists_are_prompted_and_persisted(
+async def test_ambiguous_composer_playlists_are_prompted_and_persisted(
     tmp_path: Path,
 ) -> None:
     """Ambiguous composer playlists are prompted and persisted.
@@ -950,7 +956,7 @@ def test_ambiguous_composer_playlists_are_prompted_and_persisted(
 
     interaction = DiscoveryScript(selection="bach-alternate", offered=offered)
 
-    summary = flush(spotify, tmp_path, interaction)
+    summary = await flush(spotify, tmp_path, interaction)
 
     assert offered == [("bach-works", "bach-alternate")]
     assert summary.results[0].target_track == "BWV 11"
@@ -958,7 +964,7 @@ def test_ambiguous_composer_playlists_are_prompted_and_persisted(
     assert state["composer_routes"]["bach"]["playlist_id"] == "bach-alternate"
 
 
-def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
+async def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
     tmp_path: Path,
 ) -> None:
     """A generic final token must not hijack normal release progression."""
@@ -967,7 +973,7 @@ def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
         spotify
     )
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.artist == "The .357 String Band"
@@ -978,7 +984,7 @@ def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
     ]
 
 
-def test_unprefixed_exact_band_playlist_uses_normal_release_progression(
+async def test_unprefixed_exact_band_playlist_uses_normal_release_progression(
     tmp_path: Path,
 ) -> None:
     """A Banda must not activate composer handling without `[CD]`."""
@@ -1031,7 +1037,7 @@ def test_unprefixed_exact_band_playlist_uses_normal_release_progression(
         "A Banda Mais Bonita da Cidade chronology"
     )
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.artist == artist_name
@@ -1040,7 +1046,7 @@ def test_unprefixed_exact_band_playlist_uses_normal_release_progression(
     assert [track["id"] for track in spotify.playlists["new"]] == ["banda-next"]
 
 
-def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
+async def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
     """A plan saved by the old broad matcher must not survive the fix."""
     spotify = FakeSpotify()
     string_band_tracks, _dave_tracks = seed_string_band_with_unrelated_band_playlist(
@@ -1049,7 +1055,7 @@ def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
 
     retry = NoRetry()
 
-    source = new_wine.load_playlist_tracks(spotify, "new", retry)[0]  # type: ignore[arg-type]
+    source = (new_wine.load_playlist_tracks(spotify, "new", retry))[0]  # type: ignore[arg-type]
     dave_sources = new_wine.load_playlist_tracks(  # type: ignore[arg-type]
         spotify,
         "dave-setlist",
@@ -1086,7 +1092,7 @@ def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
     state["active_run"] = run
     new_kids.save_state(state, tmp_path / "state.json")
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.composer_playlist is None
@@ -1098,7 +1104,9 @@ def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
     assert "string-band" not in persisted["composer_routes"]
 
 
-def test_three_unliked_tracks_jump_to_the_next_liked_track(tmp_path: Path) -> None:
+async def test_three_unliked_tracks_jump_to_the_next_liked_track(
+    tmp_path: Path,
+) -> None:
     """The refined New Wine rule skips unliked tracks before a later like."""
     spotify = FakeSpotify()
     release = raw_release("r1", "First", total_tracks=5)
@@ -1111,7 +1119,7 @@ def test_three_unliked_tracks_jump_to_the_next_liked_track(tmp_path: Path) -> No
     spotify.playlists["new"] = [tracks[2]]
     spotify.liked_ids.add("t5")
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.action == "advance"
@@ -1122,7 +1130,7 @@ def test_three_unliked_tracks_jump_to_the_next_liked_track(tmp_path: Path) -> No
     assert state["artists"]["artist"]["prior_unliked_streak"] == 0
 
 
-def test_release_boundary_prompts_only_with_preferred_release_type(
+async def test_release_boundary_prompts_only_with_preferred_release_type(
     tmp_path: Path,
 ) -> None:
     """A studio album is offered without exposing lower fallback tiers."""
@@ -1146,7 +1154,7 @@ def test_release_boundary_prompts_only_with_preferred_release_type(
     spotify.liked_ids.add("t1")
     shown: list[tuple[new_kids.ChoiceCandidate, ...]] = []
 
-    summary = flush(
+    summary = await flush(
         spotify,
         tmp_path,
         choice_reader=DiscoveryScript(select_first=True, candidates=shown),
@@ -1159,7 +1167,7 @@ def test_release_boundary_prompts_only_with_preferred_release_type(
     assert [track["id"] for track in spotify.playlists["new"]] == ["t2"]
 
 
-def test_short_discography_reaches_verdict_after_four_releases(
+async def test_short_discography_reaches_verdict_after_four_releases(
     tmp_path: Path,
 ) -> None:
     """Two played albums and two played singles finish the artist review."""
@@ -1194,14 +1202,14 @@ def test_short_discography_reaches_verdict_after_four_releases(
         liked_track_ids=spotify.liked_ids,
     )
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "unlucky"
     assert spotify.playlists["new"] == []
     assert [track["id"] for track in spotify.playlists["unlucky"]] == ["album-1-t1"]
 
 
-def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:
+async def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:
     """An artist with no liked tracks is unfollowed even with three saves."""
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=3)
@@ -1228,7 +1236,7 @@ def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:
     }
     new_kids.save_state(state, tmp_path / "state.json")
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "unfollowed"
     assert spotify.playlists["great"] == []
@@ -1238,7 +1246,7 @@ def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:
     assert ("unfollow", "library", "artist") in spotify.mutations
 
 
-def test_qualifying_artist_reaches_both_destination_playlists(
+async def test_qualifying_artist_reaches_both_destination_playlists(
     tmp_path: Path,
 ) -> None:
     """One like plus three saved releases satisfies the four-criteria rule."""
@@ -1270,7 +1278,7 @@ def test_qualifying_artist_reaches_both_destination_playlists(
     }
     new_kids.save_state(state, tmp_path / "state.json")
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.results[0].action == "great discovery"
     assert [track["id"] for track in spotify.playlists["great"]] == ["artist-r1-t1"]
@@ -1280,7 +1288,7 @@ def test_qualifying_artist_reaches_both_destination_playlists(
     assert "artist" in spotify.followed_artist_ids
 
 
-def test_all_saved_albums_qualify_despite_unsaved_other_releases(
+async def test_all_saved_albums_qualify_despite_unsaved_other_releases(
     tmp_path: Path,
 ) -> None:
     """EPs and singles do not block the all-studio-albums promotion rule."""
@@ -1315,7 +1323,7 @@ def test_all_saved_albums_qualify_despite_unsaved_other_releases(
         liked_track_ids=spotify.liked_ids,
     )
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     result = summary.results[0]
     assert result.action == "great discovery"
@@ -1326,7 +1334,7 @@ def test_all_saved_albums_qualify_despite_unsaved_other_releases(
     ]
 
 
-def test_interrupted_postfill_resumes_without_advancing_new_artist(
+async def test_interrupted_postfill_resumes_without_advancing_new_artist(
     tmp_path: Path,
 ) -> None:
     """A Queue 2 transfer resumes in its own phase after a partial mutation."""
@@ -1390,7 +1398,7 @@ def test_interrupted_postfill_resumes_without_advancing_new_artist(
     spotify.fail_playlist_delete_once = "queue"
 
     with pytest.raises(RuntimeError, match="interrupted"):
-        flush(spotify, tmp_path)
+        (await flush(spotify, tmp_path))
 
     interrupted = json.loads((tmp_path / "state.json").read_text())
     assert interrupted["active_run"]["status"] == "refilling"
@@ -1399,7 +1407,7 @@ def test_interrupted_postfill_resumes_without_advancing_new_artist(
         "queue-track",
     ]
 
-    summary = flush(spotify, tmp_path)
+    summary = await flush(spotify, tmp_path)
 
     assert summary.resumed is True
     assert summary.results == ()
@@ -1412,7 +1420,7 @@ def test_interrupted_postfill_resumes_without_advancing_new_artist(
     assert completed["active_run"] is None
 
 
-def test_queue_2_fills_new_kids_then_advances_only_ten_artists(
+async def test_queue_2_fills_new_kids_then_advances_only_ten_artists(
     tmp_path: Path,
 ) -> None:
     """The normal Queue 2 run respects New Kids priority and its daily limit."""
@@ -1454,7 +1462,7 @@ def test_queue_2_fills_new_kids_then_advances_only_ten_artists(
     ]
 
 
-def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
+async def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
     tmp_path: Path,
 ) -> None:
     """A dry run reviews the queue left after its simulated prefill."""
@@ -1492,7 +1500,7 @@ def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
     assert not (tmp_path / "state.json").exists()
 
 
-def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
+async def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
     """A transferred marker uses annual scrobbles to choose release three."""
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=3)
@@ -1526,7 +1534,7 @@ def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
         resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
     spotify.liked_ids.add("artist-r2-t3")
-    new_summary = flush(
+    new_summary = await flush(
         spotify,
         tmp_path,
         choice_reader=DiscoveryScript(select_first=True),
@@ -1541,7 +1549,7 @@ def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
     assert "selected_release_identities" not in persisted["artists"]["artist"]
 
 
-def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
+async def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
     tmp_path: Path,
 ) -> None:
     """A completed Queue 2 artist is assessed immediately when New Kids is full."""
@@ -1593,7 +1601,7 @@ def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
     ]
 
 
-def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
+async def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
     """A partial add-before-remove mutation is reconciled on restart."""
     spotify = FakeSpotify()
     for index in range(10):
@@ -1603,18 +1611,20 @@ def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
     spotify.fail_playlist_delete_once = "queue"
 
     with pytest.raises(RuntimeError, match="interrupted"):
-        new_kids.flush_queue_2(
-            spotify,
-            DiscoveryOptions(
-                new_kids_playlist_id="new",
-                queue_2_playlist_id="queue",
-                great_discoveries_2026_playlist_id="great",
-                unlucky_ones_playlist_id="unlucky",
-                newfoundland_playlist_id="newfoundland",
-                year=2026,
-            ),
-            DiscoveryScript(),
-            resources=DiscoveryResources(**isolated_paths(tmp_path)),
+        (
+            new_kids.flush_queue_2(
+                spotify,
+                DiscoveryOptions(
+                    new_kids_playlist_id="new",
+                    queue_2_playlist_id="queue",
+                    great_discoveries_2026_playlist_id="great",
+                    unlucky_ones_playlist_id="unlucky",
+                    newfoundland_playlist_id="newfoundland",
+                    year=2026,
+                ),
+                DiscoveryScript(),
+                resources=DiscoveryResources(**isolated_paths(tmp_path)),
+            )
         )
 
     interrupted = json.loads((tmp_path / "state.json").read_text())
@@ -1658,7 +1668,7 @@ class LiveHistory:
     timestamp: int
     tracks: list[dict[str, object]] = field(default_factory=list)
 
-    def recent_tracks(
+    async def recent_tracks(
         self, *, from_timestamp: int, to_timestamp: int, limit: int = 200
     ) -> tuple[LastFmRecentTrack, ...]:
         """Read the delta while checking the requested history boundaries.

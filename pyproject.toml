@@ -40,6 +40,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-mock>=3.14",
     "pytest-random-order>=1.1",
+    "pytest-asyncio>=1.4.1",
 ]
 
 [tool.ruff]
@@ -93,3 +94,7 @@ show_missing = true
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

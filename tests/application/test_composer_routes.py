@@ -31,7 +31,7 @@ class Interaction:
     choice: str = "first"
     events: list[tuple[str, object]] = field(default_factory=list)
 
-    def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
+    async def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
         """Read the operator response.
 
         Args:
@@ -62,13 +62,13 @@ class Interaction:
         return self.clock()
 
 
-def _resolve(
+async def _resolve(
     state: dict[str, object],
     interaction: Interaction,
     playlists: tuple[OwnedPlaylist, ...] = (FIRST, SECOND),
     excluded: frozenset[str] = frozenset(),
 ) -> tuple[OwnedPlaylist | None, str | None]:
-    return resolve_composer_route(
+    return await resolve_composer_route(
         state,
         "composer",
         "Bach",
@@ -81,7 +81,7 @@ def _resolve(
 
 
 @pytest.mark.parametrize("raw", [None, [], 1])
-def test_route_container_is_validated_before_interaction(raw: object) -> None:
+async def test_route_container_is_validated_before_interaction(raw: object) -> None:
     """Malformed state retains the existing error boundary.
 
     Args:
@@ -89,11 +89,13 @@ def test_route_container_is_validated_before_interaction(raw: object) -> None:
     """
     interaction = Interaction()
     with pytest.raises(NewKidsStateError, match="composer-route"):
-        _resolve({"composer_routes": raw}, interaction)
+        (await _resolve({"composer_routes": raw}, interaction))
     assert interaction.events == []
 
 
-def test_existing_valid_route_does_not_update_marker_timestamp_or_prompt() -> None:
+async def test_existing_valid_route_does_not_update_marker_timestamp_or_prompt() -> (
+    None
+):
     """A valid persisted selection remains byte-for-byte untouched in memory."""
     route = {
         "playlist_id": "second",
@@ -103,7 +105,7 @@ def test_existing_valid_route_does_not_update_marker_timestamp_or_prompt() -> No
     }
     state: dict[str, object] = {"composer_routes": {"composer": route}}
     interaction = Interaction()
-    assert _resolve(state, interaction) == (SECOND, None)
+    assert (await _resolve(state, interaction)) == (SECOND, None)
     assert interaction.events == []
     assert route == {
         "playlist_id": "second",
@@ -114,7 +116,7 @@ def test_existing_valid_route_does_not_update_marker_timestamp_or_prompt() -> No
 
 
 @pytest.mark.parametrize("choice", ["__skip__", "__quit__"])
-def test_stale_route_is_removed_before_skip_or_quit(choice: str) -> None:
+async def test_stale_route_is_removed_before_skip_or_quit(choice: str) -> None:
     """Control responses do not restore the stale route or read the clock.
 
     Args:
@@ -122,22 +124,22 @@ def test_stale_route_is_removed_before_skip_or_quit(choice: str) -> None:
     """
     routes: dict[str, object] = {"composer": {"playlist_id": "stale"}}
     interaction = Interaction(choice)
-    assert _resolve({"composer_routes": routes}, interaction) == (None, choice)
+    assert (await _resolve({"composer_routes": routes}, interaction)) == (None, choice)
     assert routes == {}
     assert interaction.events == [("choice", ("Bach", (FIRST, SECOND)))]
 
 
-def test_unavailable_choice_retains_stale_route_removal() -> None:
+async def test_unavailable_choice_retains_stale_route_removal() -> None:
     """Selection failure does not undo the original in-memory cleanup."""
     routes: dict[str, object] = {"composer": {"playlist_id": "stale"}}
     interaction = Interaction("missing")
     with pytest.raises(NewKidsError, match="not available"):
-        _resolve({"composer_routes": routes}, interaction)
+        (await _resolve({"composer_routes": routes}, interaction))
     assert routes == {} and len(interaction.events) == 1
 
 
 @pytest.mark.parametrize("existing", [None, "invalid", {"playlist_id": "stale"}])
-def test_single_candidate_is_accepted_without_prompt(existing: object) -> None:
+async def test_single_candidate_is_accepted_without_prompt(existing: object) -> None:
     """Only new acceptance updates marker metadata and reads the clock.
 
     Args:
@@ -145,7 +147,10 @@ def test_single_candidate_is_accepted_without_prompt(existing: object) -> None:
     """
     routes: dict[str, object] = {"composer": existing}
     interaction = Interaction()
-    assert _resolve({"composer_routes": routes}, interaction, (FIRST,)) == (FIRST, None)
+    assert (await _resolve({"composer_routes": routes}, interaction, (FIRST,))) == (
+        FIRST,
+        None,
+    )
     assert routes["composer"] == {
         "artist_name": "Bach",
         "playlist_id": "first",
@@ -156,11 +161,11 @@ def test_single_candidate_is_accepted_without_prompt(existing: object) -> None:
     assert interaction.events == [("clock", None)]
 
 
-def test_multiple_candidates_persist_the_explicit_selection() -> None:
+async def test_multiple_candidates_persist_the_explicit_selection() -> None:
     """Operator order is preserved and acceptance happens after the selection."""
     routes: dict[str, object] = {}
     interaction = Interaction("second")
-    assert _resolve({"composer_routes": routes}, interaction) == (SECOND, None)
+    assert (await _resolve({"composer_routes": routes}, interaction)) == (SECOND, None)
     assert interaction.events == [
         ("choice", ("Bach", (FIRST, SECOND))),
         ("clock", None),
@@ -174,11 +179,13 @@ def test_multiple_candidates_persist_the_explicit_selection() -> None:
     }
 
 
-def test_excluded_routes_are_removed_when_no_eligible_playlist_remains() -> None:
+async def test_excluded_routes_are_removed_when_no_eligible_playlist_remains() -> None:
     """A formerly valid review-queue route cannot survive exclusion."""
     routes: dict[str, object] = {"composer": {"playlist_id": "first"}}
     interaction = Interaction()
-    assert _resolve(
-        {"composer_routes": routes}, interaction, (FIRST,), frozenset({"first"})
+    assert (
+        await _resolve(
+            {"composer_routes": routes}, interaction, (FIRST,), frozenset({"first"})
+        )
     ) == (None, None)
     assert routes == {} and interaction.events == []

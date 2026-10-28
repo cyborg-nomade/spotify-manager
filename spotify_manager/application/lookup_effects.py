@@ -33,7 +33,7 @@ class LookupPage:
 class CachedTracks(Protocol):
     """Read and publish track caches, acquiring a client only on a cache miss."""
 
-    def load(self) -> dict[str, list[LookupTrack]]:
+    async def load(self) -> dict[str, list[LookupTrack]]:
         """Read the cache.
 
         Returns:
@@ -41,7 +41,7 @@ class CachedTracks(Protocol):
         """
         ...
 
-    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+    async def save(self, cache: dict[str, list[LookupTrack]]) -> None:
         """Publish the complete cache.
 
         Args:
@@ -49,7 +49,7 @@ class CachedTracks(Protocol):
         """
         ...
 
-    def fetch(self, identifier: str) -> list[LookupTrack]:
+    async def fetch(self, identifier: str) -> list[LookupTrack]:
         """Read every live track page.
 
         Args:
@@ -64,7 +64,7 @@ class CachedTracks(Protocol):
 class LocalLibrary(Protocol):
     """Read the local export authority."""
 
-    def library(self) -> YourLibraryFile:
+    async def library(self) -> YourLibraryFile:
         """Read local library facts.
 
         Returns:
@@ -93,7 +93,7 @@ class LocalAlbumLookup:
 class ArtistLookup(Protocol):
     """Observe direct and searched artist identities."""
 
-    def direct(self, identifier: str) -> tuple[str, str] | None:
+    async def direct(self, identifier: str) -> tuple[str, str] | None:
         """Read direct metadata.
 
         Args:
@@ -104,7 +104,7 @@ class ArtistLookup(Protocol):
         """
         ...
 
-    def search(self, name: str) -> list[tuple[str, str]]:
+    async def search(self, name: str) -> list[tuple[str, str]]:
         """Read name candidates.
 
         Args:
@@ -119,7 +119,7 @@ class ArtistLookup(Protocol):
 class AlbumLookup(Protocol):
     """Observe direct and searched album metadata."""
 
-    def direct(self, identifier: str) -> LiveAlbumCandidate:
+    async def direct(self, identifier: str) -> LiveAlbumCandidate:
         """Read direct metadata.
 
         Args:
@@ -130,7 +130,7 @@ class AlbumLookup(Protocol):
         """
         ...
 
-    def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
+    async def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
         """Read name candidates.
 
         Args:
@@ -146,7 +146,7 @@ class AlbumLookup(Protocol):
 class TrackLookup(Protocol):
     """Observe direct and searched track metadata."""
 
-    def direct(self, identifier: str) -> ResolvedTrack:
+    async def direct(self, identifier: str) -> ResolvedTrack:
         """Read direct metadata.
 
         Args:
@@ -157,7 +157,7 @@ class TrackLookup(Protocol):
         """
         ...
 
-    def search(self, name: str) -> list[ResolvedTrack]:
+    async def search(self, name: str) -> list[ResolvedTrack]:
         """Read title candidates.
 
         Args:
@@ -172,7 +172,7 @@ class TrackLookup(Protocol):
 class LookupMembership(Protocol):
     """Observe fresh membership statuses for an ordered batch."""
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Read a membership batch.
 
         Args:
@@ -187,7 +187,7 @@ class LookupMembership(Protocol):
 class ArtistLibrary(ArtistLookup, Protocol):
     """Observe artist catalog and live membership facts."""
 
-    def releases(self, identifier: str) -> list[str]:
+    async def releases(self, identifier: str) -> list[str]:
         """Read primary-credit releases.
 
         Args:
@@ -198,7 +198,7 @@ class ArtistLibrary(ArtistLookup, Protocol):
         """
         ...
 
-    def tracks(self, identifier: str, releases: list[str]) -> list[str]:
+    async def tracks(self, identifier: str, releases: list[str]) -> list[str]:
         """Read primary-credit tracks.
 
         Args:

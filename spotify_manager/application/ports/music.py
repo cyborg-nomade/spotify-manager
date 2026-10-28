@@ -10,7 +10,7 @@ from spotify_manager.application.music import Track
 class AlbumCatalog(Protocol):
     """Resolve albums and retrieve their ordered, freshly parsed tracks."""
 
-    def resolve_album(
+    async def resolve_album(
         self, *, name: str | None, album_id: str | None, artist: str | None
     ) -> Album:
         """Resolve a reference using the established matching rules.
@@ -28,7 +28,7 @@ class AlbumCatalog(Protocol):
             ValueError: Both name and identifier are missing.
         """
 
-    def album_tracks(self, album_id: str) -> tuple[Track, ...]:
+    async def album_tracks(self, album_id: str) -> tuple[Track, ...]:
         """Read all pages in order, preserving duplicates and missing identifiers.
 
         Args:
@@ -42,7 +42,7 @@ class AlbumCatalog(Protocol):
 class TrackMembership(Protocol):
     """Read current Liked Songs membership without cross-call caching."""
 
-    def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
+    async def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
         """Read statuses with the caller's order and duplicate requests intact.
 
         Args:
@@ -56,7 +56,7 @@ class TrackMembership(Protocol):
 class PlaylistAccess(Protocol):
     """Read markers and perform one explicitly ordered Requeue effect at a time."""
 
-    def tracks(self, playlist_id: str) -> tuple[Track, ...]:
+    async def tracks(self, playlist_id: str) -> tuple[Track, ...]:
         """Read playable markers through the existing pagination and parser.
 
         Args:
@@ -66,7 +66,7 @@ class PlaylistAccess(Protocol):
             Parsed tracks in playlist order, including duplicates.
         """
 
-    def append(self, playlist_id: str, track: NamedTrack) -> None:
+    async def append(self, playlist_id: str, track: NamedTrack) -> None:
         """Append one replacement using the established Requeue retry profile.
 
         Args:
@@ -74,7 +74,7 @@ class PlaylistAccess(Protocol):
             track: Replacement marker and its retry-message title.
         """
 
-    def remove(self, playlist_id: str, track: NamedTrack) -> None:
+    async def remove(self, playlist_id: str, track: NamedTrack) -> None:
         """Remove a source marker using the established Requeue retry profile.
 
         Args:

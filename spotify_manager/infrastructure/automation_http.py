@@ -14,9 +14,9 @@ from spotify_manager.application.automation_values import TRANSIENT_HTTP_STATUSE
 from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import DeadlineReachedError
+from spotify_manager.application.ports.runtime import BlockingWait as Wait
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
-from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.infrastructure.automation_records import decode_response
 
 

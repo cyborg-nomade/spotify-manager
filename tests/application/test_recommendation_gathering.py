@@ -78,7 +78,7 @@ class GatherMemory:
         assert stamp is STAMP
         return WEEK
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read the mutable cache.
 
         Returns:
@@ -87,7 +87,7 @@ class GatherMemory:
         self._step("load")
         return self.payload
 
-    def previous(self) -> set[TrackKey]:
+    async def previous(self) -> set[TrackKey]:
         """Observe prior accepted additions.
 
         Returns:
@@ -112,7 +112,7 @@ class GatherMemory:
         assert week == WEEK
         return self.cached
 
-    def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
+    async def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
         """Observe one seed's original Last.fm neighborhood.
 
         Args:
@@ -124,7 +124,7 @@ class GatherMemory:
         self._step("fetch")
         return (LastFmSimilarTrack("Candidate", "Song", 1.0),)
 
-    def remember(
+    async def remember(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -177,10 +177,10 @@ def _workflow(memory: GatherMemory) -> CandidateGathering:
     return CandidateGathering(memory, memory, memory, memory)
 
 
-def test_each_fetch_is_checkpointed_before_aggregation_and_next_seed() -> None:
+async def test_each_fetch_is_checkpointed_before_aggregation_and_next_seed() -> None:
     """Keep two seed observations and cache acceptance in their original order."""
     memory = GatherMemory()
-    result = _workflow(memory).run((_seed("One"), _seed("Two")), set(), WEEK, 10)
+    result = await _workflow(memory).run((_seed("One"), _seed("Two")), set(), WEEK, 10)
     assert memory.events == [
         "clock",
         "load",
@@ -206,7 +206,7 @@ def test_each_fetch_is_checkpointed_before_aggregation_and_next_seed() -> None:
 @pytest.mark.parametrize(
     "cached", [(), (LastFmSimilarTrack("Candidate", "Song", 1.0),)]
 )
-def test_current_week_cache_including_empty_neighborhood_skips_fetch(
+async def test_current_week_cache_including_empty_neighborhood_skips_fetch(
     cached: tuple[LastFmSimilarTrack, ...],
 ) -> None:
     """Treat valid empty observations as cache hits.
@@ -215,29 +215,31 @@ def test_current_week_cache_including_empty_neighborhood_skips_fetch(
         cached: Decoded original current-week cache contents.
     """
     memory = GatherMemory(cached=cached)
-    result = _workflow(memory).run((_seed("One"),), set(), WEEK, 10)
+    result = await _workflow(memory).run((_seed("One"),), set(), WEEK, 10)
     assert memory.events == ["clock", "load", "previous", "progress", "lookup"]
     assert len(result) == len(cached) and not memory.saved_keys
 
 
-def test_empty_seed_input_still_observes_clock_cache_and_previous_additions() -> None:
+async def test_empty_seed_input_still_observes_clock_cache_and_previous_additions() -> (
+    None
+):
     """Retain the original preparation steps before returning no candidates."""
     memory = GatherMemory()
-    assert _workflow(memory).run((), set(), WEEK, 10) == ()
+    assert (await _workflow(memory).run((), set(), WEEK, 10)) == ()
     assert memory.events == ["clock", "load", "previous"]
 
 
-def test_missing_week_is_resolved_before_cache_reads() -> None:
+async def test_missing_week_is_resolved_before_cache_reads() -> None:
     """Resolve the default listening week from the effective clock timestamp."""
     memory = GatherMemory()
-    _workflow(memory).run((), set(), None, 10)
+    (await _workflow(memory).run((), set(), None, 10))
     assert memory.events == ["clock", "week", "load", "previous"]
 
 
 @pytest.mark.parametrize(
     "heard,logged", [({("candidate", "song")}, set()), (set(), {("candidate", "song")})]
 )
-def test_excluded_neighbors_are_still_checkpointed(
+async def test_excluded_neighbors_are_still_checkpointed(
     heard: set[TrackKey], logged: set[TrackKey]
 ) -> None:
     """Cache observation is accepted before heard/logged filtering.
@@ -248,13 +250,13 @@ def test_excluded_neighbors_are_still_checkpointed(
     """
     memory = GatherMemory(logged=logged)
     original_heard = heard.copy()
-    assert _workflow(memory).run((_seed("One"),), heard, WEEK, 10) == ()
+    assert (await _workflow(memory).run((_seed("One"),), heard, WEEK, 10)) == ()
     assert memory.saved_keys == [("seed\0One",)]
     assert heard == original_heard
 
 
 @pytest.mark.parametrize("pool_size", [0, -1])
-def test_invalid_pool_size_precedes_clock_and_cache_observations(
+async def test_invalid_pool_size_precedes_clock_and_cache_observations(
     pool_size: int,
 ) -> None:
     """Retain request validation before any date or cache read.
@@ -264,12 +266,12 @@ def test_invalid_pool_size_precedes_clock_and_cache_observations(
     """
     memory = GatherMemory()
     with pytest.raises(FoundArtConfigError, match="at least 1"):
-        _workflow(memory).run((), set(), None, pool_size)
+        (await _workflow(memory).run((), set(), None, pool_size))
     assert memory.events == []
 
 
 @pytest.mark.parametrize("entries", [None, [], "bad"])
-def test_changed_entry_container_fails_before_prior_addition_reads(
+async def test_changed_entry_container_fails_before_prior_addition_reads(
     entries: object,
 ) -> None:
     """Keep the original assertion for a corrupted validated cache container.
@@ -280,15 +282,15 @@ def test_changed_entry_container_fails_before_prior_addition_reads(
     memory = GatherMemory()
     memory.payload["entries"] = entries
     with pytest.raises(AssertionError, match="changed type"):
-        _workflow(memory).run((), set(), WEEK, 10)
+        (await _workflow(memory).run((), set(), WEEK, 10))
     assert memory.events == ["clock", "load"]
 
 
-def test_missing_entries_retains_original_key_error() -> None:
+async def test_missing_entries_retains_original_key_error() -> None:
     """Do not strengthen the original cache reconstruction behavior."""
     memory = GatherMemory(payload={"version": 1})
     with pytest.raises(KeyError, match="entries"):
-        _workflow(memory).run((), set(), WEEK, 10)
+        (await _workflow(memory).run((), set(), WEEK, 10))
     assert memory.events == ["clock", "load"]
 
 
@@ -296,7 +298,9 @@ def test_missing_entries_retains_original_key_error() -> None:
     "failure",
     ["clock", "week", "load", "previous", "progress", "lookup", "fetch", "save"],
 )
-def test_observation_and_checkpoint_failures_stop_the_workflow(failure: str) -> None:
+async def test_observation_and_checkpoint_failures_stop_the_workflow(
+    failure: str,
+) -> None:
     """Keep failures at their original observation or persistence boundaries.
 
     Args:
@@ -304,15 +308,17 @@ def test_observation_and_checkpoint_failures_stop_the_workflow(failure: str) -> 
     """
     memory = GatherMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
-        _workflow(memory).run((_seed("One"), _seed("Two")), set(), None, 10)
+        (await _workflow(memory).run((_seed("One"), _seed("Two")), set(), None, 10))
     assert memory.events[-1] == failure and not memory.saved_keys
 
 
-def test_second_checkpoint_failure_retains_first_accepted_cache_snapshot() -> None:
+async def test_second_checkpoint_failure_retains_first_accepted_cache_snapshot() -> (
+    None
+):
     """Preserve accepted progress and the working entry update on later failure."""
     memory = GatherMemory(failure="save", failure_at=2)
     with pytest.raises(OSError, match="save"):
-        _workflow(memory).run((_seed("One"), _seed("Two")), set(), WEEK, 10)
+        (await _workflow(memory).run((_seed("One"), _seed("Two")), set(), WEEK, 10))
     assert memory.saved_keys == [("seed\0One",)]
     assert memory.payload["entries"] == {
         "seed\0One": {"track": "One"},

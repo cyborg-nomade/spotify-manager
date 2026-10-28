@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -96,8 +97,8 @@ def test_review_client_disables_spotipy_retries(
         calls=calls, fake_client=fake_client
     )
     monkeypatch.setattr(main, "get_spotipy_client", scenario.fake_get_spotipy_client)
-    assert main.review_client() is fake_client
-    assert main.review_client() is fake_client
+    assert (main.review_client()) is fake_client
+    assert (main.review_client()) is fake_client
     assert calls == [
         {
             "retries": 0,
@@ -118,17 +119,23 @@ def test_review_album_limits_command_handles_transient_server_error(
         monkeypatch: Scoped external-boundary substitutions.
         capsys: Captured console output.
     """
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
 
     error = main.review_album_limits.SpotifyTransientServerError(
         503, "checking/following artist for OK Computer - Radiohead", 3
     )
     monkeypatch.setattr(
-        main.review_album_limits, "review_album_limits", Mock(side_effect=error)
+        main.review_album_limits,
+        "review_album_limits",
+        AsyncMock(side_effect=Mock(side_effect=error)),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_album_limits_command()
+        (main.review_album_limits_command())
 
     assert exc.value.exit_code == 0
     output = capsys.readouterr().out
@@ -146,17 +153,23 @@ def test_review_album_limits_command_validates_threshold_and_runs_callbacks(
         capsys: Original capsys.
     """
     with pytest.raises(main.typer.BadParameter):
-        main.review_album_limits_command(threshold=1.1)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+        (main.review_album_limits_command(threshold=1.1))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     monkeypatch.setattr(main.Prompt, "ask", Mock(return_value="s"))
     received: dict[str, object] = {}
     scenario = ReviewAlbumLimitsCommandValidatesThresholdAndRunsCallbacksScenario(
         received=received
     )
     monkeypatch.setattr(
-        main.review_album_limits, "review_album_limits", scenario.complete
+        main.review_album_limits,
+        "review_album_limits",
+        AsyncMock(side_effect=scenario.complete),
     )
-    main.review_album_limits_command(threshold=0.5, no_cache=True, refresh_cache=True)
+    (main.review_album_limits_command(threshold=0.5, no_cache=True, refresh_cache=True))
     assert received["use_cache"] is False
     assert received["refresh_cache"] is True
     assert "Review complete" in capsys.readouterr().out
@@ -171,15 +184,23 @@ def test_review_album_limits_command_handles_rate_limit(
         monkeypatch: Scoped external-boundary substitutions.
         capsys: Captured console output.
     """
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     monkeypatch.setattr(
         main.review_album_limits,
         "review_album_limits",
-        Mock(side_effect=main.review_album_limits.SpotifyRateLimitError(60)),
+        AsyncMock(
+            side_effect=Mock(
+                side_effect=main.review_album_limits.SpotifyRateLimitError(60)
+            )
+        ),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_album_limits_command()
+        (main.review_album_limits_command())
 
     assert exc.value.exit_code == 0
     assert "rate limit" in capsys.readouterr().out
@@ -194,13 +215,19 @@ def test_recover_removed_albums_command_runs_callbacks(
         monkeypatch: Scoped external-boundary substitutions.
         capsys: Original capsys.
     """
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     received: dict[str, object] = {}
     scenario = RecoverRemovedAlbumsCommandRunsCallbacksScenario(received=received)
     monkeypatch.setattr(
-        main.recover_removed_albums, "recover_removed_albums", scenario.complete
+        main.recover_removed_albums,
+        "recover_removed_albums",
+        AsyncMock(side_effect=scenario.complete),
     )
-    main.recover_removed_albums_command(dry_run=True, limit=1)
+    (main.recover_removed_albums_command(dry_run=True, limit=1))
     assert received["dry_run"] is True
     assert received["limit"] == 1
     assert "Dry run complete" in capsys.readouterr().out
@@ -223,15 +250,19 @@ def test_recover_removed_albums_command_pauses_on_retryable_errors(
         monkeypatch: Scoped external-boundary substitutions.
         error: Operational failure raised by the routine.
     """
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     monkeypatch.setattr(
         main.recover_removed_albums,
         "recover_removed_albums",
-        Mock(side_effect=error),
+        AsyncMock(side_effect=Mock(side_effect=error)),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.recover_removed_albums_command(dry_run=False, limit=None)
+        (main.recover_removed_albums_command(dry_run=False, limit=None))
 
     assert exc.value.exit_code == 0
 
@@ -258,12 +289,18 @@ def test_review_artists_command_uses_configured_queues_and_limit(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=Mock(return_value=spotify))
+    )
     scenario = ReviewArtistsCommandUsesConfiguredQueuesAndLimitScenario(
         received=received
     )
-    monkeypatch.setattr(main.artist_review, "review_artists", scenario.complete_review)
-    main.review_artists_command(refresh_cache=True, limit=1)
+    monkeypatch.setattr(
+        main.artist_review,
+        "review_artists",
+        AsyncMock(side_effect=scenario.complete_review),
+    )
+    (main.review_artists_command(refresh_cache=True, limit=1))
     assert received["client"] is spotify
     assert received["playlists"] == main.artist_review.QueuePlaylists(
         "queue1", "queue2", "queue3"
@@ -295,13 +332,21 @@ def test_review_artists_command_handles_rate_limit(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
 
     error = main.artist_review.SpotifyRateLimitError(120)
-    monkeypatch.setattr(main.artist_review, "review_artists", Mock(side_effect=error))
+    monkeypatch.setattr(
+        main.artist_review,
+        "review_artists",
+        AsyncMock(side_effect=Mock(side_effect=error)),
+    )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_artists_command(refresh_cache=False, limit=None)
+        (main.review_artists_command(refresh_cache=False, limit=None))
 
     assert exc.value.exit_code == 0
     output = capsys.readouterr().out
@@ -344,20 +389,26 @@ def test_review_artists_command_reports_remaining_operational_errors(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     monkeypatch.setattr(
         main.artist_review,
         "review_artists",
-        Mock(side_effect=error),
+        AsyncMock(side_effect=Mock(side_effect=error)),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_artists_command(refresh_cache=False, limit=None)
+        (main.review_artists_command(refresh_cache=False, limit=None))
 
     assert exc.value.exit_code == exit_code
 
 
-def test_review_artists_command_reports_bad_queue_configuration(monkeypatch) -> None:
+def test_review_artists_command_reports_bad_queue_configuration(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         main,
         "Settings",
@@ -369,7 +420,7 @@ def test_review_artists_command_reports_bad_queue_configuration(monkeypatch) -> 
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_artists_command(refresh_cache=False, limit=None)
+        (main.review_artists_command(refresh_cache=False, limit=None))
 
     assert exc.value.exit_code == 1
 
@@ -410,7 +461,7 @@ class ReviewAlbumLimitsCommandValidatesThresholdAndRunsCallbacksScenario:
 
     received: dict[str, object]
 
-    def complete(self, *_args: Any, **kwargs: Any) -> None:
+    async def complete(self, *_args: Any, **kwargs: Any) -> None:
         """Execute the original complete mock boundary.
 
         Args:
@@ -420,7 +471,7 @@ class ReviewAlbumLimitsCommandValidatesThresholdAndRunsCallbacksScenario:
         self.received.update(kwargs)
         kwargs["progress_callback"].progress(1, 1)
         assert (
-            kwargs["action_reader"].choose_action(
+            await kwargs["action_reader"].choose_action(
                 None, SimpleNamespace(decision="keep")
             )
             == "s"

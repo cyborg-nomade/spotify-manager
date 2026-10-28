@@ -42,7 +42,7 @@ class MembershipPage:
 class MembershipPages(Protocol):
     """Read parsed queue marker pages through an explicit transport method."""
 
-    def read_membership(self, offset: int) -> MembershipPage:
+    async def read_membership(self, offset: int) -> MembershipPage:
         """Read one original queue page.
 
         Args:
@@ -57,7 +57,7 @@ class MembershipPages(Protocol):
 class MembershipAccess(Protocol):
     """Observe complete queue membership."""
 
-    def membership(self, identity: str) -> PlaylistMembership:
+    async def membership(self, identity: str) -> PlaylistMembership:
         """Read or reuse complete membership.
 
         Args:
@@ -69,7 +69,9 @@ class MembershipAccess(Protocol):
         ...
 
 
-def playlist_membership(identity: str, pages: MembershipPages) -> PlaylistMembership:
+async def playlist_membership(
+    identity: str, pages: MembershipPages
+) -> PlaylistMembership:
     """Gather original complete primary-credit and marker indexes in page order.
 
     Args:
@@ -85,7 +87,7 @@ def playlist_membership(identity: str, pages: MembershipPages) -> PlaylistMember
     membership = PlaylistMembership(set(), set(), {})
     offset = 0
     while True:
-        page = pages.read_membership(offset)
+        page = await pages.read_membership(offset)
         for marker in page.markers:
             _retain(membership, marker)
         offset += page.rows

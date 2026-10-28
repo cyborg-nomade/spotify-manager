@@ -15,7 +15,7 @@ from spotify_manager.domain.palace_values import SpotifyFirstTrack
 class AnnualLookup(Protocol):
     """Named original external observations for the corresponding annual stage."""
 
-    def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
         """Search the original artist and title.
 
         Args:
@@ -25,7 +25,7 @@ class AnnualLookup(Protocol):
             Qualified matches in encounter order.
         """
 
-    def album(self, artist: str, name: str) -> SpotifyAlbum | None:
+    async def album(self, artist: str, name: str) -> SpotifyAlbum | None:
         """Search the original release.
 
         Args:
@@ -36,7 +36,7 @@ class AnnualLookup(Protocol):
             Original accepted release or no match.
         """
 
-    def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Read the original first playable marker.
 
         Args:
@@ -46,7 +46,7 @@ class AnnualLookup(Protocol):
             Original playable first marker.
         """
 
-    def artist(self, name: str) -> SpotifyArtistCandidate | None:
+    async def artist(self, name: str) -> SpotifyArtistCandidate | None:
         """Read the exact original artist mapping.
 
         Args:
@@ -56,7 +56,7 @@ class AnnualLookup(Protocol):
             Original mapping or cancellation.
         """
 
-    def primary(self, uri: str) -> object:
+    async def primary(self, uri: str) -> object:
         """Read the original first credit.
 
         Args:
@@ -70,7 +70,7 @@ class AnnualLookup(Protocol):
 class AnnualPlaylist(Protocol):
     """Named original external observations for the corresponding annual stage."""
 
-    def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
         """Read complete current playlist markers.
 
         Args:
@@ -80,7 +80,7 @@ class AnnualPlaylist(Protocol):
             Ordered current playable markers.
         """
 
-    def append(self, playlist: str, uris: list[str], top: bool) -> None:
+    async def append(self, playlist: str, uris: list[str], top: bool) -> None:
         """Append the original absent markers.
 
         Args:
@@ -89,7 +89,7 @@ class AnnualPlaylist(Protocol):
             top: Whether insertion starts at the front.
         """
 
-    def move(self, playlist: str, position: int) -> None:
+    async def move(self, playlist: str, position: int) -> None:
         """Move one original marker to the front.
 
         Args:
@@ -101,14 +101,16 @@ class AnnualPlaylist(Protocol):
 class AnnualChartCatalog(Protocol):
     """Named original external observations for the corresponding annual stage."""
 
-    def owned(self) -> tuple[OwnedPlaylist, ...]:
+    async def owned(self) -> tuple[OwnedPlaylist, ...]:
         """Read owned playlists.
 
         Returns:
             Complete original ownership facts.
         """
 
-    def create(self, name: str, kind: Literal["tracks", "albums"], year: int) -> str:
+    async def create(
+        self, name: str, kind: Literal["tracks", "albums"], year: int
+    ) -> str:
         """Create the original private annual chart.
 
         Args:
@@ -120,7 +122,7 @@ class AnnualChartCatalog(Protocol):
             Accepted chart identity.
         """
 
-    def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
         """Read complete current playlist markers.
 
         Args:
@@ -130,7 +132,7 @@ class AnnualChartCatalog(Protocol):
             Ordered current playable markers.
         """
 
-    def replace(self, playlist: str, uris: list[str]) -> None:
+    async def replace(self, playlist: str, uris: list[str]) -> None:
         """Replace the original chart contents.
 
         Args:

@@ -95,17 +95,17 @@ class RecoveryRun:
         if self.progress is not None:
             self.progress.progress(self.completed, self.total)
 
-    def _restore(
+    async def _restore(
         self, record: RemovedAlbumRecord, album: RecoveryAlbum
     ) -> tuple[bool, bool, bool]:
         self.counts.future += 1
-        saved = self.library.saved(record)
+        saved = await self.library.saved(record)
         restored = False
         if not saved:
-            restored = self._save_future(record, album)
+            restored = await self._save_future(record, album)
         if self.dry_run:
             return saved, restored, False
-        local_added = self.library.record_album(album, record)
+        local_added = await self.library.record_album(album, record)
         if restored:
             self.presentation.future(
                 record, album.release_date, "Restored future release"
@@ -116,18 +116,20 @@ class RecoveryRun:
             )
         return saved, restored, local_added
 
-    def _save_future(self, record: RemovedAlbumRecord, album: RecoveryAlbum) -> bool:
+    async def _save_future(
+        self, record: RemovedAlbumRecord, album: RecoveryAlbum
+    ) -> bool:
         if self.dry_run:
             self.presentation.future(
                 record, album.release_date, "Would restore future release"
             )
             self.counts.restored += 1
             return False
-        self.library.restore(record)
+        await self.library.restore(record)
         self.counts.restored += 1
         return True
 
-    def _available(
+    async def _available(
         self, record: RemovedAlbumRecord, album: RecoveryAlbum, timestamp: str
     ) -> dict[str, object]:
         if len(album.artists) > 1:
@@ -138,41 +140,45 @@ class RecoveryRun:
             future = release_is_in_future(
                 album.release_date, album.precision, self.today.today()
             )
-        restoration = self._restore(record, album) if future else (False, False, False)
+        restoration = (
+            (await self._restore(record, album)) if future else (False, False, False)
+        )
         return _available_event(record, album, timestamp, future, restoration)
 
-    def _album(self, record: RemovedAlbumRecord, album: RecoveryAlbum | None) -> None:
+    async def _album(
+        self, record: RemovedAlbumRecord, album: RecoveryAlbum | None
+    ) -> None:
         timestamp = self.clock.now().isoformat()
         if album is None:
             self.counts.unavailable += 1
             self.presentation.unavailable(record)
             event = _event(record, timestamp)
         else:
-            event = self._available(record, album, timestamp)
+            event = await self._available(record, album, timestamp)
         if not self.dry_run:
-            self.library.audit(event)
+            await self.library.audit(event)
         self.state.processed_album_ids.add(record.spotify_id)
         if not self.dry_run:
-            self.state.persist()
+            await self.state.persist()
         self.completed += 1
         self.counts.processed += 1
         self._notify_progress()
 
-    def _batch(self, records: list[RemovedAlbumRecord]) -> None:
-        albums = self.library.albums(records)
+    async def _batch(self, records: list[RemovedAlbumRecord]) -> None:
+        albums = await self.library.albums(records)
         artists: list[AlbumArtist] = []
         for album in albums:
             if album is not None:
                 artists.extend(album.artists)
-        checked, followed = self.library.follow_artists(
+        checked, followed = await self.library.follow_artists(
             artists, self.state, self.dry_run
         )
         self.counts.checked += checked
         self.counts.followed += followed
         for record, album in zip(records, albums, strict=True):
-            self._album(record, album)
+            await self._album(record, album)
 
-    def execute(self, records: list[RemovedAlbumRecord]) -> RecoverySummary:
+    async def execute(self, records: list[RemovedAlbumRecord]) -> RecoverySummary:
         """Run original twenty-album batches and present the final result.
 
         Args:
@@ -187,7 +193,7 @@ class RecoveryRun:
         """
         self._notify_progress()
         for start in range(0, len(records), 20):
-            self._batch(records[start : start + 20])
+            await self._batch(records[start : start + 20])
         summary = self.counts.summary()
         self.presentation.finish(summary, self.dry_run)
         return summary
@@ -208,7 +214,7 @@ def _pending(
     return pending, completed, completed + len(pending)
 
 
-def recover_albums(
+async def recover_albums(
     library: RecoveryLibrary,
     presentation: RecoveryPresentation,
     clock: Clock,
@@ -236,9 +242,9 @@ def recover_albums(
         RuntimeError: An integration or callback interrupts execution.
         ValueError: Metadata batch size or stored input is invalid.
     """
-    records, state = library.load()
+    records, state = await library.load()
     pending, completed, total = _pending(records, state, limit)
     run = RecoveryRun(
         library, presentation, state, dry_run, clock, today, progress, completed, total
     )
-    return run.execute(pending)
+    return await run.execute(pending)

@@ -17,7 +17,7 @@ from spotify_manager.infrastructure.release_check_catalog import parse_track
 class CatalogPageReader(Protocol):
     """Read release-catalog pages at explicit offsets."""
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read a catalog page.
 
         Args:
@@ -32,7 +32,7 @@ class CatalogPageReader(Protocol):
 class TrackPageReader(Protocol):
     """Read release-track pages with explicit offsets and limits."""
 
-    def read(self, offset: int, limit: int) -> object:
+    async def read(self, offset: int, limit: int) -> object:
         """Read a track page.
 
         Args:
@@ -87,7 +87,7 @@ def _release_order(
     )
 
 
-def load_catalog_pages(
+async def load_catalog_pages(
     pages: CatalogPageReader,
     name: str,
     artist_id: str,
@@ -110,7 +110,7 @@ def load_catalog_pages(
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
-        response = _page(pages.read(offset), "release", name)
+        response = _page((await pages.read(offset)), "release", name)
         items = _items(response)
         _retain_releases(items, releases, artist_id, start)
         offset += len(items)
@@ -136,7 +136,7 @@ def _track_order(track: ReleaseTrack) -> tuple[int, int]:
     return track.disc_number, track.track_number
 
 
-def load_track_pages(
+async def load_track_pages(
     pages: TrackPageReader,
     name: str,
     first_only: bool,
@@ -160,7 +160,7 @@ def load_track_pages(
     offset = 0
     limit = 1 if first_only else page_limit
     while True:
-        response = _optional_track_page(pages, offset, limit, name)
+        response = await _optional_track_page(pages, offset, limit, name)
         if response is None:
             return ()
         items = _items(response)
@@ -196,7 +196,7 @@ def _has_playlist_page(response: dict[str, object], offset: int) -> bool:
     return has_more
 
 
-def load_playlist_pages(
+async def load_playlist_pages(
     pages: CatalogPageReader,
     name: str,
 ) -> tuple[PlaylistEntry, ...]:
@@ -215,7 +215,7 @@ def load_playlist_pages(
     entries: list[PlaylistEntry] = []
     offset = 0
     while True:
-        response = _page(pages.read(offset), "playlist", name)
+        response = _page((await pages.read(offset)), "playlist", name)
         items = _items(response)
         _retain_entries(items, entries, name)
         offset += len(items)
@@ -227,10 +227,10 @@ def load_playlist_pages(
             )
 
 
-def _optional_track_page(
+async def _optional_track_page(
     pages: TrackPageReader, offset: int, limit: int, name: str
 ) -> dict[str, object] | None:
     try:
-        return _page(pages.read(offset, limit), "track", name)
+        return _page((await pages.read(offset, limit)), "track", name)
     except MissingReleaseTracksError:
         return None

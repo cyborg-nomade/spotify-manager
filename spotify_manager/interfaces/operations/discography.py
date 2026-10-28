@@ -3,8 +3,6 @@
 from datetime import date as date
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.discography_values import (
     DiscographyCancelledError as DiscographyCancelledError,
 )
@@ -17,6 +15,7 @@ from spotify_manager.application.discography_values import (
 from spotify_manager.application.discography_values import (
     DiscographyRunSummary as DiscographyRunSummary,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.service import StateService as StateService
 from spotify_manager.domain.discography_values import ArtistSelection as ArtistSelection
@@ -58,7 +57,7 @@ from spotify_manager.routines.discography import (
 from spotify_manager.routines.discography import validate_state as validate_state
 
 
-def build_discography_plan(
+async def build_discography_plan(
     spotify: Spotify,
     playlist_ids: dict[QueueName, str],
     release_selector: ReleaseSelector,
@@ -92,7 +91,7 @@ def build_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.planning(
+    return await composition.planning(
         spotify,
         playlist_ids,
         release_selector,
@@ -108,7 +107,7 @@ def build_discography_plan(
     ).run()
 
 
-def apply_discography_plan(
+async def apply_discography_plan(
     spotify: Spotify,
     plan: DiscographyPlan,
     *,
@@ -132,6 +131,6 @@ def apply_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.execution(
+    return await composition.execution(
         spotify, retry_call, progress_callback, state_path, state_service, log_path
     ).run(plan)

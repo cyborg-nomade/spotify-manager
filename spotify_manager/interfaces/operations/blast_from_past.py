@@ -3,8 +3,6 @@
 from datetime import date as date
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.historical_values import (
     BlastFromPastBatch as BlastFromPastBatch,
 )
@@ -34,6 +32,7 @@ from spotify_manager.application.historical_values import (
     SpotifyTrackMatch as SpotifyTrackMatch,
 )
 from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.historical_playlists import blast_playlist
 from spotify_manager.bootstrap.historical_playlists import blast_selection
 from spotify_manager.bootstrap.historical_playlists import historical_resolution
@@ -66,7 +65,7 @@ from spotify_manager.routines.blast_from_past import (
 )
 
 
-def select_blast_from_past(
+async def select_blast_from_past(
     count: int = 10,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
@@ -91,10 +90,10 @@ def select_blast_from_past(
         RandomOrgError: The random source fails.
     """
     configured = blast_selection(path, today, random_index_reader, progress_callback)
-    return configured.run(count)
+    return await configured.run(count)
 
 
-def resolve_spotify_selections(
+async def resolve_spotify_selections(
     sp: Spotify,
     selections: tuple[ScrobbleSelection, ...],
     playlist: PlaylistState,
@@ -120,10 +119,10 @@ def resolve_spotify_selections(
         BlastFromPastCancelledError: Cancellation is requested.
     """
     configured = historical_resolution(sp, progress_callback, retry_call, cancel_check)
-    return configured.run(selections, playlist)
+    return await configured.run(selections, playlist)
 
 
-def add_blast_from_past_to_spotify(
+async def add_blast_from_past_to_spotify(
     sp: Spotify,
     playlist_id: str,
     count: int | None = 10,
@@ -168,4 +167,4 @@ def add_blast_from_past_to_spotify(
         retry_call,
         cancel_check,
     )
-    return configured.run(playlist_id, count, max_playlist_length, dry_run)
+    return await configured.run(playlist_id, count, max_playlist_length, dry_run)

@@ -75,7 +75,36 @@ def _direct_expression(expression: str) -> str:
 
 def _endpoint_contracts(path: Path) -> Json:
     payload = cast(Json, json.loads(path.read_text()))
-    return _without_source_lines(payload)
+    return _comparison_source_variants(_without_source_lines(payload))
+
+
+def _comparison_source_variants(payload: Json) -> Json:
+    """Account for the retained Python and native variants of one album lookup.
+
+    Args:
+        payload: Endpoint evidence with source line movement normalized.
+
+    Returns:
+        Contracts counting the reviewed comparison lookup once when both its
+        original Python source and its single native counterpart are present.
+        Other methods, sources, counts, expressions and SDK bodies remain exact.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    methods = payload.get("sdk_methods")
+    if not isinstance(methods, dict):
+        return payload
+    album = methods.get("album")
+    if not isinstance(album, dict):
+        return payload
+    references = album.get("references")
+    if not isinstance(references, list):
+        return payload
+    native = "spotify_manager/infrastructure/legacy_library_resources.py"
+    original = "spotify_manager/utils/comparison.py"
+    if references.count(native) == 1 and original in references:
+        references.remove(native)
+    return payload
 
 
 def compare_interfaces(candidate: Path, baseline: Path = BASELINE) -> int:

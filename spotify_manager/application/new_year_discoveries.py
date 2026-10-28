@@ -32,7 +32,7 @@ class AnnualDiscoveryInputs:
 class AnnualDiscoverySource(Protocol):
     """Observe annual import authority without executing the import."""
 
-    def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
+    async def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
         """Read the original annual import sources.
 
         Args:
@@ -66,7 +66,7 @@ class AnnualDiscoveries:
     source: AnnualDiscoverySource
     presentation: DiscoveryPresentation
 
-    def run(self, active_year: int, preview: bool) -> None:
+    async def run(self, active_year: int, preview: bool) -> None:
         """Run the original import without changing its standalone summary behavior.
 
         Args:
@@ -74,8 +74,8 @@ class AnnualDiscoveries:
             preview: Original mutation and checkpoint suppression.
         """
         self.presentation.loading(active_year - 1)
-        inputs = self.source.discovery_inputs(preview)
-        AnnualImportReview(inputs.importer, self.presentation).run(
+        inputs = await self.source.discovery_inputs(preview)
+        await AnnualImportReview(inputs.importer, self.presentation).run(
             inputs.playlist,
             inputs.current,
             inputs.state,

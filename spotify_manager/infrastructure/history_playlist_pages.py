@@ -2,10 +2,9 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 
 
 type RetryCall = Retry
@@ -27,7 +26,7 @@ class SpotifyHistoryPages:
     retry: RetryCall
     cancelled: CancellationState | None
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one raw playlist page.
 
         Args:
@@ -38,6 +37,6 @@ class SpotifyHistoryPages:
         """
         from spotify_manager.routines.blast_from_past import _playlist_page
 
-        return _playlist_page(
+        return await _playlist_page(
             self.spotify, self.playlist, self.retry, self.cancelled, offset
         )

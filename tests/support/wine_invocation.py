@@ -1,12 +1,13 @@
 """Retain legacy fixture observations across the typed New Wine interface."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
-
-from spotipy import Spotify
+from inspect import isawaitable
 
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_values import FlushSummary
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 
@@ -19,9 +20,9 @@ class WineInvocation:
         operation: Existing synthetic choice, retry or error fixture.
     """
 
-    operation: Callable[..., FlushSummary]
+    operation: Callable[..., FlushSummary | Awaitable[FlushSummary]]
 
-    def __call__(
+    async def __call__(
         self,
         client: Spotify,
         options: NewWineOptions,
@@ -44,7 +45,7 @@ class WineInvocation:
         Raises:
             RuntimeError: The scripted failure occurs at its original boundary.
         """
-        return self.operation(
+        result = self.operation(
             client,
             options.destination,
             options.sauvignon,
@@ -58,3 +59,7 @@ class WineInvocation:
             progress_callback=callbacks.progress,
             retry_call=callbacks.retry,
         )
+
+        if isawaitable(result):
+            return await result
+        return result

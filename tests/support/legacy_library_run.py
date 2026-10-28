@@ -1,8 +1,10 @@
 """Observe legacy workflows against mutable files and ordered Spotify effects."""
 
+import asyncio
 import builtins
 import copy
 import io
+from collections.abc import Awaitable
 from collections.abc import Callable
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -13,9 +15,13 @@ from typing import Any
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager import loaders_savers as files
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.infrastructure.legacy_library_resources import (
+    NativeComparisonMetadata,
+)
+from spotify_manager.interfaces.operations import legacy_library as legacy_operations
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
@@ -312,7 +318,9 @@ class Catalog:
     def __init__(self, memory: Memory) -> None:
         self.memory = memory
 
-    def current_user_saved_albums(self, *, limit: int, offset: int) -> dict[str, Any]:
+    async def current_user_saved_albums(
+        self, *, limit: int, offset: int
+    ) -> dict[str, Any]:
         """Return a raw original saved-album page."""
         self.memory.begin("saved", [limit, offset])
         page: dict[str, Any] = {
@@ -328,7 +336,7 @@ class Catalog:
         self.memory.end("saved", page)
         return page
 
-    def next(self, page: dict[str, Any]) -> dict[str, Any]:
+    async def next(self, page: dict[str, Any]) -> dict[str, Any]:
         """Return the original next page or native recovery failure."""
         self.memory.begin("next", page)
         if self.memory.scenario.profile == "retry" and self.memory.counts["next"] == 1:
@@ -346,7 +354,7 @@ class Catalog:
         self.memory.end("next", result)
         return result
 
-    def current_user_saved_albums_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_albums_contains(self, ids: list[str]) -> list[bool]:
         """Observe original singleton membership queries."""
         self.memory.begin("contains", ids)
         result = [ids[0] not in ("b", "unknown")]
@@ -357,14 +365,14 @@ class Catalog:
         self.memory.end("contains", result)
         return result
 
-    def album(self, identifier: str) -> dict[str, object]:
+    async def album(self, identifier: str) -> dict[str, object]:
         """Return original first-credit album metadata."""
         self.memory.begin("album", identifier)
         result = raw_album(identifier)
         self.memory.end("album", result)
         return result
 
-    def album_tracks(self, identifier: str) -> dict[str, Any]:
+    async def album_tracks(self, identifier: str) -> dict[str, Any]:
         """Read ordered-track input with raw numeric coercion."""
         self.memory.begin("tracks", identifier)
         result = {
@@ -374,38 +382,38 @@ class Catalog:
         self.memory.end("tracks", result)
         return result
 
-    def user_playlist_create(self, user: str, *, name: str) -> dict[str, str]:
+    async def user_playlist_create(self, user: str, *, name: str) -> dict[str, str]:
         """Accept an original named playlist creation."""
         self.memory.begin("create", [user, name])
         self.memory.playlists.append([user, name, []])
         self.memory.end("create", {"id": "playlist"})
         return {"id": "playlist"}
 
-    def playlist_add_items(self, identifier: str, uris: list[str]) -> None:
+    async def playlist_add_items(self, identifier: str, uris: list[str]) -> None:
         """Accept ordered track additions."""
         self.memory.begin("append", [identifier, uris])
         self.memory.playlists.append([identifier, copy.deepcopy(uris)])
         self.memory.end("append")
 
-    def current_user_following_artists(self, ids: list[str]) -> list[bool]:
+    async def current_user_following_artists(self, ids: list[str]) -> list[bool]:
         """Read original follow membership."""
         self.memory.begin("following", ids)
         result = [self.memory.scenario.profile == "present-all"]
         self.memory.end("following", result)
         return result
 
-    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
         """Read original liked-track membership."""
         self.memory.begin("liked", ids)
         result = [self.memory.scenario.profile == "present-all"]
         self.memory.end("liked", result)
         return result
 
-    def user_follow_artists(self, ids: list[str]) -> None:
+    async def user_follow_artists(self, ids: list[str]) -> None:
         """Accept original follow mutations."""
         self.memory.write("follow", ids)
 
-    def current_user_saved_tracks_add(self, ids: list[str]) -> None:
+    async def current_user_saved_tracks_add(self, ids: list[str]) -> None:
         """Accept original liked-track mutations."""
         self.memory.write("like", ids)
 
@@ -436,6 +444,9 @@ def bind(monkeypatch: pytest.MonkeyPatch, memory: Memory) -> Catalog:
     if memory.scenario.profile == "zero-limit":
         monkeypatch.setattr(total.settings, "limit", 0)
     monkeypatch.setattr(comparison, "get_spotipy_client", partial(identity, catalog))
+    monkeypatch.setattr(
+        legacy_operations, "comparison_metadata", partial(comparison_metadata, catalog)
+    )
     return catalog
 
 
@@ -464,7 +475,7 @@ def bindings(memory: Memory) -> dict[str, Callable[..., object]]:
     }
 
 
-def public_run(scenario: Scenario, memory: Memory, catalog: Catalog) -> object:
+async def public_run(scenario: Scenario, memory: Memory, catalog: Catalog) -> object:
     """Dispatch an original public workflow.
 
     Args:
@@ -477,37 +488,41 @@ def public_run(scenario: Scenario, memory: Memory, catalog: Catalog) -> object:
     """
     sp = cast(Spotify, catalog)
     if scenario.workflow in ("update", "incremental"):
-        return total.update_total_album_list(sp, scenario.workflow == "incremental")
+        return await asyncio.to_thread(
+            total.update_total_album_list, sp, scenario.workflow == "incremental"
+        )
     if scenario.workflow == "monthly":
-        monthly_routine.run_monthly_routines(sp)
+        (await monthly_routine.async_run_monthly_routines(sp))
         return None
     if scenario.workflow == "control":
-        return control.check_album_results(sp, memory.control, memory.albums)
+        return await asyncio.to_thread(
+            control.check_album_results, sp, memory.control, memory.albums
+        )
     if scenario.workflow == "stats":
         return stats.update_stats(memory.control, memory.albums)
-    return other_public_run(scenario, sp)
+    return await other_public_run(scenario, sp)
 
 
-def other_public_run(scenario: Scenario, sp: object) -> object:
+async def other_public_run(scenario: Scenario, sp: object) -> object:
     spotify = cast(Spotify, sp)
     if scenario.workflow == "convert":
-        conversion.convert_your_library_file(spotify)
+        (await conversion.async_convert_your_library_file(spotify))
         return None
     if scenario.workflow == "analyse":
-        conversion.analyse_comparison(spotify)
+        (await conversion.async_analyse_comparison(spotify))
         return None
     if scenario.workflow == "restore":
-        conversion.restore_your_library_from_file(spotify)
+        (await conversion.async_restore_your_library_from_file(spotify))
         return None
     if scenario.workflow == "compare":
-        conversion.compare_your_library_and_all_albums()
+        (await conversion.async_compare_your_library_and_all_albums())
         return None
-    return count_items.count_artists_in_library()
+    return await count_items.async_count_artists_in_library()
 
 
-def observe(
+async def observe(
     scenario: Scenario,
-    runner: Callable[[Scenario, Memory, Catalog], object] = public_run,
+    runner: Callable[[Scenario, Memory, Catalog], Awaitable[object]] = public_run,
 ) -> object:
     """Capture output, effects and accepted state without outbound access.
 
@@ -522,23 +537,23 @@ def observe(
     output = io.StringIO()
     with pytest.MonkeyPatch.context() as monkeypatch, redirect_stdout(output):
         catalog = bind(monkeypatch, memory)
-        attempts = run_attempts(scenario, memory, catalog, runner, output)
+        attempts = await run_attempts(scenario, memory, catalog, runner, output)
     outcome = attempts[-1]
     if scenario.repeats > 1:
         return {"attempts": attempts}
     return outcome
 
 
-def run_attempts(
+async def run_attempts(
     scenario: Scenario,
     memory: Memory,
     catalog: Catalog,
-    runner: Callable[[Scenario, Memory, Catalog], object],
+    runner: Callable[[Scenario, Memory, Catalog], Awaitable[object]],
     output: io.StringIO,
 ) -> list[object]:
     results: list[object] = []
     for _ in range(scenario.repeats):
-        result, error = run_attempt(scenario, memory, catalog, runner)
+        result, error = await run_attempt(scenario, memory, catalog, runner)
         state = [memory.albums, memory.control, memory.persisted, memory.playlists]
         results.append(
             encode_value(
@@ -555,14 +570,14 @@ def run_attempts(
     return results
 
 
-def run_attempt(
+async def run_attempt(
     scenario: Scenario,
     memory: Memory,
     catalog: Catalog,
-    runner: Callable[[Scenario, Memory, Catalog], object],
+    runner: Callable[[Scenario, Memory, Catalog], Awaitable[object]],
 ) -> tuple[object, object]:
     try:
-        return runner(scenario, memory, catalog), None
+        return (await runner(scenario, memory, catalog)), None
     except (
         RuntimeError,
         IndexError,
@@ -575,3 +590,34 @@ def run_attempt(
 
 
 ORIGINAL_PRINT = print
+
+
+@dataclass(frozen=True)
+class MemoryComparisonClients:
+    """Acquire the recorded client at each original per-identity boundary.
+
+    Args:
+        source: Original recorded SDK observations.
+    """
+
+    source: Catalog
+
+    async def client(self) -> Spotify:
+        """Return the original recorded transport without constructing real clients.
+
+        Returns:
+            Recorded async Spotify transport.
+        """
+        return cast(Spotify, self.source)
+
+
+def comparison_metadata(source: Catalog) -> NativeComparisonMetadata:
+    """Build native metadata reads over the original recorded client.
+
+    Args:
+        source: Original recorded client observations.
+
+    Returns:
+        Native resource preserving each metadata call and displayed value.
+    """
+    return NativeComparisonMetadata(MemoryComparisonClients(source))

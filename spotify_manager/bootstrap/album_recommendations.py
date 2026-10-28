@@ -1,9 +1,8 @@
 """Compose Sauvignon album observation with existing Spotify and retry helpers."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.album_recommendations import AlbumGathering
 from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.album_search import LegacyAlbumSearch
 from spotify_manager.routines import sauvignon as legacy
 

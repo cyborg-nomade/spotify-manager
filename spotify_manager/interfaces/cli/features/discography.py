@@ -1,7 +1,7 @@
 """Explicit discography CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -13,11 +13,13 @@ from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.discography_values import CatalogRelease
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.features.something_old import SomethingOldCLI
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import discography as discography
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -43,7 +45,7 @@ class DiscographyCLI:
     historical_artists: SomethingOldCLI
     sleep: Wait
 
-    def _prompt_discography_release_selection(
+    async def _prompt_discography_release_selection(
         self,
         console: Console,
         artist: discography.QueueArtist,
@@ -64,7 +66,7 @@ class DiscographyCLI:
         if status is not None:
             status.stop()
         try:
-            return self._read_discography_release_selection(
+            return await self._read_discography_release_selection(
                 console, artist, candidates, status
             )
         finally:
@@ -112,14 +114,14 @@ class DiscographyCLI:
                 style="yellow",
             )
 
-    def _run_plan_discographies(self, dry_run: bool) -> None:
+    async def _run_plan_discographies(self, dry_run: bool) -> None:
         """Choose the next round-week discographies and clear their queue markers.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._plan_discographies_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_ids = discography.parse_playlist_ids(
                 configuration.discography_newfoundland_playlist,
@@ -133,7 +135,9 @@ class DiscographyCLI:
             self._report_plan_discographies_configuration_failure(exc)
         self._plan_discographies_status_ref: Status | None = None
         try:
-            summary = self._plan_and_apply(playlist_ids, queue_3_playlist_id, dry_run)
+            summary = await self._plan_and_apply(
+                playlist_ids, queue_3_playlist_id, dry_run
+            )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_plan_discographies_rate_limit(exc)
         except review_album_limits.SpotifyTransientServerError as exc:
@@ -144,7 +148,7 @@ class DiscographyCLI:
             self._report_plan_discographies_discography_failure(exc)
         except SpotifyException as exc:
             self._report_plan_discographies_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_plan_discographies_interrupted_interrupted(exc)
         if summary is None:
             return
@@ -153,24 +157,24 @@ class DiscographyCLI:
     def _plan_discographies_echo(self, line: str = "") -> None:
         self._plan_discographies_console.print(line, style="cyan", markup=False)
 
-    def _plan_discographies_ask_discography_release_selection(
+    async def _plan_discographies_ask_discography_release_selection(
         self,
         artist: discography.QueueArtist,
         candidates: tuple[discography.CatalogRelease, ...],
     ) -> tuple[str, ...]:
-        return self._prompt_discography_release_selection(
+        return await self._prompt_discography_release_selection(
             self._plan_discographies_console,
             artist,
             candidates,
             self._plan_discographies_status_ref,
         )
 
-    def _plan_discographies_ask_something_old_artist(
+    async def _plan_discographies_ask_something_old_artist(
         self,
         artist_name: str,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self.historical_artists.ask_artist(
+        return await self.historical_artists.ask_artist(
             self._plan_discographies_console,
             artist_name,
             candidates,
@@ -230,7 +234,7 @@ class DiscographyCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_plan_discographies_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._plan_discographies_console.print(
             "Discography planning cancelled.", style="bold yellow"
@@ -250,7 +254,7 @@ class DiscographyCLI:
             style="bold green",
         )
 
-    def _read_discography_release_selection(
+    async def _read_discography_release_selection(
         self,
         console: Console,
         artist: discography.QueueArtist,
@@ -284,10 +288,12 @@ class DiscographyCLI:
         console.print(table)
         default = discography.format_release_indexes(tuple(default_indexes))
         while True:
-            response = self.display.prompt.ask(
-                "Release numbers/ranges to include / [n]one / [q]uit",
-                default=default,
-                console=console,
+            response = (
+                await TerminalPrompt(self.display.prompt).ask(
+                    "Release numbers/ranges to include / [n]one / [q]uit",
+                    default=default,
+                    console=console,
+                )
             ).strip()
             if response.casefold() == "q":
                 raise discography.DiscographyCancelledError(
@@ -325,7 +331,7 @@ class DiscographyCLI:
             style=None if release.default else "dim yellow",
         )
 
-    def _plan_and_apply(
+    async def _plan_and_apply(
         self,
         playlist_ids: dict[discography.QueueName, str],
         queue_3_playlist_id: str,
@@ -345,8 +351,8 @@ class DiscographyCLI:
             "Planning the next discography batch"
         ) as self._plan_discographies_status:
             self._plan_discographies_status_ref = self._plan_discographies_status
-            plan = discography.build_discography_plan(
-                self.runtime.review_client(),
+            plan = await discography.build_discography_plan(
+                (await self.runtime.review_client()),
                 playlist_ids,
                 PlanDiscographiesInteraction(self),
                 queue_3_playlist_id=queue_3_playlist_id,
@@ -355,19 +361,21 @@ class DiscographyCLI:
                 progress_callback=StatusOutput(self._plan_discographies_status),
             )
         self._render_discography_plan(self._plan_discographies_console, plan)
-        if not self._confirm_plan(plan, dry_run):
+        if not (await self._confirm_plan(plan, dry_run)):
             return None
         with self._plan_discographies_console.status(
             "Removing confirmed discography artists"
         ) as self._plan_discographies_status:
-            return discography.apply_discography_plan(
-                self.runtime.review_client(),
+            return await discography.apply_discography_plan(
+                (await self.runtime.review_client()),
                 plan,
                 retry_call=PlanDiscographiesInteraction(self),
                 progress_callback=StatusOutput(self._plan_discographies_status),
             )
 
-    def _confirm_plan(self, plan: discography.DiscographyPlan, dry_run: bool) -> bool:
+    async def _confirm_plan(
+        self, plan: discography.DiscographyPlan, dry_run: bool
+    ) -> bool:
         """Confirm plan.
 
         Args:
@@ -384,7 +392,7 @@ class DiscographyCLI:
                     style="bold cyan",
                 )
             return False
-        action = self.display.prompt.ask(
+        action = await TerminalPrompt(self.display.prompt).ask(
             "Remove these artists from the discography queues?",
             choices=["y", "n", "q"],
             default="n",
@@ -408,7 +416,7 @@ class PlanDiscographiesInteraction:
 
     owner: DiscographyCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -427,7 +435,7 @@ class PlanDiscographiesInteraction:
         """
         self.owner._plan_discographies_echo(message)
 
-    def select_releases(
+    async def select_releases(
         self,
         artist: discography.QueueArtist,
         candidates: tuple[discography.CatalogRelease, ...],
@@ -441,11 +449,11 @@ class PlanDiscographiesInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._plan_discographies_ask_discography_release_selection(
+        return await self.owner._plan_discographies_ask_discography_release_selection(
             artist, candidates
         )
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist_name: str,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
@@ -459,6 +467,6 @@ class PlanDiscographiesInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._plan_discographies_ask_something_old_artist(
+        return await self.owner._plan_discographies_ask_something_old_artist(
             artist_name, candidates
         )

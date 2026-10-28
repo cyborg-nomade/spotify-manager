@@ -24,7 +24,7 @@ type RetryCall = Retry
 class ListeningHistory(Protocol):
     """Read parsed listening events without exposing export files to use cases."""
 
-    def by_date(self) -> dict[date, tuple[Scrobble, ...]]:
+    async def by_date(self) -> dict[date, tuple[Scrobble, ...]]:
         """Read events grouped by the existing Berlin-local date rules.
 
         Returns:
@@ -35,7 +35,7 @@ class ListeningHistory(Protocol):
 class AuditWriter[Result](Protocol):
     """Persist complete routine audit outcomes."""
 
-    def write(self, result: Result) -> None:
+    async def write(self, result: Result) -> None:
         """Accept a complete audit record.
 
         Args:

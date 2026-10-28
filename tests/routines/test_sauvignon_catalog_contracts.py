@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Literal
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -161,7 +162,9 @@ def test_original_nonnegative_track_count_coercion(raw: object, expected: int) -
         ({"items": [None, {"id": "x", "uri": " ", "name": "Title"}]}, "No playable"),
     ],
 )
-def test_original_first_track_failure_responses(response: object, message: str) -> None:
+async def test_original_first_track_failure_responses(
+    response: object, message: str
+) -> None:
     """Retain invalid-response and no-playable-track errors without changing order.
 
     Args:
@@ -169,7 +172,7 @@ def test_original_first_track_failure_responses(response: object, message: str) 
         message: Original error fragment.
     """
     spotify = Mock()
-    spotify.album_tracks.return_value = response
+    spotify.album_tracks = AsyncMock(return_value=response)
     with pytest.raises(sauvignon.SauvignonSpotifyError, match=message):
-        sauvignon.load_first_track(spotify, album_option(), NoRetry())
+        (sauvignon.load_first_track(spotify, album_option(), NoRetry()))
     spotify.album_tracks.assert_called_once_with("album-id", limit=50, offset=0)

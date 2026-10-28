@@ -6,7 +6,6 @@ from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistoryCancelledError
@@ -23,6 +22,7 @@ from spotify_manager.application.new_year_resolution import AnnualResolution
 from spotify_manager.application.new_year_retry import AnnualRetry
 from spotify_manager.application.new_year_run import NewYear
 from spotify_manager.application.new_year_values import RetrospectiveState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.annual_history import YearEntry
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -50,7 +50,7 @@ class MemoryAnnualState:
 
     edge: AnnualObservations
 
-    def load(self) -> RetrospectiveState:
+    async def load(self) -> RetrospectiveState:
         """Read original complete detached authority.
 
         Returns:
@@ -58,7 +58,7 @@ class MemoryAnnualState:
         """
         return cast(RetrospectiveState, self.edge.load())
 
-    def save(self, state: RetrospectiveState, /) -> None:
+    async def save(self, state: RetrospectiveState, /) -> None:
         """Accept original complete annual checkpoints.
 
         Args:
@@ -121,13 +121,13 @@ class MemoryAnnual:
         self.edge.record("namespace", "new_year", {"years": {}})
         return MemoryAnnualState(self.edge)
 
-    def owned(self) -> tuple[OwnedPlaylist, ...]:
+    async def owned(self) -> tuple[OwnedPlaylist, ...]:
         """Supply original current owned facts after accepted creations.
 
         Returns:
             Original complete current owned observations.
         """
-        return self.edge.owned(cast(Spotify, self.edge), self.retry, "queue3")
+        return await self.edge.owned(cast(Spotify, self.edge), self.retry, "queue3")
 
     def history(self, preview: bool) -> tuple[Scrobble, ...]:
         """Supply original complete full rebuild facts.
@@ -148,7 +148,7 @@ class MemoryAnnual:
         )
         return refreshed.history
 
-    def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
         """Supply original accepted ordered live membership.
 
         Args:
@@ -157,9 +157,9 @@ class MemoryAnnual:
         Returns:
             Original complete current markers.
         """
-        return self.edge.playlist(cast(Spotify, self.edge), identity, self.retry)
+        return await self.edge.playlist(cast(Spotify, self.edge), identity, self.retry)
 
-    def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
         """Supply original complete approximate/exact search facts.
 
         Args:
@@ -169,9 +169,9 @@ class MemoryAnnual:
             Original ordered match qualification facts.
         """
         play = Scrobble(item["name"], item["artist"], "", 0)
-        return self.edge.search(cast(Spotify, self.edge), play, self.retry)
+        return await self.edge.search(cast(Spotify, self.edge), play, self.retry)
 
-    def album(self, artist: str, title: str) -> SpotifyAlbum | None:
+    async def album(self, artist: str, title: str) -> SpotifyAlbum | None:
         """Supply original complete selected release facts.
 
         Args:
@@ -181,9 +181,11 @@ class MemoryAnnual:
         Returns:
             Original selected release or no match.
         """
-        return self.edge.album(cast(Spotify, self.edge), artist, title, self.retry)
+        return await self.edge.album(
+            cast(Spotify, self.edge), artist, title, self.retry
+        )
 
-    def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Supply original first-marker facts.
 
         Args:
@@ -192,9 +194,9 @@ class MemoryAnnual:
         Returns:
             Original complete first marker.
         """
-        return self.edge.first(cast(Spotify, self.edge), album, self.retry)
+        return await self.edge.first(cast(Spotify, self.edge), album, self.retry)
 
-    def artist(self, name: str) -> SpotifyArtistCandidate | None:
+    async def artist(self, name: str) -> SpotifyArtistCandidate | None:
         """Supply original exact artist mapping without interaction.
 
         Args:
@@ -203,9 +205,9 @@ class MemoryAnnual:
         Returns:
             Original mapping or cancellation.
         """
-        return self.edge.artist(cast(Spotify, self.edge), name, None, self.retry)
+        return await self.edge.artist(cast(Spotify, self.edge), name, None, self.retry)
 
-    def primary(self, uri: str) -> object:
+    async def primary(self, uri: str) -> object:
         """Supply original retried primary credit facts.
 
         Args:
@@ -215,11 +217,11 @@ class MemoryAnnual:
             Original first credited identity.
         """
         for attempt in self.retry.attempts("checking Memory Lane marker artist"):
-            with attempt:
-                raw = self.edge.track(uri)
+            async with attempt:
+                raw = await self.edge.track(uri)
         return cast(list[dict[str, object]], raw["artists"])[0]["id"]
 
-    def append(self, playlist: str, pending: list[str], top: bool) -> None:
+    async def append(self, playlist: str, pending: list[str], top: bool) -> None:
         """Accept original exact missing-marker body.
 
         Args:
@@ -230,21 +232,23 @@ class MemoryAnnual:
         payload: dict[str, object] = {"uris": pending}
         if top:
             payload["position"] = 0
-        self.edge._post(f"playlists/{playlist}/items", payload)
+        (await self.edge._post(f"playlists/{playlist}/items", payload))
 
-    def move(self, playlist: str, position: int) -> None:
+    async def move(self, playlist: str, position: int) -> None:
         """Accept original recalculated single-marker move.
 
         Args:
             playlist: Original destination.
             position: Original current first occurrence position.
         """
-        self.edge._put(
-            f"playlists/{playlist}/items",
-            {"range_start": position, "insert_before": 0, "range_length": 1},
+        (
+            await self.edge._put(
+                f"playlists/{playlist}/items",
+                {"range_start": position, "insert_before": 0, "range_length": 1},
+            )
         )
 
-    def replace(self, playlist: str, uris: list[str]) -> None:
+    async def replace(self, playlist: str, uris: list[str]) -> None:
         """Accept original retried complete rank-ordered chart replacement.
 
         Args:
@@ -254,10 +258,10 @@ class MemoryAnnual:
         for attempt in self.retry.attempts(
             "synchronizing the yearly chart in scrobble rank order"
         ):
-            with attempt:
-                self.edge._put(f"playlists/{playlist}/items", {"uris": uris})
+            async with attempt:
+                (await self.edge._put(f"playlists/{playlist}/items", {"uris": uris}))
 
-    def create(self, name: str, kind: ChartKind, year: int) -> str:
+    async def create(self, name: str, kind: ChartKind, year: int) -> str:
         """Accept original owner read then direct private chart creation.
 
         Args:
@@ -269,9 +273,9 @@ class MemoryAnnual:
             Original created chart identity.
         """
         for attempt in self.retry.attempts("loading Spotify owner"):
-            with attempt:
-                user = self.edge.current_user()
-        created = self.edge.user_playlist_create(
+            async with attempt:
+                user = await self.edge.current_user()
+        created = await self.edge.user_playlist_create(
             user["id"],
             name,
             public=False,
@@ -299,7 +303,7 @@ class ScriptedHistory:
 
     memory: MemoryAnnual
 
-    def run(
+    async def run(
         self, username: str | None, preview: bool, rebuild: bool
     ) -> ScrobbleHistorySummary:
         """Read the original scripted complete annual history.
@@ -335,7 +339,7 @@ class ScriptedDiscoveries:
 
     memory: MemoryAnnual
 
-    def run(self, active_year: int, preview: bool) -> None:
+    async def run(self, active_year: int, preview: bool) -> None:
         """Observe the original annual import boundary.
 
         Args:
@@ -350,7 +354,7 @@ def _cancel(edge: AnnualObservations) -> None:
         raise ScrobbleHistoryCancelledError("Last.fm history update cancelled.")
 
 
-def _run(
+async def _run(
     edge: AnnualObservations, preview: bool, year: int | None
 ) -> dict[str, object]:
     cancel = AnnualCancellation(edge)
@@ -369,7 +373,7 @@ def _run(
         edge,
         ZoneInfo("Europe/Berlin"),
     )
-    return NewYear(
+    return await NewYear(
         effects,
         planner,
         AnnualExecution(effects, charts, members, discoveries),
@@ -378,7 +382,7 @@ def _run(
 
 
 @pytest.mark.parametrize("case", cases("new_year_run.json"))
-def test_annual_injected_workflow_matches_original_complete_outcome(
+async def test_annual_injected_workflow_matches_original_complete_outcome(
     case: dict[str, object],
 ) -> None:
     """Retain original complete plans, accepted effects and failure prefixes.
@@ -388,12 +392,12 @@ def test_annual_injected_workflow_matches_original_complete_outcome(
     """
     profile, failure = cast(str, case["profile"]), cast(str | None, case["failure"])
     preview = bool(case["preview"])
-    assert outcome(profile, preview, failure, run=_run) == case["outcome"]
-    assert outcome(profile, preview, failure) == case["outcome"]
+    assert (await outcome(profile, preview, failure, run=_run)) == case["outcome"]
+    assert (await outcome(profile, preview, failure)) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", cases("new_year_recovery.json"))
-def test_annual_recovery_matches_original_live_and_durable_authority(
+async def test_annual_recovery_matches_original_live_and_durable_authority(
     case: dict[str, object],
 ) -> None:
     """Retain response-loss retries, saved completion skips and resumed plan authority.
@@ -403,19 +407,17 @@ def test_annual_recovery_matches_original_live_and_durable_authority(
     """
     failure, automatic = cast(str, case["failure"]), bool(case["automatic_retry"])
     assert (
-        outcome(
+        await outcome(
             "normal", False, failure, resume=True, automatic_retry=automatic, run=_run
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]
     assert (
-        outcome("normal", False, failure, resume=True, automatic_retry=automatic)
-        == case["outcome"]
-    )
+        await outcome("normal", False, failure, resume=True, automatic_retry=automatic)
+    ) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", cases("new_year_years.json"))
-def test_annual_default_and_completed_year_checks_keep_original_preflight(
+async def test_annual_default_and_completed_year_checks_keep_original_preflight(
     case: dict[str, object],
 ) -> None:
     """Retain default source year and rejection before destination/state reads.
@@ -424,11 +426,13 @@ def test_annual_default_and_completed_year_checks_keep_original_preflight(
         case: Original immutable source year and preview behavior.
     """
     year, preview = cast(int | None, case["year"]), bool(case["preview"])
-    assert outcome("normal", preview, None, year=year, run=_run) == case["outcome"]
+    assert (await outcome("normal", preview, None, year=year, run=_run)) == case[
+        "outcome"
+    ]
 
 
 @pytest.mark.parametrize("case", cases("new_year_resumed_records.json"))
-def test_annual_resumed_records_keep_lazy_field_access_and_unknown_result_keys(
+async def test_annual_resumed_records_keep_lazy_field_access_and_unknown_result_keys(
     case: dict[str, object],
 ) -> None:
     """Retain original native failure prefixes and untouched stored result overrides.
@@ -437,12 +441,12 @@ def test_annual_resumed_records_keep_lazy_field_access_and_unknown_result_keys(
         case: Original immutable shallow stored plan and completion authority.
     """
     profile, preview = cast(str, case["profile"]), bool(case["preview"])
-    assert resumed_outcome(profile, preview, _run) == case["outcome"]
-    assert resumed_outcome(profile, preview) == case["outcome"]
+    assert (await resumed_outcome(profile, preview, _run)) == case["outcome"]
+    assert (await resumed_outcome(profile, preview)) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", cases("new_year_caps.json"))
-def test_annual_caps_preserve_uncapped_primary_artist_marker_search(
+async def test_annual_caps_preserve_uncapped_primary_artist_marker_search(
     case: dict[str, object],
 ) -> None:
     """Retain fifty/twenty/five caps while resolving an artist outside the top tracks.
@@ -451,7 +455,7 @@ def test_annual_caps_preserve_uncapped_primary_artist_marker_search(
         case: Original immutable large annual population and complete effects.
     """
     preview = bool(case["preview"])
-    observed = large_outcome(preview, _run)
+    observed = await large_outcome(preview, _run)
     assert observed == case["outcome"]
     plan = cast(dict[str, object], cast(dict[str, object], observed)["result"])["plan"]
     records = cast(dict[str, list[object]], plan)

@@ -1,8 +1,8 @@
 """Validate and present discography HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.discography import DiscographyChoiceRequest
 from spotify_manager.interfaces.http.models.discography import DiscographyPendingChoice
@@ -11,7 +11,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import discography as discography
 
 
-def cmd_plan_discographies(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_plan_discographies(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start a reload-safe interactive discography planning job.
 
     Args:
@@ -36,7 +36,7 @@ def cmd_plan_discographies(client: Spotify, dry_run: bool) -> BlastJobResult:
         )
     except discography.DiscographyConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_discography_job(
+    return await jobs.start_discography_job(
         client, playlist_ids, queue_3_playlist_id, dry_run=dry_run
     )
 

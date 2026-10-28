@@ -17,7 +17,7 @@ from spotify_manager.routines.new_kids import DEFAULT_SCROBBLES_PATH
 type Echo = Messages
 
 
-def load_annual_scrobble_index(
+async def load_annual_scrobble_index(
     path: Path = DEFAULT_SCROBBLES_PATH,
     *,
     year: int,
@@ -34,10 +34,12 @@ def load_annual_scrobble_index(
     Raises:
         NewKidsStateError: Loading or decoding the source export fails.
     """
-    from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+    from spotify_manager.routines.blast_from_past import (
+        async_load_scrobbles_by_date as load_scrobbles_by_date,
+    )
 
     try:
-        scrobbles_by_date = load_scrobbles_by_date(path)
+        scrobbles_by_date = await load_scrobbles_by_date(path)
     except blast_from_past.LastFmExportError as exc:
         raise NewKidsStateError(
             f"Could not load the {year} Last.fm scrobble history: {exc}"
@@ -46,7 +48,7 @@ def load_annual_scrobble_index(
     return history_policy.annual_scrobble_index(scrobbles_by_date, year)
 
 
-def refresh_scrobbles_for_release_progress(
+async def refresh_scrobbles_for_release_progress(
     lastfm: scrobble_history.LastFmReader,
     username: str,
     *,
@@ -84,7 +86,7 @@ def refresh_scrobbles_for_release_progress(
         echo,
         None,
     )
-    summary = workflow.run(username, False, False)
+    summary = await workflow.run(username, False, False)
     echo.echo(
         "Last.fm release history ready: "
         f"{summary.live_scrobbles_added} new scrobble(s), "
@@ -93,7 +95,7 @@ def refresh_scrobbles_for_release_progress(
     return summary
 
 
-def refresh_release_history(
+async def refresh_release_history(
     lastfm: scrobble_history.LastFmReader | None,
     username: str | None,
     label: str,
@@ -123,6 +125,6 @@ def refresh_release_history(
         )
     if progress:
         progress.progress(0, 0, "Refreshing Last.fm release history")
-    refresh_scrobbles_for_release_progress(
+    await refresh_scrobbles_for_release_progress(
         lastfm, username, scrobbles_path=path, echo=echo
     )

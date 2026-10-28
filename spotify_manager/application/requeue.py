@@ -36,40 +36,40 @@ class RequeueDependencies:
     clock: Clock
 
 
-def _plan(
+async def _plan(
     dependencies: RequeueDependencies, playlist: tuple[PlaylistTrack, ...]
 ) -> RequeuePlan:
     if not playlist:
         return plan_transition(playlist, None, None, ())
     source = playlist[0]
     _progress(dependencies, f"Loading {source.primary_artist_name}'s discography")
-    discography = dependencies.catalog.discography(source.primary_artist_id)
+    discography = await dependencies.catalog.discography(source.primary_artist_id)
     current, following = release_transition(source.release.name, discography)
     if following is None:
         return plan_transition(playlist, current, None, ())
     _progress(dependencies, f"Loading {following.name}")
-    tracks = dependencies.catalog.release_tracks(following)
+    tracks = await dependencies.catalog.release_tracks(following)
     return plan_transition(playlist, current, following, tracks)
 
 
-def _recheck(
+async def _recheck(
     dependencies: RequeueDependencies, playlist_id: str, source: PlaylistTrack
 ) -> None:
     _progress(dependencies, "Rechecking the playlist head")
-    current = dependencies.playlists.sources(playlist_id)
+    current = await dependencies.playlists.sources(playlist_id)
     if not current or current[0].spotify_id != source.spotify_id:
         raise RequeueForADreamChangedError(
             "Requeue for a Dream changed before the update; nothing was changed."
         )
 
 
-def _replace_marker(
+async def _replace_marker(
     dependencies: RequeueDependencies, playlist_id: str, plan: RequeuePlan
 ) -> None:
     assert plan.source is not None
     target = plan.target
     if target is not None and not plan.already_present:
-        dependencies.playlists.append(playlist_id, target)
+        await dependencies.playlists.append(playlist_id, target)
         release_name = (
             plan.target_release.name if plan.target_release else "unknown release"
         )
@@ -78,7 +78,7 @@ def _replace_marker(
         dependencies.output.echo(
             f"{target.name} is already present; it was not duplicated."
         )
-    dependencies.playlists.remove(playlist_id, plan.source)
+    await dependencies.playlists.remove(playlist_id, plan.source)
     dependencies.output.echo(
         f"Removed {plan.source.name} ({plan.source.release.name})."
     )
@@ -110,7 +110,7 @@ def _summary(
     )
 
 
-def flush_requeue(
+async def flush_requeue(
     dependencies: RequeueDependencies, playlist_id: str, *, dry_run: bool = False
 ) -> RequeueForADreamSummary:
     """Advance one marker while retaining every read, write, and audit boundary.
@@ -129,15 +129,15 @@ def flush_requeue(
         RuntimeError: Caller cancellation or retry policy interrupts execution.
     """
     _progress(dependencies, "Loading Requeue for a Dream")
-    playlist = dependencies.playlists.sources(playlist_id)
-    plan = _plan(dependencies, playlist)
+    playlist = await dependencies.playlists.sources(playlist_id)
+    plan = await _plan(dependencies, playlist)
     if not dry_run and plan.action in {"advance", "drop"}:
         assert plan.source is not None
-        _recheck(dependencies, playlist_id, plan.source)
-        _replace_marker(dependencies, playlist_id, plan)
+        await _recheck(dependencies, playlist_id, plan.source)
+        await _replace_marker(dependencies, playlist_id, plan)
     summary = _summary(dependencies, playlist_id, dry_run, plan)
     if not dry_run and plan.action != "empty":
-        dependencies.audit.write(summary)
+        await dependencies.audit.write(summary)
     return summary
 
 

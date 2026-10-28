@@ -15,7 +15,7 @@ from spotify_manager.domain.artist_review_values import TrackCandidate
 from spotify_manager.models.your_library import YourLibraryArtist
 
 
-def review_artist(session: ReviewSession, artist: YourLibraryArtist) -> bool:
+async def review_artist(session: ReviewSession, artist: YourLibraryArtist) -> bool:
     """Execute one original decision, returning false only on an interactive quit.
 
     Args:
@@ -30,23 +30,23 @@ def review_artist(session: ReviewSession, artist: YourLibraryArtist) -> bool:
     """
     count = liked_count(session, artist)
     if count == 0:
-        _zero_liked(session, artist)
+        await _zero_liked(session, artist)
         return True
-    target, source, complete = session.placement(artist.spotify_id, count)
-    membership = session.membership(target)
+    target, source, complete = await session.placement(artist.spotify_id, count)
+    membership = await session.membership(target)
     if complete:
-        _already_queued(session, artist, count, target)
+        await _already_queued(session, artist, count, target)
         return True
     if target == session.playlists.queue_1:
-        return _review_track(session, artist, count, target, membership)
-    return _review_release(session, artist, count, target, source, membership)
+        return await _review_track(session, artist, count, target, membership)
+    return await _review_release(session, artist, count, target, source, membership)
 
 
-def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
-    tracks = session.catalog.tracks(artist)[:5]
+async def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
+    tracks = (await session.catalog.tracks(artist))[:5]
     primary = any(track.primary_artist_id == artist.spotify_id for track in tracks)
     if tracks and primary:
-        session.complete(
+        await session.complete(
             artist,
             0,
             "kept_primary_top_track",
@@ -57,7 +57,7 @@ def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
         )
         return
     reason = "no_ranked_tracks" if not tracks else "no_primary_top_track"
-    plan = session.audit(
+    plan = await session.audit(
         "unfollow_planned",
         artist_id=artist.spotify_id,
         artist=artist.name,
@@ -66,18 +66,18 @@ def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
         ranked_tracks=[asdict(track) for track in tracks],
     )
     session.state.pending_unfollows[artist.spotify_id] = plan
-    session.state.persist()
+    await session.state.persist()
     session.interaction.output.echo(
         f"Planned automatic unfollow: {artist.name} ({reason})"
     )
     if len(session.state.pending_unfollows) >= 40:
-        flush_unfollows(session)
+        await flush_unfollows(session)
 
 
-def _already_queued(
+async def _already_queued(
     session: ReviewSession, artist: YourLibraryArtist, count: int, target: str
 ) -> None:
-    session.complete(
+    await session.complete(
         artist,
         count,
         "already_queued",
@@ -88,11 +88,11 @@ def _already_queued(
     session.interaction.output.echo(f"Already queued: {artist.name}")
 
 
-def _primary_unliked(
+async def _primary_unliked(
     session: ReviewSession, artist: YourLibraryArtist
 ) -> list[TrackCandidate]:
     eligible = []
-    for track in session.catalog.tracks(artist):
+    for track in await session.catalog.tracks(artist):
         if (
             track.primary_artist_id == artist.spotify_id
             and track.spotify_id not in session.liked_ids
@@ -101,44 +101,44 @@ def _primary_unliked(
     return ambiguous_track_choices(eligible)
 
 
-def _review_track(
+async def _review_track(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
     target: str,
     membership: PlaylistMembership,
 ) -> bool:
-    choices = _primary_unliked(session, artist)
+    choices = await _primary_unliked(session, artist)
     if not choices:
-        session.complete(artist, count, "no_unliked_primary_track")
+        await session.complete(artist, count, "no_unliked_primary_track")
         session.interaction.output.echo(
             f"No unliked primary-credited ranked track: {artist.name}"
         )
         return True
     if len(choices) == 1:
-        _queue_track(session, artist, count, target, membership, choices[0], True)
+        await _queue_track(session, artist, count, target, membership, choices[0], True)
         return True
     reader = session.interaction.track
     choice = (
-        reader.choose_track(artist, tuple(choices))
+        (await reader.choose_track(artist, tuple(choices)))
         if reader is not None
         else choices[0].spotify_id
     )
-    control = _control_choice(session, artist, count, choice)
+    control = await _control_choice(session, artist, count, choice)
     if control is not None:
         return control
     selected = _selected_track(artist, choices, choice)
-    _queue_track(session, artist, count, target, membership, selected, False)
+    await _queue_track(session, artist, count, target, membership, selected, False)
     return True
 
 
-def _control_choice(
+async def _control_choice(
     session: ReviewSession, artist: YourLibraryArtist, count: int, choice: str
 ) -> bool | None:
     if choice == "quit":
         return False
     if choice == "skip":
-        session.skip(artist, count)
+        await session.skip(artist, count)
         return True
     return None
 
@@ -152,7 +152,7 @@ def _selected_track(
     raise InvalidReviewChoiceError(f"Unknown track choice for {artist.name}: {choice}")
 
 
-def _queue_track(
+async def _queue_track(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
@@ -161,13 +161,15 @@ def _queue_track(
     track: TrackCandidate,
     automatic: bool,
 ) -> None:
-    session.spotify.append(target, track.uri, f"adding {track.name} to queue playlist")
+    await session.spotify.append(
+        target, track.uri, f"adding {track.name} to queue playlist"
+    )
     membership.track_ids.add(track.spotify_id)
     membership.primary_artist_ids.add(artist.spotify_id)
     membership.track_uris_by_primary_artist.setdefault(artist.spotify_id, []).append(
         track.uri
     )
-    session.complete(
+    await session.complete(
         artist,
         count,
         "queued",
@@ -178,7 +180,7 @@ def _queue_track(
     session.interaction.output.echo(f"Queued: {artist.name} - {track.name}")
 
 
-def _review_release(
+async def _review_release(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
@@ -188,29 +190,31 @@ def _review_release(
 ) -> bool:
     decline = target == session.playlists.queue_3
     releases = (
-        session.catalog.earliest(artist) if decline else session.catalog.ranked(artist)
+        (await session.catalog.earliest(artist))
+        if decline
+        else (await session.catalog.ranked(artist))
     )
     eligible = _eligible_releases(releases, artist.spotify_id)
     if not eligible:
-        _no_release(session, artist, count, releases)
+        await _no_release(session, artist, count, releases)
         return True
     reader = session.interaction.release
     choice = (
-        reader.choose_release(artist, tuple(releases), decline)
+        (await reader.choose_release(artist, tuple(releases), decline))
         if reader is not None
         else eligible[0].spotify_id
     )
-    control = _control_choice(session, artist, count, choice)
+    control = await _control_choice(session, artist, count, choice)
     if control is not None:
         return control
     if choice == "decline":
-        _decline(session, artist, count, releases, decline)
+        await _decline(session, artist, count, releases, decline)
         return True
     selected = _selected_release(artist, eligible, choice)
     if source is not None:
-        _plan_move(session, artist, count, source, target, selected)
+        await _plan_move(session, artist, count, source, target, selected)
         return True
-    _queue_release(session, artist, count, target, membership, selected)
+    await _queue_release(session, artist, count, target, membership, selected)
     return True
 
 
@@ -224,13 +228,13 @@ def _eligible_releases(
     return eligible
 
 
-def _no_release(
+async def _no_release(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
     releases: list[ReleaseCandidate],
 ) -> None:
-    session.complete(
+    await session.complete(
         artist,
         count,
         "no_eligible_release",
@@ -239,7 +243,7 @@ def _no_release(
     session.interaction.output.echo(f"No eligible first-track release: {artist.name}")
 
 
-def _decline(
+async def _decline(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
@@ -248,8 +252,11 @@ def _decline(
 ) -> None:
     if not allowed:
         raise InvalidReviewChoiceError(f"Decline is not available for {artist.name}.")
-    session.complete(
-        artist, count, "declined", releases=[asdict(release) for release in releases]
+    await session.complete(
+        artist,
+        count,
+        "declined",
+        releases=[asdict(release) for release in releases],
     )
     session.interaction.output.echo(f"Declined queue addition: {artist.name}")
 
@@ -267,7 +274,7 @@ def _selected_release(
     return selected
 
 
-def _plan_move(
+async def _plan_move(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
@@ -276,7 +283,7 @@ def _plan_move(
     release: ReleaseCandidate,
 ) -> None:
     uris = list(
-        session.membership(source).track_uris_by_primary_artist.get(
+        (await session.membership(source)).track_uris_by_primary_artist.get(
             artist.spotify_id, []
         )
     )
@@ -289,7 +296,7 @@ def _plan_move(
         raise ArtistReviewError(
             f"Cannot safely move {artist.name}: the selected track has no ID."
         )
-    plan = session.audit(
+    plan = await session.audit(
         "queue_move_planned",
         artist_id=artist.spotify_id,
         artist=artist.name,
@@ -303,11 +310,11 @@ def _plan_move(
         release=asdict(release),
     )
     session.state.pending_queue_moves[artist.spotify_id] = plan
-    session.state.persist()
-    flush_moves(session)
+    await session.state.persist()
+    await flush_moves(session)
 
 
-def _queue_release(
+async def _queue_release(
     session: ReviewSession,
     artist: YourLibraryArtist,
     count: int,
@@ -316,7 +323,7 @@ def _queue_release(
     release: ReleaseCandidate,
 ) -> None:
     assert release.first_track_uri is not None
-    session.spotify.append(
+    await session.spotify.append(
         target,
         release.first_track_uri,
         f"adding {release.first_track_name} to queue playlist",
@@ -327,7 +334,7 @@ def _queue_release(
     membership.track_uris_by_primary_artist.setdefault(artist.spotify_id, []).append(
         release.first_track_uri
     )
-    session.complete(
+    await session.complete(
         artist,
         count,
         "queued",

@@ -15,12 +15,15 @@ from tests.interfaces.test_discovery_slice import _wait
 from tests.interfaces.test_discovery_slice import discovery_http as discovery_http
 from tests.routines.test_new_kids import FakeSpotify
 from tests.routines.test_scrobble_history import FakeLastFm
+from tests.support.runtime_resources import provided_lastfm
 
 
 def _lastfm(monkeypatch: pytest.MonkeyPatch) -> FakeLastFm:
     client = FakeLastFm((LastFmRecentTrack("New Artist", "New Play", "New Album", 2),))
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=client))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=client))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     return client
 
 

@@ -89,7 +89,7 @@ class RunMemory:
         self._step("week")
         return WEEK
 
-    def refresh(
+    async def refresh(
         self, generated_at: datetime, dry_run: bool
     ) -> tuple[list[Scrobble], int]:
         """Accept canonical history refresh before destination reads.
@@ -106,7 +106,7 @@ class RunMemory:
         self._step("history")
         return [PLAY], 3
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Read destination capacity after canonical history.
 
         Returns:
@@ -186,7 +186,7 @@ class RunMemory:
             FoundArtResult(CANDIDATE, MATCH, "would add" if dry_run else "added"),
         ), self.matches
 
-    def append(self, pending: list[SpotifyTrackMatch]) -> None:
+    async def append(self, pending: list[SpotifyTrackMatch]) -> None:
         """Accept ordered remote additions before the audit boundary.
 
         Args:
@@ -195,7 +195,7 @@ class RunMemory:
         assert pending == list(self.matches)
         self._step("append")
 
-    def audit(self, summary: FoundArtSummary) -> None:
+    async def audit(self, summary: FoundArtSummary) -> None:
         """Observe completed audit acceptance after effects or preview selection.
 
         Args:
@@ -265,7 +265,7 @@ class _ScriptedCandidates:
 
     source: RunMemory
 
-    def run(
+    async def run(
         self,
         seeds: tuple[FoundArtSeed, ...],
         heard: set[TrackKey],
@@ -287,7 +287,7 @@ class _ScriptedResolution:
 
     source: RunMemory
 
-    def run(
+    async def run(
         self,
         candidates: tuple[FoundArtCandidate, ...],
         playlist: PlaylistState,
@@ -306,12 +306,12 @@ def _stages(memory: RunMemory) -> RecommendationStages:
     )
 
 
-def _run(memory: RunMemory, dry_run: bool = False) -> FoundArtSummary:
-    return memory.workflow().run("destination", 1, None, 1, dry_run)
+async def _run(memory: RunMemory, dry_run: bool = False) -> FoundArtSummary:
+    return await memory.workflow().run("destination", 1, None, 1, dry_run)
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_preview_retains_all_observations_and_audit_except_remote_append(
+async def test_preview_retains_all_observations_and_audit_except_remote_append(
     dry_run: bool,
 ) -> None:
     """Preserve original action counts and projected lengths in real and preview runs.
@@ -320,7 +320,7 @@ def test_preview_retains_all_observations_and_audit_except_remote_append(
         dry_run: Original preview request.
     """
     memory = RunMemory()
-    summary = _run(memory, dry_run)
+    summary = await _run(memory, dry_run)
     assert memory.events == [
         "clock",
         "week",
@@ -366,7 +366,7 @@ def test_preview_retains_all_observations_and_audit_except_remote_append(
         "audit",
     ],
 )
-def test_failure_retains_only_accepted_effect_prefix(failure: str) -> None:
+async def test_failure_retains_only_accepted_effect_prefix(failure: str) -> None:
     """Stop at each original boundary, including progress and accepted remote append.
 
     Args:
@@ -374,7 +374,7 @@ def test_failure_retains_only_accepted_effect_prefix(failure: str) -> None:
     """
     memory = RunMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
-        _run(memory)
+        (await _run(memory))
     order = [
         "clock",
         "week",
@@ -394,7 +394,7 @@ def test_failure_retains_only_accepted_effect_prefix(failure: str) -> None:
 
 @pytest.mark.parametrize("dry_run", [False, True])
 @pytest.mark.parametrize("maximum", [1, 2])
-def test_full_destination_retains_history_and_empty_completed_audit(
+async def test_full_destination_retains_history_and_empty_completed_audit(
     dry_run: bool, maximum: int
 ) -> None:
     """Capacity and over-capacity destinations still refresh history and audit.
@@ -404,7 +404,7 @@ def test_full_destination_retains_history_and_empty_completed_audit(
         maximum: Destination capacity at or below observed size.
     """
     memory = RunMemory()
-    summary = memory.workflow().run("destination", None, maximum, 1, dry_run)
+    summary = await memory.workflow().run("destination", None, maximum, 1, dry_run)
     assert memory.events == ["clock", "week", "history", "loading", "playlist", "audit"]
     assert (
         summary.requested_count
@@ -430,7 +430,7 @@ def test_full_destination_retains_history_and_empty_completed_audit(
         (1, None, 1, 100),
     ],
 )
-def test_resolved_request_and_original_pool_floor_scale(
+async def test_resolved_request_and_original_pool_floor_scale(
     count: int | None,
     maximum: int | None,
     requested: int,
@@ -445,7 +445,7 @@ def test_resolved_request_and_original_pool_floor_scale(
         pool: Expected original candidate limit.
     """
     memory = RunMemory()
-    summary = memory.workflow().run("destination", count, maximum, 1, False)
+    summary = await memory.workflow().run("destination", count, maximum, 1, False)
     assert memory.requests == [requested] and memory.pools == [pool]
     assert summary.requested_count == requested
 
@@ -462,7 +462,7 @@ def test_resolved_request_and_original_pool_floor_scale(
         (None, None, -1, "Seed"),
     ],
 )
-def test_invalid_request_precedes_clock_and_all_observations(
+async def test_invalid_request_precedes_clock_and_all_observations(
     count: int | None,
     maximum: int | None,
     seeds: int,
@@ -478,14 +478,14 @@ def test_invalid_request_precedes_clock_and_all_observations(
     """
     memory = RunMemory()
     with pytest.raises(FoundArtConfigError, match=message):
-        memory.workflow().run("destination", count, maximum, seeds, False)
+        (await memory.workflow().run("destination", count, maximum, seeds, False))
     assert memory.events == []
 
 
-def test_empty_pending_keeps_audit_without_adding_message_or_append() -> None:
+async def test_empty_pending_keeps_audit_without_adding_message_or_append() -> None:
     """Unresolved recommendations still report and audit their complete observations."""
     memory = RunMemory(matches=())
-    summary = _run(memory)
+    summary = await _run(memory)
     assert summary.results == (FoundArtResult(CANDIDATE, None, "no Spotify match"),)
     assert summary.added == summary.selected == 0
     assert summary.playlist_length_after == 2
@@ -493,11 +493,13 @@ def test_empty_pending_keeps_audit_without_adding_message_or_append() -> None:
     assert "append" not in memory.events and memory.events[-1] == "audit"
 
 
-def test_existing_configuration_values_are_injected_without_new_defaults() -> None:
+async def test_existing_configuration_values_are_injected_without_new_defaults() -> (
+    None
+):
     """Bind mutable outer limits rather than silently hard-code application defaults."""
     memory = RunMemory()
     workflow = RecommendationRun(
         memory, _stages(memory), memory, memory, memory, 7, 2, 3
     )
-    summary = workflow.run("destination", None, None, 1, False)
+    summary = await workflow.run("destination", None, None, 1, False)
     assert summary.requested_count == 7 and memory.pools == [21]

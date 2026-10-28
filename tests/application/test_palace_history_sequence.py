@@ -19,13 +19,13 @@ def _cutoff() -> date:
     return date(2025, 12, 31)
 
 
-def _run(edge: HistoryReads, count: int) -> object:
+async def _run(edge: HistoryReads, count: int) -> object:
     workflow = PalaceHistory(
         HistoryInputs(edge, Path("history"), _cutoff()),
         edge,
         date(2007, 11, 27),
     )
-    generated, cutoff, available, selected = workflow.run(count)
+    generated, cutoff, available, selected = await workflow.run(count)
     return {
         "generated": generated,
         "cutoff": cutoff,
@@ -34,11 +34,11 @@ def _run(edge: HistoryReads, count: int) -> object:
     }
 
 
-def _outcome(case: dict[str, object]) -> object:
+async def _outcome(case: dict[str, object]) -> object:
     edge = HistoryReads(cast(str, case["profile"]), cast(int, case["second"]))
     result: dict[str, object] = {}
     try:
-        result["result"] = _run(edge, cast(int, case["count"]))
+        result["result"] = await _run(edge, cast(int, case["count"]))
     except (RuntimeError, IndexError) as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
@@ -46,7 +46,7 @@ def _outcome(case: dict[str, object]) -> object:
 
 
 @pytest.mark.parametrize("case", cases())
-def test_palace_history_matches_original_population_and_random_reads(
+async def test_palace_history_matches_original_population_and_random_reads(
     case: dict[str, object],
 ) -> None:
     """Protect date eligibility, seconds-only ranks and custom-reader tolerance.
@@ -55,11 +55,10 @@ def test_palace_history_matches_original_population_and_random_reads(
         case: Immutable original history inputs and complete observations.
     """
     assert (
-        original_outcome(
+        await original_outcome(
             cast(str, case["profile"]),
             cast(int, case["count"]),
             cast(int, case["second"]),
         )
-        == case["outcome"]
-    )
-    assert _outcome(case) == case["outcome"]
+    ) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]

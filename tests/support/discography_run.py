@@ -1,6 +1,7 @@
 """Freeze original Discography planning and accepted mutation prefixes."""
 
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import asdict
@@ -9,15 +10,15 @@ from dataclasses import field
 from datetime import date
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
-
-from spotipy import Spotify
 
 from spotify_manager.application.discography_catalog import DiscographyCatalog
 from spotify_manager.application.discography_history import DiscographyArtistMapping
 from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_planning import DiscographyReads
 from spotify_manager.application.discography_queues import DiscographyQueues
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import discography as legacy
@@ -289,7 +290,7 @@ class PlanReads:
         """
         self.record("progress", message)
 
-    def select_releases(
+    async def select_releases(
         self, candidate: legacy.QueueArtist, catalog: tuple[legacy.CatalogRelease, ...]
     ) -> tuple[str, ...]:
         """Observe the same fixture boundary through its named resource method.
@@ -340,7 +341,7 @@ class ScriptedPriority:
 
     edge: PlanReads
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Resolve and read the original priority in order."""
         self.edge.state(Path("state"), None)
         return self.edge.load()
@@ -356,7 +357,7 @@ class ScriptedQueues:
 
     edge: PlanReads
 
-    def run(
+    async def run(
         self,
     ) -> tuple[
         dict[legacy.QueueName, tuple[legacy.QueueArtist, ...]],
@@ -376,7 +377,7 @@ class ScriptedHistory:
 
     edge: PlanReads
 
-    def run(self) -> legacy.HistoricalArtistSelection:
+    async def run(self) -> legacy.HistoricalArtistSelection:
         """Return the original complete historical selection."""
         return self.edge.history()
 
@@ -391,7 +392,7 @@ class ScriptedCatalog:
 
     edge: PlanReads
 
-    def run(self, artist: str) -> tuple[legacy.CatalogRelease, ...]:
+    async def run(self, artist: str) -> tuple[legacy.CatalogRelease, ...]:
         """Return the original complete artist catalog.
 
         Args:
@@ -413,7 +414,7 @@ class ScriptedMapping:
 
     edge: PlanReads
 
-    def resolve(
+    async def resolve(
         self, selection: legacy.HistoricalArtistSelection
     ) -> legacy.QueueArtist:
         """Return the original mapped fallback candidate.
@@ -447,7 +448,7 @@ def scripted_reads(edge: PlanReads) -> DiscographyReads:
     )
 
 
-def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
+async def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
     """Run the original public coordinator through observed seams.
 
     Args:
@@ -461,22 +462,36 @@ def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
     }
     with ExitStack() as stack:
         stack.enter_context(
-            patch.object(DiscographyQueues, "run", ScriptedQueues(edge).run)
-        )
-        stack.enter_context(
-            patch.object(DiscographyCatalog, "run", ScriptedCatalog(edge).run)
-        )
-        stack.enter_context(
-            patch.object(DiscographyHistory, "run", ScriptedHistory(edge).run)
+            patch.object(
+                DiscographyQueues,
+                "run",
+                AsyncMock(side_effect=ScriptedQueues(edge).run),
+            )
         )
         stack.enter_context(
             patch.object(
-                DiscographyArtistMapping, "resolve", ScriptedMapping(edge).resolve
+                DiscographyCatalog,
+                "run",
+                AsyncMock(side_effect=ScriptedCatalog(edge).run),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                DiscographyHistory,
+                "run",
+                AsyncMock(side_effect=ScriptedHistory(edge).run),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                DiscographyArtistMapping,
+                "resolve",
+                AsyncMock(side_effect=ScriptedMapping(edge).resolve),
             )
         )
         for name, callback in bindings.items():
             stack.enter_context(patch.object(legacy, name, callback))
-        return legacy.build_discography_plan(
+        return await legacy.async_build_discography_plan(
             cast(Spotify, edge),
             {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
             edge,
@@ -485,8 +500,8 @@ def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
         )
 
 
-def plan_outcome(
-    edge: PlanReads, run: Callable[[PlanReads], legacy.DiscographyPlan]
+async def plan_outcome(
+    edge: PlanReads, run: Callable[[PlanReads], Awaitable[legacy.DiscographyPlan]]
 ) -> object:
     """Record a complete plan or original failure prefix.
 
@@ -499,7 +514,7 @@ def plan_outcome(
     """
     outcome: dict[str, object] = {}
     try:
-        plan = run(edge)
+        plan = await run(edge)
         outcome["result"] = asdict(plan)
         outcome["days"] = plan.days
         outcome["artist_days"] = [artist.days for artist in plan.artists]

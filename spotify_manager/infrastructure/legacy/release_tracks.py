@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
 
@@ -21,7 +20,7 @@ class LegacyReleaseTracks:
     spotify: Spotify
     retry: RetryCall
 
-    def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Observe the original complete track list.
 
         Args:
@@ -30,6 +29,8 @@ class LegacyReleaseTracks:
         Returns:
             Original ordered playable release tracks.
         """
-        from spotify_manager.routines.release_check import load_release_tracks
+        from spotify_manager.routines.release_check import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
-        return load_release_tracks(self.spotify, release, self.retry)
+        return await load_release_tracks(self.spotify, release, self.retry)

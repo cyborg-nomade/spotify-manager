@@ -47,7 +47,7 @@ class FakeSpotify:
         self.liked_ids: set[str] = set()
         self.posts: list[tuple[str, dict[str, object]]] = []
 
-    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+    async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
         assert path == "playlists/daily/items"
         items = [
             {"item": track} for track in self.playlist_tracks[offset : offset + limit]
@@ -60,7 +60,7 @@ class FakeSpotify:
             ),
         }
 
-    def search(
+    async def search(
         self,
         q: str,
         limit: int,
@@ -72,10 +72,10 @@ class FakeSpotify:
         assert offset == 0
         return {"tracks": {"items": self.search_results.get(q, [])}}
 
-    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
         return [spotify_id in self.liked_ids for spotify_id in ids]
 
-    def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
+    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
         self.posts.append((path, payload))
         return {"snapshot_id": "snapshot"}
 
@@ -135,7 +135,7 @@ def test_anniversary_dates_skip_invalid_february_29() -> None:
     ) == (date(2012, 2, 29),)
 
 
-def test_selection_skips_missing_dates_and_uses_one_timestamp(
+async def test_selection_skips_missing_dates_and_uses_one_timestamp(
     tmp_path: Path,
 ) -> None:
     """Selection skips missing dates and uses one timestamp.
@@ -181,17 +181,17 @@ def test_selection_skips_missing_dates_and_uses_one_timestamp(
     ]
 
 
-def test_selection_rejects_an_empty_export(
+async def test_selection_rejects_an_empty_export(
     tmp_path: Path,
 ) -> None:
     export_path = tmp_path / "lastfm.json"
     write_export(export_path, [])
 
     with pytest.raises(blast_from_past.LastFmExportError, match="does not contain"):
-        daily_mind_radio.select_daily_mind_radio(path=export_path)
+        (daily_mind_radio.select_daily_mind_radio(path=export_path))
 
 
-def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
+async def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
     """Verify no populated dates skips random org.
 
     Args:
@@ -214,7 +214,7 @@ def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
     assert batch.missing_dates == batch.target_dates
 
 
-def test_spotify_routine_reuses_liked_match_preference(
+async def test_spotify_routine_reuses_liked_match_preference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Spotify routine reuses liked match preference.
@@ -291,7 +291,7 @@ def test_spotify_routine_reuses_liked_match_preference(
     assert "Adding 1 tracks to Spotify" in progress
 
 
-def test_spotify_routine_dry_run_does_not_update_playlist(
+async def test_spotify_routine_dry_run_does_not_update_playlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scrobble = blast_from_past.Scrobble("Track", "Artist", "Album", 1)
@@ -330,7 +330,7 @@ def test_spotify_routine_dry_run_does_not_update_playlist(
     assert sp.posts == []
 
 
-def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
+async def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     batch = daily_mind_radio.DailyMindRadioBatch(
@@ -372,7 +372,7 @@ class ObservedTimestamp:
     instant: datetime
     calls: int = 0
 
-    def now(self) -> datetime:
+    async def now(self) -> datetime:
         """Observe the original generation boundary.
 
         Returns:

@@ -34,7 +34,7 @@ class PlaylistObservations:
 class HistoryPlaylistPages(Protocol):
     """Read complete raw playlist pages at explicit offsets."""
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one transport page.
 
         Args:
@@ -46,7 +46,7 @@ class HistoryPlaylistPages(Protocol):
         ...
 
 
-def state(
+async def state(
     pages: HistoryPlaylistPages,
     playlist: str,
 ) -> PlaylistState:
@@ -64,7 +64,7 @@ def state(
     """
     facts = PlaylistObservations()
     while True:
-        page = _page(pages.read(facts.offset), playlist)
+        page = _page((await pages.read(facts.offset)), playlist)
         rows = cast(list[object], page["items"])
         _collect(rows, facts)
         facts.offset += len(rows)

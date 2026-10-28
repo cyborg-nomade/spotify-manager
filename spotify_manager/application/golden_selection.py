@@ -20,7 +20,7 @@ from spotify_manager.domain.history_matching import SpotifyTrackMatch
 class ArtistChoice(Protocol):
     """Own the operator interaction for choose artist."""
 
-    def choose_artist(
+    async def choose_artist(
         self, artist: str, candidates: tuple[SpotifyArtistCandidate, ...], /
     ) -> str:
         """Read or report the original operator interaction.
@@ -38,7 +38,7 @@ class ArtistChoice(Protocol):
 class AlbumChoice(Protocol):
     """Own the operator interaction for choose album."""
 
-    def choose_album(
+    async def choose_album(
         self, artist: GoldenOldieArtist, candidates: tuple[DiscographyRelease, ...], /
     ) -> str:
         """Read or report the original operator interaction.
@@ -56,7 +56,7 @@ class AlbumChoice(Protocol):
 class GoldenMatches(Protocol):
     """Observe title matches and their live liked membership."""
 
-    def matches(
+    async def matches(
         self, artist: GoldenOldieArtist, title: LastFmTrackStat
     ) -> tuple[SpotifyTrackMatch, ...]:
         """Read qualified title matches.
@@ -70,7 +70,7 @@ class GoldenMatches(Protocol):
         """
         ...
 
-    def liked(
+    async def liked(
         self, artist: GoldenOldieArtist, groups: list[tuple[SpotifyTrackMatch, ...]]
     ) -> set[str]:
         """Read live membership after every title has been observed.
@@ -88,7 +88,7 @@ class GoldenMatches(Protocol):
 class GoldenTracks(Protocol):
     """Read complete tracks for an accepted studio release."""
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read complete playback-order tracks.
 
         Args:
@@ -100,7 +100,7 @@ class GoldenTracks(Protocol):
         ...
 
 
-def resolve_artist(
+async def resolve_artist(
     name: str,
     observed: tuple[SpotifyArtistCandidate, ...],
     choose: ArtistChoice | None,
@@ -129,7 +129,7 @@ def resolve_artist(
         raise SomethingOldSpotifyError(
             f"Spotify returned {len(candidates)} exact artists named {name}."
         )
-    choice = choose.choose_artist(name, candidates)
+    choice = await choose.choose_artist(name, candidates)
     if choice == "quit":
         return None
     for candidate in candidates:
@@ -138,7 +138,7 @@ def resolve_artist(
     raise SomethingOldSpotifyError("The selected Spotify artist is invalid.")
 
 
-def select_lastfm(
+async def select_lastfm(
     artist: GoldenOldieArtist,
     catalog: GoldenMatches,
     album_threshold: float = 0.9,
@@ -158,9 +158,12 @@ def select_lastfm(
     """
     groups = []
     for title in artist.top_tracks:
-        groups.append(catalog.matches(artist, title))
+        groups.append(await catalog.matches(artist, title))
     selected = lastfm_markers(
-        artist.top_tracks, tuple(groups), catalog.liked(artist, groups), album_threshold
+        artist.top_tracks,
+        tuple(groups),
+        (await catalog.liked(artist, groups)),
+        album_threshold,
     )
     if not selected:
         raise SomethingOldSpotifyError(
@@ -193,7 +196,7 @@ def select_popular(
     return selected
 
 
-def select_album(
+async def select_album(
     artist: GoldenOldieArtist,
     mapped: SpotifyArtistCandidate,
     releases: tuple[DiscographyRelease, ...],
@@ -219,11 +222,11 @@ def select_album(
         raise SomethingOldSpotifyError(
             f"No studio albums or EPs were found for {mapped.name}."
         )
-    choice = choose.choose_album(artist, releases)
+    choice = await choose.choose_album(artist, releases)
     if choice == "quit":
         return None, ()
     release = _selected_release(releases, choice)
-    selected = album_markers(release, catalog.tracks(release), mapped)
+    selected = album_markers(release, (await catalog.tracks(release)), mapped)
     if not selected:
         raise SomethingOldSpotifyError(f"{release.name} has no playable tracks.")
     return release, selected

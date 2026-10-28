@@ -15,10 +15,10 @@ from typing import Self
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
@@ -162,7 +162,9 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: OpeningEffects) -> None:
     monkeypatch.setattr(legacy, "save_state", effects.save)
     monkeypatch.setattr(legacy, "append_event", effects.audit)
     monkeypatch.setattr(
-        HistoryRefresh, "run", partialmethod(release_history, effects.refresh)
+        HistoryRefresh,
+        "run",
+        partialmethod(release_history, effects.refresh),
     )
 
 
@@ -192,20 +194,22 @@ def _state(profile: str) -> dict[str, object]:
     return state
 
 
-def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
-    legacy.run_release_check(
-        cast(Spotify, object()),
-        cast(legacy.LastFmReader, object()),
-        ReleaseCheckOptions(
-            playlists=legacy.ReleaseCheckPlaylists("wine", "vintage"),
-            expected_username="user",
-            dry_run=preview,
-            now=STAMP,
-        ),
-        ReleaseCheckCallbacks(progress_callback=effects),
-        ReleaseCheckResources(
-            state_path=tmp_path / "state.json", log_path=tmp_path / "audit.jsonl"
-        ),
+async def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
+    (
+        legacy.run_release_check(
+            cast(Spotify, object()),
+            cast(legacy.LastFmReader, object()),
+            ReleaseCheckOptions(
+                playlists=legacy.ReleaseCheckPlaylists("wine", "vintage"),
+                expected_username="user",
+                dry_run=preview,
+                now=STAMP,
+            ),
+            ReleaseCheckCallbacks(progress_callback=effects),
+            ReleaseCheckResources(
+                state_path=tmp_path / "state.json", log_path=tmp_path / "audit.jsonl"
+            ),
+        )
     )
 
 
@@ -221,7 +225,7 @@ def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
         "resume_invalid",
     ],
 )
-def test_original_release_opening(
+async def test_original_release_opening(
     profile: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Protect preview refresh, resume windows and accepted opening artifacts.
@@ -237,7 +241,7 @@ def test_original_release_opening(
     effects = OpeningEffects(legacy.save_state, legacy.append_event, profile == "empty")
     _bind(monkeypatch, effects)
     with pytest.raises((OpeningObservedError, legacy.ReleaseCheckError)):
-        _invoke(tmp_path, profile == "preview", effects)
+        (await _invoke(tmp_path, profile == "preview", effects))
     actual = json.loads(state_path.read_text())
     assert actual["operator_field"] == state["operator_field"]
     _assert_opening(profile, effects, actual, state, tmp_path / "audit.jsonl")
@@ -286,7 +290,7 @@ def _assert_opening(
 
 
 @pytest.mark.parametrize("failure", ["saved", "audit:run_started"])
-def test_original_release_opening_accepted_failure(
+async def test_original_release_opening_accepted_failure(
     failure: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Retain accepted initial checkpoints when audit or later opening work fails.
@@ -299,7 +303,7 @@ def test_original_release_opening_accepted_failure(
     effects = OpeningEffects(legacy.save_state, legacy.append_event, failure=failure)
     _bind(monkeypatch, effects)
     with pytest.raises(OpeningObservedError, match=failure):
-        _invoke(tmp_path, False, effects)
+        (await _invoke(tmp_path, False, effects))
     assert (
         json.loads((tmp_path / "state.json").read_text())["active_run"]["run_id"]
         == RUN_ID

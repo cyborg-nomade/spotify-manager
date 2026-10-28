@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.found_art_values import (
     FoundArtConfigError as FoundArtConfigError,
@@ -19,6 +19,7 @@ from spotify_manager.application.found_art_values import (
 from spotify_manager.application.found_art_values import (
     FoundArtSummary as FoundArtSummary,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack as LastFmSimilarTrack
 from spotify_manager.domain import recommendation_history as history_policy
@@ -39,6 +40,9 @@ from spotify_manager.domain.recommendation_matching import (
     preferred_recommendation_match,
 )
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed as FoundArtSeed
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingRecommendationReader as LegacyRecommendationReader,
+)
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history as shared_scrobble_history
 
@@ -64,7 +68,7 @@ ProgressCallback = blast_from_past.ProgressCallback
 class LastFmReader(Protocol):
     """Read-only Last.fm methods used by this routine."""
 
-    def similar_tracks(
+    async def similar_tracks(
         self,
         artist: str,
         track: str,
@@ -82,7 +86,7 @@ class LastFmReader(Protocol):
             Ordered Last.fm neighbors with original similarity scores.
         """
 
-    def recent_tracks(
+    async def recent_tracks(
         self,
         *,
         from_timestamp: int,
@@ -207,7 +211,7 @@ def validate_lastfm_configuration(
     return api_key.strip(), username.strip()
 
 
-def refresh_scrobble_history(
+async def async_refresh_scrobble_history(
     lastfm: LastFmReader,
     *,
     export_path: Path = DEFAULT_SCROBBLES_PATH,
@@ -233,7 +237,7 @@ def refresh_scrobble_history(
         FoundArtStateError: Canonical refresh raises its original history error.
     """
     try:
-        summary = shared_scrobble_history.refresh_scrobble_history(
+        summary = await shared_scrobble_history.async_refresh_scrobble_history(
             lastfm,
             expected_username=getattr(lastfm, "username", None),
             export_path=export_path,
@@ -338,7 +342,7 @@ def previously_added_track_keys(
     return previously_added_keys(path)
 
 
-def gather_candidates(
+async def async_gather_candidates(
     lastfm: LastFmReader,
     seeds: tuple[FoundArtSeed, ...],
     heard_keys: set[TrackKey],
@@ -375,7 +379,7 @@ def gather_candidates(
         gather_candidates as operation,
     )
 
-    return operation(
+    return await operation(
         lastfm,
         seeds,
         heard_keys,
@@ -396,7 +400,7 @@ def _preferred_unliked_match(
     return preferred_recommendation_match(matches, liked_ids, liked=False)
 
 
-def resolve_spotify_candidates(
+async def async_resolve_spotify_candidates(
     sp: Spotify,
     candidates: tuple[FoundArtCandidate, ...],
     playlist: blast_from_past.PlaylistState,
@@ -426,7 +430,7 @@ def resolve_spotify_candidates(
         resolve_spotify_candidates as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         candidates,
         playlist,
@@ -460,7 +464,7 @@ def append_found_art_log(
     append_audit(summary, path)
 
 
-def run_found_art(
+async def async_run_found_art(
     sp: Spotify,
     lastfm: LastFmReader,
     playlist_id: str,
@@ -505,7 +509,7 @@ def run_found_art(
         run_found_art as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         lastfm,
         playlist_id,
@@ -519,4 +523,206 @@ def run_found_art(
         log_path=log_path,
         now=now,
         progress_callback=progress_callback,
+    )
+
+
+def refresh_scrobble_history(
+    lastfm: LastFmReader | LegacyRecommendationReader,
+    *,
+    export_path: Path = DEFAULT_SCROBBLES_PATH,
+    recent_path: Path = DEFAULT_RECENT_PATH,
+    dry_run: bool = False,
+    now: datetime | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[list[blast_from_past.Scrobble], int]:
+    """Refresh canonical history and translate errors with their original cause.
+
+    Args:
+        lastfm: Caller-owned history reader with optional username metadata.
+        export_path: Original canonical export destination.
+        recent_path: Original legacy delta source.
+        dry_run: Original history refresh preview mode.
+        now: Optional effective UTC timestamp.
+        progress_callback: Optional original progress observer.
+
+    Returns:
+        Canonical plays as a list and the original live-added count.
+
+    Raises:
+        FoundArtStateError: Canonical refresh raises its original history error.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonRecommendationReader,
+    )
+
+    return run_python(
+        async_refresh_scrobble_history(
+            PythonRecommendationReader(lastfm),
+            export_path=export_path,
+            recent_path=recent_path,
+            dry_run=dry_run,
+            now=now,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def gather_candidates(
+    lastfm: LastFmReader | LegacyRecommendationReader,
+    seeds: tuple[FoundArtSeed, ...],
+    heard_keys: set[TrackKey],
+    *,
+    cache_path: Path = DEFAULT_CACHE_PATH,
+    log_path: Path | None = DEFAULT_LOG_PATH,
+    week_start: date | None = None,
+    candidate_pool_size: int = MIN_WEEKLY_CANDIDATE_POOL,
+    now: datetime | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[FoundArtCandidate, ...]:
+    """Combine seed neighborhoods and apply the weekly weighted ordering.
+
+    Args:
+        lastfm: Caller-owned neighborhood reader.
+        seeds: Ordered weighted recommendation seeds.
+        heard_keys: Normalized identities excluded by listening history.
+        cache_path: Mutable neighborhood cache destination.
+        log_path: Prior-addition log, or disabled exclusions when absent.
+        week_start: Optional effective listening week.
+        candidate_pool_size: Positive maximum pool before weekly rotation.
+        now: Optional timestamp used for cache freshness and the default week.
+        progress_callback: Optional observer of per-seed progress.
+
+    Returns:
+        Ranked unheard candidates after all cache checkpoints succeed.
+
+    Raises:
+        FoundArtConfigError: The pool size is less than one.
+        FoundArtStateError: Cache or enabled prior-addition data is unusable.
+        AssertionError: Validated cache entries or candidate support are corrupted.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonRecommendationReader,
+    )
+
+    return run_python(
+        async_gather_candidates(
+            PythonRecommendationReader(lastfm),
+            seeds,
+            heard_keys,
+            cache_path=cache_path,
+            log_path=log_path,
+            week_start=week_start,
+            candidate_pool_size=candidate_pool_size,
+            now=now,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def resolve_spotify_candidates(
+    sp: LegacySpotify,
+    candidates: tuple[FoundArtCandidate, ...],
+    playlist: blast_from_past.PlaylistState,
+    *,
+    count: int,
+    dry_run: bool = False,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[tuple[FoundArtResult, ...], tuple[blast_from_past.SpotifyTrackMatch, ...]]:
+    """Search complete batches and retain original ordered selection decisions.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        candidates: Original ranked recommendation pool.
+        playlist: Observed destination membership.
+        count: Requested additions; helper-level nonpositive counts are tolerated.
+        dry_run: Present proposed additions when true.
+        progress_callback: Optional per-search and liked-check presenter.
+
+    Returns:
+        Ordered candidate outcomes and unique pending matches.
+
+    Raises:
+        SpotifyTrackResolutionError: Catalog or liked-status data is unusable.
+        ValueError: The configured batch size is zero.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_spotify_candidates(
+            legacy_spotify(sp),
+            candidates,
+            playlist,
+            count=count,
+            dry_run=dry_run,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def run_found_art(
+    sp: LegacySpotify,
+    lastfm: LastFmReader | LegacyRecommendationReader,
+    playlist_id: str,
+    *,
+    count: int | None = DEFAULT_COUNT,
+    max_playlist_length: int | None = None,
+    seed_count: int = DEFAULT_SEED_COUNT,
+    dry_run: bool = False,
+    export_path: Path = DEFAULT_SCROBBLES_PATH,
+    recent_path: Path = DEFAULT_RECENT_PATH,
+    cache_path: Path = DEFAULT_CACHE_PATH,
+    log_path: Path = DEFAULT_LOG_PATH,
+    now: datetime | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> FoundArtSummary:
+    """Refresh history, resolve recommendations, append matches and audit the run.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        lastfm: Caller-owned history and neighborhood reader.
+        playlist_id: Original destination identifier.
+        count: Optional positive explicit addition count.
+        max_playlist_length: Optional positive capacity, exclusive with count.
+        seed_count: Positive requested neighborhood seed count.
+        dry_run: Suppress remote appends while retaining preview history and audit.
+        export_path: Original canonical export path.
+        recent_path: Original legacy history delta path.
+        cache_path: Original neighborhood cache destination.
+        log_path: Original audit destination.
+        now: Optional effective UTC timestamp.
+        progress_callback: Optional original progress observer.
+
+    Returns:
+        Original completed summary after its audit is accepted.
+
+    Raises:
+        FoundArtConfigError: Request settings are invalid.
+        FoundArtStateError: History, cache, seed selection or audit is unusable.
+        SpotifyTrackResolutionError: Catalog or destination data is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonRecommendationReader,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_run_found_art(
+            legacy_spotify(sp),
+            PythonRecommendationReader(lastfm),
+            playlist_id,
+            count=count,
+            max_playlist_length=max_playlist_length,
+            seed_count=seed_count,
+            dry_run=dry_run,
+            export_path=export_path,
+            recent_path=recent_path,
+            cache_path=cache_path,
+            log_path=log_path,
+            now=now,
+            progress_callback=progress_callback,
+        )
     )

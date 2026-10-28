@@ -2,6 +2,7 @@
 
 from datetime import UTC
 from datetime import datetime
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -12,6 +13,7 @@ from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.interfaces.operations import scrobble_history
 from spotify_manager.routines.scrobble_history import ScrobbleHistorySummary
+from tests.support.runtime_resources import provided_lastfm
 
 
 class EmittingClient(LastFmClient):
@@ -93,8 +95,11 @@ def test_client_events_reach_original_command_console_and_summary(
     _configuration(monkeypatch)
     refresh = Mock(return_value=_summary())
     monkeypatch.setattr(clients, "LastFmClient", EmittingClient)
-    monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", refresh)
-    main.update_scrobble_history_command(full_rebuild=True, dry_run=True)
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
+    monkeypatch.setattr(
+        scrobble_history, "refresh_scrobble_history", AsyncMock(side_effect=refresh)
+    )
+    (main.update_scrobble_history_command(full_rebuild=True, dry_run=True))
     output = capsys.readouterr().out
     assert "Fixture client event" in output
     assert "Last.fm scrobble history" in output
@@ -117,8 +122,11 @@ def test_constructor_failure_keeps_original_uncaught_boundary(
     _configuration(monkeypatch)
     refresh = Mock()
     monkeypatch.setattr(clients, "LastFmClient", FailingClient)
-    monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", refresh)
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
+    monkeypatch.setattr(
+        scrobble_history, "refresh_scrobble_history", AsyncMock(side_effect=refresh)
+    )
     with pytest.raises(ValueError, match="Fixture constructor failure"):
-        main.update_scrobble_history_command(full_rebuild=False, dry_run=True)
+        (main.update_scrobble_history_command(full_rebuild=False, dry_run=True))
     refresh.assert_not_called()
     assert capsys.readouterr().out == ""

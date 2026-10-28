@@ -1,7 +1,7 @@
 """Preserve retry entry, acceptance and failure order without executable inputs."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 
@@ -32,7 +32,7 @@ class RecordedPolicy:
         """Record acceptance after the successful operation."""
         self.events.append("accepted")
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Record the same failure before deciding whether to repeat.
 
         Args:
@@ -45,55 +45,57 @@ class RecordedPolicy:
         return isinstance(error, self.retryable)
 
 
-def test_retry_scopes_repeat_the_direct_operation_after_an_accepted_failure() -> None:
+async def test_retry_scopes_repeat_the_direct_operation_after_an_accepted_failure() -> (
+    None
+):
     """Retain one entry observation and acceptance only after the final attempt."""
     policy = RecordedPolicy()
     failure = RuntimeError("repeat")
     operation = ScriptedRequest(failure)
     for attempt in RetryAttempts(policy):
-        with attempt:
+        async with attempt:
             operation.execute()
     assert operation.calls == 2
     assert policy.events == ["start", failure, "accepted"]
 
 
-def test_retry_scope_propagates_the_same_nonretryable_failure() -> None:
+async def test_retry_scope_propagates_the_same_nonretryable_failure() -> None:
     """Keep failure identity, context and cause when a policy declines retry."""
     policy = RecordedPolicy()
     failure = ValueError("terminal")
     with pytest.raises(ValueError) as raised:
-        _raise_in_scope(policy, failure)
+        (await _raise_in_scope(policy, failure))
     assert raised.value is failure
     assert raised.value.__cause__ is None
     assert policy.events == ["start", failure]
 
 
-def _raise_in_scope(policy: RecordedPolicy, failure: BaseException) -> None:
+async def _raise_in_scope(policy: RecordedPolicy, failure: BaseException) -> None:
     for attempt in RetryAttempts(policy):
-        with attempt:
+        async with attempt:
             raise failure
 
 
-def test_direct_scope_runs_once_without_translating_process_control() -> None:
+async def test_direct_scope_runs_once_without_translating_process_control() -> None:
     """Retain direct-operation semantics for a disabled retry policy."""
     failure = KeyboardInterrupt()
     with pytest.raises(KeyboardInterrupt) as raised:
-        _raise_without_retry(failure)
+        (await _raise_without_retry(failure))
     assert raised.value is failure
 
 
-def _raise_without_retry(failure: BaseException) -> None:
+async def _raise_without_retry(failure: BaseException) -> None:
     for attempt in NoRetry().attempts("direct request"):
-        with attempt:
+        async with attempt:
             raise failure
 
 
-def test_retry_scope_stops_after_a_direct_success() -> None:
+async def test_retry_scope_stops_after_a_direct_success() -> None:
     """Do not repeat an accepted operation when the caller continues its loop."""
     policy = RecordedPolicy()
     operations = 0
     for attempt in RetryAttempts(policy):
-        with attempt:
+        async with attempt:
             operations += 1
     assert operations == 1
     assert policy.events == ["start", "accepted"]
@@ -145,46 +147,46 @@ class CancellationProbe:
             raise self.failure
 
 
-def _accepted_value(attempts: Iterator[AbstractContextManager[None]]) -> str:
+async def _accepted_value(attempts: Iterator[AbstractAsyncContextManager[None]]) -> str:
     for attempt in attempts:
-        with attempt:
+        async with attempt:
             return "accepted"
     raise AssertionError("A direct request must provide an attempt")
 
 
-def test_checked_scope_observes_cancellation_even_after_a_return() -> None:
+async def test_checked_scope_observes_cancellation_even_after_a_return() -> None:
     """Retain the original post-request check before returning the accepted result."""
     cancellation = CancellationProbe()
     attempts = CheckedAttempts(NoRetry().attempts("request"), cancellation)
-    assert _accepted_value(attempts) == "accepted"
+    assert (await _accepted_value(attempts)) == "accepted"
     assert cancellation.checks == 1
 
 
-def test_checked_scope_preserves_cancellation_failure_identity() -> None:
+async def test_checked_scope_preserves_cancellation_failure_identity() -> None:
     """Propagate original post-success cancellation without accepting the return."""
     failure = RuntimeError("cancelled after acceptance")
     cancellation = CancellationProbe(failure)
     attempts = CheckedAttempts(NoRetry().attempts("request"), cancellation)
     with pytest.raises(RuntimeError) as raised:
-        _accepted_value(attempts)
+        (await _accepted_value(attempts))
     assert raised.value is failure
     assert cancellation.checks == 1
 
 
-def _failed_request(
-    attempts: Iterator[AbstractContextManager[None]], failure: BaseException
+async def _failed_request(
+    attempts: Iterator[AbstractAsyncContextManager[None]], failure: BaseException
 ) -> None:
     for attempt in attempts:
-        with attempt:
+        async with attempt:
             raise failure
 
 
-def test_checked_scope_skips_post_success_check_after_request_failure() -> None:
+async def test_checked_scope_skips_post_success_check_after_request_failure() -> None:
     """Retain the request failure without an extra cancellation observation."""
     failure = ValueError("request failed")
     cancellation = CancellationProbe()
     attempts = CheckedAttempts(NoRetry().attempts("request"), cancellation)
     with pytest.raises(ValueError) as raised:
-        _failed_request(attempts, failure)
+        (await _failed_request(attempts, failure))
     assert raised.value is failure
     assert cancellation.checks == 0

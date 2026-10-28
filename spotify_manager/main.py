@@ -1,5 +1,6 @@
 """Interface file."""
 
+import asyncio
 import json as json
 import select as select
 import sys as sys
@@ -28,9 +29,12 @@ from rich.prompt import Prompt as Prompt
 from rich.status import Status as Status
 from rich.table import Table as Table
 from rich.text import Text as Text
-from spotipy import Spotify as Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException as SpotifyException
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap.execution import current_execution
+from spotify_manager.bootstrap.execution import run_cli
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
 )
@@ -40,7 +44,6 @@ from spotify_manager.client import (
 )
 from spotify_manager.client import SpotifyRedirectURIError as SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client as get_spotipy_client
-from spotify_manager.client.lastfm import LastFmClient as LastFmClient
 from spotify_manager.client.lastfm import LastFmError as LastFmError
 from spotify_manager.core.library_data import ALL_ARTIFACTS as ALL_ARTIFACTS
 from spotify_manager.core.library_data import ArtifactName as ArtifactName
@@ -56,7 +59,11 @@ from spotify_manager.core.state.models import StateDocumentError as StateDocumen
 from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.cli_cancellation import INVOCATION_WAIT
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
+from spotify_manager.interfaces.cli.compatibility_retry import BlockingAnalysisRetry
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.features.album_review import (
@@ -185,8 +192,8 @@ from spotify_manager.settings import Settings as Settings
 
 
 app = typer.Typer()
-_client: Spotify | None = None
-_review_client: Spotify | None = None
+_client: LegacySpotify | None = None
+_review_client: LegacySpotify | None = None
 DISABLED_SPOTIFY_STATUS_FORCELIST = (999,)
 REVIEW_ACTION_CHOICES = [
     "r",
@@ -205,45 +212,51 @@ REVIEW_ACTION_CHOICES = [
 class CommandResources:
     """Own deferred CLI resources while preserving their process-wide lifetime."""
 
-    def client(self) -> Spotify:
+    async def client(self) -> Spotify:
         """Resolve the original cached client.
 
         Returns:
             Caller-owned standard client.
         """
-        return client()
+        return await _native_client()
 
-    def review_client(self) -> Spotify:
+    async def review_client(self) -> Spotify:
         """Resolve the original client without automatic SDK retries.
 
         Returns:
             Caller-owned review client.
         """
-        return review_client()
+        return await _native_review_client()
 
-    def configuration(self) -> Settings:
+    async def configuration(self) -> Settings:
         """Observe configuration at the original command boundary.
 
         Returns:
             Current settings.
         """
-        return Settings()
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(Settings))
+            return await finish_blocking(task)
 
-    def get_state_service(self) -> StateService:
+    async def get_state_service(self) -> StateService:
         """Resolve the shared state service.
 
         Returns:
             Existing state authority.
         """
-        return get_state_service()
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(get_state_service))
+            return await finish_blocking(task)
 
-    def get_library_data_service(self) -> LibraryDataService:
+    async def get_library_data_service(self) -> LibraryDataService:
         """Resolve the shared artifact service.
 
         Returns:
             Existing artifact authority.
         """
-        return get_library_data_service()
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(get_library_data_service))
+            return await finish_blocking(task)
 
 
 def _library_data_cli() -> LibraryDataCLI:
@@ -289,7 +302,7 @@ def _artist_review_cli() -> ArtistReviewCLI:
 def _wine_cli() -> WineCLI:
     return WineCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -307,7 +320,7 @@ def _wine_cli() -> WineCLI:
 def _discovery_cli() -> DiscoveryCLI:
     return DiscoveryCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -325,7 +338,7 @@ def _discovery_cli() -> DiscoveryCLI:
 def _slow_listening_cli() -> SlowListeningCLI:
     return SlowListeningCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -343,7 +356,7 @@ def _slow_listening_cli() -> SlowListeningCLI:
 def _queue_3_cli() -> Queue3CLI:
     return Queue3CLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -362,7 +375,7 @@ def _discography_cli() -> DiscographyCLI:
     return DiscographyCLI(
         runtime=CommandResources(),
         historical_artists=_something_old_cli(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -393,7 +406,7 @@ def _found_art_cli() -> FoundArtCLI:
 def _sauvignon_cli() -> SauvignonCLI:
     return SauvignonCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -410,7 +423,7 @@ def _sauvignon_cli() -> SauvignonCLI:
 def _queue_cli() -> QueueCLI:
     return QueueCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -428,7 +441,7 @@ def _queue_cli() -> QueueCLI:
 def _historical_cli() -> HistoricalCLI:
     return HistoricalCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -470,14 +483,14 @@ def _requeue_cli() -> RequeueCLI:
         runtime=CommandResources(),
         create_console=Console,
         create_table=Table,
-        sleep=time,
+        sleep=INVOCATION_WAIT,
     )
 
 
 def _palace_cli() -> PalaceCLI:
     return PalaceCLI(
         runtime=CommandResources(),
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -495,7 +508,7 @@ def _analysis_cli() -> AnalysisCLI:
         runtime=CommandResources(),
         create_live=Live,
         monotonic=time,
-        sleep=time,
+        sleep=INVOCATION_WAIT,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -546,7 +559,7 @@ def selected_artifacts(values: Iterable[str]) -> tuple[ArtifactName, ...]:
     return _library_data_cli()._selected_artifacts(values)
 
 
-def client() -> Spotify:
+def client() -> LegacySpotify:
     """Build the Spotify client lazily, so files-only commands never touch it.
 
     Returns:
@@ -562,7 +575,23 @@ def client() -> Spotify:
     return _client
 
 
-def review_client() -> Spotify:
+async def _native_client() -> Spotify:
+    """Acquire this invocation's native standard client lazily.
+
+    Returns:
+        Native client owned by the top-level CLI runtime.
+
+    Raises:
+        typer.Exit: Spotify configuration is invalid.
+    """
+    try:
+        return await current_execution().client()
+    except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+def review_client() -> LegacySpotify:
     """Build a no-retry client for interactive review operations.
 
     Returns:
@@ -583,11 +612,29 @@ def review_client() -> Spotify:
     return _review_client
 
 
+async def _native_review_client() -> Spotify:
+    """Acquire this invocation's native client with disabled adapter retries.
+
+    Returns:
+        Native interactive client owned by the top-level CLI runtime.
+
+    Raises:
+        typer.Exit: Spotify configuration is invalid.
+    """
+    try:
+        return await current_execution().client("interactive")
+    except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
 def ask_review_action(
     console: Console, evaluation: object, progress: Progress | None = None
 ) -> str:
     """Ask for a review action while yielding Rich progress rendering."""
-    return _album_review_cli()._prompt_review_action(console, evaluation, progress)
+    return run_cli(
+        _album_review_cli()._prompt_review_action(console, evaluation, progress)
+    )
 
 
 def ask_artist_track_choice(
@@ -597,8 +644,10 @@ def ask_artist_track_choice(
     progress: Progress | None = None,
 ) -> str:
     """Prompt for one ambiguous ranked track."""
-    return _artist_review_cli()._prompt_artist_track_choice(
-        console, artist, candidates, progress
+    return run_cli(
+        _artist_review_cli()._prompt_artist_track_choice(
+            console, artist, candidates, progress
+        )
     )
 
 
@@ -610,8 +659,10 @@ def ask_artist_release_choice(
     progress: Progress | None = None,
 ) -> str:
     """Prompt for one eligible release, with an optional permanent decline."""
-    return _artist_review_cli()._prompt_artist_release_choice(
-        console, artist, candidates, allow_decline, progress
+    return run_cli(
+        _artist_review_cli()._prompt_artist_release_choice(
+            console, artist, candidates, allow_decline, progress
+        )
     )
 
 
@@ -622,8 +673,10 @@ def ask_new_wine_release_choice(
     progress: Progress | None = None,
 ) -> str:
     """Prompt for the release that should follow the current release."""
-    return _wine_cli()._prompt_new_wine_release_choice(
-        console, source, candidates, progress
+    return run_cli(
+        _wine_cli()._prompt_new_wine_release_choice(
+            console, source, candidates, progress
+        )
     )
 
 
@@ -635,8 +688,10 @@ def ask_new_wine_endpoint_choice(
     progress: Progress | None = None,
 ) -> str:
     """Ask whether the current track is the release's canonical endpoint."""
-    return _wine_cli()._prompt_new_wine_endpoint_choice(
-        console, source, tracks, current_index, progress
+    return run_cli(
+        _wine_cli()._prompt_new_wine_endpoint_choice(
+            console, source, tracks, current_index, progress
+        )
     )
 
 
@@ -647,8 +702,10 @@ def ask_new_kids_release_choice(
     progress: Progress | None = None,
 ) -> str:
     """Prompt for the next release or matching composer works playlist."""
-    return _discovery_cli()._prompt_new_kids_release_choice(
-        console, artist_name, candidates, progress
+    return run_cli(
+        _discovery_cli()._prompt_new_kids_release_choice(
+            console, artist_name, candidates, progress
+        )
     )
 
 
@@ -666,8 +723,10 @@ def ask_slow_listening_release_order(
     progress: Progress | None = None,
 ) -> tuple[str, ...]:
     """Prompt for chronological order when Spotify dates are identical."""
-    return _slow_listening_cli()._prompt_slow_listening_release_order(
-        console, release_date, candidates, progress
+    return run_cli(
+        _slow_listening_cli()._prompt_slow_listening_release_order(
+            console, release_date, candidates, progress
+        )
     )
 
 
@@ -679,8 +738,10 @@ def ask_slow_listening_action(
     progress: Progress | None = None,
 ) -> str:
     """Ask whether the proposed replacement should be added or skipped."""
-    return _slow_listening_cli()._prompt_slow_listening_action(
-        console, source, target, target_release, progress
+    return run_cli(
+        _slow_listening_cli()._prompt_slow_listening_action(
+            console, source, target, target_release, progress
+        )
     )
 
 
@@ -692,8 +753,10 @@ def ask_queue_3_release_transition(
     progress: Progress | None = None,
 ) -> str:
     """Confirm the next chronological release at a Queue 3 boundary."""
-    return _queue_3_cli()._prompt_queue_3_release_transition(
-        console, source, current_release, next_release, progress
+    return run_cli(
+        _queue_3_cli()._prompt_queue_3_release_transition(
+            console, source, current_release, next_release, progress
+        )
     )
 
 
@@ -704,8 +767,10 @@ def ask_queue_3_composer_playlist(
     progress: Progress | None = None,
 ) -> str:
     """Choose one owned composer playlist when names are ambiguous."""
-    return _queue_3_cli()._prompt_queue_3_composer_playlist(
-        console, artist_name, candidates, progress
+    return run_cli(
+        _queue_3_cli()._prompt_queue_3_composer_playlist(
+            console, artist_name, candidates, progress
+        )
     )
 
 
@@ -716,8 +781,10 @@ def ask_discography_release_selection(
     status: Status | None = None,
 ) -> tuple[str, ...]:
     """Prompt for the exact canonical releases to count for one artist."""
-    return _discography_cli()._prompt_discography_release_selection(
-        console, artist, candidates, status
+    return run_cli(
+        _discography_cli()._prompt_discography_release_selection(
+            console, artist, candidates, status
+        )
     )
 
 
@@ -725,51 +792,53 @@ def acknowledge_slow_listening_completion(
     console: Console, source: new_wine.PlaylistTrack, progress: Progress | None = None
 ) -> None:
     """Pause after an artist leaves Slow Listening so its slot can be filled."""
-    return _slow_listening_cli()._acknowledge_slow_listening_completion(
-        console, source, progress
+    return run_cli(
+        _slow_listening_cli()._acknowledge_slow_listening_completion(
+            console, source, progress
+        )
     )
 
 
 @app.command()
 def monthly_routines() -> None:
     """Run monthly routines."""
-    return _library_commands_cli()._monthly_routines()
+    return run_cli(_library_commands_cli()._monthly_routines())
 
 
 @app.command()
 def update_total_albums(just_update: bool = False) -> None:
     """Update total album list, optional flag to just add the remaining pages."""
-    return _library_commands_cli()._update_total_albums(just_update)
+    return run_cli(_library_commands_cli()._update_total_albums(just_update))
 
 
 @app.command()
 def restore_your_library() -> None:
     """."""
-    return _library_commands_cli()._restore_your_library()
+    return run_cli(_library_commands_cli()._restore_your_library())
 
 
 @app.command()
 def compare_lib_files() -> None:
     """."""
-    return _library_commands_cli()._compare_lib_files()
+    return run_cli(_library_commands_cli()._compare_lib_files())
 
 
 @app.command()
 def analyse_comp() -> None:
     """."""
-    return _library_commands_cli()._analyse_comp()
+    return run_cli(_library_commands_cli()._analyse_comp())
 
 
 @app.command()
 def convert_lib() -> None:
     """."""
-    return _library_commands_cli()._convert_lib()
+    return run_cli(_library_commands_cli()._convert_lib())
 
 
 @app.command()
 def count_artists() -> None:
     """Print the number of artists in the YourLibrary file."""
-    return _library_commands_cli()._count_artists()
+    return run_cli(_library_commands_cli()._count_artists())
 
 
 @app.command(name="state-show")
@@ -782,7 +851,7 @@ def state_show_command(
     ),
 ) -> None:
     """Print the current shared state and its guarded revision."""
-    return _state_cli()._run_state_show(namespace)
+    return run_cli(_state_cli()._run_state_show(namespace))
 
 
 @app.command(name="state-export")
@@ -792,7 +861,7 @@ def state_export_command(
     ),
 ) -> None:
     """Export a readable snapshot of the complete shared state."""
-    return _state_cli()._run_state_export(destination)
+    return run_cli(_state_cli()._run_state_export(destination))
 
 
 @app.command(name="state-edit")
@@ -810,7 +879,7 @@ def state_edit_command(
     ),
 ) -> None:
     """Validate and apply an edited shared-state snapshot safely."""
-    return _state_cli()._run_state_edit(source, force, yes)
+    return run_cli(_state_cli()._run_state_edit(source, force, yes))
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -821,7 +890,7 @@ def format_file_size(size_bytes: int) -> str:
 @app.command(name="library-data-status")
 def library_data_status_command() -> None:
     """Show durable versions and local synchronization for canonical files."""
-    return _library_data_cli()._run_library_data_status()
+    return run_cli(_library_data_cli()._run_library_data_status())
 
 
 @app.command(name="library-data-pull")
@@ -836,7 +905,7 @@ def library_data_pull_command(
     ] = None,
 ) -> None:
     """Hydrate canonical working files from the shared dataset."""
-    return _library_data_cli()._run_library_data_pull(artifact)
+    return run_cli(_library_data_cli()._run_library_data_pull(artifact))
 
 
 @app.command(name="library-data-push")
@@ -854,7 +923,7 @@ def library_data_push_command(
     ),
 ) -> None:
     """Publish canonical working files to the shared dataset."""
-    return _library_data_cli()._run_library_data_push(artifact, yes)
+    return run_cli(_library_data_cli()._run_library_data_push(artifact, yes))
 
 
 @app.command(name="upload-library-files-to-hf")
@@ -870,9 +939,7 @@ def upload_library_files_to_hf_command(
         help="Upload the Last.fm export without YourLibrary.json.",
     ),
     repo_id: str = typer.Option(
-        hf_upload.DEFAULT_REPO_ID,
-        "--repo-id",
-        help="Hugging Face Space repository id.",
+        hf_upload.DEFAULT_REPO_ID, "--repo-id", help="Hugging Face Space repository id."
     ),
     revision: str = typer.Option(
         hf_upload.DEFAULT_REVISION,
@@ -886,8 +953,10 @@ def upload_library_files_to_hf_command(
     ),
 ) -> None:
     """Upload refreshed Spotify and Last.fm exports to the HF Space."""
-    return _library_upload_cli()._run_upload_library_files_to_hf(
-        your_library_only, lastfm_only, repo_id, revision, dry_run
+    return run_cli(
+        _library_upload_cli()._run_upload_library_files_to_hf(
+            your_library_only, lastfm_only, repo_id, revision, dry_run
+        )
     )
 
 
@@ -962,7 +1031,9 @@ def ask_something_old_artist(
     Returns:
         Selected artist control or identity.
     """
-    return _something_old_cli().ask_artist(console, artist_name, candidates, status)
+    return run_cli(
+        _something_old_cli().ask_artist(console, artist_name, candidates, status)
+    )
 
 
 def ask_release_check_artist(
@@ -972,8 +1043,10 @@ def ask_release_check_artist(
     progress: Progress,
 ) -> str:
     """Prompt for one ambiguous Last.fm-to-Spotify artist mapping."""
-    return _releases_cli()._prompt_release_check_artist(
-        console, artist, candidates, progress
+    return run_cli(
+        _releases_cli()._prompt_release_check_artist(
+            console, artist, candidates, progress
+        )
     )
 
 
@@ -984,8 +1057,8 @@ def ask_queue_artist(
     progress: Progress,
 ) -> str:
     """Prompt for an ambiguous Last.fm Queue artist mapping."""
-    return _queue_cli()._prompt_queue_artist(
-        console, recommendation, candidates, progress
+    return run_cli(
+        _queue_cli()._prompt_queue_artist(console, recommendation, candidates, progress)
     )
 
 
@@ -996,8 +1069,10 @@ def ask_sauvignon_album(
     progress: Progress,
 ) -> str:
     """Prompt only when Spotify exposes materially different album editions."""
-    return _sauvignon_cli()._prompt_sauvignon_album(
-        console, recommendation, options, progress
+    return run_cli(
+        _sauvignon_cli()._prompt_sauvignon_album(
+            console, recommendation, options, progress
+        )
     )
 
 
@@ -1011,8 +1086,10 @@ def ask_release_check_release(
     progress: Progress,
 ) -> str:
     """Prompt immediately before adding one eligible release."""
-    return _releases_cli()._prompt_release_check_release(
-        console, artist, release, track, destinations, unattached_single, progress
+    return run_cli(
+        _releases_cli()._prompt_release_check_release(
+            console, artist, release, track, destinations, unattached_single, progress
+        )
     )
 
 
@@ -1030,8 +1107,10 @@ def ask_something_old_mode(
     status: Status,
 ) -> str:
     """Prompt for Last.fm tracks, Spotify tracks, or one album/EP."""
-    return _something_old_cli()._prompt_something_old_mode(
-        console, artist, spotify_artist, status
+    return run_cli(
+        _something_old_cli()._prompt_something_old_mode(
+            console, artist, spotify_artist, status
+        )
     )
 
 
@@ -1042,8 +1121,10 @@ def ask_something_old_album(
     status: Status,
 ) -> str:
     """Prompt for one chronologically displayed studio album or EP."""
-    return _something_old_cli()._prompt_something_old_album(
-        console, artist, releases, status
+    return run_cli(
+        _something_old_cli()._prompt_something_old_album(
+            console, artist, releases, status
+        )
     )
 
 
@@ -1062,7 +1143,7 @@ def new_year_command(
     dry_run: bool = typer.Option(True, "--dry-run/--apply"),
 ) -> None:
     """Build the annual retrospective, or preview it without changing Spotify."""
-    return _new_year_cli()._run_new_year(year, dry_run)
+    return run_cli(_new_year_cli()._run_new_year(year, dry_run))
 
 
 @app.command(
@@ -1087,10 +1168,11 @@ def update_scrobble_history_command(
         full_rebuild: Whether to discard prior incremental progress.
         dry_run: Whether to preview without durable writes.
     """
-    HistoryCommand(
-        console=Console(),
-        configuration=Settings(),
-    ).run(full_rebuild, dry_run)
+    return run_cli(
+        HistoryCommand(console=Console(), configuration=Settings()).run(
+            full_rebuild, dry_run
+        )
+    )
 
 
 @app.command(name="something-old")
@@ -1102,7 +1184,7 @@ def something_old_command(
     ),
 ) -> None:
     """Fill an empty Something Old slot from Last.fm Golden Oldies."""
-    return _something_old_cli()._run_something_old(dry_run)
+    return run_cli(_something_old_cli()._run_something_old(dry_run))
 
 
 @app.command(name="check-new-releases")
@@ -1118,7 +1200,7 @@ def check_new_releases_command(
     ),
 ) -> None:
     """Check Last.fm's most-played artists for newly released music."""
-    return _releases_cli()._run_check_new_releases(dry_run)
+    return run_cli(_releases_cli()._run_check_new_releases(dry_run))
 
 
 @app.command(name="found-art")
@@ -1148,8 +1230,8 @@ def found_art_command(
     ),
 ) -> None:
     """Build Last.fm-style unheard recommendations for Found Art."""
-    return _found_art_cli()._run_found_art(
-        count, max_playlist_length, seed_count, dry_run
+    return run_cli(
+        _found_art_cli()._run_found_art(count, max_playlist_length, seed_count, dry_run)
     )
 
 
@@ -1177,8 +1259,10 @@ def fill_sauvignon_from_lastfm_command(
     ),
 ) -> None:
     """Recommend unheard albums from Last.fm and add them to Sauvignon."""
-    return _sauvignon_cli()._run_fill_sauvignon_from_lastfm(
-        count, max_playlist_length, seed_count, dry_run
+    return run_cli(
+        _sauvignon_cli()._run_fill_sauvignon_from_lastfm(
+            count, max_playlist_length, seed_count, dry_run
+        )
     )
 
 
@@ -1212,8 +1296,10 @@ def fill_queue_from_lastfm_command(
     ),
 ) -> None:
     """Recommend unheard artists from Last.fm and add them to The Queue."""
-    return _queue_cli()._run_fill_queue_from_lastfm(
-        count, max_playlist_length, seed_count, dry_run
+    return run_cli(
+        _queue_cli()._run_fill_queue_from_lastfm(
+            count, max_playlist_length, seed_count, dry_run
+        )
     )
 
 
@@ -1226,7 +1312,7 @@ def flush_queue_command(
     ),
 ) -> None:
     """Advance the first ten Queue artists through Spotify's top tracks."""
-    return _queue_cli()._run_flush_queue(dry_run)
+    return run_cli(_queue_cli()._run_flush_queue(dry_run))
 
 
 @app.command(name="flush-new-kids")
@@ -1238,7 +1324,7 @@ def flush_new_kids_command(
     ),
 ) -> None:
     """Advance New Kids artists and refill the playlist from Queue 2."""
-    return _discovery_cli()._run_flush_new_kids(dry_run)
+    return run_cli(_discovery_cli()._run_flush_new_kids(dry_run))
 
 
 @app.command(name="flush-queue-2")
@@ -1250,7 +1336,7 @@ def flush_queue_2_command(
     ),
 ) -> None:
     """Fill New Kids, then advance the first ten Queue 2 artists."""
-    return _discovery_cli()._run_flush_queue_2(dry_run)
+    return run_cli(_discovery_cli()._run_flush_queue_2(dry_run))
 
 
 @app.command(name="flush-new-wine")
@@ -1272,8 +1358,8 @@ def flush_new_wine_command(
     ),
 ) -> None:
     """Advance every New Wine track once according to its release."""
-    return _wine_cli()._run_flush_new_wine(
-        dry_run, no_discovery, choose_album_endpoints
+    return run_cli(
+        _wine_cli()._run_flush_new_wine(dry_run, no_discovery, choose_album_endpoints)
     )
 
 
@@ -1293,7 +1379,7 @@ def import_queue_3_previous_year_command(
     ),
 ) -> None:
     """Import last year's Great Discoveries without advancing Queue 3."""
-    return _queue_3_cli()._run_import_queue_3_previous_year(dry_run)
+    return run_cli(_queue_3_cli()._run_import_queue_3_previous_year(dry_run))
 
 
 @app.command(name="flush-queue-3")
@@ -1308,7 +1394,7 @@ def flush_queue_3_command(
     ),
 ) -> None:
     """Advance the first ten Queue 3 artists through studio discographies."""
-    return _queue_3_cli()._run_flush_queue_3(dry_run)
+    return run_cli(_queue_3_cli()._run_flush_queue_3(dry_run))
 
 
 @app.command(name="flush-slow-listening")
@@ -1320,7 +1406,7 @@ def flush_slow_listening_command(
     ),
 ) -> None:
     """Advance the first two Slow Listening tracks through studio releases."""
-    return _slow_listening_cli()._run_flush_slow_listening(dry_run)
+    return run_cli(_slow_listening_cli()._run_flush_slow_listening(dry_run))
 
 
 @app.command(name="flush-requeue-for-a-dream")
@@ -1332,7 +1418,7 @@ def flush_requeue_for_a_dream_command(
     ),
 ) -> None:
     """Advance the first Requeue for a Dream artist by one release."""
-    return _requeue_cli()._run_flush_requeue_for_a_dream(dry_run)
+    return run_cli(_requeue_cli()._run_flush_requeue_for_a_dream(dry_run))
 
 
 def _print_discography_plan(
@@ -1351,7 +1437,7 @@ def plan_discographies_command(
     ),
 ) -> None:
     """Choose the next round-week discographies and clear their queue markers."""
-    return _discography_cli()._run_plan_discographies(dry_run)
+    return run_cli(_discography_cli()._run_plan_discographies(dry_run))
 
 
 @app.command(name="fill-palace-of-memory")
@@ -1382,8 +1468,10 @@ def fill_palace_of_memory_command(
     ),
 ) -> None:
     """Add five alphabetical and five historical album first tracks."""
-    return _palace_cli()._run_fill_palace_of_memory(
-        dry_run, alphabetical_start, set_alphabetical_cursor
+    return run_cli(
+        _palace_cli()._run_fill_palace_of_memory(
+            dry_run, alphabetical_start, set_alphabetical_cursor
+        )
     )
 
 
@@ -1408,8 +1496,8 @@ def blast_from_the_past_command(
     ),
 ) -> None:
     """Select past scrobbles and add their Spotify matches to the playlist."""
-    return _historical_cli()._run_blast_from_the_past(
-        count, max_playlist_length, dry_run
+    return run_cli(
+        _historical_cli()._run_blast_from_the_past(count, max_playlist_length, dry_run)
     )
 
 
@@ -1428,7 +1516,7 @@ def blast_from_the_past_artists_command(
     ),
 ) -> None:
     """Add liked tracks from artists heard recently, but not this year."""
-    return _historical_cli()._run_blast_from_the_past_artists(count, dry_run)
+    return run_cli(_historical_cli()._run_blast_from_the_past_artists(count, dry_run))
 
 
 @app.command(name="daily-mind-radio")
@@ -1440,7 +1528,7 @@ def daily_mind_radio_command(
     ),
 ) -> None:
     """Add tracks from today's Last.fm anniversaries to Daily Mind Radio."""
-    return _historical_cli()._run_daily_mind_radio(dry_run)
+    return run_cli(_historical_cli()._run_daily_mind_radio(dry_run))
 
 
 @app.command(name="genre-reveal")
@@ -1464,23 +1552,26 @@ def genre_reveal_command(
     ),
 ) -> None:
     """Save and sample the first unchecked Every Noise genre playlist."""
-    return _genre_cli()._run_genre_reveal(state_path, log_path, open_pages)
+    return run_cli(_genre_cli()._run_genre_reveal(state_path, log_path, open_pages))
 
 
 @app.command(name="refresh-spotify-tokens")
 def refresh_spotify_tokens() -> None:
     """Authenticate or force-refresh every configured Spotify app token."""
-    return _spotify_auth_cli()._refresh_spotify_tokens()
+    return run_cli(_spotify_auth_cli()._refresh_spotify_tokens())
 
 
 def wait_for_library_retry(
     console: Console,
     notice: library_sync.RetryNotice,
-    spotify: Spotify,
+    spotify: LegacySpotify,
     progress: Progress | None = None,
 ) -> bool:
     """Wait for a retry while accepting rotate or quit without Enter."""
-    return _analysis_cli()._wait_for_library_retry(console, notice, spotify, progress)
+    retry = BlockingAnalysisRetry(
+        ConsoleDisplay(Console, Table, Text), Live, time, time
+    )
+    return retry.wait(console, notice, spotify, progress)
 
 
 def print_library_analysis_summary(
@@ -1492,19 +1583,19 @@ def print_library_analysis_summary(
 
 def run_library_analysis(mode: library_sync.AnalysisMode) -> None:
     """Run one analysis mode with shared Rich progress and error handling."""
-    return _analysis_cli()._run_library_analysis(mode)
+    return run_cli(_analysis_cli()._run_library_analysis(mode))
 
 
 @app.command(name="analyse-library-async")
 def analyse_library_async() -> None:
     """Build suffixed mirrors exclusively from YourLibrary.json."""
-    return _analysis_cli()._analyse_library_async()
+    return run_cli(_analysis_cli()._analyse_library_async())
 
 
 @app.command(name="analyse-library-sync")
 def analyse_library_sync() -> None:
     """Build suffixed mirrors exclusively from the live Spotify API."""
-    return _analysis_cli()._analyse_library_sync()
+    return run_cli(_analysis_cli()._analyse_library_sync())
 
 
 @app.command(name="restore-library-sync")
@@ -1513,7 +1604,7 @@ def restore_library_sync_command(
     yes: bool = typer.Option(False, "--yes", help="Restore without prompting."),
 ) -> None:
     """Restore generated library files from an async or sync backup."""
-    return _analysis_cli()._run_restore_library_sync(run_id, yes)
+    return run_cli(_analysis_cli()._run_restore_library_sync(run_id, yes))
 
 
 @app.command()
@@ -1522,7 +1613,7 @@ def artist_stats(
     artist_id: str = typer.Option(None, "--artist-id", help="Spotify artist id."),
 ) -> None:
     """Show live liked-track and saved-release counts for an artist."""
-    return _lookups_cli()._artist_stats(name, artist_id)
+    return run_cli(_lookups_cli()._artist_stats(name, artist_id))
 
 
 @app.command()
@@ -1533,7 +1624,7 @@ def album_decision(
     threshold: float = 0.5,
 ) -> None:
     """Evaluate an album against live Spotify Liked Songs state."""
-    return _lookups_cli()._album_decision(name, album_id, artist, threshold)
+    return run_cli(_lookups_cli()._album_decision(name, album_id, artist, threshold))
 
 
 @app.command(name="review-album-limits")
@@ -1547,8 +1638,8 @@ def review_album_limits_command(
     ),
 ) -> None:
     """Interactively remove saved albums below the liked-track threshold."""
-    return _album_review_cli()._run_review_album_limits(
-        threshold, no_cache, refresh_cache
+    return run_cli(
+        _album_review_cli()._run_review_album_limits(threshold, no_cache, refresh_cache)
     )
 
 
@@ -1564,7 +1655,7 @@ def recover_removed_albums_command(
     ),
 ) -> None:
     """Audit removed albums, follow credited artists, and restore future releases."""
-    return _recovery_cli()._run_recover_removed_albums(dry_run, limit)
+    return run_cli(_recovery_cli()._run_recover_removed_albums(dry_run, limit))
 
 
 @app.command(name="review-artists")
@@ -1579,7 +1670,7 @@ def review_artists_command(
     ),
 ) -> None:
     """Review followed artists and place one track in the matching queue."""
-    return _artist_review_cli()._run_review_artists(refresh_cache, limit)
+    return run_cli(_artist_review_cli()._run_review_artists(refresh_cache, limit))
 
 
 def _spotify_auth_cli() -> SpotifyAuthCLI:

@@ -96,7 +96,7 @@ def test_malformed_artist_page_has_original_error(raw: object) -> None:
 
 
 @pytest.mark.parametrize("payload", ["broken JSON", "[]", '"text"'])
-def test_export_read_retains_original_error_translation(
+async def test_export_read_retains_original_error_translation(
     tmp_path: Path, payload: str
 ) -> None:
     """Retain original read-versus-model validation error causes.
@@ -105,24 +105,26 @@ def test_export_read_retains_original_error_translation(
         tmp_path: Independent original output family.
         payload: Original invalid persisted export.
     """
-    session = memory_session(AnalysisMemory(), tmp_path)
+    session = await memory_session(AnalysisMemory(), tmp_path)
     session.paths.your_library.write_text(payload)
     with pytest.raises(LibrarySyncError) as failure:
-        files.load_your_library(session.paths, storage=AnalysisStorage())
+        (files.load_your_library(session.paths, storage=AnalysisStorage()))
     assert failure.value.__cause__ is not None
 
 
-def test_json_and_export_missing_file_semantics_are_distinct(tmp_path: Path) -> None:
+async def test_json_and_export_missing_file_semantics_are_distinct(
+    tmp_path: Path,
+) -> None:
     """Keep caller defaults for absent JSON and errors for absent export authority.
 
     Args:
         tmp_path: Independent original output family.
     """
-    session = memory_session(AnalysisMemory(), tmp_path)
+    session = await memory_session(AnalysisMemory(), tmp_path)
     missing = session.paths.your_library
     assert files.load_json(missing, default="default") == "default"
     with pytest.raises(LibrarySyncError, match="export not found"):
-        files.load_your_library(session.paths, storage=AnalysisStorage())
+        (files.load_your_library(session.paths, storage=AnalysisStorage()))
     with pytest.raises(LibrarySyncError, match="export not found"):
         files.export_fingerprint(missing)
 
@@ -194,7 +196,7 @@ def _clock() -> str:
     return "original-clock"
 
 
-def test_audit_retains_unknown_details_named_like_the_clock_dependency(
+async def test_audit_retains_unknown_details_named_like_the_clock_dependency(
     tmp_path: Path,
 ) -> None:
     """Keep arbitrary original audit keys without colliding with injected dependencies.
@@ -202,7 +204,7 @@ def test_audit_retains_unknown_details_named_like_the_clock_dependency(
     Args:
         tmp_path: Independent original audit location.
     """
-    session = memory_session(AnalysisMemory(), tmp_path)
+    session = await memory_session(AnalysisMemory(), tmp_path)
     files.append_event(
         AnalysisStorage(),
         session.paths,

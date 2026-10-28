@@ -1,27 +1,43 @@
 """Named catalog, cache and membership resources for synchronous lookups."""
 
+import asyncio
 from dataclasses import dataclass
 from typing import Protocol
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.lookup_effects import LookupTrack
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.lookup_values import LiveAlbumCandidate
 from spotify_manager.domain.lookup_values import ResolvedTrack
 from spotify_manager.domain.lookup_values import TracklistUnavailableError
 from spotify_manager.infrastructure import lookup_records
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.your_library import YourLibraryFile
 
 
 class ClientFactory(Protocol):
     """Acquire the caller-owned client only after a cache miss."""
 
-    def client(self) -> Spotify:
+    def client(self) -> LegacySpotify:
         """Acquire the original synchronous client lazily.
 
         Returns:
             Original caller-owned client.
+        """
+        ...
+
+
+class NativeClientFactory(Protocol):
+    """Acquire an already adapted client after a cache miss."""
+
+    def client(self) -> Spotify:
+        """Acquire the client at the original lazy observation boundary.
+
+        Returns:
+            Native or compatibility client owned by the caller.
         """
         ...
 
@@ -36,7 +52,7 @@ class SpotifyArtistLookup:
 
     client: Spotify
 
-    def direct(self, identifier: str) -> tuple[str, str] | None:
+    async def direct(self, identifier: str) -> tuple[str, str] | None:
         """Read direct artist metadata.
 
         Args:
@@ -47,9 +63,9 @@ class SpotifyArtistLookup:
         """
         from spotify_manager.processors.library_lookups import _direct_artist_identity
 
-        return _direct_artist_identity(self.client, identifier)
+        return await _direct_artist_identity(self.client, identifier)
 
-    def search(self, name: str) -> list[tuple[str, str]]:
+    async def search(self, name: str) -> list[tuple[str, str]]:
         """Read artist search candidates.
 
         Args:
@@ -60,9 +76,11 @@ class SpotifyArtistLookup:
         """
         from spotify_manager.processors.library_lookups import _artist_search_items
 
-        return lookup_records.artist_identities(_artist_search_items(self.client, name))
+        return lookup_records.artist_identities(
+            await _artist_search_items(self.client, name)
+        )
 
-    def releases(self, identifier: str) -> list[str]:
+    async def releases(self, identifier: str) -> list[str]:
         """Read unique primary-credit releases.
 
         Args:
@@ -73,9 +91,9 @@ class SpotifyArtistLookup:
         """
         from spotify_manager.processors.library_lookups import _live_artist_release_ids
 
-        return _live_artist_release_ids(self.client, identifier)
+        return await _live_artist_release_ids(self.client, identifier)
 
-    def tracks(self, identifier: str, releases: list[str]) -> list[str]:
+    async def tracks(self, identifier: str, releases: list[str]) -> list[str]:
         """Read unique primary-credit tracks.
 
         Args:
@@ -87,7 +105,7 @@ class SpotifyArtistLookup:
         """
         from spotify_manager.processors.library_lookups import _live_primary_track_ids
 
-        return _live_primary_track_ids(self.client, identifier, releases)
+        return await _live_primary_track_ids(self.client, identifier, releases)
 
     @property
     def saved(self) -> SavedArtistAlbums:
@@ -118,7 +136,7 @@ class SpotifyAlbumLookup:
 
     client: Spotify
 
-    def direct(self, identifier: str) -> LiveAlbumCandidate:
+    async def direct(self, identifier: str) -> LiveAlbumCandidate:
         """Read direct album metadata.
 
         Args:
@@ -129,9 +147,9 @@ class SpotifyAlbumLookup:
         """
         from spotify_manager.processors.library_lookups import _direct_album
 
-        return _direct_album(self.client, identifier)
+        return await _direct_album(self.client, identifier)
 
-    def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
+    async def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
         """Read album search candidates.
 
         Args:
@@ -143,7 +161,7 @@ class SpotifyAlbumLookup:
         """
         from spotify_manager.processors.library_lookups import _album_search
 
-        return _album_search(self.client, name, artist)
+        return await _album_search(self.client, name, artist)
 
 
 @dataclass(frozen=True)
@@ -156,7 +174,7 @@ class SpotifyTrackLookup:
 
     client: Spotify
 
-    def direct(self, identifier: str) -> ResolvedTrack:
+    async def direct(self, identifier: str) -> ResolvedTrack:
         """Read direct track metadata.
 
         Args:
@@ -167,9 +185,9 @@ class SpotifyTrackLookup:
         """
         from spotify_manager.processors.scrobble_lookups import _direct_track
 
-        return _direct_track(self.client, identifier)
+        return await _direct_track(self.client, identifier)
 
-    def search(self, name: str) -> list[ResolvedTrack]:
+    async def search(self, name: str) -> list[ResolvedTrack]:
         """Read track search candidates.
 
         Args:
@@ -180,7 +198,7 @@ class SpotifyTrackLookup:
         """
         from spotify_manager.processors.scrobble_lookups import _track_search
 
-        return lookup_records.track_identities(_track_search(self.client, name))
+        return lookup_records.track_identities(await _track_search(self.client, name))
 
 
 @dataclass(frozen=True)
@@ -193,7 +211,7 @@ class SavedArtistAlbums:
 
     client: Spotify
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Observe a complete ordered batch.
 
         Args:
@@ -204,7 +222,7 @@ class SavedArtistAlbums:
         """
         from spotify_manager.processors.library_lookups import _saved_artist_statuses
 
-        return _saved_artist_statuses(self.client, identifiers)
+        return await _saved_artist_statuses(self.client, identifiers)
 
 
 @dataclass(frozen=True)
@@ -217,7 +235,7 @@ class LikedArtistTracks:
 
     client: Spotify
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Observe a complete ordered batch.
 
         Args:
@@ -228,7 +246,7 @@ class LikedArtistTracks:
         """
         from spotify_manager.processors.library_lookups import _liked_artist_statuses
 
-        return _liked_artist_statuses(self.client, identifiers)
+        return await _liked_artist_statuses(self.client, identifiers)
 
 
 @dataclass(frozen=True)
@@ -241,7 +259,7 @@ class LiveLikedTracks:
 
     client: Spotify
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Observe a complete ordered batch.
 
         Args:
@@ -252,7 +270,7 @@ class LiveLikedTracks:
         """
         from spotify_manager.processors.library_lookups import _live_liked_statuses
 
-        return _live_liked_statuses(self.client, identifiers)
+        return await _live_liked_statuses(self.client, identifiers)
 
 
 @dataclass(frozen=True)
@@ -265,9 +283,19 @@ class AlbumTrackCache:
     """
 
     client: Spotify | None
-    factory: ClientFactory | None = None
+    factory: NativeClientFactory | None = None
 
-    def load(self) -> dict[str, list[LookupTrack]]:
+    async def load(self) -> dict[str, list[LookupTrack]]:
+        """Read unchecked cache authority.
+
+        Returns:
+            Complete stored cache.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_load))
+            return await finish_blocking(task)
+
+    def _blocking_load(self) -> dict[str, list[LookupTrack]]:
         """Read unchecked cache authority.
 
         Returns:
@@ -277,7 +305,17 @@ class AlbumTrackCache:
 
         return cast(dict[str, list[LookupTrack]], load_album_tracks_cache())
 
-    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+    async def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+        """Publish the complete cache.
+
+        Args:
+            cache: Accepted cache.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_save, cache))
+            return await finish_blocking(task)
+
+    def _blocking_save(self, cache: dict[str, list[LookupTrack]]) -> None:
         """Publish the complete cache.
 
         Args:
@@ -287,7 +325,7 @@ class AlbumTrackCache:
 
         save_album_tracks_cache(cast(dict[str, list[dict[str, object]]], cache))
 
-    def fetch(self, identifier: str) -> list[LookupTrack]:
+    async def fetch(self, identifier: str) -> list[LookupTrack]:
         """Acquire a client after a cache miss, then read complete tracks.
 
         Args:
@@ -299,7 +337,7 @@ class AlbumTrackCache:
         Raises:
             TracklistUnavailableError: No client is available.
         """
-        from spotify_manager.processors.library_lookups import _fetch_album_tracks
+        from spotify_manager.processors.library_lookups import _async_fetch_album_tracks
 
         selected = self.client
         if selected is None and self.factory:
@@ -309,13 +347,23 @@ class AlbumTrackCache:
                 f"Album {identifier!r} is not cached "
                 "and no Spotify client is available."
             )
-        return _fetch_album_tracks(selected, identifier)
+        return await _async_fetch_album_tracks(selected, identifier)
 
 
 class LocalLibraryFiles:
     """Read the local export without choosing application stages."""
 
-    def library(self) -> YourLibraryFile:
+    async def library(self) -> YourLibraryFile:
+        """Read the export authority.
+
+        Returns:
+            Complete validated library.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_library))
+            return await finish_blocking(task)
+
+    def _blocking_library(self) -> YourLibraryFile:
         """Read the export authority.
 
         Returns:
@@ -336,7 +384,7 @@ class SpotifyLookupPages:
 
     client: Spotify
 
-    def next_object(self, page: object) -> object:
+    async def next_object(self, page: object) -> object:
         """Read object continuation.
 
         Args:
@@ -347,9 +395,9 @@ class SpotifyLookupPages:
         """
         from spotify_manager.processors.library_lookups import _next_object_page
 
-        return _next_object_page(self.client, page)
+        return await _next_object_page(self.client, page)
 
-    def release_page(self, artist: str, offset: int) -> object:
+    async def release_page(self, artist: str, offset: int) -> object:
         """Read primary-credit release candidates.
 
         Args:
@@ -361,9 +409,9 @@ class SpotifyLookupPages:
         """
         from spotify_manager.processors.library_lookups import _artist_release_page
 
-        return _artist_release_page(self.client, artist, offset)
+        return await _artist_release_page(self.client, artist, offset)
 
-    def albums(self, identifiers: list[str]) -> object:
+    async def albums(self, identifiers: list[str]) -> object:
         """Read an album batch.
 
         Args:
@@ -374,9 +422,9 @@ class SpotifyLookupPages:
         """
         from spotify_manager.processors.library_lookups import _album_batch
 
-        return _album_batch(self.client, identifiers)
+        return await _album_batch(self.client, identifiers)
 
-    def next_tracks(self, page: object) -> object:
+    async def next_tracks(self, page: object) -> object:
         """Read embedded album-track continuation.
 
         Args:
@@ -387,4 +435,4 @@ class SpotifyLookupPages:
         """
         from spotify_manager.processors.library_lookups import _next_album_track_page
 
-        return _next_album_track_page(self.client, page)
+        return await _next_album_track_page(self.client, page)

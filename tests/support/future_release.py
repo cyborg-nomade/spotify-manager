@@ -20,7 +20,7 @@ class Reads:
     fail: str | None = None
     events: list[str] = field(default_factory=list)
 
-    def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Read original tracks with a possible failure before cache acceptance.
 
         Args:

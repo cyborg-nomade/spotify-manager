@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from collections.abc import Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -26,7 +26,7 @@ class RetryOperation(Protocol):
 
     def attempts(
         self, description: str, max_attempts: int | None = None
-    ) -> Iterator[AbstractContextManager[None]]:
+    ) -> Iterator[AbstractAsyncContextManager[None]]:
         """Provide scopes for the directly visible request.
 
         Args:
@@ -42,7 +42,7 @@ class RetryOperation(Protocol):
 class OffsetRead(Protocol):
     """Read saved-resource pages from one selected transport endpoint."""
 
-    def read(self, *, limit: int, offset: int) -> object:
+    async def read(self, *, limit: int, offset: int) -> object:
         """Read one page.
 
         Args:
@@ -58,7 +58,7 @@ class OffsetRead(Protocol):
 class AnalysisFiles(Protocol):
     """Store analysis checkpoints, model arrays, staging streams and audit events."""
 
-    def read(self, path: Path, default: object | None = None) -> object:
+    async def read(self, path: Path, default: object | None = None) -> object:
         """Read permissive JSON.
 
         Args:
@@ -70,7 +70,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def write(self, path: Path, value: object) -> None:
+    async def write(self, path: Path, value: object) -> None:
         """Atomically accept JSON.
 
         Args:
@@ -79,7 +79,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def publish_path(self, path: Path, source: str) -> None:
+    async def publish_path(self, path: Path, source: str) -> None:
         """Publish an accepted managed artifact.
 
         Args:
@@ -88,7 +88,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def models[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
+    async def models[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
         """Read a typed model array.
 
         Args:
@@ -100,7 +100,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def staged[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
+    async def staged[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
         """Read a staging stream, retaining torn-tail recovery.
 
         Args:
@@ -112,7 +112,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def publish(self, path: Path, models: Sequence[BaseModel]) -> None:
+    async def publish(self, path: Path, models: Sequence[BaseModel]) -> None:
         """Accept a complete model array and publish its managed artifact.
 
         Args:
@@ -121,7 +121,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def append(self, path: Path, models: Sequence[BaseModel]) -> None:
+    async def append(self, path: Path, models: Sequence[BaseModel]) -> None:
         """Append models to staging.
 
         Args:
@@ -130,7 +130,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def event(
+    async def event(
         self, paths: LibraryAnalysisPaths, run_id: str, event: str, **details: object
     ) -> None:
         """Append a timestamped audit event.
@@ -143,7 +143,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def export(self, paths: LibraryAnalysisPaths) -> YourLibraryFile:
+    async def export(self, paths: LibraryAnalysisPaths) -> YourLibraryFile:
         """Read the export authority.
 
         Args:
@@ -170,7 +170,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def fingerprint(self, path: Path) -> dict[str, int]:
+    async def fingerprint(self, path: Path) -> dict[str, int]:
         """Observe export metadata.
 
         Args:
@@ -181,7 +181,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def reset_staging(self, path: Path) -> None:
+    async def reset_staging(self, path: Path) -> None:
         """Replace staging for a fresh run.
 
         Args:
@@ -189,7 +189,7 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def remove(self, path: Path) -> None:
+    async def remove(self, path: Path) -> None:
         """Remove a staging or candidate file if present.
 
         Args:
@@ -197,7 +197,9 @@ class AnalysisFiles(Protocol):
         """
         ...
 
-    def export_artists(self, paths: LibraryAnalysisPaths) -> list[YourLibraryArtist]:
+    async def export_artists(
+        self, paths: LibraryAnalysisPaths
+    ) -> list[YourLibraryArtist]:
         """Read optional export artist candidates.
 
         Args:
@@ -224,7 +226,7 @@ class AnalysisCatalog(Protocol):
         """
         ...
 
-    def artists(self, after: str | None) -> object:
+    async def artists(self, after: str | None) -> object:
         """Read followed artists with endpoint fallback.
 
         Args:
@@ -235,7 +237,7 @@ class AnalysisCatalog(Protocol):
         """
         ...
 
-    def reconcile_artists(self, after: str | None) -> object:
+    async def reconcile_artists(self, after: str | None) -> object:
         """Read a reconciliation page.
 
         Args:
@@ -246,7 +248,7 @@ class AnalysisCatalog(Protocol):
         """
         ...
 
-    def following(self, identities: list[str]) -> object:
+    async def following(self, identities: list[str]) -> object:
         """Verify live follows.
 
         Args:
@@ -317,18 +319,20 @@ class AnalysisSession:
     progress: ProgressCallback | None
     cancelled: CancelCheck | None
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Accept the original atomic checkpoint write."""
-        self.files.write(self.paths.checkpoint, self.checkpoint)
+        await self.files.write(self.paths.checkpoint, self.checkpoint)
 
-    def event(self, name: str, **details: object) -> None:
+    async def event(self, name: str, **details: object) -> None:
         """Append original run-scoped audit facts.
 
         Args:
             name: Original audit event.
             details: Original complete event facts.
         """
-        self.files.event(self.paths, str(self.checkpoint["run_id"]), name, **details)
+        await self.files.event(
+            self.paths, str(self.checkpoint["run_id"]), name, **details
+        )
 
     def notify(
         self, resource: ResourceName, done: int, total: int | None, label: str

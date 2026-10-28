@@ -6,12 +6,14 @@ from dataclasses import field
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines.composer_playlists import ComposerPlaylistError
 from spotify_manager.routines.composer_playlists import OwnedPlaylist
-from spotify_manager.routines.composer_playlists import load_owned_playlists
+from spotify_manager.routines.composer_playlists import (
+    load_owned_playlists as load_owned_playlists,
+)
 
 
 def _raw(
@@ -41,7 +43,7 @@ class PlaylistPages:
     pages: list[object]
     calls: list[tuple[int, int]] = field(default_factory=list)
 
-    def current_user_playlists(self, limit: int, offset: int) -> object:
+    async def current_user_playlists(self, limit: int, offset: int) -> object:
         """Read the next page.
 
         Args:
@@ -55,7 +57,7 @@ class PlaylistPages:
         return self.pages.pop(0)
 
 
-def test_paging_retains_duplicates_and_anchor_owner_selection() -> None:
+async def test_paging_retains_duplicates_and_anchor_owner_selection() -> None:
     """The first usable anchor controls ownership, with next OR total paging."""
     pages = PlaylistPages(
         [
@@ -77,7 +79,7 @@ def test_paging_retains_duplicates_and_anchor_owner_selection() -> None:
 
 
 @pytest.mark.parametrize("payload", [None, [], {}, {"items": None}, {"items": ()}])
-def test_invalid_page_fails_before_another_read(payload: object) -> None:
+async def test_invalid_page_fails_before_another_read(payload: object) -> None:
     """Malformed pages retain the boundary error.
 
     Args:
@@ -85,12 +87,12 @@ def test_invalid_page_fails_before_another_read(payload: object) -> None:
     """
     pages = PlaylistPages([payload])
     with pytest.raises(ComposerPlaylistError, match="invalid user playlist data"):
-        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
+        (load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"})))
     assert pages.calls == [(50, 0)]
 
 
 @pytest.mark.parametrize("paging", [{"next": "more"}, {"total": 1}])
-def test_empty_page_with_more_results_fails(paging: dict[str, object]) -> None:
+async def test_empty_page_with_more_results_fails(paging: dict[str, object]) -> None:
     """An empty nonfinal page must not spin forever.
 
     Args:
@@ -98,7 +100,7 @@ def test_empty_page_with_more_results_fails(paging: dict[str, object]) -> None:
     """
     pages = PlaylistPages([{"items": [], **paging}])
     with pytest.raises(ComposerPlaylistError, match="empty user-playlist page"):
-        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
+        (load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"})))
 
 
 @pytest.mark.parametrize(
@@ -111,7 +113,7 @@ def test_empty_page_with_more_results_fails(paging: dict[str, object]) -> None:
         [{"id": "anchor", "owner": []}],
     ],
 )
-def test_missing_owner_anchor_fails(items: list[object]) -> None:
+async def test_missing_owner_anchor_fails(items: list[object]) -> None:
     """A name match cannot establish which playlists the account owns.
 
     Args:
@@ -121,10 +123,10 @@ def test_missing_owner_anchor_fails(items: list[object]) -> None:
     with pytest.raises(
         ComposerPlaylistError, match="Could not establish playlist ownership"
     ):
-        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
+        (load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"})))
 
 
-def test_malformed_and_foreign_playlists_are_filtered_tolerantly() -> None:
+async def test_malformed_and_foreign_playlists_are_filtered_tolerantly() -> None:
     """Only complete owned records survive, without normalizing owner whitespace."""
     pages = PlaylistPages(
         [

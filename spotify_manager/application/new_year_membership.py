@@ -23,7 +23,7 @@ class AnnualMembership:
     catalog: AnnualPlaylist
     retry: RetryCall
 
-    def run(self, playlist: str, uris: list[str], top: bool = False) -> None:
+    async def run(self, playlist: str, uris: list[str], top: bool = False) -> None:
         """Add unique missing markers, then restore original ranked top ordering.
 
         Args:
@@ -34,31 +34,31 @@ class AnnualMembership:
         unique = list(dict.fromkeys(uris))
         for offset in range(0, len(unique), 100):
             batch = unique[offset : offset + 100]
-            self._add(playlist, batch, top)
+            await self._add(playlist, batch, top)
         if not top:
             return
         for uri in reversed(unique):
-            self._move(playlist, uri)
+            await self._move(playlist, uri)
 
-    def _add(self, playlist: str, batch: list[str], top: bool) -> None:
+    async def _add(self, playlist: str, batch: list[str], top: bool) -> None:
         for attempt in self.retry.attempts("adding retrospective tracks"):
-            with attempt:
-                self._add_attempt(playlist, batch, top)
+            async with attempt:
+                await self._add_attempt(playlist, batch, top)
 
-    def _add_attempt(self, playlist: str, batch: list[str], top: bool) -> None:
-        existing = self.catalog.playlist(playlist)
+    async def _add_attempt(self, playlist: str, batch: list[str], top: bool) -> None:
+        existing = await self.catalog.playlist(playlist)
         pending = pending_uris(batch, existing)
         if pending:
-            self.catalog.append(playlist, pending, top)
+            await self.catalog.append(playlist, pending, top)
 
-    def _move(self, playlist: str, uri: str) -> None:
+    async def _move(self, playlist: str, uri: str) -> None:
         description = "placing yearly artists at the top of Memory Lane"
         for attempt in self.retry.attempts(description):
-            with attempt:
-                self._move_attempt(playlist, uri)
+            async with attempt:
+                await self._move_attempt(playlist, uri)
 
-    def _move_attempt(self, playlist: str, uri: str) -> None:
-        live = self.catalog.playlist(playlist)
+    async def _move_attempt(self, playlist: str, uri: str) -> None:
+        live = await self.catalog.playlist(playlist)
         position = marker_position(live, uri)
         if position:
-            self.catalog.move(playlist, position)
+            await self.catalog.move(playlist, position)

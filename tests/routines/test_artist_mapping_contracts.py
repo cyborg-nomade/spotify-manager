@@ -3,11 +3,12 @@
 from collections.abc import Callable
 from functools import partial
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import release_check as legacy
 from tests.support.artist_mapping import ARTIST
 from tests.support.artist_mapping import EXACT
@@ -15,26 +16,30 @@ from tests.support.artist_mapping import OTHER
 from tests.support.artist_mapping import MappingObservations
 
 
-def _search(
+async def _search(
     observed: MappingObservations,
     sp: object,
     artist: legacy.RankedArtist,
     retry: object,
     text: str | None = None,
 ) -> tuple[legacy.SpotifyArtistCandidate, ...]:
-    return observed.search(artist, text)
+    return await observed.search(artist, text)
 
 
 def _immediate(operation: Callable[[], object], description: str) -> object:
     return operation()
 
 
-def _run(
+async def _run(
     monkeypatch: pytest.MonkeyPatch,
     observed: MappingObservations,
     interactive: bool = True,
 ) -> legacy.SpotifyArtistCandidate | str | None:
-    monkeypatch.setattr(legacy, "search_spotify_artists", partial(_search, observed))
+    monkeypatch.setattr(
+        legacy,
+        "async_search_spotify_artists",
+        AsyncMock(side_effect=partial(_search, observed)),
+    )
     return legacy.resolve_spotify_artist(
         cast(Spotify, object()),
         ARTIST,
@@ -43,18 +48,20 @@ def _run(
     )
 
 
-def test_original_unique_exact_is_automatic(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_original_unique_exact_is_automatic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Retain initial exact-only automatic selection before interaction.
 
     Args:
         monkeypatch: Scoped original search substitution.
     """
     observed = MappingObservations([(OTHER, EXACT)])
-    assert _run(monkeypatch, observed) is EXACT
+    assert (await _run(monkeypatch, observed)) is EXACT
     assert observed.searches == [None] and observed.prompts == []
 
 
-def test_original_noninteractive_empty_is_unmapped(
+async def test_original_noninteractive_empty_is_unmapped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Retain the original empty initial search result without a prompt.
@@ -63,12 +70,12 @@ def test_original_noninteractive_empty_is_unmapped(
         monkeypatch: Scoped original search substitution.
     """
     observed = MappingObservations([()])
-    assert _run(monkeypatch, observed, False) is None
+    assert (await _run(monkeypatch, observed, False)) is None
     assert observed.searches == [None]
 
 
 @pytest.mark.parametrize("choices", [(OTHER,), (EXACT, EXACT)])
-def test_original_noninteractive_ambiguity(
+async def test_original_noninteractive_ambiguity(
     monkeypatch: pytest.MonkeyPatch, choices: tuple[legacy.SpotifyArtistCandidate, ...]
 ) -> None:
     """Retain ambiguity even for a single nonexact candidate or repeated exact identity.
@@ -81,12 +88,12 @@ def test_original_noninteractive_ambiguity(
     with pytest.raises(
         legacy.ReleaseCheckSpotifyError, match="mapping is ambiguous for Artist"
     ):
-        _run(monkeypatch, observed, False)
+        (await _run(monkeypatch, observed, False))
     assert observed.searches == [None] and observed.prompts == []
 
 
 @pytest.mark.parametrize("choice", ["skip", "skip-artist", "quit"])
-def test_original_mapping_controls(
+async def test_original_mapping_controls(
     monkeypatch: pytest.MonkeyPatch, choice: str
 ) -> None:
     """Retain all original controls on an empty interactive prompt.
@@ -96,11 +103,11 @@ def test_original_mapping_controls(
         choice: Original mapping control.
     """
     observed = MappingObservations([()], [choice])
-    assert _run(monkeypatch, observed) == choice
+    assert (await _run(monkeypatch, observed)) == choice
     assert observed.prompts == [()]
 
 
-def test_original_custom_search_is_trimmed_and_still_prompts_exact(
+async def test_original_custom_search_is_trimmed_and_still_prompts_exact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Retain custom searches and require an explicit choice after a custom query.
@@ -111,12 +118,12 @@ def test_original_custom_search_is_trimmed_and_still_prompts_exact(
     observed = MappingObservations(
         [(), (OTHER, EXACT)], ["search:  custom text  ", "exact"]
     )
-    assert _run(monkeypatch, observed) is EXACT
+    assert (await _run(monkeypatch, observed)) is EXACT
     assert observed.searches == [None, "custom text"]
     assert observed.prompts == [(), ("other", "exact")]
 
 
-def test_original_exact_prompt_excludes_nonexact_and_selects_first_duplicate(
+async def test_original_exact_prompt_excludes_nonexact_and_selects_first_duplicate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Retain initial exact-only prompts and first matching identity.
@@ -125,7 +132,7 @@ def test_original_exact_prompt_excludes_nonexact_and_selects_first_duplicate(
         monkeypatch: Scoped original search substitution.
     """
     observed = MappingObservations([(OTHER, EXACT, EXACT)], ["exact"])
-    assert _run(monkeypatch, observed) is EXACT
+    assert (await _run(monkeypatch, observed)) is EXACT
     assert observed.prompts == [("exact", "exact")]
 
 
@@ -136,7 +143,7 @@ def test_original_exact_prompt_excludes_nonexact_and_selects_first_duplicate(
         ("missing", "selected Spotify artist is invalid"),
     ],
 )
-def test_original_mapping_errors(
+async def test_original_mapping_errors(
     monkeypatch: pytest.MonkeyPatch, choice: str, message: str
 ) -> None:
     """Retain one-shot response validation before any subsequent search.
@@ -148,5 +155,5 @@ def test_original_mapping_errors(
     """
     observed = MappingObservations([(OTHER,)], [choice])
     with pytest.raises(legacy.ReleaseCheckSpotifyError, match=message):
-        _run(monkeypatch, observed)
+        (await _run(monkeypatch, observed))
     assert observed.searches == [None] and observed.prompts == [("other",)]

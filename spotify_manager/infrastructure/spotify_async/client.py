@@ -7,6 +7,7 @@ from typing import cast
 
 from spotify_manager.application.ports.spotify_async import QueryValue
 from spotify_manager.application.ports.spotify_async import SpotifyJson
+from spotify_manager.application.ports.spotify_async import SpotifyMaintenance
 from spotify_manager.application.ports.spotify_async import SpotifyRequest
 from spotify_manager.application.ports.spotify_async import SpotifyTransport
 from spotify_manager.infrastructure.spotify_async.identifiers import joined_ids
@@ -24,6 +25,29 @@ class AsyncSpotify:
     """
 
     transport: SpotifyTransport
+
+    async def rotate_credentials(self) -> str:
+        """Apply the operator's original manual credential rotation.
+
+        Returns:
+            Newly active credential label.
+
+        Raises:
+            SpotifyAppAuthenticationError: No alternate credential can be activated.
+        """
+        if not isinstance(self.transport, SpotifyMaintenance):
+            raise TypeError("This Spotify transport cannot rotate credentials.")
+        return await self.transport.rotate_credentials()
+
+    async def refresh_all_app_tokens(self) -> tuple[str, ...]:
+        """Refresh every configured app through the existing OAuth resource owner.
+
+        Returns:
+            Refreshed app labels in original configuration order.
+        """
+        if not isinstance(self.transport, SpotifyMaintenance):
+            raise TypeError("This Spotify transport cannot refresh app tokens.")
+        return await self.transport.refresh_all_app_tokens()
 
     async def get(
         self, path: str, query: dict[str, QueryValue] | None = None
@@ -44,7 +68,7 @@ class AsyncSpotify:
     async def post(
         self,
         path: str,
-        payload: SpotifyJson = None,
+        payload: object = None,
         query: dict[str, QueryValue] | None = None,
     ) -> SpotifyJson:
         """Await one explicit POST operation.
@@ -58,13 +82,13 @@ class AsyncSpotify:
             Original decoded response.
         """
         return await self.transport.request(
-            SpotifyRequest("POST", path, query or {}, payload)
+            SpotifyRequest("POST", path, query or {}, cast(SpotifyJson, payload))
         )
 
     async def put(
         self,
         path: str,
-        payload: SpotifyJson = None,
+        payload: object = None,
         query: dict[str, QueryValue] | None = None,
     ) -> SpotifyJson:
         """Await one explicit PUT operation.
@@ -78,13 +102,13 @@ class AsyncSpotify:
             Original decoded response.
         """
         return await self.transport.request(
-            SpotifyRequest("PUT", path, query or {}, payload)
+            SpotifyRequest("PUT", path, query or {}, cast(SpotifyJson, payload))
         )
 
     async def delete(
         self,
         path: str,
-        payload: SpotifyJson = None,
+        payload: object = None,
         query: dict[str, QueryValue] | None = None,
     ) -> SpotifyJson:
         """Await one explicit DELETE operation.
@@ -98,7 +122,7 @@ class AsyncSpotify:
             Original decoded response.
         """
         return await self.transport.request(
-            SpotifyRequest("DELETE", path, query or {}, payload)
+            SpotifyRequest("DELETE", path, query or {}, cast(SpotifyJson, payload))
         )
 
     async def album(self, album_id: str, market: str | None = None) -> SpotifyJson:
@@ -390,7 +414,7 @@ class AsyncSpotify:
             "me/library/contains", {"uris": joined_uris("track", tracks or ())}
         )
 
-    async def next(self, result: dict[str, SpotifyJson]) -> SpotifyJson:
+    async def next(self, result: object) -> SpotifyJson:
         """Await the original next endpoint contract.
 
         Args:
@@ -399,8 +423,9 @@ class AsyncSpotify:
         Returns:
             Unmodified Spotify JSON, preserving empty and malformed values.
         """
-        if result["next"]:
-            return await self.get(cast(str, result["next"]))
+        page = cast(dict[str, SpotifyJson], result)
+        if page["next"]:
+            return await self.get(cast(str, page["next"]))
         return None
 
     async def playlist_add_items(
@@ -430,7 +455,7 @@ class AsyncSpotify:
         q: str,
         limit: int = 10,
         offset: int = 0,
-        type: str = "track",  # noqa: A002 - Preserve the SDK search keyword.
+        type: str = "track",  # noqa: A002 - Preserve the SDK keyword.  # noqa: A002 - Preserve the SDK search keyword.
         market: str | None = None,
     ) -> SpotifyJson:
         """Await the original search endpoint contract.
@@ -527,3 +552,93 @@ class AsyncSpotify:
                 "description": description,
             },
         )
+
+    async def _get(
+        self,
+        url: str,
+        args: dict[str, QueryValue] | None = None,
+        payload: object = None,
+        **kwargs: QueryValue,
+    ) -> SpotifyJson:
+        """Retain the SDK raw GET parameter convention at the adapter edge.
+
+        Args:
+            url: Original relative endpoint or complete pagination URL.
+            args: Original query parameters.
+            payload: Original optional JSON payload.
+            **kwargs: Original additional query parameters, in encounter order.
+
+        Returns:
+            Unvalidated original Spotify JSON for the owning endpoint parser.
+        """
+        query = dict(kwargs)
+        query.update(args or {})
+        return await self.transport.request(
+            SpotifyRequest("GET", url, query, cast(SpotifyJson, payload))
+        )
+
+    async def _post(
+        self,
+        url: str,
+        args: dict[str, QueryValue] | None = None,
+        payload: object = None,
+        **kwargs: QueryValue,
+    ) -> SpotifyJson:
+        """Retain the SDK raw POST parameter convention at the adapter edge.
+
+        Args:
+            url: Original relative endpoint or complete pagination URL.
+            args: Original query parameters.
+            payload: Original optional JSON payload.
+            **kwargs: Original additional query parameters, in encounter order.
+
+        Returns:
+            Unvalidated original Spotify JSON for the owning endpoint parser.
+        """
+        query = dict(kwargs)
+        query.update(args or {})
+        return await self.post(url, payload, query)
+
+    async def _put(
+        self,
+        url: str,
+        args: dict[str, QueryValue] | None = None,
+        payload: object = None,
+        **kwargs: QueryValue,
+    ) -> SpotifyJson:
+        """Retain the SDK raw PUT parameter convention at the adapter edge.
+
+        Args:
+            url: Original relative endpoint or complete pagination URL.
+            args: Original query parameters.
+            payload: Original optional JSON payload.
+            **kwargs: Original additional query parameters, in encounter order.
+
+        Returns:
+            Unvalidated original Spotify JSON for the owning endpoint parser.
+        """
+        query = dict(kwargs)
+        query.update(args or {})
+        return await self.put(url, payload, query)
+
+    async def _delete(
+        self,
+        url: str,
+        args: dict[str, QueryValue] | None = None,
+        payload: object = None,
+        **kwargs: QueryValue,
+    ) -> SpotifyJson:
+        """Retain the SDK raw DELETE parameter convention at the adapter edge.
+
+        Args:
+            url: Original relative endpoint or complete pagination URL.
+            args: Original query parameters.
+            payload: Original optional JSON payload.
+            **kwargs: Original additional query parameters, in encounter order.
+
+        Returns:
+            Unvalidated original Spotify JSON for the owning endpoint parser.
+        """
+        query = dict(kwargs)
+        query.update(args or {})
+        return await self.delete(url, payload, query)

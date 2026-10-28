@@ -33,7 +33,7 @@ class ReviewCounts:
 class AlbumReviewLibrary(Protocol):
     """Library observations and effects needed by one album-review run."""
 
-    def albums(self) -> list[YourLibraryAlbum]:
+    async def albums(self) -> list[YourLibraryAlbum]:
         """Load the original ordered review input and its related state.
 
         Returns:
@@ -50,7 +50,7 @@ class AlbumReviewLibrary(Protocol):
             Whether a prior user choice bypasses this review.
         """
 
-    def follow_artist(self, album: YourLibraryAlbum) -> bool:
+    async def follow_artist(self, album: YourLibraryAlbum) -> bool:
         """Resolve, follow, and persist the album artist when necessary.
 
         Args:
@@ -60,7 +60,7 @@ class AlbumReviewLibrary(Protocol):
             Whether a new follow completed.
         """
 
-    def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
+    async def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
         """Read track facts and assess the configured retention threshold.
 
         Args:
@@ -70,7 +70,7 @@ class AlbumReviewLibrary(Protocol):
             The assessment and its original source metadata.
         """
 
-    def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
+    async def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
         """Read current membership before offering removal.
 
         Args:
@@ -81,7 +81,7 @@ class AlbumReviewLibrary(Protocol):
             Count of truthy membership observations.
         """
 
-    def remove(
+    async def remove(
         self,
         album: YourLibraryAlbum,
         evaluation: AlbumEvaluation,
@@ -98,7 +98,7 @@ class AlbumReviewLibrary(Protocol):
             automatic: Whether zero live likes triggered removal.
         """
 
-    def keep(
+    async def keep(
         self,
         album: YourLibraryAlbum,
         evaluation: AlbumEvaluation,
@@ -157,7 +157,7 @@ class AlbumReviewInteraction(Protocol):
             count: Live count, or None when no identifiers are known.
         """
 
-    def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
+    async def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
         """Read a normalized action, retaining detail and invalid-input prompts.
 
         Args:
@@ -184,7 +184,7 @@ class AlbumReviewInteraction(Protocol):
         """
 
 
-def _live_likes(
+async def _live_likes(
     library: AlbumReviewLibrary, album: YourLibraryAlbum, evaluation: AlbumEvaluation
 ) -> int | None:
     track_ids = []
@@ -193,33 +193,33 @@ def _live_likes(
             track_ids.append(track.spotify_id)
     if not track_ids:
         return None
-    return library.live_likes(album, track_ids)
+    return await library.live_likes(album, track_ids)
 
 
-def _review_candidate(
+async def _review_candidate(
     library: AlbumReviewLibrary,
     interaction: AlbumReviewInteraction,
     album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
 ) -> ReviewOutcome:
-    live_likes = _live_likes(library, album, evaluation)
+    live_likes = await _live_likes(library, album, evaluation)
     if live_likes == 0:
-        library.remove(album, evaluation, live_likes, automatic=True)
+        await library.remove(album, evaluation, live_likes, automatic=True)
         return "auto-removed"
     interaction.show_live_likes(live_likes)
-    action = interaction.choose(album, evaluation)
+    action = await interaction.choose(album, evaluation)
     if action == "quit":
         return "quit"
     if action == "keep":
-        library.keep(album, evaluation, live_likes)
+        await library.keep(album, evaluation, live_likes)
         return "kept anyway"
     if action == "skip":
         return "skip"
-    library.remove(album, evaluation, live_likes, automatic=False)
+    await library.remove(album, evaluation, live_likes, automatic=False)
     return "removed"
 
 
-def _review_one(
+async def _review_one(
     library: AlbumReviewLibrary,
     interaction: AlbumReviewInteraction,
     album: YourLibraryAlbum,
@@ -230,13 +230,13 @@ def _review_one(
     if library.previously_kept(album):
         interaction.outcome("previously kept", album, None, position, total)
         return "previously kept"
-    counts.followed += int(library.follow_artist(album))
-    evaluation = library.evaluate(album)
+    counts.followed += int(await library.follow_artist(album))
+    evaluation = await library.evaluate(album)
     if evaluation.decision == "keep":
         interaction.outcome("keep", album, evaluation, position, total)
         return "keep"
     interaction.candidate(album, evaluation, position, total)
-    outcome = _review_candidate(library, interaction, album, evaluation)
+    outcome = await _review_candidate(library, interaction, album, evaluation)
     interaction.outcome(outcome, album, evaluation, position, total)
     return outcome
 
@@ -250,7 +250,7 @@ def _count_outcome(counts: ReviewCounts, outcome: ReviewOutcome) -> None:
         counts.skipped += 1
 
 
-def review_albums(
+async def review_albums(
     library: AlbumReviewLibrary, interaction: AlbumReviewInteraction
 ) -> None:
     """Review each album while preserving prompt and completion boundaries.
@@ -262,10 +262,10 @@ def review_albums(
     Raises:
         RuntimeError: An integration or caller interrupts the review.
     """
-    albums = library.albums()
+    albums = await library.albums()
     counts = ReviewCounts()
     for position, album in enumerate(albums, start=1):
-        outcome = _review_one(
+        outcome = await _review_one(
             library, interaction, album, counts, position, len(albums)
         )
         if outcome == "quit":

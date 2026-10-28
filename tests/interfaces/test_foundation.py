@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -57,7 +57,7 @@ class Choices:
         """
         return self.values.popleft()
 
-    def choose_action(
+    async def choose_action(
         self, album: YourLibraryAlbum, evaluation: AlbumEvaluation
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -84,7 +84,7 @@ def test_review_cli_executes_follow_prompt_removal_and_publication(
     """
     _review_files(monkeypatch, tmp_path)
     spotify = ReviewSpotify(saved_tracks={"t1"})
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     result = CliRunner().invoke(
         main.app, ["review-album-limits", "--no-cache"], input="r\n"
     )
@@ -113,7 +113,7 @@ def test_recovery_cli_executes_original_result_and_effects(
         (tmp_path / "removed.jsonl").read_text()
     )
     spotify = RecoverySpotify()
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(recovery_operations, "_today", _today)
     arguments = ["recover-removed-albums", "--limit", "1"]
     if dry_run:
@@ -136,7 +136,9 @@ def test_recovery_cli_executes_original_result_and_effects(
         (" Q ", "remove", "quit"),
     ],
 )
-def test_original_action_normalization(raw: str, decision: str, expected: str) -> None:
+async def test_original_action_normalization(
+    raw: str, decision: str, expected: str
+) -> None:
     """Retain whitespace, aliases, and decision-sensitive default actions.
 
     Args:
@@ -147,17 +149,18 @@ def test_original_action_normalization(raw: str, decision: str, expected: str) -
     choices = Choices(deque([raw]))
     messages: list[str] = []
     assert (
-        read_action(_album(), _evaluation(decision), choices, MessageList(messages))
-        == expected
-    )
+        await read_action(
+            _album(), _evaluation(decision), choices, MessageList(messages)
+        )
+    ) == expected
     assert messages == []
 
 
-def test_details_and_invalid_actions_repeat_original_prompt() -> None:
+async def test_details_and_invalid_actions_repeat_original_prompt() -> None:
     """Details preserve track order and malformed actions re-prompt without a choice."""
     choices = Choices(deque(["d", "invalid", "keep"]))
     messages: list[str] = []
-    result = read_action(_album(), _evaluation(), choices, MessageList(messages))
+    result = await read_action(_album(), _evaluation(), choices, MessageList(messages))
     assert result == "keep"
     assert messages == [
         "  01. [not liked] Track",

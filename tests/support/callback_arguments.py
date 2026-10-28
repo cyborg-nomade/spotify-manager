@@ -188,7 +188,11 @@ def _call_arguments(
     arguments.extend((item.arg or "**", item.value) for item in call.keywords)
     result = []
     for parameter, value in arguments:
-        if not _is_function(value, bindings, known, methods):
+        required = (
+            _target(call.func, bindings) == "asyncio.to_thread"
+            or ast.unparse(call.func) == "executor.submit"
+        ) and parameter == "0"
+        if not required and not _is_function(value, bindings, known, methods):
             continue
         result.append(
             FunctionArgument(
@@ -206,7 +210,8 @@ def _is_function(
     value: ast.expr, bindings: dict[str, str], known: set[str], methods: set[str]
 ) -> bool:
     if isinstance(value, ast.Lambda) or _target(value, bindings) in known | {
-        "<function>"
+        "<function>",
+        "asyncio.run",
     }:
         return True
     if not isinstance(value, ast.Attribute) or not isinstance(value.value, ast.Name):

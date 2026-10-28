@@ -6,9 +6,9 @@ from datetime import UTC
 from datetime import timedelta
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
@@ -52,11 +52,11 @@ class BlastWorker:
     job: _BlastJob = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one web playlist job and retain progress, logs, and results."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except blast_from_past.BlastFromPastCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -98,8 +98,8 @@ class BlastWorker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> blast_from_past.BlastFromPastSpotifySummary:
-        summary = blast_from_past.add_blast_from_past_to_spotify(
+    async def _execute(self) -> blast_from_past.BlastFromPastSpotifySummary:
+        summary = await blast_from_past.add_blast_from_past_to_spotify(
             self.spotify,
             self.playlist_id,
             count=self.count,

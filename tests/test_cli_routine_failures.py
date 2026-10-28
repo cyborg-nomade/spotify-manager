@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from types import ModuleType
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from spotipy.exceptions import SpotifyException
@@ -119,7 +120,9 @@ def test_interactive_routines_report_operational_failures(
     }
     error = errors[failure_kind]
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
 
     def fail(*_args, **_kwargs):
         raise error
@@ -147,7 +150,9 @@ def test_interruptible_routines_pause_cleanly(
     _domain_error: Exception,
 ) -> None:
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
 
     def interrupt(*_args, **_kwargs):
         raise KeyboardInterrupt

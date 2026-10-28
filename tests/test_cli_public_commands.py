@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from dataclasses import field
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -30,13 +31,13 @@ def test_spotify_client_is_lazy_cached_and_reports_configuration_errors(
         calls=calls, spotify=spotify
     )
     monkeypatch.setattr(main, "get_spotipy_client", scenario.build)
-    assert main.client() is spotify
-    assert main.client() is spotify
+    assert (main.client()) is spotify
+    assert (main.client()) is spotify
     assert calls == [{"event_callback": TYPER_OUTPUT}]
     monkeypatch.setattr(main, "_client", None)
     monkeypatch.setattr(main, "get_spotipy_client", scenario.fail)
     with pytest.raises(main.typer.Exit) as exc:
-        main.client()
+        (main.client())
     assert exc.value.exit_code == 1
     assert "bad redirect" in capsys.readouterr().err
 
@@ -52,7 +53,7 @@ def test_review_client_reports_configuration_error(
 
     monkeypatch.setattr(main, "get_spotipy_client", fail)
     with pytest.raises(main.typer.Exit) as exc:
-        main.review_client()
+        (main.review_client())
     assert exc.value.exit_code == 1
     assert "partial app" in capsys.readouterr().err
 
@@ -69,50 +70,52 @@ def test_legacy_cli_commands_delegate_to_current_workflows(
     """
     spotify = object()
     calls = WorkflowCalls()
-    monkeypatch.setattr(main, "client", Mock(return_value=spotify))
+    monkeypatch.setattr(
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=spotify))
+    )
     monkeypatch.setattr(
         library_operations,
         "compare_your_library_and_all_albums",
-        calls.compare,
+        AsyncMock(side_effect=calls.compare),
     )
     monkeypatch.setattr(
         library_operations,
         "convert_your_library_file",
-        calls.convert,
+        AsyncMock(side_effect=calls.convert),
     )
     monkeypatch.setattr(
         library_operations,
         "run_monthly_routines",
-        calls.monthly,
+        AsyncMock(side_effect=calls.monthly),
     )
     monkeypatch.setattr(
         library_operations,
         "update_total_album_list",
-        calls.update,
+        AsyncMock(side_effect=calls.update),
     )
     monkeypatch.setattr(
         library_operations,
         "restore_your_library_from_file",
-        calls.restore,
+        AsyncMock(side_effect=calls.restore),
     )
     monkeypatch.setattr(
         library_operations,
         "analyse_comparison",
-        calls.analyse,
+        AsyncMock(side_effect=calls.analyse),
     )
     monkeypatch.setattr(
         library_operations,
         "count_artists_in_library",
-        Mock(return_value=42),
+        AsyncMock(side_effect=Mock(return_value=42)),
     )
 
-    main.monthly_routines()
-    main.update_total_albums(just_update=True)
-    main.restore_your_library()
-    main.compare_lib_files()
-    main.analyse_comp()
-    main.convert_lib()
-    main.count_artists()
+    (main.monthly_routines())
+    (main.update_total_albums(just_update=True))
+    (main.restore_your_library())
+    (main.compare_lib_files())
+    (main.analyse_comp())
+    (main.convert_lib())
+    (main.count_artists())
 
     assert [name for name, _value in calls.events] == [
         "compare",
@@ -147,14 +150,16 @@ def test_restore_sync_can_abort_and_reports_restore_error(
 ) -> None:
     monkeypatch.setattr(main.typer, "confirm", lambda *_args, **_kwargs: False)
     with pytest.raises(main.typer.Abort):
-        main.restore_library_sync_command("run", yes=False)
+        (main.restore_library_sync_command("run", yes=False))
 
     def fail(_run_id: str) -> None:
         raise main.library_sync.LibrarySyncRestoreError("backup missing")
 
-    monkeypatch.setattr(main.library_sync, "restore_library_sync", fail)
+    monkeypatch.setattr(
+        main.library_sync, "restore_library_sync", AsyncMock(side_effect=fail)
+    )
     with pytest.raises(main.typer.Exit) as exc:
-        main.restore_library_sync_command("run", yes=True)
+        (main.restore_library_sync_command("run", yes=True))
     assert exc.value.exit_code == 1
     assert "backup missing" in capsys.readouterr().err
 
@@ -184,13 +189,17 @@ def test_artist_stats_reports_lookup_failures(
         capsys: Captured operator-facing output.
         error: Configured original failure.
     """
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
 
     monkeypatch.setattr(
-        lookup_operations, "get_live_artist_library_stats", Mock(side_effect=error)
+        lookup_operations,
+        "get_live_artist_library_stats",
+        AsyncMock(side_effect=Mock(side_effect=error)),
     )
     with pytest.raises(main.typer.Exit) as exc:
-        main.artist_stats(name="Artist", artist_id=None)
+        (main.artist_stats(name="Artist", artist_id=None))
     assert exc.value.exit_code == 1
     assert capsys.readouterr().err
 
@@ -206,15 +215,19 @@ def test_artist_stats_validates_input_and_prints_json(
         capsys: Captured operator-facing output.
     """
     with pytest.raises(main.typer.BadParameter):
-        main.artist_stats(name=None, artist_id=None)
+        (main.artist_stats(name=None, artist_id=None))
 
     result = Mock(model_dump_json=Mock(return_value='{"artist": "A"}'))
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
     monkeypatch.setattr(
-        lookup_operations, "get_live_artist_library_stats", Mock(return_value=result)
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
+    monkeypatch.setattr(
+        lookup_operations,
+        "get_live_artist_library_stats",
+        AsyncMock(side_effect=Mock(return_value=result)),
     )
 
-    main.artist_stats(name=None, artist_id="artist-id")
+    (main.artist_stats(name=None, artist_id="artist-id"))
     assert '{"artist": "A"}' in capsys.readouterr().out
 
 
@@ -243,17 +256,23 @@ def test_album_decision_reports_lookup_failures(
         capsys: Captured operator-facing output.
         error: Configured original failure.
     """
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
 
     monkeypatch.setattr(
-        lookup_operations, "evaluate_live_album", Mock(side_effect=error)
+        lookup_operations,
+        "evaluate_live_album",
+        AsyncMock(side_effect=Mock(side_effect=error)),
     )
     with pytest.raises(main.typer.Exit) as exc:
-        main.album_decision(
-            name="Album",
-            album_id=None,
-            artist=None,
-            threshold=0.5,
+        (
+            main.album_decision(
+                name="Album",
+                album_id=None,
+                artist=None,
+                threshold=0.5,
+            )
         )
     assert exc.value.exit_code == 1
     assert capsys.readouterr().err
@@ -270,24 +289,32 @@ def test_album_decision_validates_input_and_prints_json(
         capsys: Captured operator-facing output.
     """
     with pytest.raises(main.typer.BadParameter):
-        main.album_decision(
-            name=None,
-            album_id=None,
-            artist=None,
-            threshold=0.5,
+        (
+            main.album_decision(
+                name=None,
+                album_id=None,
+                artist=None,
+                threshold=0.5,
+            )
         )
 
     result = Mock(model_dump_json=Mock(return_value='{"decision": "keep"}'))
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
     monkeypatch.setattr(
-        lookup_operations, "evaluate_live_album", Mock(return_value=result)
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
+    monkeypatch.setattr(
+        lookup_operations,
+        "evaluate_live_album",
+        AsyncMock(side_effect=Mock(return_value=result)),
     )
 
-    main.album_decision(
-        name=None,
-        album_id="album-id",
-        artist="Artist",
-        threshold=0.6,
+    (
+        main.album_decision(
+            name=None,
+            album_id="album-id",
+            artist="Artist",
+            threshold=0.6,
+        )
     )
     assert '"decision": "keep"' in capsys.readouterr().out
 
@@ -306,22 +333,26 @@ def test_refresh_spotify_tokens_validates_client_and_reports_failures(
             return ("app5", "app6")
 
     monkeypatch.setattr(main, "RotatingSpotify", FakeRotatingSpotify)
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
     with pytest.raises(main.typer.BadParameter):
-        main.refresh_spotify_tokens()
+        (main.refresh_spotify_tokens())
 
     monkeypatch.setattr(
         main,
-        "review_client",
-        lambda: FakeRotatingSpotify(RuntimeError("auth failed")),
+        "_native_review_client",
+        AsyncMock(side_effect=lambda: FakeRotatingSpotify(RuntimeError("auth failed"))),
     )
     with pytest.raises(main.typer.Exit) as exc:
-        main.refresh_spotify_tokens()
+        (main.refresh_spotify_tokens())
     assert exc.value.exit_code == 1
     assert "auth failed" in capsys.readouterr().err
 
-    monkeypatch.setattr(main, "review_client", FakeRotatingSpotify)
-    main.refresh_spotify_tokens()
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=FakeRotatingSpotify)
+    )
+    (main.refresh_spotify_tokens())
     assert "app5, app6" in capsys.readouterr().out
 
 

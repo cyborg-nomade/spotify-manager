@@ -12,6 +12,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.ports.spotify_async import AsyncWait
 from spotify_manager.application.ports.spotify_async import SpotifyJson
 from spotify_manager.application.ports.spotify_async import SpotifyRequest
+from spotify_manager.infrastructure.cli_cancellation import INVOCATION_WAIT
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.infrastructure.spotify_async.credentials import Credentials
 from spotify_manager.infrastructure.spotify_async.credentials import CredentialToken
@@ -34,7 +35,7 @@ class AsyncSleep:
             seconds: Existing retry delay, including a zero adapter backoff.
         """
         if seconds:
-            await asyncio.sleep(seconds)
+            await INVOCATION_WAIT.sleep(seconds)
 
 
 @dataclass
@@ -62,6 +63,7 @@ class NativeSpotifyTransport:
         profile: Original selected adapter/connection retry profile.
         wait: Awaited delay owner.
         language: Original optional Accept-Language value.
+        close_resources: Whether this transport owns the shared pool and credentials.
     """
 
     http: httpx.AsyncClient
@@ -69,6 +71,7 @@ class NativeSpotifyTransport:
     profile: RetryProfile = field(default_factory=RetryProfile)
     wait: AsyncWait = field(default_factory=AsyncSleep)
     language: str | None = None
+    close_resources: bool = True
     _loop: asyncio.AbstractEventLoop = field(init=False, repr=False)
     _closing: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
     _closed: bool = field(default=False, init=False)
@@ -83,6 +86,26 @@ class NativeSpotifyTransport:
             raise RuntimeError("Spotify transport is closed.")
         if self._loop is not current:
             raise RuntimeError("Spotify transport belongs to another event loop.")
+
+    def retry_view(self, profile: RetryProfile) -> NativeSpotifyTransport:
+        """Borrow the pool and refresh locks with independent rotation and retries.
+
+        Args:
+            profile: Original caller-specific request retry policy.
+
+        Returns:
+            A view whose cleanup leaves the underlying resources with this owner.
+
+        Raises:
+            RuntimeError: This owner is closing, closed or on another loop.
+        """
+        self._check_owner()
+        if self._closing is not None:
+            raise RuntimeError("Spotify transport is closing.")
+        credentials = Credentials(self.credentials.entries, self.credentials.output)
+        return NativeSpotifyTransport(
+            self.http, credentials, profile, self.wait, self.language, False
+        )
 
     async def request(self, request: SpotifyRequest) -> SpotifyJson:
         """Await a direct request with the original rotation and failure budgets.
@@ -193,7 +216,39 @@ class NativeSpotifyTransport:
             self._closing = asyncio.create_task(self._close())
         await finish_blocking(self._closing)
 
+    async def rotate_credentials(self) -> str:
+        """Rotate explicitly on the owning loop without starting an HTTP request.
+
+        Returns:
+            Newly active credential label.
+
+        Raises:
+            RuntimeError: This transport is closed or belongs to another loop.
+            SpotifyAppAuthenticationError: No alternate app is usable.
+        """
+        self._check_owner()
+        if self._closed or self._closing is not None:
+            raise RuntimeError("Spotify transport is closed.")
+        return await self.credentials.manual_rotation()
+
+    async def refresh_all_app_tokens(self) -> tuple[str, ...]:
+        """Refresh each app on the loop that owns its credential locks.
+
+        Returns:
+            Original refreshed credential labels.
+
+        Raises:
+            RuntimeError: This transport is closed or belongs to another loop.
+        """
+        self._check_owner()
+        if self._closed or self._closing is not None:
+            raise RuntimeError("Spotify transport is closed.")
+        return await self.credentials.refresh_all()
+
     async def _close(self) -> None:
+        if not self.close_resources:
+            self._closed = True
+            return
         try:
             await self.http.aclose()
         finally:

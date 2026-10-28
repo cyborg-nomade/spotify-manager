@@ -9,6 +9,7 @@ from functools import partial
 from functools import partialmethod
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -113,7 +114,7 @@ class CatalogSpotify:
     def __init__(self, releases: list[dict[str, object]]) -> None:
         self.releases = releases
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -130,14 +131,14 @@ class CatalogSpotify:
             "next": "next" if offset + len(page) < len(self.releases) else None,
         }
 
-    def current_user_saved_albums_contains(
+    async def current_user_saved_albums_contains(
         self,
         album_ids: list[str],
     ) -> list[bool]:
         return [album_id == "album-deluxe" for album_id in album_ids]
 
 
-def test_release_catalog_uses_studio_defaults_and_offers_non_studio() -> None:
+async def test_release_catalog_uses_studio_defaults_and_offers_non_studio() -> None:
     """The default mirrors Slow Listening while live/compilation stays optional."""
     spotify = CatalogSpotify(
         [
@@ -201,7 +202,7 @@ def test_release_index_parser_accepts_ranges_and_rejects_reverse_ranges() -> Non
         discography.parse_release_indexes("6", 5)
 
 
-def test_new_state_starts_with_the_requeue(tmp_path: Path) -> None:
+async def test_new_state_starts_with_the_requeue(tmp_path: Path) -> None:
     state = discography.load_state(tmp_path / "missing.json")
     assert state["next_queue"] == "requeue"
     assert discography._next_start_queue("requeue") == "memory_lane"
@@ -209,7 +210,7 @@ def test_new_state_starts_with_the_requeue(tmp_path: Path) -> None:
     assert discography._next_start_queue("newfoundland") == "requeue"
 
 
-def test_historical_artist_uses_palace_date_seconds_rule(tmp_path: Path) -> None:
+async def test_historical_artist_uses_palace_date_seconds_rule(tmp_path: Path) -> None:
     """A random date is chosen, then seconds wrap over its ranked artists."""
     history_path = tmp_path / "lastfm.json"
     history_path.write_text(
@@ -271,7 +272,7 @@ def test_historical_artist_uses_palace_date_seconds_rule(tmp_path: Path) -> None
     assert selection.artist == discography.HistoricalArtist("Beta", 2)
 
 
-def test_historical_artist_requires_an_eligible_date(tmp_path: Path) -> None:
+async def test_historical_artist_requires_an_eligible_date(tmp_path: Path) -> None:
     """An empty or entirely future history fails before Random.org is called."""
     history_path = tmp_path / "lastfm.json"
     history_path.write_text(json.dumps({"scrobbles": []}))
@@ -280,14 +281,16 @@ def test_historical_artist_requires_an_eligible_date(tmp_path: Path) -> None:
         discography.DiscographyError,
         match="No artist-bearing Last.fm dates",
     ):
-        discography.select_historical_artist(
-            path=history_path,
-            today=date(2026, 8, 24),
-            random_index_reader=UnexpectedCall("Random.org should not be reached"),
+        (
+            discography.select_historical_artist(
+                path=history_path,
+                today=date(2026, 8, 24),
+                random_index_reader=UnexpectedCall("Random.org should not be reached"),
+            )
         )
 
 
-def test_historical_artist_resolution_becomes_memory_lane_candidate(
+async def test_historical_artist_resolution_becomes_memory_lane_candidate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The exact Spotify match carries the synthetic Memory Lane source."""
@@ -303,15 +306,17 @@ def test_historical_artist_resolution_becomes_memory_lane_candidate(
     )
     monkeypatch.setattr(
         discography.something_old,
-        "resolve_spotify_artist",
-        Mock(
-            return_value=discography.something_old.SpotifyArtistCandidate(
-                spotify_id="spotify-id",
-                name="History Artist",
-                uri="spotify:artist:spotify-id",
-                popularity=40,
-                followers=100,
-                search_rank=1,
+        "async_resolve_spotify_artist",
+        AsyncMock(
+            side_effect=Mock(
+                return_value=discography.something_old.SpotifyArtistCandidate(
+                    spotify_id="spotify-id",
+                    name="History Artist",
+                    uri="spotify:artist:spotify-id",
+                    popularity=40,
+                    followers=100,
+                    search_rank=1,
+                )
             )
         ),
     )
@@ -330,7 +335,7 @@ def test_historical_artist_resolution_becomes_memory_lane_candidate(
     )
 
 
-def test_unused_empty_memory_lane_does_not_request_random_artist(
+async def test_unused_empty_memory_lane_does_not_request_random_artist(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -340,7 +345,9 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
         "memory_lane": (),
         "requeue": (),
     }
-    monkeypatch.setattr(DiscographyQueues, "run", Mock(return_value=(queues, {})))
+    monkeypatch.setattr(
+        DiscographyQueues, "run", AsyncMock(side_effect=Mock(return_value=(queues, {})))
+    )
     monkeypatch.setattr(
         DiscographyCatalog,
         "run",
@@ -353,7 +360,7 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
     )
 
     state_path = tmp_path / "state.json"
-    discography.save_next_queue("newfoundland", state_path)
+    (discography.save_next_queue("newfoundland", state_path))
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
         {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
@@ -365,7 +372,7 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
     assert [artist.spotify_id for artist in plan.artists] == ["artist"]
 
 
-def test_empty_memory_lane_supplies_random_historical_artist(
+async def test_empty_memory_lane_supplies_random_historical_artist(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -381,7 +388,9 @@ def test_empty_memory_lane_supplies_random_historical_artist(
         position=3,
         artist=discography.HistoricalArtist("History Artist", 4),
     )
-    monkeypatch.setattr(DiscographyQueues, "run", Mock(return_value=(queues, {})))
+    monkeypatch.setattr(
+        DiscographyQueues, "run", AsyncMock(side_effect=Mock(return_value=(queues, {})))
+    )
     monkeypatch.setattr(
         DiscographyHistory,
         "run",
@@ -408,7 +417,7 @@ def test_empty_memory_lane_supplies_random_historical_artist(
     )
 
     state_path = tmp_path / "state.json"
-    discography.save_next_queue("memory_lane", state_path)
+    (discography.save_next_queue("memory_lane", state_path))
     logs: list[str] = []
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
@@ -424,7 +433,7 @@ def test_empty_memory_lane_supplies_random_historical_artist(
     assert any("second 7 chose History Artist" in message for message in logs)
 
 
-def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
+async def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Artist queues keep first seen order and all unique markers.
@@ -448,11 +457,11 @@ def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
     }
     monkeypatch.setattr(
         discography.new_wine,
-        "load_playlist_tracks",
-        partial(_fixture_playlist, playlists),
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=partial(_fixture_playlist, playlists)),
     )
 
-    queues, markers = discography._load_artist_queues(
+    queues, markers = await discography._load_artist_queues(
         object(),  # type: ignore[arg-type]
         {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
         NoRetry(),
@@ -469,7 +478,7 @@ def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
 
 
 @pytest.mark.parametrize("failing_playlist", ["nf", "q3"])
-def test_artist_queue_loading_translates_playlist_errors(
+async def test_artist_queue_loading_translates_playlist_errors(
     monkeypatch: pytest.MonkeyPatch, failing_playlist: str
 ) -> None:
     """Artist queue loading translates playlist errors.
@@ -481,17 +490,23 @@ def test_artist_queue_loading_translates_playlist_errors(
     scenario = ArtistQueueLoadingTranslatesPlaylistErrorsScenario(
         failing_playlist=failing_playlist
     )
-    monkeypatch.setattr(discography.new_wine, "load_playlist_tracks", scenario.load)
+    monkeypatch.setattr(
+        discography.new_wine,
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=scenario.load),
+    )
     with pytest.raises(discography.DiscographyError, match="playlist unavailable"):
-        discography._load_artist_queues(
-            object(),
-            {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-            NoRetry(),
-            "q3",
+        (
+            await discography._load_artist_queues(
+                object(),
+                {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
+                NoRetry(),
+                "q3",
+            )
         )
 
 
-def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
+async def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -536,7 +551,9 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     counts = {"a": 4, "b": 8, "c": 6, "d": 2}
     prompted: list[str] = []
     monkeypatch.setattr(
-        DiscographyQueues, "run", Mock(return_value=(queues, marker_map))
+        DiscographyQueues,
+        "run",
+        AsyncMock(side_effect=Mock(return_value=(queues, marker_map))),
     )
     monkeypatch.setattr(
         DiscographyCatalog,
@@ -545,7 +562,7 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     )
 
     state_path = tmp_path / "state.json"
-    discography.save_next_queue("newfoundland", state_path)
+    (discography.save_next_queue("newfoundland", state_path))
 
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
@@ -575,14 +592,16 @@ class MutationSpotify:
     def __init__(self) -> None:
         self.deletions: list[tuple[str, tuple[str, ...]]] = []
 
-    def _delete(self, path: str, *, payload: dict[str, object]) -> None:
+    async def _delete(self, path: str, *, payload: dict[str, object]) -> None:
         raw_items = payload["items"]
         assert isinstance(raw_items, list)
         uris = tuple(str(item["uri"]) for item in raw_items)
         self.deletions.append((path, uris))
 
 
-def test_apply_removes_all_markers_logs_and_advances_priority(tmp_path: Path) -> None:
+async def test_apply_removes_all_markers_logs_and_advances_priority(
+    tmp_path: Path,
+) -> None:
     selection = discography.ArtistSelection(
         spotify_id="artist",
         name="Artist",
@@ -641,7 +660,7 @@ def test_apply_removes_all_markers_logs_and_advances_priority(tmp_path: Path) ->
 class HistoricalIndexes:
     """Verify the original historical random population and requested count."""
 
-    def sample(
+    async def sample(
         self, population_size: int, count: int
     ) -> discography.blast_from_past.RandomIndexSet:
         """Return the original selected historical date and seconds.
@@ -664,7 +683,7 @@ class HistoricalIndexes:
 class AllReleases:
     """Select every offered release in the original display order."""
 
-    def select_releases(
+    async def select_releases(
         self,
         artist: discography.ArtistSelection,
         releases: tuple[discography.CatalogRelease, ...],
@@ -691,7 +710,7 @@ class DefaultReleases:
 
     prompted: list[str]
 
-    def select_releases(
+    async def select_releases(
         self,
         artist: discography.QueueArtist,
         releases: tuple[discography.CatalogRelease, ...],
@@ -744,7 +763,7 @@ def _fixture_playlist(
     return playlists[playlist_id]
 
 
-def _counted_catalog_stage(
+async def _counted_catalog_stage(
     stage: DiscographyCatalog, counts: dict[str, int], artist_id: str
 ) -> tuple[discography.CatalogRelease, ...]:
     return tuple(

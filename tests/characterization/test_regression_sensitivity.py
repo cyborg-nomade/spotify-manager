@@ -2,13 +2,15 @@
 
 import json
 import math
+from collections.abc import Awaitable
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain import albums as album_policy
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import requeue_for_a_dream
@@ -17,31 +19,34 @@ from tests.characterization.test_routine_traces import capture
 from tests.support.effects import Trace
 
 
-def _remove_first(
+async def _remove_first(
     original: Callable[
-        [Spotify, str, new_wine.ReleaseTrack, requeue_for_a_dream.RetryCall], None
+        [Spotify, str, new_wine.ReleaseTrack, requeue_for_a_dream.RetryCall],
+        Awaitable[None],
     ],
     spotify: Spotify,
     playlist_id: str,
     track: new_wine.ReleaseTrack,
     retry: requeue_for_a_dream.RetryCall,
 ) -> None:
-    spotify._delete(
-        f"playlists/{playlist_id}/items",
-        payload={"items": [{"uri": "spotify:track:t1"}]},
+    (
+        await spotify._delete(
+            f"playlists/{playlist_id}/items",
+            payload={"items": [{"uri": "spotify:track:t1"}]},
+        )
     )
-    original(spotify, playlist_id, track, retry)
+    await original(spotify, playlist_id, track, retry)
 
 
 def _ignore_audit(*args: object) -> None:
     pass
 
 
-def _ignore_dry_run(
-    original: Callable[..., object], *args: object, **kwargs: object
+async def _ignore_dry_run(
+    original: Callable[..., Awaitable[object]], *args: object, **kwargs: object
 ) -> object:
     kwargs["dry_run"] = False
-    return original(*args, **kwargs)
+    return await original(*args, **kwargs)
 
 
 def _install_regression(patch: pytest.MonkeyPatch, mutation: str) -> None:
@@ -59,13 +64,15 @@ def _install_regression(patch: pytest.MonkeyPatch, mutation: str) -> None:
         return
     if mutation == "remove-first":
         replacement = partial(_remove_first, requeue_for_a_dream._add_track)
-        patch.setattr(requeue_for_a_dream, "_add_track", replacement)
+        patch.setattr(
+            requeue_for_a_dream, "_add_track", AsyncMock(side_effect=replacement)
+        )
         return
-    original = requeue_for_a_dream.flush_requeue_for_a_dream
+    original = requeue_for_a_dream.async_flush_requeue_for_a_dream
     patch.setattr(
         requeue_for_a_dream,
-        "flush_requeue_for_a_dream",
-        partial(_ignore_dry_run, original),
+        "async_flush_requeue_for_a_dream",
+        AsyncMock(side_effect=partial(_ignore_dry_run, original)),
     )
 
 
@@ -73,7 +80,7 @@ def _install_regression(patch: pytest.MonkeyPatch, mutation: str) -> None:
     "mutation",
     ["ceil-threshold", "remove-first", "missing-audit", "write-in-dry-run"],
 )
-def test_golden_contract_rejects_deliberate_regression(
+async def test_golden_contract_rejects_deliberate_regression(
     mutation: str,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -90,7 +97,7 @@ def test_golden_contract_rejects_deliberate_regression(
     trace = Trace(tmp_path)
     scenario = FACTORIES[name](monkeypatch, tmp_path, trace)
     _install_regression(monkeypatch, mutation)
-    capture(trace, scenario, tmp_path, dry_run)
+    await capture(trace, scenario, tmp_path, dry_run)
     fixture = (
         Path(__file__).parent
         / "fixtures"

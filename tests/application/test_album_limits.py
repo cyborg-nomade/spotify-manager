@@ -67,7 +67,7 @@ class MemoryReview:
         if name == self.fail:
             raise RuntimeError(name)
 
-    def albums(self) -> list[YourLibraryAlbum]:
+    async def albums(self) -> list[YourLibraryAlbum]:
         """Read one original album.
 
         Returns:
@@ -88,7 +88,7 @@ class MemoryReview:
         self._effect("previous")
         return self.previous
 
-    def follow_artist(self, album: YourLibraryAlbum) -> bool:
+    async def follow_artist(self, album: YourLibraryAlbum) -> bool:
         """Simulate a completed artist follow.
 
         Args:
@@ -100,7 +100,7 @@ class MemoryReview:
         self._effect("follow")
         return True
 
-    def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
+    async def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
         """Read the configured assessment.
 
         Args:
@@ -112,7 +112,7 @@ class MemoryReview:
         self._effect("evaluate")
         return self.assessment
 
-    def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
+    async def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
         """Record a live membership read.
 
         Args:
@@ -134,7 +134,7 @@ class MemoryReview:
         """
         self._effect(f"display-live:{count}")
 
-    def remove(
+    async def remove(
         self,
         album: YourLibraryAlbum,
         evaluation: AlbumEvaluation,
@@ -152,7 +152,7 @@ class MemoryReview:
         """
         self._effect(f"remove:{automatic}:{live_likes}")
 
-    def keep(
+    async def keep(
         self,
         album: YourLibraryAlbum,
         evaluation: AlbumEvaluation,
@@ -203,7 +203,7 @@ class MemoryReview:
         """
         self._effect("candidate")
 
-    def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
+    async def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
         """Return the configured user choice.
 
         Args:
@@ -244,7 +244,7 @@ class MemoryReview:
         ("quit", "quit", ReviewCounts(followed=1)),
     ],
 )
-def test_review_choices_keep_effect_order(
+async def test_review_choices_keep_effect_order(
     action: str, outcome: str, counts: ReviewCounts
 ) -> None:
     """Retain live checks, choice effects, and progress after each user action.
@@ -255,7 +255,7 @@ def test_review_choices_keep_effect_order(
         counts: Expected completed-work counts.
     """
     fixture = MemoryReview(action=action)
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     expected = [
         "load",
         "previous",
@@ -277,10 +277,10 @@ def test_review_choices_keep_effect_order(
     assert fixture.final == counts
 
 
-def test_previous_keep_avoids_follow_and_catalog_reads() -> None:
+async def test_previous_keep_avoids_follow_and_catalog_reads() -> None:
     """A persisted keep bypasses every external album and artist observation."""
     fixture = MemoryReview(previous=True)
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     assert fixture.events == [
         "load",
         "previous",
@@ -291,18 +291,18 @@ def test_previous_keep_avoids_follow_and_catalog_reads() -> None:
     assert fixture.final == ReviewCounts(kept=1)
 
 
-def test_empty_review_only_presents_zero_counts() -> None:
+async def test_empty_review_only_presents_zero_counts() -> None:
     """Empty inputs retain the completion summary without progress or reads."""
     fixture = MemoryReview(empty=True)
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     assert fixture.events == ["load", "finish"]
     assert fixture.final == ReviewCounts()
 
 
-def test_assessed_keep_avoids_live_membership_and_prompts() -> None:
+async def test_assessed_keep_avoids_live_membership_and_prompts() -> None:
     """A sufficient liked proportion completes after the original artist check."""
     fixture = MemoryReview(assessment=_evaluation("keep"))
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     assert fixture.events == [
         "load",
         "previous",
@@ -315,10 +315,10 @@ def test_assessed_keep_avoids_live_membership_and_prompts() -> None:
     assert fixture.final == ReviewCounts(kept=1, followed=1)
 
 
-def test_zero_live_likes_removes_without_choice_or_live_count_message() -> None:
+async def test_zero_live_likes_removes_without_choice_or_live_count_message() -> None:
     """Zero current membership preserves the original automatic removal path."""
     fixture = MemoryReview(liked=0)
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     assert fixture.events[4:] == [
         "candidate",
         "live",
@@ -330,10 +330,10 @@ def test_zero_live_likes_removes_without_choice_or_live_count_message() -> None:
     assert fixture.final == ReviewCounts(removed=1, followed=1)
 
 
-def test_unknown_track_identifiers_require_confirmation() -> None:
+async def test_unknown_track_identifiers_require_confirmation() -> None:
     """Missing identifiers bypass membership reads and retain the manual prompt."""
     fixture = MemoryReview(assessment=_evaluation(known_track=False))
-    review_albums(fixture, fixture)
+    (await review_albums(fixture, fixture))
     assert "live" not in fixture.events
     assert fixture.events[4:8] == [
         "candidate",
@@ -347,7 +347,9 @@ def test_unknown_track_identifiers_require_confirmation() -> None:
     "failure",
     ["follow", "evaluate", "live", "choose", "remove:False:1", "progress:1/1"],
 )
-def test_review_failure_does_not_emit_success_after_boundary(failure: str) -> None:
+async def test_review_failure_does_not_emit_success_after_boundary(
+    failure: str,
+) -> None:
     """Failures stop at the observed boundary without a completion summary.
 
     Args:
@@ -355,6 +357,6 @@ def test_review_failure_does_not_emit_success_after_boundary(failure: str) -> No
     """
     fixture = MemoryReview(fail=failure)
     with pytest.raises(RuntimeError, match=failure):
-        review_albums(fixture, fixture)
+        (await review_albums(fixture, fixture))
     assert fixture.events[-1] == failure
     assert fixture.final is None

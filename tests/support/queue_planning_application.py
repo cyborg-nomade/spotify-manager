@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 from functools import partial
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
 from spotify_manager.application import queue_flush_planning as queue_planning
@@ -30,7 +31,7 @@ class MemoryQueuePlanning:
 
     observations: PlanningObservations
 
-    def top(self, artist: str) -> tuple[CatalogTrack, ...]:
+    async def top(self, artist: str) -> tuple[CatalogTrack, ...]:
         """Observe original top-track facts.
 
         Args:
@@ -40,9 +41,9 @@ class MemoryQueuePlanning:
             Original ordered top-track facts.
         """
         self.observations.trace.append(["top", artist])
-        return self.observations.tracks()
+        return await self.observations.tracks()
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Observe original membership after truncation.
 
         Args:
@@ -59,7 +60,7 @@ class MemoryQueuePlanning:
             liked[track.spotify_id] = index < self.observations.liked_top
         return liked
 
-    def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
+    async def catalog(self, artist: str) -> tuple[RankedRelease, ...]:
         """Observe original ranked catalog facts.
 
         Args:
@@ -103,7 +104,7 @@ class MemoryQueuePlanning:
             TRACK if edge.liked_total else None,
         )
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Observe only original uncached preferred-release reads.
 
         Args:
@@ -116,7 +117,7 @@ class MemoryQueuePlanning:
         return self.observations.promotion_tracks()
 
 
-def application_outcome(case: dict[str, object]) -> object:
+async def application_outcome(case: dict[str, object]) -> object:
     """Replay original fact scenarios through independent application ports.
 
     Args:
@@ -127,8 +128,12 @@ def application_outcome(case: dict[str, object]) -> object:
     """
     edge = observations(case)
     memory = MemoryQueuePlanning(edge)
-    with patch.object(queue_planning, "assess_artist", partial(_assessment, memory)):
-        plan = QueuePlanning(memory, cast(AssessmentCatalog, memory)).record(
+    with patch.object(
+        queue_planning,
+        "assess_artist",
+        AsyncMock(side_effect=partial(_assessment, memory)),
+    ):
+        plan = await QueuePlanning(memory, cast(AssessmentCatalog, memory)).record(
             SOURCE, [SOURCE.uri]
         )
     return json.loads(json.dumps({"plan": plan, "trace": edge.trace}))

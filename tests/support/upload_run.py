@@ -1,6 +1,7 @@
 """Observe original upload acceptance, file publication and repeated execution."""
 
 import hashlib
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -187,7 +188,7 @@ def files_snapshot(root: Path) -> dict[str, str]:
     return result
 
 
-def attempt(plan: upload.LibraryFilesUploadPlan, memory: UploadMemory) -> object:
+async def attempt(plan: upload.LibraryFilesUploadPlan, memory: UploadMemory) -> object:
     """Record original success or translated/native failure.
 
     Args:
@@ -198,7 +199,7 @@ def attempt(plan: upload.LibraryFilesUploadPlan, memory: UploadMemory) -> object
         Original result or error and explicit cause.
     """
     try:
-        return upload.upload_library_files(plan, api=cast(HfApi, memory))
+        return await upload.async_upload_library_files(plan, api=cast(HfApi, memory))
     except (upload.LibraryFilesUploadError, OSError) as error:
         return {
             "error": type(error).__name__,
@@ -207,10 +208,12 @@ def attempt(plan: upload.LibraryFilesUploadPlan, memory: UploadMemory) -> object
         }
 
 
-def observe_upload(
+async def observe_upload(
     scenario: UploadScenario,
     root: Path,
-    run: Callable[[upload.LibraryFilesUploadPlan, UploadMemory], object] = attempt,
+    run: Callable[
+        [upload.LibraryFilesUploadPlan, UploadMemory], Awaitable[object]
+    ] = attempt,
 ) -> Json:
     """Capture initial execution and retry after each original boundary failure.
 
@@ -231,7 +234,7 @@ def observe_upload(
         patch.setattr(Path, "replace", replace_part)
         patch.setattr(Path, "unlink", unlink_part)
         for _ in range(2):
-            outcomes.append([run(plan, memory), files_snapshot(root)])
+            outcomes.append([(await run(plan, memory)), files_snapshot(root)])
     ACTIVE = None
     return encode_value(
         {"outcomes": outcomes, "events": memory.events, "accepted": memory.accepted},

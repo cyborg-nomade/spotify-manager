@@ -3,8 +3,7 @@
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.release_check_values import (
     ReleaseCheckConfigError as ReleaseCheckConfigError,
 )
@@ -74,7 +73,7 @@ from spotify_manager.routines.release_check import state_updated_at as state_upd
 from spotify_manager.routines.release_check import validate_state as validate_state
 
 
-def run_release_check(
+async def run_release_check(
     sp: Spotify,
     lastfm: LastFmReader,
     options: ReleaseCheckOptions,
@@ -110,7 +109,7 @@ def run_release_check(
         options.now,
         callbacks.progress_callback,
     )
-    opening = workflow.run(options.dry_run)
+    opening = await workflow.run(options.dry_run)
     configured = release_review(
         opening,
         effects.state_access,
@@ -123,10 +122,10 @@ def run_release_check(
         callbacks.retry_call,
         options.dry_run,
     )
-    return configured.run()
+    return await configured.run()
 
 
-def resolve_artist(
+async def resolve_artist(
     sp: Spotify,
     artist: RankedArtist,
     reader: legacy.ArtistChoiceReader | None,
@@ -146,4 +145,4 @@ def resolve_artist(
     Raises:
         ReleaseCheckSpotifyError: Original mapping or interaction is invalid.
     """
-    return artist_mapping(sp, reader, retry).run(artist)
+    return await artist_mapping(sp, reader, retry).run(artist)

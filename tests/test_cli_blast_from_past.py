@@ -4,6 +4,7 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -74,8 +75,12 @@ def test_blast_from_the_past_command_defaults_to_ten_and_prints_selection(
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="spotify:playlist:blast"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.blast_from_past, "add_blast_from_past_to_spotify", add)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
+    monkeypatch.setattr(
+        main.blast_from_past,
+        "add_blast_from_past_to_spotify",
+        AsyncMock(side_effect=add),
+    )
 
     result = CliRunner().invoke(main.app, ["blast-from-the-past"])
 
@@ -139,11 +144,13 @@ def test_blast_from_the_past_artists_command_adds_five_by_default(
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
     monkeypatch.setattr(
         main.blast_from_past_artists,
         "add_dormant_artists_to_blast_from_past",
-        add,
+        AsyncMock(side_effect=add),
     )
 
     result = CliRunner().invoke(main.app, ["blast-from-the-past-artists"])
@@ -177,8 +184,12 @@ def test_blast_from_the_past_maximum_does_not_apply_default_count(
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.blast_from_past, "add_blast_from_past_to_spotify", add)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
+    monkeypatch.setattr(
+        main.blast_from_past,
+        "add_blast_from_past_to_spotify",
+        AsyncMock(side_effect=add),
+    )
 
     result = CliRunner().invoke(
         main.app,
@@ -211,8 +222,12 @@ def test_blast_commands_forward_dry_run(
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.blast_from_past, "add_blast_from_past_to_spotify", add)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
+    monkeypatch.setattr(
+        main.blast_from_past,
+        "add_blast_from_past_to_spotify",
+        AsyncMock(side_effect=add),
+    )
 
     result = CliRunner().invoke(
         main.app,

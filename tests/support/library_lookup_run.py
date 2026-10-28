@@ -1,6 +1,8 @@
 """Freeze original live/local lookup observations before structural migration."""
 
+import asyncio
 import copy
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
@@ -10,10 +12,10 @@ from typing import Any
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager import loaders_savers as files
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -278,7 +280,7 @@ class LookupCatalog:
         """
         self.memory = memory
 
-    def artist(self, identifier: str) -> Any:
+    async def artist(self, identifier: str) -> Any:
         """Read one original artist identity.
 
         Args:
@@ -291,7 +293,7 @@ class LookupCatalog:
             "artist", identifier, {"id": identifier, "name": "Artist"}
         )
 
-    def album(self, identifier: str) -> Any:
+    async def album(self, identifier: str) -> Any:
         """Read one original album identity.
 
         Args:
@@ -302,7 +304,7 @@ class LookupCatalog:
         """
         return self.memory.respond("album", identifier, raw_album(identifier))
 
-    def track(self, identifier: str) -> Any:
+    async def track(self, identifier: str) -> Any:
         """Read one original track identity.
 
         Args:
@@ -313,7 +315,7 @@ class LookupCatalog:
         """
         return self.memory.respond("track", identifier, raw_track(identifier))
 
-    def search(self, **parameters: object) -> Any:
+    async def search(self, **parameters: object) -> Any:
         """Read original exact-search inputs and ordered raw candidates."""
         kind = str(parameters["type"])
         items = self.search_items(kind)
@@ -345,7 +347,7 @@ class LookupCatalog:
             return [raw_track("edition", "Track - Remaster")]
         return items
 
-    def artist_albums(
+    async def artist_albums(
         self, identifier: str, *, include_groups: str, limit: int, offset: int
     ) -> Any:
         """Read original raw-offset release pages.
@@ -376,7 +378,7 @@ class LookupCatalog:
             "artist-albums", [identifier, include_groups, limit, offset], page
         )
 
-    def albums(self, identifiers: list[str]) -> Any:
+    async def albums(self, identifiers: list[str]) -> Any:
         """Read original ordered album batches and their first track pages.
 
         Args:
@@ -418,7 +420,7 @@ class LookupCatalog:
             }
         return page
 
-    def album_tracks(self, identifier: str, *, limit: int = 50) -> Any:
+    async def album_tracks(self, identifier: str, *, limit: int = 50) -> Any:
         """Read the original first album-track page.
 
         Args:
@@ -432,7 +434,7 @@ class LookupCatalog:
             "album-tracks", [identifier, limit], self.track_page(identifier)
         )
 
-    def next(self, page: object) -> Any:
+    async def next(self, page: object) -> Any:
         """Read the original continuation without inferring offsets.
 
         Args:
@@ -445,7 +447,7 @@ class LookupCatalog:
             "next", page, {"items": [raw_track("second")], "next": None}
         )
 
-    def current_user_saved_albums_contains(self, identifiers: list[str]) -> Any:
+    async def current_user_saved_albums_contains(self, identifiers: list[str]) -> Any:
         """Read original saved statuses in ordered batches.
 
         Args:
@@ -456,7 +458,7 @@ class LookupCatalog:
         """
         return self.statuses("saved", identifiers)
 
-    def current_user_saved_tracks_contains(self, identifiers: list[str]) -> Any:
+    async def current_user_saved_tracks_contains(self, identifiers: list[str]) -> Any:
         """Read original liked statuses in ordered batches.
 
         Args:
@@ -485,7 +487,7 @@ class LookupCatalog:
         return self.memory.respond(operation, identifiers, result)
 
 
-def public_lookup(scenario: LookupScenario, catalog: LookupCatalog) -> object:
+async def public_lookup(scenario: LookupScenario, catalog: LookupCatalog) -> object:
     """Execute an original public lookup against complete recorded boundaries.
 
     Args:
@@ -498,19 +500,29 @@ def public_lookup(scenario: LookupScenario, catalog: LookupCatalog) -> object:
     spotify = cast(Spotify, catalog)
     workflow = scenario.workflow
     if workflow == "artist-id":
-        return library.resolve_live_artist(spotify, artist_id="artist")
+        return await asyncio.to_thread(
+            library.resolve_live_artist, spotify, artist_id="artist"
+        )
     if workflow == "artist-name":
-        return library.resolve_live_artist(spotify, name=" Artist ")
+        return await asyncio.to_thread(
+            library.resolve_live_artist, spotify, name=" Artist "
+        )
     if workflow == "artist-stats":
-        return library.get_live_artist_library_stats(spotify, name="Artist")
+        return await asyncio.to_thread(
+            library.get_live_artist_library_stats, spotify, name="Artist"
+        )
     if workflow == "album-id":
-        return library.resolve_live_album(spotify, album_id="album")
+        return await asyncio.to_thread(
+            library.resolve_live_album, spotify, album_id="album"
+        )
     if workflow == "album-name":
-        return library.resolve_live_album(spotify, name=" Album ")
-    return other_lookup(scenario, spotify)
+        return await asyncio.to_thread(
+            library.resolve_live_album, spotify, name=" Album "
+        )
+    return await other_lookup(scenario, spotify)
 
 
-def other_lookup(scenario: LookupScenario, spotify: Spotify) -> object:
+async def other_lookup(scenario: LookupScenario, spotify: Spotify) -> object:
     """Other lookup.
 
     Args:
@@ -521,16 +533,21 @@ def other_lookup(scenario: LookupScenario, spotify: Spotify) -> object:
         Original other lookup result.
     """
     if scenario.workflow == "local-album":
-        return library.resolve_album(library.load_your_library_file(), name="Album")
+        return library.resolve_album((library.load_your_library_file()), name="Album")
     if scenario.workflow == "local-evaluate":
-        return library.evaluate_album(spotify, name="Album")
+        return await asyncio.to_thread(library.evaluate_album, spotify, name="Album")
     if scenario.workflow == "tracklist":
-        return library.get_album_tracklist("album", spotify)
+        return await asyncio.to_thread(library.get_album_tracklist, "album", spotify)
     if scenario.workflow == "track-id":
-        return scrobbles.resolve_live_track(spotify, track_id="track")
+        return await asyncio.to_thread(
+            scrobbles.resolve_live_track, spotify, track_id="track"
+        )
     if scenario.workflow == "track-name":
-        return scrobbles.resolve_live_track(spotify, name="Track")
-    return scrobbles.get_track_scrobble_status(
+        return await asyncio.to_thread(
+            scrobbles.resolve_live_track, spotify, name="Track"
+        )
+    return await asyncio.to_thread(
+        scrobbles.get_track_scrobble_status,
         spotify,
         name="Track",
         path=Path("/tmp/history.json"),
@@ -538,10 +555,10 @@ def other_lookup(scenario: LookupScenario, spotify: Spotify) -> object:
     )
 
 
-def lookup_outcome(
+async def lookup_outcome(
     scenario: LookupScenario,
     catalog: LookupCatalog,
-    run: Callable[[LookupScenario, LookupCatalog], object],
+    run: Callable[[LookupScenario, LookupCatalog], Awaitable[object]],
 ) -> object:
     """Lookup outcome.
 
@@ -554,7 +571,7 @@ def lookup_outcome(
         Original lookup outcome result.
     """
     try:
-        return {"result": run(scenario, catalog)}
+        return {"result": (await run(scenario, catalog))}
     except (
         LookupError,
         RuntimeError,
@@ -574,9 +591,9 @@ def lookup_outcome(
         }
 
 
-def observe_lookup(
+async def observe_lookup(
     scenario: LookupScenario,
-    run: Callable[[LookupScenario, LookupCatalog], object] = public_lookup,
+    run: Callable[[LookupScenario, LookupCatalog], Awaitable[object]] = public_lookup,
 ) -> Json:
     """Capture original outcomes, read order and accepted cache state.
 
@@ -593,7 +610,7 @@ def observe_lookup(
         patch.setattr(library, "load_album_tracks_cache", memory.read_cache)
         patch.setattr(library, "save_album_tracks_cache", memory.save_cache)
         patch.setattr(blast_from_past, "load_scrobble_export", memory.history)
-        result = lookup_outcome(scenario, LookupCatalog(memory), run)
+        result = await lookup_outcome(scenario, LookupCatalog(memory), run)
     return encode_value(
         {
             "outcome": result,

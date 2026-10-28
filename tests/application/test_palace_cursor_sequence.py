@@ -27,7 +27,7 @@ class ScriptedMirror:
 
     effects: MemoryPalace
 
-    def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+    async def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
         """Return the existing scripted mirror refresh outcome."""
         return self.effects.refresh()
 
@@ -39,12 +39,12 @@ def _cases() -> list[dict[str, object]]:
     )
 
 
-def _outcome(position: int, failure: str | None) -> object:
+async def _outcome(position: int, failure: str | None) -> object:
     edge = PalaceObservations("normal", failure)
     effects = MemoryPalace(edge)
     result: dict[str, object] = {}
     try:
-        update = PalaceCursor(
+        update = await PalaceCursor(
             effects,
             cast(SavedMirror, ScriptedMirror(effects)),
         ).update(position)
@@ -60,7 +60,9 @@ def _outcome(position: int, failure: str | None) -> object:
 
 
 @pytest.mark.parametrize("case", _cases())
-def test_palace_cursor_matches_original_manual_update(case: dict[str, object]) -> None:
+async def test_palace_cursor_matches_original_manual_update(
+    case: dict[str, object],
+) -> None:
     """Retain refresh-before-validation and load-before-checkpoint behavior.
 
     Args:
@@ -68,5 +70,5 @@ def test_palace_cursor_matches_original_manual_update(case: dict[str, object]) -
     """
     position = cast(int, case["position"])
     failure = cast(str | None, case["failure"])
-    assert cursor_outcome(position, failure) == case["outcome"]
-    assert _outcome(position, failure) == case["outcome"]
+    assert (await cursor_outcome(position, failure)) == case["outcome"]
+    assert (await _outcome(position, failure)) == case["outcome"]

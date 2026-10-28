@@ -15,7 +15,7 @@ type FlushAction = Literal["advance", "complete", "skip"]
 class ReleaseOrderReader(Protocol):
     """Own the operator interaction for order releases."""
 
-    def order_releases(
+    async def order_releases(
         self, date: str, releases: tuple[DiscographyRelease, ...], /
     ) -> tuple[str, ...]:
         """Read or report the original operator interaction.
@@ -33,7 +33,7 @@ class ReleaseOrderReader(Protocol):
 class TrackActionReader(Protocol):
     """Own the operator interaction for choose track."""
 
-    def choose_track(
+    async def choose_track(
         self,
         source: PlaylistTrack,
         target: ReleaseTrack,
@@ -56,7 +56,7 @@ class TrackActionReader(Protocol):
 class CompletionNotifier(Protocol):
     """Own the operator interaction for complete."""
 
-    def complete(self, source: PlaylistTrack, /) -> None:
+    async def complete(self, source: PlaylistTrack, /) -> None:
         """Read or report the original operator interaction.
 
         Args:

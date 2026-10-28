@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -48,7 +49,9 @@ def test_new_kids_release_prompt_returns_selected_release(monkeypatch) -> None:
     assert choice == "release"
 
 
-def test_new_kids_release_prompt_accepts_owned_composer_playlist(monkeypatch) -> None:
+def test_new_kids_release_prompt_accepts_owned_composer_playlist(
+    monkeypatch,
+) -> None:
     """The shared picker should also return a selected works playlist id."""
     candidate = composer_playlists.OwnedPlaylist(
         spotify_id="bach-works",
@@ -86,7 +89,11 @@ def test_flush_new_kids_dry_run_uses_all_configured_playlists(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushNewKidsDryRunUsesAllConfiguredPlaylistsScenario(received=received)
     monkeypatch.setattr(
         main.new_kids,
@@ -138,7 +145,11 @@ def test_flush_queue_2_dry_run_reports_both_playlist_transitions(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushQueue2DryRunReportsBothPlaylistTransitionsScenario(
         received=received
     )

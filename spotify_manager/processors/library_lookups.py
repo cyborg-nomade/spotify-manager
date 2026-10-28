@@ -8,15 +8,15 @@ Songs status directly from the API.
 import re
 from typing import Literal
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import library_lookup_run as lookup_workflow
 from spotify_manager.application import lookup_resolution
 from spotify_manager.application.lookup_effects import LookupTrack
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import library_lookups as lookup_composition
-
-# UFI
+from spotify_manager.bootstrap.execution import run_python
 from spotify_manager.domain import albums as album_policy
 from spotify_manager.domain import lookup_selection
 from spotify_manager.domain.lookup_values import (
@@ -41,11 +41,17 @@ from spotify_manager.domain.lookup_values import (
 from spotify_manager.infrastructure import lookup_catalog
 from spotify_manager.infrastructure import lookup_records
 from spotify_manager.infrastructure import lookup_reference
+
+# UFI
 from spotify_manager.infrastructure.lookup_resources import (
     ClientFactory as ClientFactory,
 )
 from spotify_manager.infrastructure.lookup_resources import LiveLikedTracks
+from spotify_manager.infrastructure.lookup_resources import (
+    NativeClientFactory as NativeClientFactory,
+)
 from spotify_manager.infrastructure.lookup_resources import SpotifyLookupPages
+from spotify_manager.infrastructure.spotify_compat import legacy_spotify
 from spotify_manager.loaders_savers import (
     load_album_tracks_cache as load_album_tracks_cache,
 )
@@ -93,9 +99,9 @@ def _load_library(library: YourLibraryFile | None) -> YourLibraryFile:
     return library if library is not None else load_your_library_file()
 
 
-def _all_items(sp: Spotify, page: object) -> list[dict[str, object]]:
+async def _all_items(sp: Spotify, page: object) -> list[dict[str, object]]:
     """Collect and validate every item across a paginated Spotify response."""
-    return lookup_catalog.all_items(SpotifyLookupPages(sp), page)
+    return await lookup_catalog.all_items(SpotifyLookupPages(sp), page)
 
 
 def _spotify_artist_identity(raw: object) -> tuple[str, str] | None:
@@ -103,7 +109,7 @@ def _spotify_artist_identity(raw: object) -> tuple[str, str] | None:
     return lookup_records.artist_identity(raw)
 
 
-def resolve_live_artist(
+async def async_resolve_live_artist(
     sp: Spotify,
     *,
     name: str | None = None,
@@ -119,7 +125,7 @@ def resolve_live_artist(
     Returns:
         Original resolve live artist result.
     """
-    return lookup_resolution.artist(
+    return await lookup_resolution.artist(
         lookup_composition.artist_lookup(sp), name, artist_id
     )
 
@@ -129,18 +135,18 @@ def _primary_artist_id(raw: object) -> str | None:
     return lookup_records.primary_artist_id(raw)
 
 
-def _live_artist_release_ids(sp: Spotify, artist_id: str) -> list[str]:
+async def _live_artist_release_ids(sp: Spotify, artist_id: str) -> list[str]:
     """Return unique catalog releases where the artist is credited first."""
-    return lookup_catalog.releases(SpotifyLookupPages(sp), artist_id)
+    return await lookup_catalog.releases(SpotifyLookupPages(sp), artist_id)
 
 
-def _live_primary_track_ids(
+async def _live_primary_track_ids(
     sp: Spotify,
     artist_id: str,
     release_ids: list[str],
 ) -> list[str]:
     """Return unique catalog track ids where the artist is credited first."""
-    return lookup_catalog.primary_tracks(
+    return await lookup_catalog.primary_tracks(
         SpotifyLookupPages(sp),
         artist_id,
         release_ids,
@@ -148,7 +154,7 @@ def _live_primary_track_ids(
     )
 
 
-def get_live_artist_library_stats(
+async def async_get_live_artist_library_stats(
     sp: Spotify,
     *,
     name: str | None = None,
@@ -164,7 +170,7 @@ def get_live_artist_library_stats(
     Returns:
         Original get live artist library stats result.
     """
-    return lookup_workflow.artist_statistics(
+    return await lookup_workflow.artist_statistics(
         lookup_composition.artist_statistics(sp, name, artist_id)
     )
 
@@ -193,16 +199,16 @@ def resolve_album(
     return lookup_selection.local_album(library.albums, name, album_id, artist)
 
 
-def _fetch_album_tracks(sp: Spotify, album_id: str) -> list[LookupTrack]:
+async def _async_fetch_album_tracks(sp: Spotify, album_id: str) -> list[LookupTrack]:
     """Fetch and minimise an album's track list from the Spotify API."""
-    rows = _all_items(sp, sp.album_tracks(album_id, limit=50))
+    rows = await _all_items(sp, (await sp.album_tracks(album_id, limit=50)))
     return lookup_catalog.minimize_tracks(rows, album_id)
 
 
-def get_album_tracklist(
+async def async_get_album_tracklist(
     album_id: str,
     sp: Spotify | None = None,
-    client_factory: ClientFactory | None = None,
+    client_factory: NativeClientFactory | None = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
 ) -> tuple[list[LookupTrack], bool]:
@@ -222,7 +228,7 @@ def get_album_tracklist(
     Returns:
         Original get album tracklist result.
     """
-    return lookup_workflow.tracklist(
+    return await lookup_workflow.tracklist(
         lookup_composition.cached_tracks(sp, client_factory),
         album_id,
         use_cache,
@@ -247,8 +253,317 @@ def required_liked_tracks(total_tracks: int, threshold: float) -> int:
     return album_policy.required_liked_tracks(total_tracks, threshold)
 
 
-def evaluate_album(
+async def async_evaluate_album(
     sp: Spotify | None = None,
+    name: str | None = None,
+    album_id: str | None = None,
+    artist: str | None = None,
+    library: YourLibraryFile | None = None,
+    threshold: float = 0.5,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+    client_factory: NativeClientFactory | None = None,
+) -> AlbumEvaluation:
+    """Decide whether an album should be kept based on liked tracks.
+
+    Kept when the liked-track count reaches the whole-track threshold. For the
+    default 50%, odd-sized albums require half of ``n - 1`` tracks. The album is
+    resolved to an id locally. Its track list comes from the local cache when
+    available, otherwise from one Spotify API call (then cached). With a warm
+    cache the whole call is offline.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        name: Original optional exact display name.
+        album_id: Original direct album identity, taking precedence over a name.
+        artist: Original optional primary artist constraint.
+        library: Original caller-supplied local export, or the original file fallback.
+        threshold: Original retention proportion.
+        use_cache: Original cache read and publication flag.
+        refresh_cache: Bypass original cache hits while retaining cache publication.
+        client_factory: Original lazy client acquisition after cache-hit checks.
+
+    Returns:
+        Original evaluate album result.
+    """
+    return await lookup_workflow.evaluate_local(
+        lookup_composition.local_album(sp, client_factory, use_cache, refresh_cache),
+        name,
+        album_id,
+        artist,
+        library,
+        threshold,
+    )
+
+
+async def async_resolve_live_album(
+    sp: Spotify,
+    *,
+    name: str | None = None,
+    album_id: str | None = None,
+    artist: str | None = None,
+) -> tuple[str, str, str | None]:
+    """Resolve an album from Spotify search or a direct Spotify id.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        name: Original optional exact display name.
+        album_id: Original direct album identity, taking precedence over a name.
+        artist: Original optional primary artist constraint.
+
+    Returns:
+        Original resolve live album result.
+    """
+    return await lookup_resolution.album(
+        lookup_composition.album_lookup(sp), name, album_id, artist
+    )
+
+
+async def async_load_live_liked_statuses(
+    sp: Spotify, track_ids: list[str]
+) -> dict[str, bool]:
+    """Read fresh membership with the album instrument's original batches.
+
+    Args:
+        sp: Existing synchronous client.
+        track_ids: Ordered identifiers, including duplicates.
+
+    Returns:
+        Last observed boolean status per identifier.
+
+    Raises:
+        SpotifyLookupResponseError: A status response has the wrong shape or length.
+    """
+    return await lookup_resolution.liked_statuses(
+        track_ids, LiveLikedTracks(sp), SPOTIFY_CONTAINS_BATCH_SIZE
+    )
+
+
+async def async_evaluate_album_live(
+    sp: Spotify,
+    *,
+    name: str | None = None,
+    album_id: str | None = None,
+    artist: str | None = None,
+    threshold: float = 0.5,
+) -> AlbumEvaluation:
+    """Evaluate live album observations through the typed application use case.
+
+    Args:
+        sp: Existing synchronous client.
+        name: Exact name when no identifier is supplied.
+        album_id: Direct identifier, taking precedence over name.
+        artist: Optional primary-artist disambiguation.
+        threshold: Original retention threshold.
+
+    Returns:
+        The unchanged CLI and HTTP album evaluation model.
+
+    Raises:
+        AlbumNotFoundError: No album matches the reference.
+        AmbiguousAlbumError: Several albums match the name.
+        SpotifyLookupResponseError: A response fails existing validation.
+        ValueError: Input or the numeric threshold is invalid.
+    """
+    from spotify_manager.bootstrap.albums import evaluate_live_album
+
+    return await evaluate_live_album(
+        sp, name=name, album_id=album_id, artist=artist, threshold=threshold
+    )
+
+
+async def _direct_artist_identity(
+    sp: Spotify, identifier: str
+) -> tuple[str, str] | None:
+    try:
+        return lookup_records.artist_identity(await sp.artist(identifier))
+    except SpotifyException as error:
+        if error.http_status == 404:
+            raise ArtistNotFoundError(
+                f"Spotify artist id {identifier!r} was not found."
+            ) from error
+        raise
+
+
+async def _artist_search_items(sp: Spotify, name: str) -> list[object]:
+    escaped = name.replace('"', " ").strip()
+    response = await sp.search(
+        q=f'artist:"{escaped}"', type="artist", limit=SPOTIFY_SEARCH_LIMIT, offset=0
+    )
+    return lookup_records.search_items(
+        response,
+        "artists",
+        f"Spotify returned invalid artist search data for {name!r}.",
+    )
+
+
+async def _next_object_page(sp: Spotify, page: object) -> object:
+    return await sp.next(page)
+
+
+async def _artist_release_page(sp: Spotify, identifier: str, offset: int) -> object:
+    return await sp.artist_albums(
+        identifier,
+        include_groups="album,single,compilation,appears_on",
+        limit=SPOTIFY_ARTIST_ALBUM_PAGE_SIZE,
+        offset=offset,
+    )
+
+
+async def _album_batch(sp: Spotify, identifiers: list[str]) -> object:
+    return await sp.albums(identifiers)
+
+
+async def _next_album_track_page(sp: Spotify, page: object) -> object:
+    return await sp.next(page)
+
+
+async def _saved_artist_statuses(sp: Spotify, identifiers: list[str]) -> object:
+    return await sp.current_user_saved_albums_contains(identifiers)
+
+
+async def _liked_artist_statuses(sp: Spotify, identifiers: list[str]) -> object:
+    return await sp.current_user_saved_tracks_contains(identifiers)
+
+
+async def _direct_album(sp: Spotify, identifier: str) -> LiveAlbumCandidate:
+    try:
+        raw = await sp.album(identifier)
+    except SpotifyException as error:
+        if error.http_status == 404:
+            raise AlbumNotFoundError(
+                f"Spotify album id {identifier!r} was not found."
+            ) from error
+        raise
+    if not isinstance(raw, dict):
+        raise SpotifyLookupResponseError(
+            f"Spotify returned invalid album data for {identifier!r}."
+        )
+    return lookup_records.live_album(raw, identifier)
+
+
+async def _album_search(
+    sp: Spotify, name: str, artist: str | None
+) -> list[LiveAlbumCandidate]:
+    escaped = name.replace('"', " ").strip()
+    query = f'album:"{escaped}"'
+    if artist:
+        query += f' artist:"{artist.replace(chr(34), " ").strip()}"'
+    response = await sp.search(
+        q=query, type="album", limit=SPOTIFY_SEARCH_LIMIT, offset=0
+    )
+    rows = lookup_records.search_items(
+        response, "albums", f"Spotify returned invalid album search data for {name!r}."
+    )
+    return lookup_records.live_albums(rows)
+
+
+async def _live_liked_statuses(sp: Spotify, ids: list[str]) -> object:
+    return await sp.current_user_saved_tracks_contains(ids)
+
+
+def _fetch_album_tracks(sp: LegacySpotify, album_id: str) -> list[LookupTrack]:
+    """Retain the synchronous caller-owned SDK helper at the Python API edge.
+
+    Args:
+        sp: Original synchronous SDK owned by the caller.
+        album_id: Original requested album identity.
+
+    Returns:
+        Original minimized, validated tracks in complete pagination order.
+
+    Raises:
+        SpotifyLookupResponseError: An original SDK page is malformed.
+    """
+    return run_python(_async_fetch_album_tracks(legacy_spotify(sp), album_id))
+
+
+def resolve_live_artist(
+    sp: LegacySpotify, *, name: str | None = None, artist_id: str | None = None
+) -> tuple[str, str]:
+    """Resolve exactly one artist from Spotify without consulting local files.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        name: Original optional exact display name.
+        artist_id: Original direct artist identity, taking precedence over a name.
+
+    Returns:
+        Original resolve live artist result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_live_artist(legacy_spotify(sp), name=name, artist_id=artist_id)
+    )
+
+
+def get_live_artist_library_stats(
+    sp: LegacySpotify, *, name: str | None = None, artist_id: str | None = None
+) -> ArtistLibraryStats:
+    """Count one artist's Liked Songs and Saved Albums from live Spotify state.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        name: Original optional exact display name.
+        artist_id: Original direct artist identity, taking precedence over a name.
+
+    Returns:
+        Original get live artist library stats result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_get_live_artist_library_stats(
+            legacy_spotify(sp), name=name, artist_id=artist_id
+        )
+    )
+
+
+def get_album_tracklist(
+    album_id: str,
+    sp: LegacySpotify | None = None,
+    client_factory: ClientFactory | None = None,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+) -> tuple[list[LookupTrack], bool]:
+    """Return ``(tracks, from_cache)`` for an album, caching API results.
+
+    On a cache hit no Spotify client is needed. On a miss the client is taken
+    from ``sp`` or built lazily from ``client_factory``; the fetched track list
+    is then written to the local cache (unless ``use_cache`` is False).
+
+    Args:
+        album_id: Original direct album identity, taking precedence over a name.
+        sp: Caller-owned original synchronous Spotify client.
+        client_factory: Original lazy client acquisition after cache-hit checks.
+        use_cache: Original cache read and publication flag.
+        refresh_cache: Bypass original cache hits while retaining cache publication.
+
+    Returns:
+        Original get album tracklist result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.client_factory import (
+        PythonClientFactory,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_get_album_tracklist(
+            album_id,
+            legacy_spotify(sp) if sp is not None else None,
+            PythonClientFactory(client_factory) if client_factory is not None else None,
+            use_cache,
+            refresh_cache,
+        )
+    )
+
+
+def evaluate_album(
+    sp: LegacySpotify | None = None,
     name: str | None = None,
     album_id: str | None = None,
     artist: str | None = None,
@@ -280,18 +595,29 @@ def evaluate_album(
     Returns:
         Original evaluate album result.
     """
-    return lookup_workflow.evaluate_local(
-        lookup_composition.local_album(sp, client_factory, use_cache, refresh_cache),
-        name,
-        album_id,
-        artist,
-        library,
-        threshold,
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.client_factory import (
+        PythonClientFactory,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_evaluate_album(
+            legacy_spotify(sp) if sp is not None else None,
+            name,
+            album_id,
+            artist,
+            library,
+            threshold,
+            use_cache,
+            refresh_cache,
+            PythonClientFactory(client_factory) if client_factory is not None else None,
+        )
     )
 
 
 def resolve_live_album(
-    sp: Spotify,
+    sp: LegacySpotify,
     *,
     name: str | None = None,
     album_id: str | None = None,
@@ -308,12 +634,19 @@ def resolve_live_album(
     Returns:
         Original resolve live album result.
     """
-    return lookup_resolution.album(
-        lookup_composition.album_lookup(sp), name, album_id, artist
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_live_album(
+            legacy_spotify(sp), name=name, album_id=album_id, artist=artist
+        )
     )
 
 
-def load_live_liked_statuses(sp: Spotify, track_ids: list[str]) -> dict[str, bool]:
+def load_live_liked_statuses(
+    sp: LegacySpotify, track_ids: list[str]
+) -> dict[str, bool]:
     """Read fresh membership with the album instrument's original batches.
 
     Args:
@@ -326,13 +659,14 @@ def load_live_liked_statuses(sp: Spotify, track_ids: list[str]) -> dict[str, boo
     Raises:
         SpotifyLookupResponseError: A status response has the wrong shape or length.
     """
-    return lookup_resolution.liked_statuses(
-        track_ids, LiveLikedTracks(sp), SPOTIFY_CONTAINS_BATCH_SIZE
-    )
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(async_load_live_liked_statuses(legacy_spotify(sp), track_ids))
 
 
 def evaluate_album_live(
-    sp: Spotify,
+    sp: LegacySpotify,
     *,
     name: str | None = None,
     album_id: str | None = None,
@@ -357,94 +691,15 @@ def evaluate_album_live(
         SpotifyLookupResponseError: A response fails existing validation.
         ValueError: Input or the numeric threshold is invalid.
     """
-    from spotify_manager.bootstrap.albums import evaluate_live_album
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
 
-    return evaluate_live_album(
-        sp, name=name, album_id=album_id, artist=artist, threshold=threshold
-    )
-
-
-def _direct_artist_identity(sp: Spotify, identifier: str) -> tuple[str, str] | None:
-    try:
-        return lookup_records.artist_identity(sp.artist(identifier))
-    except SpotifyException as error:
-        if error.http_status == 404:
-            raise ArtistNotFoundError(
-                f"Spotify artist id {identifier!r} was not found."
-            ) from error
-        raise
-
-
-def _artist_search_items(sp: Spotify, name: str) -> list[object]:
-    escaped = name.replace('"', " ").strip()
-    response = sp.search(
-        q=f'artist:"{escaped}"', type="artist", limit=SPOTIFY_SEARCH_LIMIT, offset=0
-    )
-    return lookup_records.search_items(
-        response,
-        "artists",
-        f"Spotify returned invalid artist search data for {name!r}.",
-    )
-
-
-def _next_object_page(sp: Spotify, page: object) -> object:
-    return sp.next(page)
-
-
-def _artist_release_page(sp: Spotify, identifier: str, offset: int) -> object:
-    return sp.artist_albums(
-        identifier,
-        include_groups="album,single,compilation,appears_on",
-        limit=SPOTIFY_ARTIST_ALBUM_PAGE_SIZE,
-        offset=offset,
-    )
-
-
-def _album_batch(sp: Spotify, identifiers: list[str]) -> object:
-    return sp.albums(identifiers)
-
-
-def _next_album_track_page(sp: Spotify, page: object) -> object:
-    return sp.next(page)
-
-
-def _saved_artist_statuses(sp: Spotify, identifiers: list[str]) -> object:
-    return sp.current_user_saved_albums_contains(identifiers)
-
-
-def _liked_artist_statuses(sp: Spotify, identifiers: list[str]) -> object:
-    return sp.current_user_saved_tracks_contains(identifiers)
-
-
-def _direct_album(sp: Spotify, identifier: str) -> LiveAlbumCandidate:
-    try:
-        raw = sp.album(identifier)
-    except SpotifyException as error:
-        if error.http_status == 404:
-            raise AlbumNotFoundError(
-                f"Spotify album id {identifier!r} was not found."
-            ) from error
-        raise
-    if not isinstance(raw, dict):
-        raise SpotifyLookupResponseError(
-            f"Spotify returned invalid album data for {identifier!r}."
+    return run_python(
+        async_evaluate_album_live(
+            legacy_spotify(sp),
+            name=name,
+            album_id=album_id,
+            artist=artist,
+            threshold=threshold,
         )
-    return lookup_records.live_album(raw, identifier)
-
-
-def _album_search(
-    sp: Spotify, name: str, artist: str | None
-) -> list[LiveAlbumCandidate]:
-    escaped = name.replace('"', " ").strip()
-    query = f'album:"{escaped}"'
-    if artist:
-        query += f' artist:"{artist.replace(chr(34), " ").strip()}"'
-    response = sp.search(q=query, type="album", limit=SPOTIFY_SEARCH_LIMIT, offset=0)
-    rows = lookup_records.search_items(
-        response, "albums", f"Spotify returned invalid album search data for {name!r}."
     )
-    return lookup_records.live_albums(rows)
-
-
-def _live_liked_statuses(sp: Spotify, ids: list[str]) -> object:
-    return sp.current_user_saved_tracks_contains(ids)

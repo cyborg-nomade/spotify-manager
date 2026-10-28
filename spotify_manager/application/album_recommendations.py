@@ -17,7 +17,7 @@ from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 class AlbumChoices(Protocol):
     """Read an operator's choice between distinct album editions."""
 
-    def choose_album(
+    async def choose_album(
         self,
         recommendation: AlbumRecommendation,
         options: tuple[SpotifyAlbumOption, ...],
@@ -38,7 +38,9 @@ class AlbumChoices(Protocol):
 class AlbumSearch(Protocol):
     """Observe eligible album editions for one ranked track candidate."""
 
-    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+    async def search(
+        self, candidate: FoundArtCandidate
+    ) -> tuple[SpotifyAlbumOption, ...]:
         """Read candidate editions through the original catalog boundary.
 
         Args:
@@ -61,7 +63,7 @@ class AlbumGathering:
     catalog: AlbumSearch
     progress: Messages
 
-    def run(
+    async def run(
         self,
         candidates: tuple[FoundArtCandidate, ...],
         excluded: set[AlbumKey],
@@ -91,11 +93,11 @@ class AlbumGathering:
                 f"Resolving album evidence {index}/{len(considered)}: "
                 f"{candidate.artist} - {candidate.track}"
             )
-            evidence.observe(candidate, self.catalog.search(candidate))
+            evidence.observe(candidate, (await self.catalog.search(candidate)))
         return evidence.ranked(week)
 
 
-def choose_album(
+async def choose_album(
     recommendation: AlbumRecommendation,
     choice_reader: AlbumChoices | None,
     skip_marker: str,
@@ -122,7 +124,7 @@ def choose_album(
         return options[0]
     if choice_reader is None:
         return "skip"
-    choice = choice_reader.choose_album(recommendation, options)
+    choice = await choice_reader.choose_album(recommendation, options)
     if choice == skip_marker:
         return "skip"
     if choice == quit_marker:

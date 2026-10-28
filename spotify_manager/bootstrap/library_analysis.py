@@ -1,10 +1,7 @@
 """Bind original file seams and synchronous Spotify reads for library analysis."""
 
-import time
+import asyncio
 
-from spotipy import Spotify
-
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
 from spotify_manager.application.library_analysis_values import CancelCheck
@@ -13,23 +10,24 @@ from spotify_manager.application.library_analysis_values import Echo
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import ProgressCallback
 from spotify_manager.application.library_analysis_values import Sleep
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.library_analysis_values import RetryWait
+from spotify_manager.infrastructure.analysis_async_files import AsyncAnalysisStorage
 from spotify_manager.infrastructure.library_analysis_catalog import (
     SpotifyAnalysisCatalog,
 )
 from spotify_manager.infrastructure.library_analysis_publication import AnalysisBackups
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
-from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 
-def analysis_files() -> AnalysisFiles:
+def analysis_files() -> AsyncAnalysisStorage:
     """Bind original public file, audit and clock compatibility seams.
 
     Returns:
         Invocation dependencies preserving caller substitutions.
     """
-    return AnalysisStorage()
+    return AsyncAnalysisStorage()
 
 
 def analysis_publication() -> AnalysisPublication:
@@ -38,7 +36,7 @@ def analysis_publication() -> AnalysisPublication:
     Returns:
         Complete ordered publication boundaries for an analysis invocation.
     """
-    return AnalysisBackups(analysis_files())
+    return AnalysisBackups(analysis_files().source)
 
 
 def analysis_session(
@@ -49,7 +47,7 @@ def analysis_session(
     progress: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = 10,
     retry_max_seconds: int = 1800,
 ) -> AnalysisSession:

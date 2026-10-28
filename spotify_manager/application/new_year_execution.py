@@ -29,7 +29,7 @@ class AnnualExecution:
     membership: AnnualMembership
     discoveries: AnnualDiscoveries
 
-    def run(
+    async def run(
         self,
         year: int,
         plan: RetrospectivePlan,
@@ -47,22 +47,22 @@ class AnnualExecution:
             access: Original durable write boundary.
         """
         checkpoint = AnnualCheckpoint(self.effects, run, state, access)
-        self._chart(plan, year, "tracks", 50, "blast", checkpoint)
-        self._chart(plan, year, "albums", 20, "palace", checkpoint)
+        await self._chart(plan, year, "tracks", 50, "blast", checkpoint)
+        await self._chart(plan, year, "albums", 20, "palace", checkpoint)
         if checkpoint.begin("top artists"):
-            self._artists(plan)
-            checkpoint.complete("top artists")
+            await self._artists(plan)
+            await checkpoint.complete("top artists")
         if checkpoint.begin("Great Discoveries"):
-            self.discoveries.run(year + 1, False)
-            checkpoint.complete("Great Discoveries")
+            await self.discoveries.run(year + 1, False)
+            await checkpoint.complete("Great Discoveries")
         if checkpoint.begin("Obsessions"):
-            self.membership.run(plan["destinations"]["blast"], plan["obsessions"])
-            checkpoint.complete("Obsessions")
+            await self.membership.run(plan["destinations"]["blast"], plan["obsessions"])
+            await checkpoint.complete("Obsessions")
         run["done"] = True
-        access.save(state)
+        await access.save(state)
         self.effects.echo(f"The {year} retrospective is complete.")
 
-    def _chart(
+    async def _chart(
         self,
         plan: RetrospectivePlan,
         year: int,
@@ -74,12 +74,14 @@ class AnnualExecution:
         step = f"top {kind}"
         if not checkpoint.begin(step):
             return
-        self.charts.run(plan, year, kind, limit, plan["destinations"][destination])
-        checkpoint.complete(step)
+        await self.charts.run(
+            plan, year, kind, limit, plan["destinations"][destination]
+        )
+        await checkpoint.complete(step)
 
-    def _artists(self, plan: RetrospectivePlan) -> None:
+    async def _artists(self, plan: RetrospectivePlan) -> None:
         uris = [item["uri"] for item in plan["artists"]]
-        self.membership.run(plan["destinations"]["memory"], uris, True)
+        await self.membership.run(plan["destinations"]["memory"], uris, True)
 
 
 @dataclass(frozen=True)
@@ -114,11 +116,11 @@ class AnnualCheckpoint:
         self.effects.echo(f"Running: {step}")
         return True
 
-    def complete(self, step: str) -> None:
+    async def complete(self, step: str) -> None:
         """Persist a stage only after all of its effects succeed.
 
         Args:
             step: Original accepted stage name.
         """
         self.run["completed"].append(step)
-        self.access.save(self.state)
+        await self.access.save(self.state)

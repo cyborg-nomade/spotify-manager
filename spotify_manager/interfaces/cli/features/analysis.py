@@ -1,6 +1,5 @@
 """Explicit analysis CLI execution, prompts and presentation."""
 
-import select
 import sys
 import termios
 import tty
@@ -10,17 +9,22 @@ from datetime import timedelta
 from typing import Never
 
 import typer
+from requests.exceptions import RequestException
 from rich.console import Console
 from rich.live import Live
 from rich.progress import Progress
 from rich.progress import TaskID
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import MonotonicClock
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.client import SpotifyAppAuthenticationError
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import terminal_key
 from spotify_manager.interfaces.operations import analyse_library as library_sync
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -48,7 +52,7 @@ class AnalysisCLI:
     monotonic: MonotonicClock
     sleep: Wait
 
-    def _wait_for_library_retry(
+    async def _wait_for_library_retry(
         self,
         console: Console,
         notice: library_sync.RetryNotice,
@@ -71,9 +75,11 @@ class AnalysisCLI:
         self._show_retry_notice(console, notice)
         try:
             if not sys.stdin.isatty():
-                self.sleep.sleep(notice.delay_seconds)
+                await self.sleep.sleep(notice.delay_seconds)
                 return True
-            return self._wait_terminal_retry(console, spotify, notice.delay_seconds)
+            return await self._wait_terminal_retry(
+                console, spotify, notice.delay_seconds
+            )
         finally:
             if progress is not None:
                 progress.start()
@@ -122,7 +128,7 @@ class AnalysisCLI:
             f"Audit manifest: {summary.backup_dir}/manifest.json", style="dim"
         )
 
-    def _run_library_analysis(self, mode: library_sync.AnalysisMode) -> None:
+    async def _run_library_analysis(self, mode: library_sync.AnalysisMode) -> None:
         """Run one analysis mode with shared Rich progress and error handling.
 
         Args:
@@ -151,12 +157,12 @@ class AnalysisCLI:
                     self._run_library_analysis_progress
                 )
                 self._run_library_analysis_tasks = self._create_analysis_tasks()
-                summary = self._execute_analysis_mode(mode)
+                summary = await self._execute_analysis_mode(mode)
         except library_sync.LibraryAnalysisCancelledError as exc:
             self._report_run_library_analysis_cancelled(exc)
         except library_sync.SpotifyRateLimitError as exc:
             self._report_run_library_analysis_rate_limit(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_run_library_analysis_interrupted_interrupted(exc)
         except library_sync.LibrarySyncError as exc:
             self._report_run_library_analysis_library_sync_failure(exc)
@@ -180,25 +186,25 @@ class AnalysisCLI:
             line, style="yellow", markup=False
         )
 
-    def _run_library_analysis_wait_for_library_retry(
+    async def _run_library_analysis_wait_for_library_retry(
         self, notice: library_sync.RetryNotice
     ) -> bool:
-        return self._wait_for_library_retry(
+        return await self._wait_for_library_retry(
             self._run_library_analysis_console,
             notice,
             self._run_library_analysis_spotify,
             self._run_library_analysis_progress_ref,
         )
 
-    def _analyse_library_async(self) -> None:
+    async def _analyse_library_async(self) -> None:
         """Build suffixed mirrors exclusively from YourLibrary.json."""
-        self._run_library_analysis("async")
+        await self._run_library_analysis("async")
 
-    def _analyse_library_sync(self) -> None:
+    async def _analyse_library_sync(self) -> None:
         """Build suffixed mirrors exclusively from the live Spotify API."""
-        self._run_library_analysis("sync")
+        await self._run_library_analysis("sync")
 
-    def _run_restore_library_sync(self, run_id: str, yes: bool) -> None:
+    async def _run_restore_library_sync(self, run_id: str, yes: bool) -> None:
         """Restore generated library files from an async or sync backup.
 
         Args:
@@ -212,7 +218,7 @@ class AnalysisCLI:
         ):
             raise typer.Abort()
         try:
-            restored = library_sync.restore_library_sync(run_id)
+            restored = await library_sync.restore_library_sync(run_id)
         except library_sync.LibrarySyncRestoreError as exc:
             self._report_restore_library_sync_library_sync_restore_failure(exc)
         typer.echo(f"Restored: {', '.join(restored)}")
@@ -257,7 +263,7 @@ class AnalysisCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_run_library_analysis_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._run_library_analysis_console.print(
             "Analysis paused. Progress was saved.", style="bold yellow"
@@ -290,7 +296,7 @@ class AnalysisCLI:
             style="yellow",
         )
 
-    def _wait_terminal_retry(
+    async def _wait_terminal_retry(
         self, console: Console, spotify: Spotify, delay: float
     ) -> bool:
         """Wait terminal retry.
@@ -311,11 +317,11 @@ class AnalysisCLI:
             with self.create_live(
                 console=console, refresh_per_second=2, transient=True
             ) as live:
-                return self._read_retry_keys(console, spotify, deadline, live)
+                return await self._read_retry_keys(console, spotify, deadline, live)
         finally:
             termios.tcsetattr(descriptor, termios.TCSADRAIN, old_settings)
 
-    def _read_retry_keys(
+    async def _read_retry_keys(
         self, console: Console, spotify: Spotify, deadline: float, live: Live
     ) -> bool:
         """Read retry keys.
@@ -339,16 +345,15 @@ class AnalysisCLI:
                     style="yellow",
                 )
             )
-            readable, _, _ = select.select([sys.stdin], [], [], min(1.0, remaining))
-            if not readable:
-                continue
-            action = sys.stdin.read(1).lower()
+            action = await terminal_key(min(1.0, remaining))
             if action == "q":
                 return False
-            if action == "r" and self._rotate_retry_credentials(console, spotify):
+            if action == "r" and await self._rotate_retry_credentials(console, spotify):
                 return True
 
-    def _rotate_retry_credentials(self, console: Console, spotify: Spotify) -> bool:
+    async def _rotate_retry_credentials(
+        self, console: Console, spotify: Spotify
+    ) -> bool:
         """Rotate retry credentials.
 
         Args:
@@ -369,8 +374,8 @@ class AnalysisCLI:
             )
             return False
         try:
-            label = rotate()
-        except Exception as exc:
+            label = await rotate()
+        except (SpotifyAppAuthenticationError, RequestException, OSError) as exc:
             console.print(
                 f"Could not rotate credentials: {exc} Continuing the retry wait.",
                 style="bold yellow",
@@ -387,16 +392,16 @@ class AnalysisCLI:
             )
         return tasks
 
-    def _execute_analysis_mode(
+    async def _execute_analysis_mode(
         self, mode: library_sync.AnalysisMode
     ) -> library_sync.LibrarySyncSummary:
         if mode == "async":
-            return library_sync.analyse_library_async_routine(
+            return await library_sync.analyse_library_async_routine(
                 echo=RunLibraryAnalysisDiagnostics(self),
                 progress_callback=RunLibraryAnalysisInteraction(self),
             )
-        self._run_library_analysis_spotify = self.runtime.review_client()
-        return library_sync.analyse_library_sync_routine(
+        self._run_library_analysis_spotify = await self.runtime.review_client()
+        return await library_sync.analyse_library_sync_routine(
             self._run_library_analysis_spotify,
             echo=RunLibraryAnalysisDiagnostics(self),
             progress_callback=RunLibraryAnalysisInteraction(self),
@@ -444,11 +449,12 @@ class RunLibraryAnalysisInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._run_library_analysis_update_progress(
             resource, completed, total, status
         )
 
-    def wait(self, notice: library_sync.RetryNotice) -> bool:
+    async def wait(self, notice: library_sync.RetryNotice) -> bool:
         """Use the command's original retry-wait interaction.
 
         Args:
@@ -457,4 +463,4 @@ class RunLibraryAnalysisInteraction:
         Returns:
             Whether the operator accepted another attempt.
         """
-        return self.owner._run_library_analysis_wait_for_library_retry(notice)
+        return await self.owner._run_library_analysis_wait_for_library_retry(notice)

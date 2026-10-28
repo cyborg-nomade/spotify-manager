@@ -48,7 +48,7 @@ class Observations:
         if effect == self.failure:
             raise RuntimeError(effect)
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Observe cache loading.
 
         Returns:
@@ -57,7 +57,7 @@ class Observations:
         self.record("load")
         return self.cache
 
-    def previous(self) -> set[str]:
+    async def previous(self) -> set[str]:
         """Observe prior additions.
 
         Returns:
@@ -80,7 +80,7 @@ class Observations:
         self.record("lookup")
         return self.cached
 
-    def remember(
+    async def remember(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -102,7 +102,7 @@ class Observations:
         entries[seed.key] = similar
         self.record("save")
 
-    def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
+    async def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
         """Observe a neighborhood read.
 
         Args:
@@ -169,7 +169,7 @@ TRACE = ["clock", "week", "load", "previous", "progress", "lookup", "read", "sav
 
 
 @pytest.mark.parametrize("effect", TRACE)
-def test_queue_failure_retains_original_effect_prefix(effect: str) -> None:
+async def test_queue_failure_retains_original_effect_prefix(effect: str) -> None:
     """Stop at the original boundary without undoing an accepted cache write.
 
     Args:
@@ -177,7 +177,7 @@ def test_queue_failure_retains_original_effect_prefix(effect: str) -> None:
     """
     observations = Observations(failure=effect)
     with pytest.raises(RuntimeError, match=effect):
-        observations.workflow().run(SEEDS[:1], set(), None, 100)
+        (await observations.workflow().run(SEEDS[:1], set(), None, 100))
     assert observations.trace == TRACE[: TRACE.index(effect) + 1]
     if effect == "save":
         assert observations.cache["entries"] == {
@@ -186,7 +186,7 @@ def test_queue_failure_retains_original_effect_prefix(effect: str) -> None:
 
 
 @pytest.mark.parametrize("cached", [(), (LastFmSimilarArtist("Previous", 1.0),)])
-def test_queue_valid_cache_hit_skips_fetch_and_save(
+async def test_queue_valid_cache_hit_skips_fetch_and_save(
     cached: tuple[LastFmSimilarArtist, ...],
 ) -> None:
     """Keep empty current-week hits valid and apply prior additions to cached data.
@@ -195,36 +195,36 @@ def test_queue_valid_cache_hit_skips_fetch_and_save(
         cached: Original valid cached observations.
     """
     observations = Observations(cached=cached)
-    assert observations.workflow().run(SEEDS[:1], set(), WEEK, 100) == ()
+    assert (await observations.workflow().run(SEEDS[:1], set(), WEEK, 100)) == ()
     assert observations.trace == ["clock", "load", "previous", "progress", "lookup"]
 
 
-def test_queue_candidate_limit_does_not_skip_cache_writes() -> None:
+async def test_queue_candidate_limit_does_not_skip_cache_writes() -> None:
     """Preserve neighborhood acceptance even when the final pool is empty."""
     observations = Observations()
-    assert observations.workflow().run(SEEDS[:1], set(), None, 0) == ()
+    assert (await observations.workflow().run(SEEDS[:1], set(), None, 0)) == ()
     assert observations.trace == TRACE
 
 
-def test_queue_success_returns_ranked_observation_after_checkpoint() -> None:
+async def test_queue_success_returns_ranked_observation_after_checkpoint() -> None:
     """Return the original ranking only after all accepted effects succeed."""
     observations = Observations()
-    result = observations.workflow().run(SEEDS[:1], set(), None, 1)
+    result = await observations.workflow().run(SEEDS[:1], set(), None, 1)
     assert result[0].artist == "Candidate"
     assert result[0].base_rank == 1
     assert observations.trace == TRACE
 
 
-def test_queue_empty_seeds_still_observe_original_opening() -> None:
+async def test_queue_empty_seeds_still_observe_original_opening() -> None:
     """Keep clock, cache and previous-addition reads even with no seeds."""
     observations = Observations()
-    assert observations.workflow().run((), set(), None, 100) == ()
+    assert (await observations.workflow().run((), set(), None, 100)) == ()
     assert observations.trace == TRACE[:4]
 
 
-def test_queue_invalid_validated_entries_raise_at_original_boundary() -> None:
+async def test_queue_invalid_validated_entries_raise_at_original_boundary() -> None:
     """Reject changed cache shape after loading and before prior-addition reads."""
     observations = Observations(cache={"entries": []})
     with pytest.raises(AssertionError):
-        observations.workflow().run(SEEDS[:1], set(), None, 100)
+        (await observations.workflow().run(SEEDS[:1], set(), None, 100))
     assert observations.trace == TRACE[:3]

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -45,7 +46,11 @@ def test_update_scrobble_history_dry_run_prints_merge_summary(
             lastfm_username="man-et-arms",
         ),
     )
-    monkeypatch.setattr(main.scrobble_history, "refresh_scrobble_history", refresh)
+    monkeypatch.setattr(
+        main.scrobble_history,
+        "refresh_scrobble_history",
+        AsyncMock(side_effect=refresh),
+    )
 
     result = CliRunner().invoke(
         main.app,
@@ -105,7 +110,9 @@ def test_something_old_dry_run_prompts_for_visible_selection(
             )
         ),
     )
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
     scenario = SomethingOldDryRunPromptsForVisibleSelectionScenario(
         artist=artist, received=received, spotify_artist=spotify_artist, track=track
     )
@@ -139,7 +146,7 @@ class SomethingOldDryRunPromptsForVisibleSelectionScenario:
     spotify_artist: main.something_old.SpotifyArtistCandidate
     track: main.something_old.SelectedTrack
 
-    def __call__(
+    async def __call__(
         self, *_args: object, **kwargs: object
     ) -> main.something_old.SomethingOldSummary:
         """Execute the original run mock boundary.
@@ -152,7 +159,7 @@ class SomethingOldDryRunPromptsForVisibleSelectionScenario:
             Original fixture result.
         """
         self.received["dry_run"] = kwargs["dry_run"]
-        self.received["mode"] = kwargs["mode_reader"].choose_mode(
+        self.received["mode"] = await kwargs["mode_reader"].choose_mode(
             self.artist, self.spotify_artist
         )
         return main.something_old.SomethingOldSummary(

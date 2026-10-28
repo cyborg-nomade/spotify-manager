@@ -21,7 +21,7 @@ class MemoryCreation(MemoryEffects):
     user_id: str = "user"
     created_id: str = "new-playlist"
 
-    def current_user(self) -> str:
+    async def current_user(self) -> str:
         """Observe the existing profile read.
 
         Returns:
@@ -30,7 +30,7 @@ class MemoryCreation(MemoryEffects):
         self._record("profile", None)
         return self.user_id
 
-    def create(self, user_id: str, year: int) -> str:
+    async def create(self, user_id: str, year: int) -> str:
         """Observe private destination creation.
 
         Args:
@@ -69,43 +69,47 @@ def _state() -> dict[str, object]:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_stored_yearly_identifier_wins_without_observation(preview: bool) -> None:
+async def test_stored_yearly_identifier_wins_without_observation(preview: bool) -> None:
     """An existing string destination overrides seed and preview creation logic."""
     memory = MemoryCreation()
     state: dict[str, object] = {"great_discoveries_playlists": {"2026": " "}}
-    assert _service(memory).resolve(state, 2026, "seed", preview) == " "
+    assert (await _service(memory).resolve(state, 2026, "seed", preview)) == " "
     assert memory.events == []
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_2026_seed_is_checkpointed_only_during_real_execution(preview: bool) -> None:
+async def test_2026_seed_is_checkpointed_only_during_real_execution(
+    preview: bool,
+) -> None:
     """The configured seed never requires a profile or playlist creation call."""
     memory = MemoryCreation()
     state = _state()
-    assert _service(memory).resolve(state, 2026, "seed", preview) == "seed"
+    assert (await _service(memory).resolve(state, 2026, "seed", preview)) == "seed"
     assert state["great_discoveries_playlists"] == ({} if preview else {"2026": "seed"})
     assert [name for name, value in memory.events] == (
         [] if preview else ["checkpoint"]
     )
 
 
-def test_future_year_preview_omits_remote_creation_and_state_mutation() -> None:
+async def test_future_year_preview_omits_remote_creation_and_state_mutation() -> None:
     """Creation previews retain the original message-only behavior."""
     memory = MemoryCreation()
     state = _state()
-    assert _service(memory).resolve(state, 2030, "seed", True) is None
+    assert (await _service(memory).resolve(state, 2030, "seed", True)) is None
     assert state == _state()
     assert memory.events == [("preview", 2030)]
 
 
 @pytest.mark.parametrize("stored", [None, 12, ""])
-def test_creation_replaces_invalid_saved_identifier_then_checkpoints(
+async def test_creation_replaces_invalid_saved_identifier_then_checkpoints(
     stored: object,
 ) -> None:
     """Only a nonempty string suppresses new playlist creation."""
     memory = MemoryCreation()
     state: dict[str, object] = {"great_discoveries_playlists": {"2030": stored}}
-    assert _service(memory).resolve(state, 2030, "seed", False) == "new-playlist"
+    assert (
+        await _service(memory).resolve(state, 2030, "seed", False)
+    ) == "new-playlist"
     assert [name for name, value in memory.events] == [
         "profile",
         "create",
@@ -117,7 +121,7 @@ def test_creation_replaces_invalid_saved_identifier_then_checkpoints(
 
 
 @pytest.mark.parametrize("field", ["user_id", "created_id"])
-def test_invalid_remote_identifier_stops_before_checkpoint(field: str) -> None:
+async def test_invalid_remote_identifier_stops_before_checkpoint(field: str) -> None:
     """Profile and creation response validation retain their original error messages."""
     memory = MemoryCreation()
     setattr(memory, field, "")
@@ -126,19 +130,19 @@ def test_invalid_remote_identifier_stops_before_checkpoint(field: str) -> None:
         "invalid current-user profile" if field == "user_id" else "created playlist id"
     )
     with pytest.raises(NewKidsError, match=message):
-        _service(memory).resolve(state, 2030, "seed", False)
+        (await _service(memory).resolve(state, 2030, "seed", False))
     assert "checkpoint" not in [name for name, value in memory.events]
     assert state == _state()
 
 
 @pytest.mark.parametrize("boundary", ["profile", "create", "checkpoint", "created"])
-def test_creation_failures_stop_at_the_original_boundary(boundary: str) -> None:
+async def test_creation_failures_stop_at_the_original_boundary(boundary: str) -> None:
     """Checkpoint failure preserves the accepted identifier in the working state."""
     memory = MemoryCreation(fail_at=boundary)
     state = _state()
     expected = ["profile", "create", "checkpoint", "created"]
     with pytest.raises(OSError, match=boundary):
-        _service(memory).resolve(state, 2030, "seed", False)
+        (await _service(memory).resolve(state, 2030, "seed", False))
     assert [name for name, value in memory.events] == expected[
         : expected.index(boundary) + 1
     ]
@@ -148,13 +152,15 @@ def test_creation_failures_stop_at_the_original_boundary(boundary: str) -> None:
     assert state["great_discoveries_playlists"] == expected_state
 
 
-def test_missing_or_invalid_playlist_container_retains_original_errors() -> None:
+async def test_missing_or_invalid_playlist_container_retains_original_errors() -> None:
     """The resolver does not manufacture missing namespace containers."""
     memory = MemoryCreation()
     with pytest.raises(KeyError):
-        _service(memory).resolve({}, 2026, "seed", False)
+        (await _service(memory).resolve({}, 2026, "seed", False))
     with pytest.raises(AssertionError):
-        _service(memory).resolve(
-            {"great_discoveries_playlists": []}, 2026, "seed", False
+        (
+            await _service(memory).resolve(
+                {"great_discoveries_playlists": []}, 2026, "seed", False
+            )
         )
     assert memory.events == []

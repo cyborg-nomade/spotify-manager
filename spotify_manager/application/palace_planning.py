@@ -28,7 +28,7 @@ class PalacePlanning:
     threshold: float = 0.9
     cache: dict[str, SpotifyFirstTrack] = field(default_factory=dict)
 
-    def alphabetical(
+    async def alphabetical(
         self, albums: tuple[YourLibraryAlbum, ...]
     ) -> list[PalaceAlbumResult]:
         """Resolve original ordered saved selections before historical observations.
@@ -51,13 +51,13 @@ class PalacePlanning:
                     album.artist,
                     album.album,
                     mapped,
-                    self._track(mapped),
+                    (await self._track(mapped)),
                     "added",
                 )
             )
         return result
 
-    def historical(
+    async def historical(
         self, selections: tuple[HistoricalAlbumSelection, ...]
     ) -> list[PalaceAlbumResult]:
         """Prefer saved historical editions and reuse original resolved first markers.
@@ -73,8 +73,8 @@ class PalacePlanning:
             self.effects.progress(
                 f"Resolving historical album {index}/{len(selections)}"
             )
-            mapped = self._historical_album(selection)
-            track = self._track(mapped)
+            mapped = await self._historical_album(selection)
+            track = await self._track(mapped)
             selected = selection.album
             result.append(
                 PalaceAlbumResult(
@@ -93,21 +93,21 @@ class PalacePlanning:
             )
         return result
 
-    def _historical_album(
+    async def _historical_album(
         self, selection: HistoricalAlbumSelection
     ) -> SpotifyAlbum | None:
         album = selection.album
         saved = preferred_saved(album.artist, album.album, self.saved, self.threshold)
         if saved is not None:
             return saved
-        return self.effects.search(album.artist, album.album)
+        return await self.effects.search(album.artist, album.album)
 
-    def _track(self, album: SpotifyAlbum | None) -> SpotifyFirstTrack | None:
+    async def _track(self, album: SpotifyAlbum | None) -> SpotifyFirstTrack | None:
         if album is None:
             return None
         track = self.cache.get(album.spotify_id)
         if track is not None:
             return track
-        track = self.effects.first_track(album)
+        track = await self.effects.first_track(album)
         self.cache[album.spotify_id] = track
         return track

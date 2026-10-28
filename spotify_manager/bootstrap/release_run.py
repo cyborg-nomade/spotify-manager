@@ -2,14 +2,13 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.future_release import FutureRecordMatching
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.application.release_progress import ReleaseProgress
 from spotify_manager.application.release_run import ReleaseRun
 from spotify_manager.bootstrap.artist_mapping import artist_mapping
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.infrastructure.legacy.release_run import LegacyReleaseRun
 from spotify_manager.infrastructure.legacy.release_tracks import LegacyReleaseTracks
 from spotify_manager.routines import release_check as legacy

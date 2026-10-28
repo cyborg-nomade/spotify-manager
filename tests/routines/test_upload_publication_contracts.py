@@ -18,7 +18,7 @@ ORIGINAL = json.loads(
 
 
 @pytest.mark.parametrize("index,scenario", list(enumerate(upload_scenarios())))
-def test_upload_publication_contract(
+async def test_upload_publication_contract(
     index: int, scenario: UploadScenario, tmp_path: Path
 ) -> None:
     """Retain accepted effects, original failures and retry cleanup.
@@ -28,4 +28,4 @@ def test_upload_publication_contract(
         scenario: Selected publication boundary.
         tmp_path: Isolated managed directory.
     """
-    assert observe_upload(scenario, tmp_path) == ORIGINAL[index]
+    assert (await observe_upload(scenario, tmp_path)) == ORIGINAL[index]

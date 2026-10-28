@@ -74,7 +74,9 @@ class WinePlanner:
     execution: WineExecution
     presentation: NewWinePresentation
 
-    def plan(self, source: PlaylistTrack, entry: dict[str, object]) -> WineDecision:
+    async def plan(
+        self, source: PlaylistTrack, entry: dict[str, object]
+    ) -> WineDecision:
         """Plan one source, returning a skip result or pause at the original boundary.
 
         Args:
@@ -87,33 +89,33 @@ class WinePlanner:
         Raises:
             NewWineError: The operator selects an unavailable release or endpoint.
         """
-        facts = self._facts(source, entry)
-        endpoint = self._endpoint(facts)
+        facts = await self._facts(source, entry)
+        endpoint = await self._endpoint(facts)
         if endpoint == "quit":
             return None
         if endpoint == "skip":
             return self._skip(facts, source.release)
-        decision = self._primary(facts)
+        decision = await self._primary(facts)
         if not isinstance(decision, dict):
             return decision
         if facts.endpoint == "cutoff":
             decision["canonical_track_count"] = len(facts.tracks)
             decision["canonical_cutoff_track"] = source.name
-        return self._continuation(facts, decision)
+        return await self._continuation(facts, decision)
 
-    def _facts(
+    async def _facts(
         self, source: PlaylistTrack, entry: dict[str, object]
     ) -> SourceObservations:
-        tracks = self.observations.tracks(source.release)
+        tracks = await self.observations.tracks(source.release)
         index = track_index(tracks, source)
         endpoint = entry.get("endpoint_choice")
-        liked = self.observations.source_liked(source.spotify_id)
-        prior = self._prior_streak(source, tracks, index)
+        liked = await self.observations.source_liked(source.spotify_id)
+        prior = await self._prior_streak(source, tracks, index)
         return SourceObservations(
             source, entry, tracks, index, liked, advance_streak(prior, liked), endpoint
         )
 
-    def _prior_streak(
+    async def _prior_streak(
         self, source: PlaylistTrack, tracks: tuple[ReleaseTrack, ...], index: int | None
     ) -> int:
         stored = self.progress.get(source.spotify_id)
@@ -123,12 +125,12 @@ class WinePlanner:
         if index is None:
             return 0
         preceding = tracks[:index]
-        self.observations.memberships(preceding)
-        return trailing_unliked(
-            self.observations.liked[track.spotify_id] for track in reversed(preceding)
-        )
+        await self.observations.memberships(preceding)
+        memberships = self.observations.liked
+        statuses = (memberships[track.spotify_id] for track in reversed(preceding))
+        return trailing_unliked(statuses)
 
-    def _endpoint(self, facts: SourceObservations) -> str:
+    async def _endpoint(self, facts: SourceObservations) -> str:
         if (
             not self.endpoint_mode
             or facts.source.release.release_type not in {"Album", "EP"}
@@ -136,7 +138,7 @@ class WinePlanner:
         ):
             return "continue"
         if facts.endpoint not in {"cutoff", "continue"}:
-            choice = self._choose_endpoint(facts)
+            choice = await self._choose_endpoint(facts)
             if choice == "quit" or choice == "skip":
                 return choice
         if facts.endpoint == "cutoff":
@@ -144,9 +146,9 @@ class WinePlanner:
             self.presentation.canonical(facts.source, len(facts.tracks))
         return "continue"
 
-    def _choose_endpoint(self, facts: SourceObservations) -> str:
+    async def _choose_endpoint(self, facts: SourceObservations) -> str:
         assert self.endpoint_reader is not None and facts.index is not None
-        choice = self.endpoint_reader.choose_endpoint(
+        choice = await self.endpoint_reader.choose_endpoint(
             facts.source, facts.tracks, facts.index
         )
         if choice == "quit" or choice == "skip":
@@ -155,16 +157,16 @@ class WinePlanner:
             raise NewWineError("The album endpoint choice is not available.")
         facts.endpoint = choice
         facts.entry["endpoint_choice"] = choice
-        self.execution.checkpoint()
+        await self.execution.checkpoint()
         return choice
 
-    def _primary(self, facts: SourceObservations) -> WineDecision:
+    async def _primary(self, facts: SourceObservations) -> WineDecision:
         if facts.streak >= 3:
-            return self._streak_plan(facts)
-        selected = self._select_release(facts)
+            return await self._streak_plan(facts)
+        selected = await self._select_release(facts)
         if not isinstance(selected, ReleaseCandidate):
             return selected
-        tracks = self.observations.tracks(selected)
+        tracks = await self.observations.tracks(selected)
         if (
             selected.spotify_id == facts.source.release.spotify_id
             and facts.endpoint == "cutoff"
@@ -174,10 +176,10 @@ class WinePlanner:
         if not tracks:
             self.presentation.empty(selected)
             return self._skip(facts, selected)
-        return self._selected_plan(facts, selected, tracks)
+        return await self._selected_plan(facts, selected, tracks)
 
-    def _streak_plan(self, facts: SourceObservations) -> dict[str, object]:
-        self.observations.memberships(facts.tracks)
+    async def _streak_plan(self, facts: SourceObservations) -> dict[str, object]:
+        await self.observations.memberships(facts.tracks)
         target = next_liked_track(facts.tracks, facts.index, self.observations.liked)
         if target is not None:
             return progression_plan(
@@ -202,26 +204,26 @@ class WinePlanner:
             reason=reason,
         )
 
-    def _select_release(
+    async def _select_release(
         self, facts: SourceObservations
     ) -> ReleaseCandidate | WineDecision:
         if facts.source.release.release_type != "Single":
             return facts.source.release
-        candidates = self.observations.releases(facts.source.primary_artist_id)
+        candidates = await self.observations.releases(facts.source.primary_artist_id)
         if not candidates:
             self.presentation.no_releases(facts.source, self.observations.year)
             return self._skip(facts, facts.source.release)
-        choice, reason = self._single_choice(facts, candidates)
+        choice, reason = await self._single_choice(facts, candidates)
         if choice == "quit":
             return None
         if choice == "skip":
             return self._skip(facts, facts.source.release)
         if choice == "drop":
-            self.observations.memberships(facts.tracks)
+            await self.observations.memberships(facts.tracks)
             return self._drop(facts, reason)
         return _selected(candidates, choice)
 
-    def _single_choice(
+    async def _single_choice(
         self, facts: SourceObservations, candidates: tuple[ReleaseCandidate, ...]
     ) -> tuple[str, str]:
         if (
@@ -231,9 +233,11 @@ class WinePlanner:
         ):
             self.presentation.only_single(facts.source, self.observations.year)
             return "drop", "only_current_year_single"
-        return self.choose.choose_release(facts.source, candidates), "manual_selection"
+        return (
+            await self.choose.choose_release(facts.source, candidates)
+        ), "manual_selection"
 
-    def _selected_plan(
+    async def _selected_plan(
         self,
         facts: SourceObservations,
         release: ReleaseCandidate,
@@ -242,13 +246,13 @@ class WinePlanner:
         action, target = selected_transition(facts.source, release, tracks)
         plan = progression_plan(action, release, target, facts.liked, facts.streak)
         if action == "sauvignon":
-            self.observations.memberships(tracks)
+            await self.observations.memberships(tracks)
             record_evaluation(
                 plan, evaluate_release(release, tracks, self.observations.liked)
             )
         return plan
 
-    def _continuation(
+    async def _continuation(
         self, facts: SourceObservations, plan: dict[str, object]
     ) -> WineDecision:
         if str(plan["action"]) not in {
@@ -256,11 +260,11 @@ class WinePlanner:
             "sauvignon",
         } or facts.source.release.release_type not in {"Album", "EP"}:
             return plan
-        releases = self.observations.releases(facts.source.primary_artist_id)
+        releases = await self.observations.releases(facts.source.primary_artist_id)
         candidates = _other_releases(releases, facts.source.release.spotify_id)
         if not candidates:
             return plan
-        choice = self.choose.choose_release(facts.source, candidates)
+        choice = await self.choose.choose_release(facts.source, candidates)
         if choice == "quit":
             return None
         if choice == "skip":
@@ -268,7 +272,7 @@ class WinePlanner:
         if choice in {"finish", "drop"}:
             return plan
         release = _selected(candidates, choice)
-        tracks = self.observations.tracks(release)
+        tracks = await self.observations.tracks(release)
         if tracks:
             plan["continuation_release"] = asdict(release)
             plan["continuation_target"] = asdict(tracks[0])

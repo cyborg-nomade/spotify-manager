@@ -8,8 +8,10 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.prompt import Prompt
 
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
@@ -34,7 +36,7 @@ class AlbumReviewCLI:
     prompt: type[Prompt]
     REVIEW_ACTION_CHOICES: list[str]
 
-    def _prompt_review_action(
+    async def _prompt_review_action(
         self, console: Console, evaluation: object, progress: Progress | None
     ) -> str:
         """Ask for a review action while yielding Rich progress rendering.
@@ -53,7 +55,7 @@ class AlbumReviewCLI:
         if progress is not None:
             progress.stop()
         try:
-            return self.prompt.ask(
+            return await TerminalPrompt(self.prompt).ask(
                 "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
                 choices=self.REVIEW_ACTION_CHOICES,
                 default=default,
@@ -63,7 +65,7 @@ class AlbumReviewCLI:
             if progress is not None:
                 progress.start()
 
-    def _run_review_album_limits(
+    async def _run_review_album_limits(
         self, threshold: float, no_cache: bool, refresh_cache: bool
     ) -> None:
         """Interactively remove saved albums below the liked-track threshold.
@@ -97,8 +99,8 @@ class AlbumReviewCLI:
                         "Reviewing albums", total=None
                     )
                 )
-                review_album_limits.review_album_limits(
-                    self.runtime.review_client(),
+                await review_album_limits.review_album_limits(
+                    (await self.runtime.review_client()),
                     action_reader=ReviewAlbumLimitsInteraction(self),
                     threshold=threshold,
                     use_cache=not no_cache,
@@ -138,10 +140,10 @@ class AlbumReviewCLI:
             style = "bold"
         self._review_album_limits_console.print(line, style=style, markup=False)
 
-    def _review_album_limits_read_action(
+    async def _review_album_limits_read_action(
         self, _album: object, evaluation: object
     ) -> str:
-        return self._prompt_review_action(
+        return await self._prompt_review_action(
             self._review_album_limits_console,
             evaluation,
             self._review_album_limits_progress_ref,
@@ -206,9 +208,10 @@ class ReviewAlbumLimitsInteraction:
             position: Original position.
             total: Original total.
         """
+        check_cli_interruption()
         self.owner._review_album_limits_update_progress(position, total)
 
-    def choose_action(self, _album: object, evaluation: object) -> str:
+    async def choose_action(self, _album: object, evaluation: object) -> str:
         """Use this command's fixed choose action prompt.
 
         Args:
@@ -218,4 +221,4 @@ class ReviewAlbumLimitsInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._review_album_limits_read_action(_album, evaluation)
+        return await self.owner._review_album_limits_read_action(_album, evaluation)

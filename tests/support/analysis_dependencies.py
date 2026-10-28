@@ -1,17 +1,20 @@
 """Observe retained public file seams using named storage methods."""
 
+import asyncio
 from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel
 
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
 from spotify_manager.application.library_analysis_publication import Resources
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.domain.library_analysis_values import ResourceSyncSummary
+from spotify_manager.infrastructure.analysis_async_files import AsyncAnalysisStorage
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.library_analysis_publication import AnalysisBackups
 from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -164,7 +167,7 @@ class RecordedAnalysisBackups(AnalysisBackups):
 class ObservedAnalysisBackups(RecordedAnalysisBackups):
     """Observe public backup seams as well as their nested file effects."""
 
-    def analysis_backup(
+    async def analysis_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -186,11 +189,21 @@ class ObservedAnalysisBackups(RecordedAnalysisBackups):
         Returns:
             Original accepted backup directory.
         """
-        return legacy.create_backup_manifest(
-            paths, run_id, previous, current, report, summaries
-        )
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(
+                    legacy.create_backup_manifest,
+                    paths,
+                    run_id,
+                    previous,
+                    current,
+                    report,
+                    summaries,
+                )
+            )
+            return await finish_blocking(task)
 
-    def mirror_backup(
+    async def mirror_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -210,11 +223,20 @@ class ObservedAnalysisBackups(RecordedAnalysisBackups):
         Returns:
             Original accepted backup directory.
         """
-        return legacy.create_live_mirror_backup_manifest(
-            paths, run_id, previous, current, summaries
-        )
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(
+                    legacy.create_live_mirror_backup_manifest,
+                    paths,
+                    run_id,
+                    previous,
+                    current,
+                    summaries,
+                )
+            )
+            return await finish_blocking(task)
 
-    def history(
+    async def history(
         self, paths: LibraryAnalysisPaths, backup_dir: Path
     ) -> dict[str, object]:
         """Read backed-up history for repeatable publication.
@@ -229,16 +251,20 @@ class ObservedAnalysisBackups(RecordedAnalysisBackups):
         Raises:
             LibrarySyncError: Original manifest or backed-up history is not an object.
         """
-        return legacy.pre_analysis_stats_history(paths, backup_dir)
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(legacy.pre_analysis_stats_history, paths, backup_dir)
+            )
+            return await finish_blocking(task)
 
 
-def observed_analysis_files() -> AnalysisFiles:
+def observed_analysis_files() -> AsyncAnalysisStorage:
     """Build fixture storage.
 
     Returns:
         Named storage observing original public seams.
     """
-    return ObservedAnalysisFiles()
+    return AsyncAnalysisStorage(ObservedAnalysisFiles())
 
 
 def observed_analysis_publication() -> AnalysisPublication:
@@ -247,4 +273,4 @@ def observed_analysis_publication() -> AnalysisPublication:
     Returns:
         Named publication owner observing original public seams.
     """
-    return ObservedAnalysisBackups(observed_analysis_files())
+    return ObservedAnalysisBackups(observed_analysis_files().source)

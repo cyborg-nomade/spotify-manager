@@ -74,7 +74,7 @@ class Queue3Observations:
     catalogs: dict[str, tuple[DiscographyRelease, ...]] = field(default_factory=dict)
     works: dict[str, tuple[PlaylistTrack, ...]] = field(default_factory=dict)
 
-    def catalog(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def catalog(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Observe an artist's catalog once, including empty observations.
 
         Args:
@@ -85,11 +85,11 @@ class Queue3Observations:
         """
         found = self.catalogs.get(artist_id)
         if found is None:
-            found = self.source.discography(artist_id)
+            found = await self.source.discography(artist_id)
             self.catalogs[artist_id] = found
         return found
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe an owned works playlist once, including empty observations.
 
         Args:
@@ -100,7 +100,7 @@ class Queue3Observations:
         """
         found = self.works.get(playlist_id)
         if found is None:
-            found = self.playlists.read(playlist_id)
+            found = await self.playlists.read(playlist_id)
             self.works[playlist_id] = found
         return found
 
@@ -150,7 +150,7 @@ class Queue3Review:
     audit: QueueAudit
     presentation: ReviewPresentation
 
-    def run(self) -> tuple[tuple[FlushResult, ...], bool]:
+    async def run(self) -> tuple[tuple[FlushResult, ...], bool]:
         """Process pending entries until the operator pauses or review finishes.
 
         Returns:
@@ -163,14 +163,16 @@ class Queue3Review:
         """
         results: list[FlushResult] = []
         for index, raw in enumerate(self.snapshot.entries, start=1):
-            result = self._entry(raw, index)
+            result = await self._entry(raw, index)
             if result == "pause":
                 return tuple(results), True
             if isinstance(result, FlushResult):
                 results.append(result)
         return tuple(results), False
 
-    def _entry(self, raw: object, index: int) -> FlushResult | Literal["skip", "pause"]:
+    async def _entry(
+        self, raw: object, index: int
+    ) -> FlushResult | Literal["skip", "pause"]:
         if not isinstance(raw, dict):
             raise Queue3StateError("Queue 3 run contains an invalid entry.")
         if raw.get("status") in {"completed", "skipped"}:
@@ -178,40 +180,41 @@ class Queue3Review:
         entry = _decode(raw)
         total = len(self.snapshot.entries)
         self.presentation.started(index, total, entry.artist_name, entry.source.name)
-        plan = self._plan(entry)
+        plan = await self._plan(entry)
         if plan is None:
             return "pause"
         transition = Queue3Transition(
             entry.source, entry.artist_id, entry.artist_name, plan
         )
-        action, target = self.execution.run(transition, self.queue)
+        action, target = await self.execution.run(transition, self.queue)
         result = result_from_plan(
             entry.source,
             plan,
             artist_name=entry.artist_name,
             dry_run=self.session.dry_run,
         )
-        self.audit.audit(
-            "artist_transition", {"run_id": self.snapshot.identifier, **asdict(result)}
+        await self.audit.audit(
+            "artist_transition",
+            {"run_id": self.snapshot.identifier, **asdict(result)},
         )
-        self.session.acknowledge(
+        await self.session.acknowledge(
             raw, action, target, entry.artist_id, self.snapshot.routes
         )
         self.presentation.finished(index, total, entry.artist_name)
         return result
 
-    def _plan(self, entry: Queue3Entry) -> dict[str, object] | None:
-        saved = self._saved_plan(entry)
+    async def _plan(self, entry: Queue3Entry) -> dict[str, object] | None:
+        saved = await self._saved_plan(entry)
         if saved is not None:
             return saved
-        plan = self._new_plan(entry)
+        plan = await self._new_plan(entry)
         if plan is None:
             return None
         entry.record["plan"] = plan
-        self.session.save()
+        await self.session.save()
         return plan
 
-    def _saved_plan(self, entry: Queue3Entry) -> dict[str, object] | None:
+    async def _saved_plan(self, entry: Queue3Entry) -> dict[str, object] | None:
         raw = entry.record.get("plan")
         if not isinstance(raw, dict):
             return None
@@ -228,11 +231,11 @@ class Queue3Review:
         entry.record["plan"] = None
         self.snapshot.routes.pop(entry.artist_id, None)
         self.presentation.stale(entry.artist_name)
-        self.session.save()
+        await self.session.save()
         return None
 
-    def _new_plan(self, entry: Queue3Entry) -> dict[str, object] | None:
-        playlist, paused = resolve_composer_route(
+    async def _new_plan(self, entry: Queue3Entry) -> dict[str, object] | None:
+        playlist, paused = await resolve_composer_route(
             entry.artist_id,
             entry.artist_name,
             entry.source.spotify_id,
@@ -245,10 +248,10 @@ class Queue3Review:
         if paused:
             return None
         if playlist is not None:
-            tracks = self.observations.playlist(playlist.spotify_id)
+            tracks = await self.observations.playlist(playlist.spotify_id)
             return composer_plan(entry.source, playlist, tracks)
-        catalog = self.observations.catalog(entry.artist_id)
-        return self.planner.plan(entry.source, catalog)
+        catalog = await self.observations.catalog(entry.artist_id)
+        return await self.planner.plan(entry.source, catalog)
 
 
 def _decode(raw: dict[str, object]) -> Queue3Entry:

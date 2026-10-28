@@ -1,5 +1,6 @@
 """Own HTTP job resources, dispatch and concrete integration wiring."""
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator as AsyncIterator
@@ -10,9 +11,7 @@ from datetime import datetime as datetime
 from datetime import timedelta as timedelta
 from functools import lru_cache as lru_cache
 from pathlib import Path as Path
-from threading import Event as Event
 from threading import Lock as Lock
-from threading import Thread as Thread
 from typing import Annotated as Annotated
 from typing import Any as Any
 from typing import Literal as Literal
@@ -26,7 +25,6 @@ from fastapi import Request as Request
 from fastapi.responses import JSONResponse as JSONResponse
 from fastapi.responses import Response as Response
 from requests.exceptions import RequestException as RequestException
-from spotipy import Spotify as Spotify
 from spotipy.exceptions import SpotifyException as SpotifyException
 
 from spotify_manager.application.job_lifecycle import (
@@ -40,7 +38,10 @@ from spotify_manager.application.job_lifecycle import (
 from spotify_manager.application.job_lifecycle import retain_logs as retain_logs
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.execution import ExecutionRuntime
+from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
 )
@@ -65,6 +66,8 @@ from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.models import canonical_json as canonical_json
 from spotify_manager.core.state.models import namespace_value as namespace_value
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
+from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
@@ -83,6 +86,7 @@ from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsSta
 from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http.analysis_context import AnalysisContext
 from spotify_manager.interfaces.http.analysis_worker import (
@@ -544,32 +548,31 @@ SPOTIFY_CONNECTION_FAILURE_DETAIL = (
 DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS = 60
 
 
-@lru_cache
-def get_client() -> Spotify:
-    """Provide a cached spotipy client (overridable in tests)."""
-    return get_spotipy_client(allow_interactive_auth=False)
+async def get_client() -> Spotify:
+    """Acquire the lifespan-owned standard native client.
+
+    Returns:
+        Native client with the original standard retry profile.
+    """
+    return await current_execution().client()
 
 
-@lru_cache
-def get_analysis_client() -> Spotify:
-    """Provide a client whose retries are controlled by the analysis routine."""
-    return get_spotipy_client(
-        retries=0,
-        status_retries=0,
-        status_forcelist=(999,),
-        allow_interactive_auth=False,
-    )
+async def get_analysis_client() -> Spotify:
+    """Acquire the lifespan-owned mirror-analysis native client.
+
+    Returns:
+        Native client with the original disabled adapter retry profile.
+    """
+    return await current_execution().client("analysis")
 
 
-@lru_cache
-def get_interactive_client() -> Spotify:
-    """Provide an isolated no-retry client for interactive web routines."""
-    return get_spotipy_client(
-        retries=0,
-        status_retries=0,
-        status_forcelist=(999,),
-        allow_interactive_auth=False,
-    )
+async def get_interactive_client() -> Spotify:
+    """Acquire the lifespan-owned interactive native client.
+
+    Returns:
+        Native client with the original disabled adapter retry profile.
+    """
+    return await current_execution().client("interactive")
 
 
 @lru_cache
@@ -728,7 +731,7 @@ def _cancel_simple_playlist_job(
         return _blast_job_snapshot(job)
 
 
-def _run_analysis_job(
+async def _run_analysis_job(
     job_id: str,
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None,
@@ -741,7 +744,7 @@ def _run_analysis_job(
     events = SpotifyEvents(spotify)
     events.subscribe(worker)
     try:
-        summary = worker.execute()
+        summary = await worker.execute()
     except library_analysis.LibraryAnalysisCancelledError as exc:
         worker.cancelled(exc)
     except library_analysis.SpotifyRateLimitError as exc:
@@ -779,7 +782,7 @@ def _job_time() -> datetime:
     return datetime.now(UTC)
 
 
-def start_analysis_job(
+async def start_analysis_job(
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None = None,
     full_rebuild: bool = False,
@@ -828,12 +831,11 @@ def start_analysis_job(
         _append_job_log_locked(job, f"{mode.title()} analysis queued.")
         register_job(_analysis_jobs, job_id, job)
         snapshot = _job_snapshot(job)
-    Thread(
-        target=_run_analysis_job,
-        args=(job_id, mode, spotify, full_rebuild, mirror_resource),
-        name=f"library-analysis-{mode}-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_analysis_job(job_id, mode, spotify, full_rebuild, mirror_resource),
+        job.cancel_event,
+        f"library-analysis-{mode}-{job_id[:8]}",
+    )
     return snapshot
 
 
@@ -865,7 +867,7 @@ def _playlist_context() -> PlaylistContext:
     )
 
 
-def _run_blast_job(
+async def _run_blast_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
@@ -874,7 +876,7 @@ def _run_blast_job(
     dry_run: bool,
 ) -> None:
     """Execute one web playlist job and retain progress, logs, and results."""
-    BlastWorker(
+    await BlastWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -886,11 +888,11 @@ def _run_blast_job(
     ).run()
 
 
-def _run_blast_artist_job(
+async def _run_blast_artist_job(
     job_id: str, spotify: Spotify, playlist_id: str, count: int, dry_run: bool
 ) -> None:
     """Execute one alphabetic dormant-artist playlist update."""
-    BlastArtistWorker(
+    await BlastArtistWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -901,11 +903,11 @@ def _run_blast_artist_job(
     ).run()
 
 
-def _run_daily_mind_radio_job(
+async def _run_daily_mind_radio_job(
     job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute one Daily Mind Radio web job and retain its complete trace."""
-    DailyMindRadioWorker(
+    await DailyMindRadioWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -915,7 +917,7 @@ def _run_daily_mind_radio_job(
     ).run()
 
 
-def _run_found_art_job(
+async def _run_found_art_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
@@ -924,7 +926,7 @@ def _run_found_art_job(
     count: int,
 ) -> None:
     """Execute one Found Art web job and retain its complete trace."""
-    FoundArtWorker(
+    await FoundArtWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -936,7 +938,7 @@ def _run_found_art_job(
     ).run()
 
 
-def _run_sauvignon_job(
+async def _run_sauvignon_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
@@ -948,7 +950,7 @@ def _run_sauvignon_job(
     dry_run: bool,
 ) -> None:
     """Run reconnectable Last.fm album discovery for Sauvignon."""
-    SauvignonWorker(
+    await SauvignonWorker(
         job_id=job_id,
         spotify=spotify,
         connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
@@ -964,7 +966,7 @@ def _run_sauvignon_job(
     ).run()
 
 
-def _run_queue_fill_job(
+async def _run_queue_fill_job(
     job_id: str,
     spotify: Spotify,
     playlists: the_queue.QueuePlaylists,
@@ -976,7 +978,7 @@ def _run_queue_fill_job(
     dry_run: bool,
 ) -> None:
     """Run reconnectable Last.fm artist discovery for The Queue."""
-    QueueFillWorker(
+    await QueueFillWorker(
         job_id=job_id,
         spotify=spotify,
         connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
@@ -992,11 +994,11 @@ def _run_queue_fill_job(
     ).run()
 
 
-def _run_queue_flush_job(
+async def _run_queue_flush_job(
     job_id: str, spotify: Spotify, playlists: the_queue.QueuePlaylists, dry_run: bool
 ) -> None:
     """Run the first-ten-artist Queue flush as a reconnectable web job."""
-    QueueFlushWorker(
+    await QueueFlushWorker(
         job_id=job_id,
         spotify=spotify,
         playlists=playlists,
@@ -1006,7 +1008,7 @@ def _run_queue_flush_job(
     ).run()
 
 
-def _run_new_kids_job(
+async def _run_new_kids_job(
     job_id: str,
     spotify: Spotify,
     new_kids_playlist_id: str,
@@ -1018,7 +1020,7 @@ def _run_new_kids_job(
     command: Literal["flush_new_kids", "flush_queue_2"] = "flush_new_kids",
 ) -> None:
     """Execute one interactive album-discovery flush as a reconnectable job."""
-    NewKidsWorker(
+    await NewKidsWorker(
         job_id=job_id,
         spotify=spotify,
         command=command,
@@ -1036,7 +1038,7 @@ def _run_new_kids_job(
     ).run()
 
 
-def _run_queue_3_job(
+async def _run_queue_3_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
@@ -1044,7 +1046,7 @@ def _run_queue_3_job(
     annual_only: bool = False,
 ) -> None:
     """Execute one Queue 3 operation as a reconnectable web job."""
-    Queue3Worker(
+    await Queue3Worker(
         job_id=job_id,
         spotify=spotify,
         annual_only=annual_only,
@@ -1054,7 +1056,7 @@ def _run_queue_3_job(
     ).run()
 
 
-def _run_new_wine_job(
+async def _run_new_wine_job(
     job_id: str,
     spotify: Spotify,
     new_wine_playlist_id: str,
@@ -1065,7 +1067,7 @@ def _run_new_wine_job(
     choose_album_endpoints: bool = False,
 ) -> None:
     """Execute one interactive New Wine flush as a reconnectable web job."""
-    NewWineWorker(
+    await NewWineWorker(
         job_id=job_id,
         spotify=spotify,
         rate_limit_delay=DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
@@ -1081,11 +1083,11 @@ def _run_new_wine_job(
     ).run()
 
 
-def _run_slow_listening_job(
+async def _run_slow_listening_job(
     job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute an interactive Slow Listening flush as a reconnectable job."""
-    SlowListeningWorker(
+    await SlowListeningWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -1094,7 +1096,7 @@ def _run_slow_listening_job(
     ).run()
 
 
-def _run_something_old_job(
+async def _run_something_old_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
@@ -1103,7 +1105,7 @@ def _run_something_old_job(
     dry_run: bool,
 ) -> None:
     """Execute Something Old as a reconnectable interactive web job."""
-    SomethingOldWorker(
+    await SomethingOldWorker(
         job_id=job_id,
         spotify=spotify,
         context=_playlist_context(),
@@ -1114,7 +1116,7 @@ def _run_something_old_job(
     ).run()
 
 
-def _run_release_check_job(
+async def _run_release_check_job(
     job_id: str,
     spotify: Spotify,
     playlists: release_check.ReleaseCheckPlaylists,
@@ -1123,7 +1125,7 @@ def _run_release_check_job(
     dry_run: bool,
 ) -> None:
     """Execute one reconnectable, interactive new-release check."""
-    ReleaseCheckWorker(
+    await ReleaseCheckWorker(
         RELEASE_CHECK_STATE_PATH=RELEASE_CHECK_STATE_PATH,
         job_id=job_id,
         spotify=spotify,
@@ -1135,7 +1137,7 @@ def _run_release_check_job(
     ).run()
 
 
-def _run_discography_job(
+async def _run_discography_job(
     job_id: str,
     spotify: Spotify,
     playlist_ids: dict[discography.QueueName, str],
@@ -1143,7 +1145,7 @@ def _run_discography_job(
     dry_run: bool,
 ) -> None:
     """Execute one reload-safe interactive discography planning job."""
-    DiscographyWorker(
+    await DiscographyWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_ids=playlist_ids,
@@ -1153,11 +1155,11 @@ def _run_discography_job(
     ).run()
 
 
-def _run_requeue_for_a_dream_job(
+async def _run_requeue_for_a_dream_job(
     job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute one reconnectable Requeue for a Dream transition."""
-    RequeueForADreamWorker(
+    await RequeueForADreamWorker(
         job_id=job_id,
         spotify=spotify,
         playlist_id=playlist_id,
@@ -1166,7 +1168,7 @@ def _run_requeue_for_a_dream_job(
     ).run()
 
 
-def _run_palace_of_memory_job(
+async def _run_palace_of_memory_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str | None,
@@ -1175,7 +1177,7 @@ def _run_palace_of_memory_job(
     cursor_position: int | None,
 ) -> None:
     """Execute one reconnectable Palace fill or cursor adjustment."""
-    PalaceOfMemoryWorker(
+    await PalaceOfMemoryWorker(
         job_id=job_id,
         spotify=spotify,
         cursor_position=cursor_position,
@@ -1188,11 +1190,11 @@ def _run_palace_of_memory_job(
     ).run()
 
 
-def _run_scrobble_history_job(
+async def _run_scrobble_history_job(
     job_id: str, api_key: str, username: str, dry_run: bool, full_rebuild: bool = False
 ) -> None:
     """Refresh the shared Last.fm record as a reconnectable web job."""
-    ScrobbleHistoryWorker(
+    await ScrobbleHistoryWorker(
         job_id=job_id,
         api_key=api_key,
         username=username,
@@ -1202,7 +1204,7 @@ def _run_scrobble_history_job(
     ).run()
 
 
-def start_blast_job(
+async def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
     count: int | None,
@@ -1231,16 +1233,19 @@ def start_blast_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_blast_job,
-        args=(job_id, spotify, playlist_id, count, max_playlist_length, dry_run),
-        name=f"blast-from-the-past-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (
+            _run_blast_job(
+                job_id, spotify, playlist_id, count, max_playlist_length, dry_run
+            )
+        ),
+        job.cancel_event,
+        f"blast-from-the-past-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_blast_artist_job(
+async def start_blast_artist_job(
     spotify: Spotify, playlist_id: str, count: int, dry_run: bool
 ) -> BlastJobResult:
     """Start one dormant-artist recovery job.
@@ -1272,16 +1277,15 @@ def start_blast_artist_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_blast_artist_job,
-        args=(job_id, spotify, playlist_id, count, dry_run),
-        name=f"blast-from-the-past-artists-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_blast_artist_job(job_id, spotify, playlist_id, count, dry_run),
+        job.cancel_event,
+        f"blast-from-the-past-artists-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_daily_mind_radio_job(
+async def start_daily_mind_radio_job(
     spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> BlastJobResult:
     """Start one Daily Mind Radio job, rejecting another playlist routine.
@@ -1307,16 +1311,15 @@ def start_daily_mind_radio_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_daily_mind_radio_job,
-        args=(job_id, spotify, playlist_id, dry_run),
-        name=f"daily-mind-radio-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_daily_mind_radio_job(job_id, spotify, playlist_id, dry_run),
+        job.cancel_event,
+        f"daily-mind-radio-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_found_art_job(
+async def start_found_art_job(
     spotify: Spotify, playlist_id: str, api_key: str, username: str, count: int
 ) -> BlastJobResult:
     """Start one Found Art job, rejecting another playlist routine.
@@ -1342,16 +1345,15 @@ def start_found_art_job(
         _append_blast_log_locked(job, "Found Art queued.")
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_found_art_job,
-        args=(job_id, spotify, playlist_id, api_key, username, count),
-        name=f"found-art-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (_run_found_art_job(job_id, spotify, playlist_id, api_key, username, count)),
+        job.cancel_event,
+        f"found-art-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_sauvignon_job(
+async def start_sauvignon_job(
     spotify: Spotify,
     playlist_id: str,
     api_key: str,
@@ -1395,26 +1397,27 @@ def start_sauvignon_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_sauvignon_job,
-        args=(
-            job_id,
-            spotify,
-            playlist_id,
-            api_key,
-            username,
-            count,
-            max_playlist_length,
-            seed_count,
-            dry_run,
+    current_execution().jobs.start(
+        (
+            _run_sauvignon_job(
+                job_id,
+                spotify,
+                playlist_id,
+                api_key,
+                username,
+                count,
+                max_playlist_length,
+                seed_count,
+                dry_run,
+            )
         ),
-        name=f"sauvignon-fill-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"sauvignon-fill-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_queue_fill_job(
+async def start_queue_fill_job(
     spotify: Spotify,
     playlists: the_queue.QueuePlaylists,
     api_key: str,
@@ -1458,26 +1461,27 @@ def start_queue_fill_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_queue_fill_job,
-        args=(
-            job_id,
-            spotify,
-            playlists,
-            api_key,
-            username,
-            count,
-            max_playlist_length,
-            seed_count,
-            dry_run,
+    current_execution().jobs.start(
+        (
+            _run_queue_fill_job(
+                job_id,
+                spotify,
+                playlists,
+                api_key,
+                username,
+                count,
+                max_playlist_length,
+                seed_count,
+                dry_run,
+            )
         ),
-        name=f"queue-fill-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"queue-fill-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_queue_flush_job(
+async def start_queue_flush_job(
     spotify: Spotify, playlists: the_queue.QueuePlaylists, *, dry_run: bool
 ) -> BlastJobResult:
     """Start a Queue flush job, rejecting another playlist routine.
@@ -1501,16 +1505,15 @@ def start_queue_flush_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_queue_flush_job,
-        args=(job_id, spotify, playlists, dry_run),
-        name=f"queue-flush-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_queue_flush_job(job_id, spotify, playlists, dry_run),
+        job.cancel_event,
+        f"queue-flush-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_new_kids_job(
+async def start_new_kids_job(
     spotify: Spotify,
     new_kids_playlist_id: str,
     queue_2_playlist_id: str,
@@ -1547,25 +1550,26 @@ def start_new_kids_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_new_kids_job,
-        args=(
-            job_id,
-            spotify,
-            new_kids_playlist_id,
-            queue_2_playlist_id,
-            great_discoveries_playlist_id,
-            unlucky_ones_playlist_id,
-            newfoundland_playlist_id,
-            dry_run,
+    current_execution().jobs.start(
+        (
+            _run_new_kids_job(
+                job_id,
+                spotify,
+                new_kids_playlist_id,
+                queue_2_playlist_id,
+                great_discoveries_playlist_id,
+                unlucky_ones_playlist_id,
+                newfoundland_playlist_id,
+                dry_run,
+            )
         ),
-        name=f"new-kids-flush-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"new-kids-flush-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_queue_2_job(
+async def start_queue_2_job(
     spotify: Spotify,
     new_kids_playlist_id: str,
     queue_2_playlist_id: str,
@@ -1602,26 +1606,27 @@ def start_queue_2_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_new_kids_job,
-        args=(
-            job_id,
-            spotify,
-            new_kids_playlist_id,
-            queue_2_playlist_id,
-            great_discoveries_playlist_id,
-            unlucky_ones_playlist_id,
-            newfoundland_playlist_id,
-            dry_run,
-            "flush_queue_2",
+    current_execution().jobs.start(
+        (
+            _run_new_kids_job(
+                job_id,
+                spotify,
+                new_kids_playlist_id,
+                queue_2_playlist_id,
+                great_discoveries_playlist_id,
+                unlucky_ones_playlist_id,
+                newfoundland_playlist_id,
+                dry_run,
+                "flush_queue_2",
+            )
         ),
-        name=f"queue-2-flush-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"queue-2-flush-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_queue_3_job(
+async def start_queue_3_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool, annual_only: bool = False
 ) -> BlastJobResult:
     """Start one Queue 3 flush or standalone annual-import web job.
@@ -1653,16 +1658,15 @@ def start_queue_3_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_queue_3_job,
-        args=(job_id, spotify, playlist_id, dry_run, annual_only),
-        name=f"queue-3-{('import' if annual_only else 'flush')}-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_queue_3_job(job_id, spotify, playlist_id, dry_run, annual_only),
+        job.cancel_event,
+        f"queue-3-{('import' if annual_only else 'flush')}-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_new_wine_job(
+async def start_new_wine_job(
     spotify: Spotify,
     new_wine_playlist_id: str,
     sauvignon_playlist_id: str,
@@ -1703,25 +1707,26 @@ def start_new_wine_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_new_wine_job,
-        args=(
-            job_id,
-            spotify,
-            new_wine_playlist_id,
-            sauvignon_playlist_id,
-            wine_cellar_playlist_id,
-            dry_run,
-            no_discovery,
-            choose_album_endpoints,
+    current_execution().jobs.start(
+        (
+            _run_new_wine_job(
+                job_id,
+                spotify,
+                new_wine_playlist_id,
+                sauvignon_playlist_id,
+                wine_cellar_playlist_id,
+                dry_run,
+                no_discovery,
+                choose_album_endpoints,
+            )
         ),
-        name=f"new-wine-flush-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"new-wine-flush-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_slow_listening_job(
+async def start_slow_listening_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one Slow Listening web job, rejecting another playlist routine.
@@ -1750,16 +1755,15 @@ def start_slow_listening_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_slow_listening_job,
-        args=(job_id, spotify, playlist_id, dry_run),
-        name=f"slow-listening-flush-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_slow_listening_job(job_id, spotify, playlist_id, dry_run),
+        job.cancel_event,
+        f"slow-listening-flush-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_something_old_job(
+async def start_something_old_job(
     spotify: Spotify, playlist_id: str, api_key: str, username: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one interactive Something Old job with reload-safe state.
@@ -1790,16 +1794,19 @@ def start_something_old_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_something_old_job,
-        args=(job_id, spotify, playlist_id, api_key, username, dry_run),
-        name=f"something-old-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (
+            _run_something_old_job(
+                job_id, spotify, playlist_id, api_key, username, dry_run
+            )
+        ),
+        job.cancel_event,
+        f"something-old-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_release_check_job(
+async def start_release_check_job(
     spotify: Spotify,
     playlists: release_check.ReleaseCheckPlaylists,
     api_key: str,
@@ -1835,16 +1842,19 @@ def start_release_check_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_release_check_job,
-        args=(job_id, spotify, playlists, api_key, username, dry_run),
-        name=f"release-check-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (
+            _run_release_check_job(
+                job_id, spotify, playlists, api_key, username, dry_run
+            )
+        ),
+        job.cancel_event,
+        f"release-check-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_discography_job(
+async def start_discography_job(
     spotify: Spotify,
     playlist_ids: dict[discography.QueueName, str],
     queue_3_playlist_id: str,
@@ -1878,16 +1888,19 @@ def start_discography_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_discography_job,
-        args=(job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run),
-        name=f"discography-plan-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (
+            _run_discography_job(
+                job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run
+            )
+        ),
+        job.cancel_event,
+        f"discography-plan-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_requeue_for_a_dream_job(
+async def start_requeue_for_a_dream_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one Requeue for a Dream job with reload-safe state.
@@ -1916,16 +1929,15 @@ def start_requeue_for_a_dream_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_requeue_for_a_dream_job,
-        args=(job_id, spotify, playlist_id, dry_run),
-        name=f"requeue-for-a-dream-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        _run_requeue_for_a_dream_job(job_id, spotify, playlist_id, dry_run),
+        job.cancel_event,
+        f"requeue-for-a-dream-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_palace_of_memory_job(
+async def start_palace_of_memory_job(
     spotify: Spotify,
     playlist_id: str | None,
     *,
@@ -1970,23 +1982,24 @@ def start_palace_of_memory_job(
         _append_blast_log_locked(job, queued_message)
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_palace_of_memory_job,
-        args=(
-            job_id,
-            spotify,
-            playlist_id,
-            dry_run,
-            alphabetical_start,
-            cursor_position,
+    current_execution().jobs.start(
+        (
+            _run_palace_of_memory_job(
+                job_id,
+                spotify,
+                playlist_id,
+                dry_run,
+                alphabetical_start,
+                cursor_position,
+            )
         ),
-        name=f"palace-of-memory-{job_id[:8]}",
-        daemon=True,
-    ).start()
+        job.cancel_event,
+        f"palace-of-memory-{job_id[:8]}",
+    )
     return snapshot
 
 
-def start_scrobble_history_job(
+async def start_scrobble_history_job(
     api_key: str, username: str, *, dry_run: bool, full_rebuild: bool = False
 ) -> BlastJobResult:
     """Start one shared Last.fm history refresh with reload-safe state.
@@ -2019,20 +2032,21 @@ def start_scrobble_history_job(
         )
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_scrobble_history_job,
-        args=(job_id, api_key, username, dry_run, full_rebuild),
-        name=f"scrobble-history-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        (_run_scrobble_history_job(job_id, api_key, username, dry_run, full_rebuild)),
+        job.cancel_event,
+        f"scrobble-history-{job_id[:8]}",
+    )
     return snapshot
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Hydrate durable data once whenever an API process starts."""
-    hydrate_runtime_library_data()
-    yield
+    await _hydrate_library_data()
+    async with ExecutionRuntime() as runtime:
+        _app.state.execution = runtime
+        yield
 
 
 def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONResponse:
@@ -2172,11 +2186,11 @@ def _server_file_status(path: Path) -> ServerFileStatus:
     return ServerFileStatus(filename=path.name, exists=True, updated_at=modified_at)
 
 
-def _run_new_year_job(
+async def _run_new_year_job(
     job_id: str, spotify: Spotify, year: int | None, dry_run: bool
 ) -> None:
     """Run the annual workflow through the shared routine and job registry."""
-    NewYearWorker(
+    await NewYearWorker(
         job_id=job_id,
         spotify=spotify,
         year=year,
@@ -2202,3 +2216,9 @@ def _analysis_resources(
     for resource in resources:
         progress[resource] = AnalysisResourceProgress()
     return progress
+
+
+async def _hydrate_library_data() -> None:
+    async with blocking_capacity():
+        task = asyncio.create_task(asyncio.to_thread(hydrate_runtime_library_data))
+        await finish_blocking(task)

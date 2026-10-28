@@ -10,11 +10,13 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.domain.library_analysis_values import IncompleteLiveResourceError
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
 from spotify_manager.domain.library_analysis_values import ResourceName
+from spotify_manager.infrastructure.analysis_file_ports import (
+    BlockingAnalysisFiles as AnalysisFiles,
+)
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack

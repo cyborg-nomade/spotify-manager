@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import RankedArtist
 
@@ -21,7 +20,7 @@ class LegacyArtistSearch:
     spotify: Spotify
     retry: RetryCall
 
-    def search(
+    async def search(
         self, artist: RankedArtist, text: str | None
     ) -> tuple[SpotifyArtistCandidate, ...]:
         """Read candidates through the original concrete SDK leaf.
@@ -33,6 +32,8 @@ class LegacyArtistSearch:
         Returns:
             Candidates in original search order.
         """
-        from spotify_manager.routines.release_check import search_spotify_artists
+        from spotify_manager.routines.release_check import (
+            async_search_spotify_artists as search_spotify_artists,
+        )
 
-        return search_spotify_artists(self.spotify, artist, self.retry, text)
+        return await search_spotify_artists(self.spotify, artist, self.retry, text)

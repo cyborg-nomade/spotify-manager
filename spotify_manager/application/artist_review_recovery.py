@@ -31,7 +31,7 @@ class QueueMove:
     raw: dict[str, object]
 
 
-def flush_unfollows(session: ReviewSession) -> None:
+async def flush_unfollows(session: ReviewSession) -> None:
     """Reconcile absent artists before ordered forty-artist mutation batches.
 
     Args:
@@ -48,19 +48,19 @@ def flush_unfollows(session: ReviewSession) -> None:
         else:
             absent.append(identity)
     for identity in absent:
-        _reconcile_unfollow(session, identity)
+        await _reconcile_unfollow(session, identity)
     while pending:
         batch_ids = pending[:40]
-        _unfollow_batch(session, [current[identity] for identity in batch_ids])
+        await _unfollow_batch(session, [current[identity] for identity in batch_ids])
         pending = pending[40:]
 
 
-def _reconcile_unfollow(session: ReviewSession, identity: str) -> None:
+async def _reconcile_unfollow(session: ReviewSession, identity: str) -> None:
     plan = session.state.pending_unfollows[identity]
     item = YourLibraryArtist(
         name=str(plan.get("artist") or identity), uri=f"spotify:artist:{identity}"
     )
-    session.complete(
+    await session.complete(
         item,
         _log_int(plan.get("liked_tracks", 0)),
         "auto_unfollow_reconciled",
@@ -68,9 +68,12 @@ def _reconcile_unfollow(session: ReviewSession, identity: str) -> None:
     )
 
 
-def _unfollow_batch(session: ReviewSession, batch: list[YourLibraryArtist]) -> None:
-    session.spotify.unfollow(
-        [artist.uri for artist in batch], f"unfollowing {len(batch)} zero-liked artists"
+async def _unfollow_batch(
+    session: ReviewSession, batch: list[YourLibraryArtist]
+) -> None:
+    await session.spotify.unfollow(
+        [artist.uri for artist in batch],
+        f"unfollowing {len(batch)} zero-liked artists",
     )
     removed = {artist.spotify_id for artist in batch}
     remaining = []
@@ -78,15 +81,15 @@ def _unfollow_batch(session: ReviewSession, batch: list[YourLibraryArtist]) -> N
         if artist.spotify_id not in removed:
             remaining.append(artist)
     session.artists = remaining
-    session.storage.save_artists(remaining)
-    session.storage.stats(len(remaining), len(batch))
+    await session.storage.save_artists(remaining)
+    await session.storage.stats(len(remaining), len(batch))
     for artist in batch:
-        _complete_unfollow(session, artist)
+        await _complete_unfollow(session, artist)
 
 
-def _complete_unfollow(session: ReviewSession, artist: YourLibraryArtist) -> None:
+async def _complete_unfollow(session: ReviewSession, artist: YourLibraryArtist) -> None:
     plan = session.state.pending_unfollows[artist.spotify_id]
-    session.complete(
+    await session.complete(
         artist,
         _log_int(plan.get("liked_tracks", 0)),
         "auto_unfollow",
@@ -96,7 +99,7 @@ def _complete_unfollow(session: ReviewSession, artist: YourLibraryArtist) -> Non
     session.interaction.output.echo(f"Auto-unfollowed: {artist.name}")
 
 
-def flush_moves(
+async def flush_moves(
     session: ReviewSession, authority: MembershipAccess | None = None
 ) -> None:
     """Finish original pending promotions without duplicate destination markers.
@@ -115,9 +118,9 @@ def flush_moves(
         item = artists.get(identity) or YourLibraryArtist(
             name=str(raw.get("artist") or identity), uri=f"spotify:artist:{identity}"
         )
-        _append_move_target(session, item, move, membership)
-        removed = _remove_move_source(session, item, move, membership)
-        _complete_move(session, item, move, removed)
+        await _append_move_target(session, item, move, membership)
+        removed = await _remove_move_source(session, item, move, membership)
+        await _complete_move(session, item, move, removed)
 
 
 def _move_fields(identity: str, raw: dict[str, object]) -> QueueMove:
@@ -141,16 +144,16 @@ def _source_uris(raw: object) -> list[str]:
     return uris
 
 
-def _append_move_target(
+async def _append_move_target(
     session: ReviewSession,
     item: YourLibraryArtist,
     move: QueueMove,
     membership: MembershipAccess,
 ) -> None:
-    target = membership.membership(move.target)
+    target = await membership.membership(move.target)
     if item.spotify_id in target.primary_artist_ids:
         return
-    session.spotify.append(
+    await session.spotify.append(
         move.target,
         move.track_uri,
         f"adding {item.name} to queue playlist {move.target}",
@@ -162,20 +165,20 @@ def _append_move_target(
     )
 
 
-def _remove_move_source(
+async def _remove_move_source(
     session: ReviewSession,
     item: YourLibraryArtist,
     move: QueueMove,
     membership: MembershipAccess,
 ) -> list[str]:
-    source = membership.membership(move.source)
+    source = await membership.membership(move.source)
     current = set(source.track_uris_by_primary_artist.get(item.spotify_id, []))
     removed = []
     for uri in move.source_uris:
         if uri in current:
             removed.append(uri)
     for start in range(0, len(removed), 100):
-        session.spotify.remove(
+        await session.spotify.remove(
             move.source,
             removed[start : start + 100],
             f"removing {item.name} from queue playlist {move.source}",
@@ -198,10 +201,10 @@ def _retain_source(
     source.primary_artist_ids.discard(identity)
 
 
-def _complete_move(
+async def _complete_move(
     session: ReviewSession, item: YourLibraryArtist, move: QueueMove, removed: list[str]
 ) -> None:
-    session.complete(
+    await session.complete(
         item,
         _log_int(move.raw.get("liked_tracks", 0)),
         "queue_moved",

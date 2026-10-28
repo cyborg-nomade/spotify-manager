@@ -10,14 +10,14 @@ from spotify_manager.domain.catalog import ReleaseTrack
 class SlowListeningAccess(Protocol):
     """Observe and mutate one playlist, namespace and audit destination."""
 
-    def playlist(self) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self) -> tuple[PlaylistTrack, ...]:
         """Read the live playlist at the original freshness boundary.
 
         Returns:
             Ordered playable markers with release facts.
         """
 
-    def load_state(self, dry_run: bool) -> dict[str, object]:
+    async def load_state(self, dry_run: bool) -> dict[str, object]:
         """Resolve namespace access and choose persistent state or a preview default.
 
         Args:
@@ -27,28 +27,28 @@ class SlowListeningAccess(Protocol):
             Validated namespace, retaining its legacy fields.
         """
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Persist the complete namespace at one checkpoint.
 
         Args:
             state: Current namespace including choices and execution progress.
         """
 
-    def append(self, target: ReleaseTrack) -> None:
+    async def append(self, target: ReleaseTrack) -> None:
         """Append a replacement before removing its source.
 
         Args:
             target: Accepted replacement track.
         """
 
-    def remove(self, source: PlaylistTrack) -> None:
+    async def remove(self, source: PlaylistTrack) -> None:
         """Remove a source after its replacement is secure.
 
         Args:
             source: Original playlist marker.
         """
 
-    def audit(self, run_id: str, result: FlushResult) -> None:
+    async def audit(self, run_id: str, result: FlushResult) -> None:
         """Append one result, including previews and skips.
 
         Args:

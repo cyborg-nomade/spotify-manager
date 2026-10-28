@@ -94,7 +94,7 @@ class QueueFill:
     minimum_candidates: int = 100
     top_track_limit: int = 10
 
-    def run(self, request: QueueFillRequest) -> FillSummary:
+    async def run(self, request: QueueFillRequest) -> FillSummary:
         """Preserve original preview learning and accepted-effect failure boundaries.
 
         Args:
@@ -110,36 +110,38 @@ class QueueFill:
         """
         validate_fill_request(request)
         self.effects.configure()
-        now, facts = self._facts(request)
+        now, facts = await self._facts(request)
         if not facts.requested:
             return _summary(request, facts, 0, 0, None)
         seeds = self.stages.seeds.select(facts.history, request.seed_count, facts.week)
-        candidates = self.stages.recommendations.run(
+        candidates = await self.stages.recommendations.run(
             seeds,
             {artist.key for artist in facts.history},
             facts.week,
             max(self.minimum_candidates, facts.requested * self.candidate_multiplier),
             now,
         )
-        processed = self._processor(request.preview)
-        processed.run(candidates, facts.requested)
+        processed = await self._processor(request.preview)
+        await processed.run(candidates, facts.requested)
         return _summary(request, facts, len(seeds), len(candidates), processed)
 
-    def _facts(self, request: QueueFillRequest) -> tuple[datetime, QueueFillFacts]:
+    async def _facts(
+        self, request: QueueFillRequest
+    ) -> tuple[datetime, QueueFillFacts]:
         now = self.effects.clock()
         week = listening_week_start(self.effects.local_date(now))
-        plays, added = self.effects.history(request.preview, now)
+        plays, added = await self.effects.history(request.preview, now)
         history = aggregate_artists(plays)
-        before = self.effects.queue_length()
+        before = await self.effects.queue_length()
         requested = requested_additions(
             request.count, request.maximum_length, before, self.default_count
         )
         return now, QueueFillFacts(week, history, len(plays), added, before, requested)
 
-    def _processor(self, preview: bool) -> QueueFillCandidates:
-        represented = self.effects.represented()
+    async def _processor(self, preview: bool) -> QueueFillCandidates:
+        represented = await self.effects.represented()
         access = self.effects.state()
-        state = access.load()
+        state = await access.load()
         mappings = state["artist_mappings"]
         assert isinstance(mappings, dict)
         return QueueFillCandidates(

@@ -1,14 +1,14 @@
 """Interactive routine for removing albums below the liked-track threshold."""
 
+import asyncio
 import json
-import time
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from typing import Protocol
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.artist_follows import (
@@ -20,13 +20,14 @@ from spotify_manager.application.library_statistics import (
 from spotify_manager.application.ports.runtime import CountProgress
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Wait
-
-# UFI
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist as AlbumArtist
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
@@ -34,6 +35,12 @@ from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
 )
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.album_limits import (
+    BlockingAlbumAction as LegacyAlbumAction,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingWait as LegacyWait,
+)
 from spotify_manager.infrastructure.routine_state_codecs import (
     ReviewAlbumLimitsStateCodec,
 )
@@ -76,6 +83,9 @@ from spotify_manager.infrastructure.spotify.retry import (
 from spotify_manager.infrastructure.spotify.retry import (
     parse_retry_after_seconds as parse_retry_after_seconds,
 )
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+
+# UFI
 from spotify_manager.interfaces.presenters.album_limits import (
     echo_track_details as echo_track_details,
 )
@@ -103,7 +113,6 @@ from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
-from spotify_manager.processors.library_lookups import evaluate_album as evaluate_album
 from spotify_manager.utils.sorting import artist_sort_key
 
 
@@ -127,7 +136,7 @@ TRACK_CONTAINS_BATCH_SIZE = 20
 class ActionReader(Protocol):
     """Own the operator interaction for choose action."""
 
-    def choose_action(
+    async def choose_action(
         self, album: YourLibraryAlbum, evaluation: AlbumEvaluation, /
     ) -> str:
         """Read or report the original operator interaction.
@@ -180,11 +189,11 @@ def _artist_candidate(candidates: list[dict[str, Any]], name: str) -> dict[str, 
     return candidates[0]
 
 
-def _album_artist_metadata(
+async def _album_artist_metadata(
     sp: Spotify, album: YourLibraryAlbum
 ) -> dict[str, Any] | None:
     try:
-        spotify_album = sp.album(album.spotify_id)
+        spotify_album = await sp.album(album.spotify_id)
     except SpotifyException as exc:
         handle_spotify_exception(exc)
     spotify_artists = spotify_album.get("artists", [])
@@ -193,7 +202,7 @@ def _album_artist_metadata(
     return _artist_candidate(spotify_artists, album.artist)
 
 
-def resolve_album_artist(
+async def async_resolve_album_artist(
     sp: Spotify,
     album: YourLibraryAlbum,
     known_artist_ids: dict[str, str],
@@ -216,7 +225,7 @@ def resolve_album_artist(
     if known_artist_id:
         return AlbumArtist(spotify_id=known_artist_id, name=album.artist)
 
-    artist = _album_artist_metadata(sp, album)
+    artist = await _album_artist_metadata(sp, album)
     if artist is None:
         return None
     artist_id = artist.get("id")
@@ -254,17 +263,29 @@ def add_followed_artist_to_total_file(artist: AlbumArtist) -> bool:
         Whether the mirror gained this artist.
     """
     total_artists = load_total_artists_file()
-    if any(
-        stored_artist.spotify_id == artist.spotify_id for stored_artist in total_artists
-    ):
-        return False
+    for stored_artist in total_artists:
+        if stored_artist.spotify_id == artist.spotify_id:
+            return False
 
     updated_artists = [*total_artists, to_library_artist(artist)]
     save_total_artists_file(sorted(updated_artists, key=artist_sort_key))
     return True
 
 
-def update_stats_history_for_followed_artist() -> bool:
+async def async_update_stats_history_for_followed_artist() -> bool:
+    """Record one newly followed artist in stats_history.json.
+
+    Returns:
+        Whether a nonempty history was updated.
+    """
+    async with blocking_capacity():
+        task = asyncio.create_task(
+            asyncio.to_thread(_blocking_update_stats_history_for_followed_artist)
+        )
+        return await finish_blocking(task)
+
+
+def _blocking_update_stats_history_for_followed_artist() -> bool:
     """Record one newly followed artist in stats_history.json.
 
     Returns:
@@ -273,7 +294,6 @@ def update_stats_history_for_followed_artist() -> bool:
     stats_history = load_stats_history_file()
     if not stats_history:
         return False
-
     key = current_stats_history_key()
     existing_period = key in stats_history
     source_report = (
@@ -286,7 +306,7 @@ def update_stats_history_for_followed_artist() -> bool:
     return True
 
 
-def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
+async def async_record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
     """Persist a newly followed artist to local files.
 
     Args:
@@ -295,7 +315,11 @@ def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
     Returns:
         Original mirror and statistics publication flags.
     """
-    total_artists_updated = add_followed_artist_to_total_file(artist)
+    async with blocking_capacity():
+        file_operation = asyncio.create_task(
+            asyncio.to_thread(add_followed_artist_to_total_file, artist)
+        )
+        total_artists_updated = await finish_blocking(file_operation)
     if not total_artists_updated:
         return ArtistPersistenceResult(
             total_artists_updated=False,
@@ -304,7 +328,7 @@ def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
 
     return ArtistPersistenceResult(
         total_artists_updated=True,
-        stats_history_updated=update_stats_history_for_followed_artist(),
+        stats_history_updated=(await async_update_stats_history_for_followed_artist()),
     )
 
 
@@ -388,15 +412,20 @@ def save_review_decisions(
 
 
 def _state_access(
-    decisions_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    decisions_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "review_album_limits",
         ReviewAlbumLimitsStateCodec(),
         StateLocation(decisions_path, REVIEW_DECISIONS_PATH, state_service),
     )
+
+
+def _async_state_access(
+    decisions_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(decisions_path, state_service))
 
 
 def record_review_decision(
@@ -406,7 +435,7 @@ def record_review_decision(
     decision: str,
     decisions_path: Path = REVIEW_DECISIONS_PATH,
     live_liked_tracks: int | None = None,
-    state_access: RoutineState | None = None,
+    state_access: BlockingRoutineState | None = None,
 ) -> None:
     """Persist a user review decision for restart-safe reviews.
 
@@ -505,7 +534,7 @@ def track_ids_from_evaluation(evaluation: AlbumEvaluation) -> list[str]:
     return [track.spotify_id for track in evaluation.tracks if track.spotify_id]
 
 
-def get_live_liked_track_count(sp: Spotify, track_ids: list[str]) -> int:
+async def async_get_live_liked_track_count(sp: Spotify, track_ids: list[str]) -> int:
     """Count album tracks currently saved by the user in Spotify.
 
     Args:
@@ -519,14 +548,14 @@ def get_live_liked_track_count(sp: Spotify, track_ids: list[str]) -> int:
     for start in range(0, len(track_ids), TRACK_CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + TRACK_CONTAINS_BATCH_SIZE]
         try:
-            saved_statuses = sp.current_user_saved_tracks_contains(batch)
+            saved_statuses = await sp.current_user_saved_tracks_contains(batch)
         except SpotifyException as exc:
             handle_spotify_exception(exc)
         liked_count += sum(1 for is_saved in saved_statuses if is_saved)
     return liked_count
 
 
-def remove_album_from_library(
+async def async_remove_album_from_library(
     sp: Spotify,
     album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
@@ -550,38 +579,47 @@ def remove_album_from_library(
         Mirror contents after the completed deletion and audit.
     """
     try:
-        sp.current_user_saved_albums_delete([album.spotify_id])
+        await sp.current_user_saved_albums_delete([album.spotify_id])
     except SpotifyException as exc:
         handle_spotify_exception(exc)
 
     updated_albums = remove_first_matching_album(remaining_albums, album.spotify_id)
-    save_total_albums_new_file(updated_albums)
-    append_removed_album_log(
-        album,
-        evaluation,
-        log_path=log_path,
-        action=action,
-        live_liked_tracks=live_liked_tracks,
-    )
+    async with blocking_capacity():
+        albums_write = asyncio.create_task(
+            asyncio.to_thread(save_total_albums_new_file, updated_albums)
+        )
+        await finish_blocking(albums_write)
+    async with blocking_capacity():
+        file_operation = asyncio.create_task(
+            asyncio.to_thread(
+                append_removed_album_log,
+                album,
+                evaluation,
+                log_path=log_path,
+                action=action,
+                live_liked_tracks=live_liked_tracks,
+            )
+        )
+        await finish_blocking(file_operation)
     return updated_albums
 
 
-def _is_artist_followed(sp: Spotify, artist: AlbumArtist) -> bool:
+async def _is_artist_followed(sp: Spotify, artist: AlbumArtist) -> bool:
     try:
-        followed_response = sp.current_user_following_artists([artist.spotify_id])
+        followed_response = await sp.current_user_following_artists([artist.spotify_id])
     except SpotifyException as exc:
         handle_spotify_exception(exc)
     return bool(followed_response[0]) if followed_response else False
 
 
-def _follow_artist(sp: Spotify, artist: AlbumArtist) -> None:
+async def _follow_artist(sp: Spotify, artist: AlbumArtist) -> None:
     try:
-        sp.user_follow_artists([artist.spotify_id])
+        await sp.user_follow_artists([artist.spotify_id])
     except SpotifyException as exc:
         handle_spotify_exception(exc)
 
 
-def ensure_artist_followed(
+async def async_ensure_artist_followed(
     sp: Spotify,
     album: YourLibraryAlbum,
     known_artist_ids: dict[str, str],
@@ -607,12 +645,14 @@ def ensure_artist_followed(
     from spotify_manager.bootstrap.album_limits import follow_review_artist
     from spotify_manager.interfaces.presenters.album_limits import present_artist_follow
 
-    outcome = follow_review_artist(sp, album, known_artist_ids, checked_artist_ids)
+    outcome = await follow_review_artist(
+        sp, album, known_artist_ids, checked_artist_ids
+    )
     present_artist_follow(outcome, album, echo)
     return outcome.action == "followed"
 
 
-def review_album_limits(
+async def async_review_album_limits(
     sp: Spotify,
     action_reader: ActionReader,
     threshold: float = 0.5,
@@ -623,7 +663,7 @@ def review_album_limits(
     decisions_path: Path | None = None,
     state_service: StateService | None = None,
     progress_callback: ProgressCallback | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
 ) -> None:
@@ -652,7 +692,7 @@ def review_album_limits(
         review_album_limits as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         action_reader,
         threshold,
@@ -666,4 +706,204 @@ def review_album_limits(
         sleep,
         transient_retry_delay_seconds,
         transient_max_attempts,
+    )
+
+
+def resolve_album_artist(
+    sp: LegacySpotify, album: YourLibraryAlbum, known_artist_ids: dict[str, str]
+) -> AlbumArtist | None:
+    """Resolve the artist using original local-name and primary-credit rules.
+
+    Args:
+        sp: Caller-owned client.
+        album: Original review item.
+        known_artist_ids: Mutable run-scoped name cache.
+
+    Returns:
+        Resolved identity, or None for absent metadata/identifier.
+
+    Raises:
+        SpotifyRateLimitError: Spotify reports a rate limit.
+        SpotifyException: Other Spotify failures retain their original type.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_album_artist(legacy_spotify(sp), album, known_artist_ids)
+    )
+
+
+def update_stats_history_for_followed_artist() -> bool:
+    """Record one newly followed artist in stats_history.json.
+
+    Returns:
+        Whether a nonempty history was updated.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_update_stats_history_for_followed_artist())
+
+
+def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
+    """Persist a newly followed artist to local files.
+
+    Args:
+        artist: Resolved Spotify artist identity.
+
+    Returns:
+        Original mirror and statistics publication flags.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_record_followed_artist(artist))
+
+
+def get_live_liked_track_count(sp: LegacySpotify, track_ids: list[str]) -> int:
+    """Count album tracks currently saved by the user in Spotify.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        track_ids: Ordered original track identifiers, including duplicates.
+
+    Returns:
+        Number of truthy observed membership statuses.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(async_get_live_liked_track_count(legacy_spotify(sp), track_ids))
+
+
+def remove_album_from_library(
+    sp: LegacySpotify,
+    album: YourLibraryAlbum,
+    evaluation: AlbumEvaluation,
+    remaining_albums: list[YourLibraryAlbum],
+    log_path: Path,
+    action: str = "manual",
+    live_liked_tracks: int | None = None,
+) -> list[YourLibraryAlbum]:
+    """Remove an album from Spotify and persist the local removal immediately.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        album: Original validated library item.
+        evaluation: Original assessment and source metadata.
+        remaining_albums: Current ordered mirror snapshot.
+        log_path: Original audit file destination.
+        action: Original removal reason retained in the audit.
+        live_liked_tracks: Last live membership count, when available.
+
+    Returns:
+        Mirror contents after the completed deletion and audit.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_remove_album_from_library(
+            legacy_spotify(sp),
+            album,
+            evaluation,
+            remaining_albums,
+            log_path,
+            action,
+            live_liked_tracks,
+        )
+    )
+
+
+def ensure_artist_followed(
+    sp: LegacySpotify,
+    album: YourLibraryAlbum,
+    known_artist_ids: dict[str, str],
+    checked_artist_ids: set[str],
+    echo: Echo,
+) -> bool:
+    """Follow the album artist through the shared application decision.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        album: Current review item.
+        known_artist_ids: Run-scoped artist-name resolution cache.
+        checked_artist_ids: Run-scoped completed artist checks.
+        echo: Existing output callback.
+
+    Returns:
+        Whether a new follow and its persistence completed.
+
+    Raises:
+        SpotifyRateLimitError: Spotify reports a rate limit.
+        SpotifyException: A different Spotify error occurs.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_ensure_artist_followed(
+            legacy_spotify(sp), album, known_artist_ids, checked_artist_ids, echo
+        )
+    )
+
+
+def review_album_limits(
+    sp: LegacySpotify,
+    action_reader: ActionReader | LegacyAlbumAction,
+    threshold: float = 0.5,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+    echo: Echo = STANDARD_OUTPUT,
+    log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    decisions_path: Path | None = None,
+    state_service: StateService | None = None,
+    progress_callback: ProgressCallback | None = None,
+    sleep: Sleep | LegacyWait = asyncio,
+    transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
+    transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
+) -> None:
+    """Review saved albums through an injected application use case.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        action_reader: Interface choice callback.
+        threshold: Existing retention threshold.
+        use_cache: Read cached track lists when available.
+        refresh_cache: Refresh track lists before evaluation.
+        echo: Existing message sink.
+        log_path: Removal audit destination.
+        decisions_path: Optional explicit legacy decisions path.
+        state_service: Optional shared-state service.
+        progress_callback: Optional completion and cancellation callback.
+        sleep: Existing retry wait callback.
+        transient_retry_delay_seconds: Existing retry delay.
+        transient_max_attempts: Existing retry limit.
+
+    Raises:
+        SpotifyRateLimitError: Spotify reports a rate limit.
+        SpotifyTransientServerError: The configured retry policy is exhausted.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.album_limits import (
+        PythonAlbumAction,
+    )
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_review_album_limits(
+            legacy_spotify(sp),
+            PythonAlbumAction(action_reader),
+            threshold,
+            use_cache,
+            refresh_cache,
+            echo,
+            log_path,
+            decisions_path,
+            state_service,
+            progress_callback,
+            PythonWait(sleep),
+            transient_retry_delay_seconds,
+            transient_max_attempts,
+        )
     )

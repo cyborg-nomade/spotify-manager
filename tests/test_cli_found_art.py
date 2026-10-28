@@ -3,6 +3,7 @@
 from datetime import UTC
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -77,8 +78,8 @@ def test_found_art_dry_run_defaults_to_twenty_and_prints_results(
             lastfm_username="man-et-arms",
         ),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.found_art, "run_found_art", run)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
+    monkeypatch.setattr(main.found_art, "run_found_art", AsyncMock(side_effect=run))
 
     result = CliRunner().invoke(main.app, ["found-art", "--dry-run"])
 

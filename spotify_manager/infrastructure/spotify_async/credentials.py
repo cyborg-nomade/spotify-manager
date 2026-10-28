@@ -162,3 +162,41 @@ class Credentials:
         for result in results:
             if isinstance(result, BaseException):
                 raise result
+
+    async def manual_rotation(self) -> str:
+        """Force-refresh the next usable app at the original operator boundary.
+
+        Returns:
+            Original newly activated app label.
+
+        Raises:
+            SpotifyAppAuthenticationError: No alternate app is usable.
+        """
+        async with self.rotation:
+            if not await self._next({self.active}):
+                raise SpotifyAppAuthenticationError(
+                    "No alternate Spotify credential set could be activated."
+                )
+            return self.entries[self.active].source.label
+
+    async def refresh_all(self) -> tuple[str, ...]:
+        """Refresh all configured apps while retaining the selected active app.
+
+        Returns:
+            Original successfully refreshed app labels in configuration order.
+
+        Raises:
+            SpotifyAppAuthenticationError: An app cannot authenticate.
+        """
+        refreshed = []
+        async with self.rotation:
+            for entry in self.entries:
+                self.output.echo(
+                    f"Refreshing Spotify token for credentials {entry.source.label}."
+                )
+                await entry.refresh()
+                refreshed.append(entry.source.label)
+                self.output.echo(
+                    f"Spotify token ready for credentials {entry.source.label}."
+                )
+        return tuple(refreshed)

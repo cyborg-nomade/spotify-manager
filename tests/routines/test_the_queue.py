@@ -6,6 +6,7 @@ from datetime import date
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -97,7 +98,7 @@ class FakeSpotify:
             for track in tracks
         ]
 
-    def _get(self, path: str, *, limit: int, offset: int):
+    async def _get(self, path: str, *, limit: int, offset: int):
         playlist_id = path.split("/")[1]
         tracks = self.playlists[playlist_id]
         page = tracks[offset : offset + limit]
@@ -107,7 +108,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def _post(self, path: str, *, payload: dict[str, object]):
+    async def _post(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         uris = payload["uris"]
         assert isinstance(uris, list)
@@ -118,7 +119,7 @@ class FakeSpotify:
                 self.mutations.append(("add", playlist_id, str(track["id"])))
         return {}
 
-    def _delete(
+    async def _delete(
         self,
         path: str,
         *,
@@ -149,10 +150,10 @@ class FakeSpotify:
         )
         return {}
 
-    def artist_top_tracks(self, artist_id: str):
+    async def artist_top_tracks(self, artist_id: str):
         return {"tracks": self.top_tracks.get(artist_id, [])}
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -168,7 +169,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(releases) else None,
         }
 
-    def albums(self, album_ids: list[str]):
+    async def albums(self, album_ids: list[str]):
         by_id = {
             str(release["id"]): release
             for releases in self.artist_releases.values()
@@ -176,7 +177,7 @@ class FakeSpotify:
         }
         return {"albums": [by_id[album_id] for album_id in album_ids]}
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
         return {
@@ -184,20 +185,20 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def tracks(self, track_ids: list[str]):
+    async def tracks(self, track_ids: list[str]):
         by_id = {str(track["id"]): track for track in self.all_tracks()}
         return {"tracks": [by_id[track_id] for track_id in track_ids]}
 
-    def current_user_saved_tracks_contains(self, track_ids: list[str]):
+    async def current_user_saved_tracks_contains(self, track_ids: list[str]):
         return [track_id in self.liked_ids for track_id in track_ids]
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def current_user_following_artists(self, artist_ids: list[str]):
+    async def current_user_following_artists(self, artist_ids: list[str]):
         return [artist_id in self.followed_ids for artist_id in artist_ids]
 
-    def user_follow_artists(self, artist_ids: list[str]):
+    async def user_follow_artists(self, artist_ids: list[str]):
         self.followed_ids.update(artist_ids)
         self.mutations.extend(
             ("follow", "library", artist_id) for artist_id in artist_ids
@@ -209,7 +210,7 @@ class FakeSpotify:
             ("unfollow", "library", artist_id) for artist_id in artist_ids
         )
 
-    def search(self, *, q: str, limit: int, offset: int, **kwargs: str):
+    async def search(self, *, q: str, limit: int, offset: int, **kwargs: str):
         assert kwargs["type"] == "artist"
         assert limit == 10
         assert offset == 0
@@ -225,7 +226,7 @@ class FakeLastFm:
         self.similar: dict[str, tuple[LastFmSimilarArtist, ...]] = {}
         self.calls: list[str] = []
 
-    def similar_artists(
+    async def similar_artists(
         self,
         artist: str,
         *,
@@ -235,10 +236,10 @@ class FakeLastFm:
         self.calls.append(artist)
         return self.similar.get(artist, ())
 
-    def similar_tracks(self, artist: str, track: str, *, limit: int = 50):
+    async def similar_tracks(self, artist: str, track: str, *, limit: int = 50):
         return ()
 
-    def recent_tracks(
+    async def recent_tracks(
         self,
         *,
         from_timestamp: int,
@@ -423,7 +424,7 @@ def test_seed_selection_falls_back_to_older_history() -> None:
     assert all(seed.source == "overall" for seed in seeds)
 
 
-def test_recommendations_exclude_heard_and_previous_artists_and_cache(
+async def test_recommendations_exclude_heard_and_previous_artists_and_cache(
     tmp_path: Path,
 ) -> None:
     """Recommendations exclude heard and previous artists and cache.
@@ -527,7 +528,7 @@ def test_cached_similar_artists_validate_shape_and_week() -> None:
     ) == (LastFmSimilarArtist("Neighbor", 0.75),)
 
 
-def test_queue_mapping_likes_and_follow_persistence_helpers(
+async def test_queue_mapping_likes_and_follow_persistence_helpers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Queue mapping likes and follow persistence helpers.
@@ -538,13 +539,12 @@ def test_queue_mapping_likes_and_follow_persistence_helpers(
     assert the_queue._mapped_artist({"spotify_id": "incomplete"}) is None
     spotify = FakeSpotify()
     assert (
-        the_queue._liked_statuses(
+        await the_queue._liked_statuses(
             spotify,
             (),
             NoRetry(),
         )
-        == {}
-    )
+    ) == {}
     track = the_queue.new_kids.CatalogTrack(
         "track",
         "spotify:track:track",
@@ -555,32 +555,38 @@ def test_queue_mapping_likes_and_follow_persistence_helpers(
         "Artist",
     )
     monkeypatch.setattr(
-        spotify, "current_user_saved_tracks_contains", Mock(return_value=[])
+        spotify,
+        "current_user_saved_tracks_contains",
+        AsyncMock(side_effect=Mock(return_value=[])),
     )
     with pytest.raises(the_queue.QueueSpotifyError, match="Liked Songs statuses"):
-        the_queue._liked_statuses(spotify, (track,), NoRetry())
+        (await the_queue._liked_statuses(spotify, (track,), NoRetry()))
 
     monkeypatch.setattr(
         the_queue,
         "record_followed_artist",
-        Mock(
-            return_value=SimpleNamespace(
-                total_artists_updated=True, stats_history_updated=True
+        AsyncMock(
+            side_effect=Mock(
+                return_value=SimpleNamespace(
+                    total_artists_updated=True, stats_history_updated=True
+                )
             )
         ),
     )
     messages: list[str] = []
-    the_queue._persist_followed_artist(
-        the_queue.release_check.SpotifyArtistCandidate(
-            "artist",
-            "Artist",
-            "spotify:artist:artist",
-            50,
-            100,
-            1,
-            True,
-        ),
-        MessageList(messages),
+    (
+        await the_queue._persist_followed_artist(
+            the_queue.release_check.SpotifyArtistCandidate(
+                "artist",
+                "Artist",
+                "spotify:artist:artist",
+                50,
+                100,
+                1,
+                True,
+            ),
+            MessageList(messages),
+        )
     )
     assert messages == [
         "Recorded artist in artists_total.json: Artist",
@@ -609,7 +615,7 @@ def test_queue_catalog_record_accepts_an_empty_target() -> None:
     assert the_queue._catalog_track_from_record(None) is None
 
 
-def test_flush_skips_liked_top_tracks_and_limits_unique_artists(
+async def test_flush_skips_liked_top_tracks_and_limits_unique_artists(
     tmp_path: Path,
 ) -> None:
     spotify = FakeSpotify()
@@ -639,7 +645,7 @@ def test_flush_skips_liked_top_tracks_and_limits_unique_artists(
     assert "a1-t3" in remaining_ids
 
 
-def test_flush_promotes_immediately_at_six_live_likes(tmp_path: Path) -> None:
+async def test_flush_promotes_immediately_at_six_live_likes(tmp_path: Path) -> None:
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "promote", track_count=7)
     spotify.playlists["queue"] = [tracks[0]]
@@ -658,7 +664,7 @@ def test_flush_promotes_immediately_at_six_live_likes(tmp_path: Path) -> None:
     assert spotify.playlists["queue"] == []
 
 
-def test_flush_promotes_five_of_top_ten_at_endpoint(tmp_path: Path) -> None:
+async def test_flush_promotes_five_of_top_ten_at_endpoint(tmp_path: Path) -> None:
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "endpoint", track_count=6)
     spotify.playlists["queue"] = [tracks[-1]]
@@ -674,7 +680,7 @@ def test_flush_promotes_five_of_top_ten_at_endpoint(tmp_path: Path) -> None:
     assert summary.results[0].top_liked_tracks == 5
 
 
-def test_flush_rejects_to_unlucky_and_unfollows(tmp_path: Path) -> None:
+async def test_flush_rejects_to_unlucky_and_unfollows(tmp_path: Path) -> None:
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "reject", track_count=3)
     spotify.playlists["queue"] = [tracks[-1]]
@@ -693,7 +699,7 @@ def test_flush_rejects_to_unlucky_and_unfollows(tmp_path: Path) -> None:
     assert spotify.playlists["queue"] == []
 
 
-def test_flush_resumes_after_target_was_added(tmp_path: Path) -> None:
+async def test_flush_resumes_after_target_was_added(tmp_path: Path) -> None:
     spotify = FakeSpotify()
     tracks = seed_artist(spotify, "resume")
     spotify.playlists["queue"] = [tracks[0]]
@@ -701,7 +707,7 @@ def test_flush_resumes_after_target_was_added(tmp_path: Path) -> None:
     spotify.fail_delete_once = True
 
     with pytest.raises(RuntimeError, match="interrupted"):
-        the_queue.flush_queue(spotify, queue_playlists(), **paths)
+        (the_queue.flush_queue(spotify, queue_playlists(), **paths))
 
     assert [track["id"] for track in spotify.playlists["queue"]] == [
         "resume-t1",
@@ -717,7 +723,7 @@ def test_flush_resumes_after_target_was_added(tmp_path: Path) -> None:
     )
 
 
-def test_fill_maps_follows_and_adds_first_unliked_top_track(
+async def test_fill_maps_follows_and_adds_first_unliked_top_track(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -742,9 +748,13 @@ def test_fill_maps_follows_and_adds_first_unliked_top_track(
     monkeypatch.setattr(
         fill_integration,
         "refresh_history",
-        lambda *_args, **_kwargs: (history, 0),
+        AsyncMock(side_effect=lambda *_args, **_kwargs: (history, 0)),
     )
-    monkeypatch.setattr(the_queue, "_persist_followed_artist", lambda *_args: None)
+    monkeypatch.setattr(
+        the_queue,
+        "_persist_followed_artist",
+        AsyncMock(side_effect=lambda *_args: None),
+    )
 
     summary = the_queue.fill_queue_from_lastfm(
         spotify,
@@ -787,24 +797,28 @@ def test_fill_maps_follows_and_adds_first_unliked_top_track(
         (None, 0, "Maximum playlist length"),
     ],
 )
-def test_fill_validates_requested_size(
+async def test_fill_validates_requested_size(
     count: int | None,
     maximum: int | None,
     message: str,
 ) -> None:
     with pytest.raises(the_queue.QueueConfigError, match=message):
-        the_queue.fill_queue_from_lastfm(
-            FakeSpotify(),
-            FakeLastFm(),
-            QueueFillOptions(
-                playlists=queue_playlists(), count=count, max_playlist_length=maximum
-            ),
-            QueueFillCallbacks(choice_reader=None),
-            QueueFillResources(),
+        (
+            the_queue.fill_queue_from_lastfm(
+                FakeSpotify(),
+                FakeLastFm(),
+                QueueFillOptions(
+                    playlists=queue_playlists(),
+                    count=count,
+                    max_playlist_length=maximum,
+                ),
+                QueueFillCallbacks(choice_reader=None),
+                QueueFillResources(),
+            )
         )
 
 
-def test_fill_at_maximum_playlist_length_is_a_noop(
+async def test_fill_at_maximum_playlist_length_is_a_noop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -814,7 +828,7 @@ def test_fill_at_maximum_playlist_length_is_a_noop(
     monkeypatch.setattr(
         fill_integration,
         "refresh_history",
-        lambda *_args, **_kwargs: (history, 2),
+        AsyncMock(side_effect=lambda *_args, **_kwargs: (history, 2)),
     )
 
     summary = the_queue.fill_queue_from_lastfm(
@@ -842,7 +856,7 @@ def test_fill_at_maximum_playlist_length_is_a_noop(
         (None, "no Spotify match", False),
     ],
 )
-def test_fill_handles_mapping_skip_quit_and_no_match(
+async def test_fill_handles_mapping_skip_quit_and_no_match(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     choice: str | None,
@@ -881,12 +895,12 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
     monkeypatch.setattr(
         fill_integration,
         "refresh_history",
-        Mock(return_value=(history, 0)),
+        AsyncMock(side_effect=Mock(return_value=(history, 0))),
     )
     monkeypatch.setattr(
         QueueRecommendations,
         "run",
-        Mock(return_value=(recommendation,)),
+        AsyncMock(side_effect=Mock(return_value=(recommendation,))),
     )
     reader = None if choice is None else Answer(choice)
 
@@ -906,7 +920,7 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
     )
 
 
-def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
+async def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -962,12 +976,12 @@ def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
     monkeypatch.setattr(
         fill_integration,
         "refresh_history",
-        Mock(return_value=(history, 0)),
+        AsyncMock(side_effect=Mock(return_value=(history, 0))),
     )
     monkeypatch.setattr(
         QueueRecommendations,
         "run",
-        Mock(return_value=recommendations),
+        AsyncMock(side_effect=Mock(return_value=recommendations)),
     )
     progress: list[str] = []
 

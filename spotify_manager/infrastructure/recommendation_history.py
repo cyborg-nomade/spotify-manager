@@ -10,7 +10,7 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines.found_art import LastFmReader
 
 
-def refresh_history(
+async def refresh_history(
     lastfm: LastFmReader,
     *,
     export_path: Path,
@@ -48,7 +48,7 @@ def refresh_history(
         None,
     )
     try:
-        summary = workflow.run(getattr(lastfm, "username", None), dry_run, False)
+        summary = await workflow.run(getattr(lastfm, "username", None), dry_run, False)
     except ScrobbleHistoryError as exc:
         raise FoundArtStateError(str(exc)) from exc
     return list(summary.history), summary.live_scrobbles_added

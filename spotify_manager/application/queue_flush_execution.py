@@ -25,7 +25,7 @@ class QueueFlushExecution:
     facts: QueueFlushFacts
     preview: bool
 
-    def run(self, source: PlaylistTrack, plan: dict[str, object]) -> None:
+    async def run(self, source: PlaylistTrack, plan: dict[str, object]) -> None:
         """Execute one original plan before constructing its completion result.
 
         Args:
@@ -41,19 +41,19 @@ class QueueFlushExecution:
         if not isinstance(raw_uris, list):
             raise QueueStateError("Queue plan has invalid source URIs.")
         uris = [str(uri) for uri in raw_uris]
-        self._destination(action, source, target)
+        await self._destination(action, source, target)
         if action in {"unlucky", "unfollow"}:
-            self._unfollow(source)
+            await self._unfollow(source)
         if action == "blocked":
             return
         removable = removable_sources(uris, self.facts.live_uris, action, target)
         if removable and not self.preview:
-            self.effects.remove(source, removable)
+            await self.effects.remove(source, removable)
         remove_membership(
             self.facts.tracks, removable, self.facts.live_ids, self.facts.live_uris
         )
 
-    def _destination(
+    async def _destination(
         self,
         action: str,
         source: PlaylistTrack,
@@ -62,37 +62,37 @@ class QueueFlushExecution:
         if target is None:
             return
         if action == "advance":
-            self._advance(source, target)
+            await self._advance(source, target)
         elif action == "promote":
-            self._promote(source, target)
+            await self._promote(source, target)
         elif action == "unlucky":
-            self._unlucky(source, target)
+            await self._unlucky(source, target)
 
-    def _advance(self, source: PlaylistTrack, target: CatalogTrack) -> None:
+    async def _advance(self, source: PlaylistTrack, target: CatalogTrack) -> None:
         if target.spotify_id not in self.facts.live_ids and not self.preview:
-            self.effects.append("queue", source, target)
+            await self.effects.append("queue", source, target)
         self.facts.live_ids.add(target.spotify_id)
         self.facts.live_uris.add(target.uri)
         self.effects.present("advance", source, target, self.preview)
 
-    def _promote(self, source: PlaylistTrack, target: CatalogTrack) -> None:
+    async def _promote(self, source: PlaylistTrack, target: CatalogTrack) -> None:
         if source.primary_artist_id not in self.facts.queue_2_artists:
             if not self.preview:
-                self.effects.append("queue2", source, target)
+                await self.effects.append("queue2", source, target)
             self.facts.queue_2_artists.add(source.primary_artist_id)
         self.effects.present("promote", source, target, self.preview)
 
-    def _unlucky(self, source: PlaylistTrack, target: CatalogTrack) -> None:
+    async def _unlucky(self, source: PlaylistTrack, target: CatalogTrack) -> None:
         if source.primary_artist_id not in self.facts.unlucky_artists:
             if not self.preview:
-                self.effects.append("unlucky", source, target)
+                await self.effects.append("unlucky", source, target)
             self.facts.unlucky_artists.add(source.primary_artist_id)
         self.effects.present("unlucky", source, target, self.preview)
 
-    def _unfollow(self, source: PlaylistTrack) -> None:
-        if not self.effects.following(source):
+    async def _unfollow(self, source: PlaylistTrack) -> None:
+        if not (await self.effects.following(source)):
             return
         if not self.preview:
-            self.effects.unfollow(source)
-            self.effects.remove_local(source)
+            await self.effects.unfollow(source)
+            await self.effects.remove_local(source)
         self.effects.present("unfollow", source, None, self.preview)

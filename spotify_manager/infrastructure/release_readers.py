@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.domain.release_check_values import ReleaseCandidate
@@ -29,7 +28,7 @@ class SpotifyReleasePages:
     mapped: SpotifyArtistCandidate
     retry: RetryCall
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one original catalog page.
 
         Args:
@@ -40,7 +39,7 @@ class SpotifyReleasePages:
         """
         from spotify_manager.routines.release_check import _read_catalog_page
 
-        return _read_catalog_page(
+        return await _read_catalog_page(
             self.spotify, self.artist, self.mapped, self.retry, offset
         )
 
@@ -59,7 +58,7 @@ class SpotifyReleaseTracks:
     release: ReleaseCandidate
     retry: RetryCall
 
-    def read(self, offset: int, limit: int) -> object:
+    async def read(self, offset: int, limit: int) -> object:
         """Read one original track page.
 
         Args:
@@ -71,7 +70,9 @@ class SpotifyReleaseTracks:
         """
         from spotify_manager.routines.release_check import _read_track_page
 
-        return _read_track_page(self.spotify, self.release, self.retry, offset, limit)
+        return await _read_track_page(
+            self.spotify, self.release, self.retry, offset, limit
+        )
 
 
 @dataclass(frozen=True)
@@ -88,7 +89,7 @@ class SpotifyReleasePlaylist:
     playlist: str
     retry: RetryCall
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one original destination page.
 
         Args:
@@ -99,4 +100,6 @@ class SpotifyReleasePlaylist:
         """
         from spotify_manager.routines.release_check import _read_playlist_page
 
-        return _read_playlist_page(self.spotify, self.playlist, self.retry, offset)
+        return await _read_playlist_page(
+            self.spotify, self.playlist, self.retry, offset
+        )

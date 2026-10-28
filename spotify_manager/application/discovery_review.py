@@ -20,7 +20,7 @@ from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.application.ports.discovery import DiscoveryAudit
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import ReviewProgress
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.composers import is_composer_playlist_candidate
@@ -109,7 +109,7 @@ class DiscoveryReview:
     composer_limit: int = 40
     progress_callback: ReviewProgress | None = None
 
-    def review(
+    async def review(
         self, entries: list[object], run_id: object
     ) -> tuple[tuple[FlushResult, ...], bool]:
         """Review pending entries in snapshot order until completion or operator pause.
@@ -127,14 +127,14 @@ class DiscoveryReview:
         """
         results: list[FlushResult] = []
         for index, raw in enumerate(entries, start=1):
-            outcome = self._entry(raw, index, len(entries), run_id)
+            outcome = await self._entry(raw, index, len(entries), run_id)
             if outcome == "pause":
                 return tuple(results), True
             if isinstance(outcome, FlushResult):
                 results.append(outcome)
         return tuple(results), False
 
-    def _entry(
+    async def _entry(
         self, raw: object, index: int, total: int, run_id: object
     ) -> FlushResult | ReviewControl:
         if not isinstance(raw, dict):
@@ -142,22 +142,22 @@ class DiscoveryReview:
         if raw.get("status") in {"completed", "skipped"}:
             return "skip"
         entry = self._entry_context(raw, index, total)
-        plan = self._prepared_plan(entry)
+        plan = await self._prepared_plan(entry)
         if isinstance(plan, str):
             return plan
-        context = self._context(entry)
+        context = await self._context(entry)
         if plan is None:
-            decision = self.planner.plan(context)
+            decision = await self.planner.plan(context)
             if decision is None:
                 return "pause"
             if isinstance(decision, FlushResult):
-                return self._skipped(entry, decision)
+                return await self._skipped(entry, decision)
             plan = decision
-            self._accept(entry, plan)
-        result = self.execution.execute(
+            await self._accept(entry, plan)
+        result = await self.execution.execute(
             entry.source, entry.artist, entry.record, entry.progress, plan
         )
-        self.audit.event("track_completed", run_id=run_id, result=asdict(result))
+        await self.audit.event("track_completed", run_id=run_id, result=asdict(result))
         self._progress(index, total, f"Completed {entry.artist.name}")
         return result
 
@@ -175,7 +175,7 @@ class DiscoveryReview:
         )
         return ReviewEntry(source, artist, raw, progress)
 
-    def _prepared_plan(
+    async def _prepared_plan(
         self, entry: ReviewEntry
     ) -> dict[str, object] | ReviewControl | None:
         raw = entry.record.get("plan")
@@ -185,26 +185,28 @@ class DiscoveryReview:
                 entry.artist.name, str(plan["composer_playlist_id"])
             ):
                 plan = None
-                self._discard(entry)
+                await self._discard(entry)
         if plan is not None:
             return plan
-        return self._composer(entry)
+        return await self._composer(entry)
 
     def _valid_composer(self, artist: str, playlist: str) -> bool:
         return is_composer_playlist_candidate(
             artist, playlist, self.owned, excluded_playlist_ids=self.excluded
         )
 
-    def _discard(self, entry: ReviewEntry) -> None:
+    async def _discard(self, entry: ReviewEntry) -> None:
         entry.record["plan"] = None
         routes = self.execution.state.get("composer_routes")
         if isinstance(routes, dict):
             routes.pop(entry.artist.identifier, None)
         self.presentation.stale_plan(entry.artist.name)
-        self._checkpoint()
+        await self._checkpoint()
 
-    def _composer(self, entry: ReviewEntry) -> dict[str, object] | ReviewControl | None:
-        playlist, choice = resolve_composer_route(
+    async def _composer(
+        self, entry: ReviewEntry
+    ) -> dict[str, object] | ReviewControl | None:
+        playlist, choice = await resolve_composer_route(
             self.execution.state,
             entry.artist.identifier,
             entry.artist.name,
@@ -218,26 +220,26 @@ class DiscoveryReview:
             return "pause"
         if choice == "__skip__":
             entry.record["status"] = "skipped"
-            self._checkpoint()
+            await self._checkpoint()
             self.presentation.skipped(entry.artist.name)
             return "skip"
         if playlist is None:
             return None
-        plan = self._composer_plan(entry, playlist)
-        self._accept(entry, plan)
+        plan = await self._composer_plan(entry, playlist)
+        await self._accept(entry, plan)
         return plan
 
-    def _composer_plan(
+    async def _composer_plan(
         self, entry: ReviewEntry, playlist: OwnedPlaylist
     ) -> dict[str, object]:
         observations = self.planner.observations
-        tracks = observations.composer_tracks(playlist.spotify_id)
-        observations.memberships([entry.source.spotify_id])
+        tracks = await observations.composer_tracks(playlist.spotify_id)
+        await observations.memberships([entry.source.spotify_id])
         _completed, target = composer_step(entry.source, tracks, self.composer_limit)
         assessment = None
         if target is None:
-            catalog = observations.catalog(entry.artist.identifier)
-            assessment = observations.assessment(entry.artist.identifier, catalog)
+            catalog = await observations.catalog(entry.artist.identifier)
+            assessment = await observations.assessment(entry.artist.identifier, catalog)
         return composer_plan(
             entry.source,
             entry.artist.identifier,
@@ -249,13 +251,13 @@ class DiscoveryReview:
             limit=self.composer_limit,
         )
 
-    def _context(self, entry: ReviewEntry) -> ReviewSource:
+    async def _context(self, entry: ReviewEntry) -> ReviewSource:
         observations = self.planner.observations
-        catalog = observations.catalog(entry.artist.identifier)
+        catalog = await observations.catalog(entry.artist.identifier)
         release = _current_release(entry.source, entry.artist, catalog)
         if all(candidate.identity != release.identity for candidate in catalog):
             catalog = (release, *catalog)
-        tracks = observations.tracks(release)
+        tracks = await observations.tracks(release)
         primary = primary_artist_tracks(tracks, entry.artist.identifier)
         return ReviewSource(
             entry.source,
@@ -269,24 +271,24 @@ class DiscoveryReview:
             catalog_track_index(primary, entry.source),
         )
 
-    def _skipped(self, entry: ReviewEntry, result: FlushResult) -> FlushResult:
+    async def _skipped(self, entry: ReviewEntry, result: FlushResult) -> FlushResult:
         entry.record["status"] = "skipped"
-        self.audit.event(
+        await self.audit.event(
             "artist_skipped_run",
             artist=entry.artist.name,
             artist_id=entry.artist.identifier,
             dry_run=self.execution.dry_run,
         )
-        self._checkpoint()
+        await self._checkpoint()
         return result
 
-    def _accept(self, entry: ReviewEntry, plan: dict[str, object]) -> None:
+    async def _accept(self, entry: ReviewEntry, plan: dict[str, object]) -> None:
         entry.record["plan"] = plan
-        self._checkpoint()
+        await self._checkpoint()
 
-    def _checkpoint(self) -> None:
+    async def _checkpoint(self) -> None:
         if not self.execution.dry_run:
-            self.state_access.save(self.execution.state)
+            await self.state_access.save(self.execution.state)
 
     def _progress(self, done: int, total: int, message: str) -> None:
         if self.progress_callback:

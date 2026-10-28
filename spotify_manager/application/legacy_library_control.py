@@ -31,7 +31,7 @@ def unevaluated(control: list[ControlFileItem], echo: Echo) -> list[ControlFileI
     return control[index:]
 
 
-def evaluate(
+async def evaluate(
     control: list[ControlFileItem], catalog: ControlMembership, echo: Echo
 ) -> list[ControlFileItem]:
     """Mutate original control entries after each live membership read.
@@ -46,12 +46,14 @@ def evaluate(
     """
     echo.echo("Checking against library...")
     for item in control:
-        item.result = "keep" if catalog.contains(item.album.spotify_id) else "remove"
+        item.result = (
+            "keep" if (await catalog.contains(item.album.spotify_id)) else "remove"
+        )
         echo.echo(f"album:{item.album.name}: result: {item.result}")
     return control
 
 
-def reconcile(
+async def reconcile(
     albums: list[SimplifiedAlbum],
     decisions: list[ControlFileItem],
     files: LegacyFiles,
@@ -71,10 +73,10 @@ def reconcile(
             continue
         index = first_index(album_ids(albums), item.album.spotify_id)
         albums.pop(index)
-    files.save_albums(sorted(albums, key=sort_key))
+    await files.save_albums(sorted(albums, key=sort_key))
 
 
-def check(
+async def check(
     control: list[ControlFileItem],
     albums: list[SimplifiedAlbum],
     catalog: ControlMembership,
@@ -95,9 +97,9 @@ def check(
     """
     echo.echo("Checking album results...")
     selected = unevaluated(control, echo)
-    evaluate(selected, catalog, echo)
-    reconcile(albums, selected, files)
-    files.save_control(control)
+    await evaluate(selected, catalog, echo)
+    await reconcile(albums, selected, files)
+    await files.save_control(control)
     echo.echo("Results checked!")
     return True
 
@@ -152,7 +154,7 @@ def calculate(
     return StatsFileItem.model_validate(counts.fields())
 
 
-def update_statistics(
+async def update_statistics(
     control: list[ControlFileItem],
     albums: list[SimplifiedAlbum],
     files: LegacyFiles,
@@ -172,7 +174,7 @@ def update_statistics(
     echo.echo("Updating stats...")
     stats = calculate(control, albums, echo)
     echo.echo(f"These are your current stats: \n{stats.model_dump()}")
-    files.save_stats(stats)
+    await files.save_stats(stats)
     echo.echo("Stats updated!")
     return True
 

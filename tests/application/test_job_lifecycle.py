@@ -27,7 +27,7 @@ class SubmissionProbe:
     observations: list[str] = field(default_factory=list)
     index: int = 0
 
-    def wait(self, timeout: float | None = None) -> bool:
+    async def wait(self, timeout: float | None = None) -> bool:
         """Record the polling wait.
 
         Args:
@@ -60,18 +60,20 @@ def cancelled_submission() -> str | None:
     raise RuntimeError("cancelled")
 
 
-def test_submission_waits_before_each_consumption_and_accepts_empty_text() -> None:
+async def test_submission_waits_before_each_consumption_and_accepts_empty_text() -> (
+    None
+):
     """Keep timeout polling, consumption order and empty submission acceptance."""
     probe = SubmissionProbe((None, ""))
-    assert await_submission(probe, probe) == ""
+    assert (await await_submission(probe, probe)) == ""
     assert probe.observations == ["wait:0.5", "consume", "wait:0.5", "consume"]
 
 
-def test_submission_propagates_cancellation_after_the_original_wait() -> None:
+async def test_submission_propagates_cancellation_after_the_original_wait() -> None:
     """Leave cancellation and pending-view cleanup with the owning adapter."""
     probe = SubmissionProbe(())
     with pytest.raises(RuntimeError, match="cancelled"):
-        await_submission(probe, CancelledSubmissionResource())
+        (await await_submission(probe, CancelledSubmissionResource()))
     assert probe.observations == ["wait:0.5"]
 
 

@@ -1,5 +1,7 @@
 """Test data processors for total albums list."""
 
+import asyncio
+
 # Standard Library
 from datetime import datetime
 
@@ -37,7 +39,7 @@ def album(spotify_id: str, name: str) -> SimplifiedAlbum:
     )
 
 
-def test_update_total_album_list(mocker) -> None:
+async def test_update_total_album_list(mocker) -> None:
     """Test get, update, save and return all saved albums."""
     spotify = mocker.Mock()
     spotify.current_user_saved_albums.return_value = {
@@ -60,7 +62,7 @@ def test_update_total_album_list(mocker) -> None:
     )
     save_albums = mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
-    result = update_total_album_list(spotify, just_update=True)
+    result = await asyncio.to_thread(update_total_album_list, spotify, just_update=True)
 
     assert [item.spotify_id for item in result] == ["stored", "new"]
     assert all(isinstance(item, SimplifiedAlbum) for item in result)
@@ -82,12 +84,12 @@ def test_get_months_items() -> None:
     assert result[0].spotify_id == "3"
 
 
-def test_create_playlist(mocker) -> None:
+async def test_create_playlist(mocker) -> None:
     """Test create a playlist and return id."""
     spotify = mocker.Mock()
     spotify.user_playlist_create.return_value = {"id": "valid_id"}
 
-    result = create_playlist(spotify)
+    result = await asyncio.to_thread(create_playlist, spotify)
 
     assert result == "valid_id"
     spotify.user_playlist_create.assert_called_once_with(
@@ -96,7 +98,7 @@ def test_create_playlist(mocker) -> None:
     )
 
 
-def test_update_total_album_list_reads_all_pages_and_ignores_empty_items(
+async def test_update_total_album_list_reads_all_pages_and_ignores_empty_items(
     mocker,
 ) -> None:
     spotify = mocker.Mock()
@@ -133,14 +135,18 @@ def test_update_total_album_list_reads_all_pages_and_ignores_empty_items(
     spotify.next.return_value = second_page
     save_albums = mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
-    result = update_total_album_list(spotify, just_update=False)
+    result = await asyncio.to_thread(
+        update_total_album_list, spotify, just_update=False
+    )
 
     assert [item.spotify_id for item in result] == ["alpha", "beta"]
     spotify.next.assert_called_once_with(first_page)
     save_albums.assert_called_once_with(result)
 
 
-def test_update_total_album_list_returns_safe_fallbacks_on_failure(mocker) -> None:
+async def test_update_total_album_list_returns_safe_fallbacks_on_failure(
+    mocker,
+) -> None:
     spotify = mocker.Mock()
     spotify.current_user_saved_albums.side_effect = RuntimeError("offline")
     stored = [album("stored", "Stored")]
@@ -149,11 +155,15 @@ def test_update_total_album_list_returns_safe_fallbacks_on_failure(mocker) -> No
         return_value=stored,
     )
 
-    assert update_total_album_list(spotify, just_update=True) == stored
-    assert update_total_album_list(spotify, just_update=False) == []
+    assert (
+        await asyncio.to_thread(update_total_album_list, spotify, just_update=True)
+    ) == stored
+    assert (
+        await asyncio.to_thread(update_total_album_list, spotify, just_update=False)
+    ) == []
 
 
-def test_update_total_album_list_recovers_one_failed_next_page(mocker) -> None:
+async def test_update_total_album_list_recovers_one_failed_next_page(mocker) -> None:
     spotify = mocker.Mock()
     first_page = {
         "total": 2,
@@ -179,13 +189,17 @@ def test_update_total_album_list_recovers_one_failed_next_page(mocker) -> None:
     spotify.next.side_effect = RuntimeError("temporary")
     mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
-    result = update_total_album_list(spotify, just_update=False)
+    result = await asyncio.to_thread(
+        update_total_album_list, spotify, just_update=False
+    )
 
     assert [item.spotify_id for item in result] == ["first"]
     assert spotify.current_user_saved_albums.call_count == 2
 
 
-def test_get_ordered_tracks_collects_pages_and_sorts_disc_then_track(mocker) -> None:
+async def test_get_ordered_tracks_collects_pages_and_sorts_disc_then_track(
+    mocker,
+) -> None:
     spotify = mocker.Mock()
     first_page = {
         "items": [
@@ -216,7 +230,9 @@ def test_get_ordered_tracks_collects_pages_and_sorts_disc_then_track(mocker) -> 
     spotify.album_tracks.return_value = first_page
     spotify.next.return_value = second_page
 
-    result = get_ordered_tracks(spotify, album("album", "Album"))
+    result = await asyncio.to_thread(
+        get_ordered_tracks, spotify, album("album", "Album")
+    )
 
     assert [track.uri for track in result] == [
         "spotify:track:first",
@@ -225,7 +241,7 @@ def test_get_ordered_tracks_collects_pages_and_sorts_disc_then_track(mocker) -> 
     ]
 
 
-def test_append_to_playlist_uses_one_or_several_batches(mocker) -> None:
+async def test_append_to_playlist_uses_one_or_several_batches(mocker) -> None:
     spotify = mocker.Mock()
     short = [SimplifiedTrack(disc_number=1, track_number=1, uri="short")]
     long = [
@@ -233,8 +249,8 @@ def test_append_to_playlist_uses_one_or_several_batches(mocker) -> None:
         for index in range(205)
     ]
 
-    append_to_playlist(spotify, short, "playlist")
-    append_to_playlist(spotify, long, "playlist")
+    (await asyncio.to_thread(append_to_playlist, spotify, short, "playlist"))
+    (await asyncio.to_thread(append_to_playlist, spotify, long, "playlist"))
 
     assert [
         len(call.args[1]) for call in spotify.playlist_add_items.call_args_list
@@ -246,7 +262,7 @@ def test_append_to_playlist_uses_one_or_several_batches(mocker) -> None:
     ]
 
 
-def test_add_monthly_albums_updates_playlist_and_control_file(
+async def test_add_monthly_albums_updates_playlist_and_control_file(
     mocker: MockerFixture,
 ) -> None:
     """Verify add monthly albums updates playlist and control file.
@@ -271,7 +287,7 @@ def test_add_monthly_albums_updates_playlist_and_control_file(
     )
     save = mocker.patch("spotify_manager.loaders_savers.save_control_file")
 
-    result = add_monthly_albums(spotify, control, selected, 0)
+    result = await asyncio.to_thread(add_monthly_albums, spotify, control, selected, 0)
 
     assert result is True
     assert [item.album.spotify_id for item in control] == ["one", "two"]
@@ -280,7 +296,7 @@ def test_add_monthly_albums_updates_playlist_and_control_file(
     save.assert_called_once_with(control)
 
 
-def test_add_monthly_albums_returns_false_when_a_stage_fails(
+async def test_add_monthly_albums_returns_false_when_a_stage_fails(
     mocker: MockerFixture,
 ) -> None:
     """Verify add monthly albums returns false when a stage fails.
@@ -293,10 +309,12 @@ def test_add_monthly_albums_returns_false_when_a_stage_fails(
         side_effect=RuntimeError("failed"),
     )
 
-    assert add_monthly_albums(mocker.Mock(), [], [], 0) is False
+    assert (
+        await asyncio.to_thread(add_monthly_albums, mocker.Mock(), [], [], 0)
+    ) is False
 
 
-def test_album_index_and_result_reconciliation(mocker) -> None:
+async def test_album_index_and_result_reconciliation(mocker) -> None:
     albums = [album("zeta", "Zeta"), album("alpha", "Alpha")]
     decisions = [
         ControlFileItem(album=albums[0], result="remove"),
@@ -309,7 +327,7 @@ def test_album_index_and_result_reconciliation(mocker) -> None:
     assert get_album_index_in_total_albums("alpha", albums) == 1
     assert get_album_index_in_total_albums("missing", albums) == 0
 
-    updated_total_albums_with_results(albums, decisions)
+    (await asyncio.to_thread(updated_total_albums_with_results, albums, decisions))
 
     assert [item.spotify_id for item in albums] == ["alpha"]
     save.assert_called_once_with(albums)

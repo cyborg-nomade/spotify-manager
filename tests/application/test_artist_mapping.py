@@ -11,28 +11,28 @@ from tests.support.artist_mapping import OTHER
 from tests.support.artist_mapping import MappingObservations
 
 
-def _run(
+async def _run(
     observed: MappingObservations, interactive: bool = True
 ) -> SpotifyArtistCandidate | str | None:
-    return ArtistMapping(observed, observed if interactive else None).run(ARTIST)
+    return await ArtistMapping(observed, observed if interactive else None).run(ARTIST)
 
 
-def test_mapping_unique_exact_is_automatic() -> None:
+async def test_mapping_unique_exact_is_automatic() -> None:
     """Retain initial exact-only automatic selection before interaction."""
     observed = MappingObservations([(OTHER, EXACT)])
-    assert _run(observed) is EXACT
+    assert (await _run(observed)) is EXACT
     assert observed.searches == [None] and observed.prompts == []
 
 
-def test_mapping_noninteractive_empty_is_unmapped() -> None:
+async def test_mapping_noninteractive_empty_is_unmapped() -> None:
     """Retain the original empty initial search result without a prompt."""
     observed = MappingObservations([()])
-    assert _run(observed, False) is None
+    assert (await _run(observed, False)) is None
     assert observed.searches == [None]
 
 
 @pytest.mark.parametrize("choices", [(OTHER,), (EXACT, EXACT)])
-def test_mapping_noninteractive_ambiguity(
+async def test_mapping_noninteractive_ambiguity(
     choices: tuple[SpotifyArtistCandidate, ...],
 ) -> None:
     """Retain ambiguity even for a single nonexact candidate or repeated exact identity.
@@ -44,36 +44,38 @@ def test_mapping_noninteractive_ambiguity(
     with pytest.raises(
         ReleaseCheckSpotifyError, match="mapping is ambiguous for Artist"
     ):
-        _run(observed, False)
+        (await _run(observed, False))
     assert observed.searches == [None] and observed.prompts == []
 
 
 @pytest.mark.parametrize("choice", ["skip", "skip-artist", "quit"])
-def test_mapping_mapping_controls(choice: str) -> None:
+async def test_mapping_mapping_controls(choice: str) -> None:
     """Retain all original controls on an empty interactive prompt.
 
     Args:
         choice: Original mapping control.
     """
     observed = MappingObservations([()], [choice])
-    assert _run(observed) == choice
+    assert (await _run(observed)) == choice
     assert observed.prompts == [()]
 
 
-def test_mapping_custom_search_is_trimmed_and_still_prompts_exact() -> None:
+async def test_mapping_custom_search_is_trimmed_and_still_prompts_exact() -> None:
     """Retain custom searches and require an explicit choice after a custom query."""
     observed = MappingObservations(
         [(), (OTHER, EXACT)], ["search:  custom text  ", "exact"]
     )
-    assert _run(observed) is EXACT
+    assert (await _run(observed)) is EXACT
     assert observed.searches == [None, "custom text"]
     assert observed.prompts == [(), ("other", "exact")]
 
 
-def test_mapping_exact_prompt_excludes_nonexact_and_selects_first_duplicate() -> None:
+async def test_mapping_exact_prompt_excludes_nonexact_and_selects_first_duplicate() -> (
+    None
+):
     """Retain initial exact-only prompts and first matching identity."""
     observed = MappingObservations([(OTHER, EXACT, EXACT)], ["exact"])
-    assert _run(observed) is EXACT
+    assert (await _run(observed)) is EXACT
     assert observed.prompts == [("exact", "exact")]
 
 
@@ -84,7 +86,7 @@ def test_mapping_exact_prompt_excludes_nonexact_and_selects_first_duplicate() ->
         ("missing", "selected Spotify artist is invalid"),
     ],
 )
-def test_mapping_mapping_errors(choice: str, message: str) -> None:
+async def test_mapping_mapping_errors(choice: str, message: str) -> None:
     """Retain one-shot response validation before any subsequent search.
 
     Args:
@@ -93,7 +95,7 @@ def test_mapping_mapping_errors(choice: str, message: str) -> None:
     """
     observed = MappingObservations([(OTHER,)], [choice])
     with pytest.raises(ReleaseCheckSpotifyError, match=message):
-        _run(observed)
+        (await _run(observed))
     assert observed.searches == [None] and observed.prompts == [("other",)]
 
 

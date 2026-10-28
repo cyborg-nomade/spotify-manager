@@ -19,11 +19,11 @@ ORIGINAL = json.loads(
 
 
 @pytest.mark.parametrize("index,scenario", list(enumerate(lookup_scenarios())))
-def test_original_lookup_contract(index: int, scenario: LookupScenario) -> None:
+async def test_original_lookup_contract(index: int, scenario: LookupScenario) -> None:
     """Retain original results, native errors, SDK requests and accepted cache state.
 
     Args:
         index: Immutable original observation index.
         scenario: Original raw boundary profile.
     """
-    assert observe_lookup(scenario, run_lookup) == ORIGINAL[index]
+    assert (await observe_lookup(scenario, run_lookup)) == ORIGINAL[index]

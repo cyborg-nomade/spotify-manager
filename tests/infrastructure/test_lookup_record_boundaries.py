@@ -74,14 +74,18 @@ def album_batch(ids: list[str]) -> object:
     return {"albums": [None, {"tracks": {"items": [], "next": None}}]}
 
 
-def test_primary_catalog_skips_missing_and_empty_id_rows() -> None:
+async def test_primary_catalog_skips_missing_and_empty_id_rows() -> None:
     """Filter first credits before requiring an identity or dependent page."""
     rows: list[object] = [{"artists": [{"id": "artist"}]}]
     assert catalog.primary_ids(rows, "artist") == []
-    assert catalog.primary_tracks(RecordedPages(), "artist", ["album"], 20) == []
+    assert (
+        await catalog.primary_tracks(RecordedPages(), "artist", ["album"], 20)
+    ) == []
     with pytest.raises(SpotifyLookupResponseError, match="empty album track page"):
-        catalog.album_primary_tracks(
-            {"items": [], "next": "more"}, RecordedPages(), "artist"
+        (
+            await catalog.album_primary_tracks(
+                {"items": [], "next": "more"}, RecordedPages(), "artist"
+            )
         )
 
 
@@ -97,7 +101,7 @@ def test_history_selects_greatest_timestamp_and_ignores_older_encounters() -> No
 class RecordedPages:
     """Supply missing album rows and reject unexpected continuation."""
 
-    def albums(self, identifiers: list[str]) -> object:
+    async def albums(self, identifiers: list[str]) -> object:
         """Observe albums at the recorded boundary.
 
         Args:
@@ -108,7 +112,7 @@ class RecordedPages:
         """
         return album_batch(identifiers)
 
-    def next_tracks(self, page: object) -> object:
+    async def next_tracks(self, page: object) -> object:
         """Observe next tracks at the recorded boundary.
 
         Args:
@@ -119,7 +123,7 @@ class RecordedPages:
         """
         return no_next(page)
 
-    def next_object(self, page: object) -> object:
+    async def next_object(self, page: object) -> object:
         """Observe next object at the recorded boundary.
 
         Args:
@@ -130,7 +134,7 @@ class RecordedPages:
         """
         return no_next(page)
 
-    def release_page(self, artist: str, offset: int) -> object:
+    async def release_page(self, artist: str, offset: int) -> object:
         """Observe release page at the recorded boundary.
 
         Args:

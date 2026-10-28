@@ -4,10 +4,9 @@ import json as json
 from datetime import UTC as UTC
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.ports.listening import RetryCall as RetryCall
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_3_execution import (
     Queue3LiveQueue as Queue3LiveQueue,
 )
@@ -75,7 +74,7 @@ from spotify_manager.routines.queue_3 import parse_playlist_id as parse_playlist
 from spotify_manager.routines.queue_3 import validate_state as validate_state
 
 
-def flush_queue_3(
+async def flush_queue_3(
     sp: Spotify,
     options: Queue3Options,
     callbacks: Queue3Callbacks,
@@ -98,7 +97,7 @@ def flush_queue_3(
     resources = resources or Queue3Resources()
     retry = callbacks.retry_call or NoRetry()
     year = options.active_year or legacy.datetime.now(UTC).year
-    inputs = annual_inputs(
+    inputs = await annual_inputs(
         sp,
         options.playlist_id,
         retry,
@@ -108,7 +107,7 @@ def flush_queue_3(
         resources.log_path,
         callbacks.output,
     )
-    current, annual = inputs.importer.run(
+    current, annual = await inputs.importer.run(
         options.playlist_id,
         inputs.current,
         inputs.state,
@@ -126,7 +125,7 @@ def flush_queue_3(
         options.dry_run,
         legacy.DAILY_ARTIST_LIMIT,
     )
-    snapshot = session.start(queue)
+    snapshot = await session.start(queue)
     liked: dict[str, bool] = {}
     planner = review_planner(
         sp, retry, {}, liked, snapshot.orders, session, callbacks.transition_reader
@@ -154,12 +153,12 @@ def flush_queue_3(
         inputs.access,
         Queue3Presenter(callbacks.output, callbacks.progress_callback),
     )
-    results, paused = review.run()
-    session.finish(snapshot, paused)
+    results, paused = await review.run()
+    await session.finish(snapshot, paused)
     return run_summary(snapshot, results, annual, paused, options.dry_run)
 
 
-def import_previous_year_discoveries(
+async def import_previous_year_discoveries(
     sp: Spotify,
     playlist_id: str,
     *,
@@ -192,20 +191,24 @@ def import_previous_year_discoveries(
     Raises:
         Queue3Error: Configuration, playlist observation or state handling fails.
     """
-    from spotify_manager.routines.queue_3 import _state_access
-    from spotify_manager.routines.queue_3 import load_owned_playlists
+    from spotify_manager.routines.queue_3 import (
+        _async_state_access as _async_state_access,
+    )
+    from spotify_manager.routines.queue_3 import (
+        async_load_owned_playlists as load_owned_playlists,
+    )
 
     retry = retry_call or NoRetry()
     year = active_year or legacy.datetime.now(UTC).year
     presentation = Queue3Presenter(echo, progress_callback)
     presentation.loading(year - 1)
-    owned = load_owned_playlists(sp, retry, playlist_id)
+    owned = await load_owned_playlists(sp, retry, playlist_id)
     access = LegacyAnnualImport(sp, retry, log_path)
-    current = list(access.read(playlist_id))
-    state_access = _state_access(state_path, state_service)
-    persisted = state_access.load()
+    current = list(await access.read(playlist_id))
+    state_access = _async_state_access(state_path, state_service)
+    persisted = await state_access.load()
     state = json.loads(json.dumps(persisted)) if dry_run else persisted
     importer = annual_import(sp, retry, log_path, state_access, echo)
-    return AnnualImportReview(importer, presentation).run(
+    return await AnnualImportReview(importer, presentation).run(
         playlist_id, current, state, owned, year, dry_run
     )

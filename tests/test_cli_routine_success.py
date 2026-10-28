@@ -6,6 +6,7 @@ from datetime import date
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -46,8 +47,10 @@ def _settings() -> SimpleNamespace:
 def configured_cli(monkeypatch: pytest.MonkeyPatch) -> object:
     spotify = object()
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "client", lambda: spotify)
-    monkeypatch.setattr(main, "review_client", lambda: spotify)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: spotify))
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: spotify)
+    )
     return spotify
 
 
@@ -77,9 +80,11 @@ def test_update_scrobble_history_command_completes(
     )
     scenario = UpdateScrobbleHistoryCommandCompletesScenario(summary=summary)
     monkeypatch.setattr(
-        main.scrobble_history, "refresh_scrobble_history", scenario.refresh
+        main.scrobble_history,
+        "refresh_scrobble_history",
+        AsyncMock(side_effect=scenario.refresh),
     )
-    main.update_scrobble_history_command(dry_run=True)
+    (main.update_scrobble_history_command(dry_run=True))
     assert "Merged total" in capsys.readouterr().out
 
 
@@ -117,7 +122,7 @@ def test_something_old_command_completes(
         "run_something_old",
         FeatureInvocation(scenario, ("playlist_id",)),
     )
-    main.something_old_command(dry_run=True)
+    (main.something_old_command(dry_run=True))
     assert "cancelled" in capsys.readouterr().out
 
 
@@ -153,7 +158,7 @@ def test_release_check_command_completes(
         "run_release_check",
         FeatureInvocation(scenario, ("playlists",)),
     )
-    main.check_new_releases_command(dry_run=True)
+    (main.check_new_releases_command(dry_run=True))
     assert "1/1 artists complete" in capsys.readouterr().out
 
 
@@ -187,8 +192,10 @@ def test_found_art_command_completes(
         results=(),
     )
     scenario = FoundArtCommandCompletesScenario(summary=summary)
-    monkeypatch.setattr(main.found_art, "run_found_art", scenario.run)
-    main.found_art_command(count=20, max_playlist_length=None, dry_run=True)
+    monkeypatch.setattr(
+        main.found_art, "run_found_art", AsyncMock(side_effect=scenario.run)
+    )
+    (main.found_art_command(count=20, max_playlist_length=None, dry_run=True))
     assert "Found Art" in capsys.readouterr().out
 
 
@@ -225,8 +232,10 @@ def test_fill_queue_from_lastfm_command_completes(
         "fill_queue_from_lastfm",
         FeatureInvocation(scenario, ("playlists",)),
     )
-    main.fill_queue_from_lastfm_command(
-        count=1, max_playlist_length=None, seed_count=3, dry_run=True
+    (
+        main.fill_queue_from_lastfm_command(
+            count=1, max_playlist_length=None, seed_count=3, dry_run=True
+        )
     )
     assert "selected 0/1" in capsys.readouterr().out
 
@@ -255,8 +264,10 @@ def test_flush_queue_command_completes(
         results=(),
     )
     scenario = FlushQueueCommandCompletesScenario(summary=summary)
-    monkeypatch.setattr(main.the_queue, "flush_queue", scenario.run)
-    main.flush_queue_command(dry_run=True)
+    monkeypatch.setattr(
+        main.the_queue, "flush_queue", AsyncMock(side_effect=scenario.run)
+    )
+    (main.flush_queue_command(dry_run=True))
     assert "processed 10/10 artists" in capsys.readouterr().out
 
 
@@ -317,9 +328,9 @@ def test_new_kids_commands_complete(
         ),
     )
     if command == "new-kids":
-        main.flush_new_kids_command(dry_run=True)
+        (main.flush_new_kids_command(dry_run=True))
     else:
-        main.flush_queue_2_command(dry_run=True)
+        (main.flush_queue_2_command(dry_run=True))
     assert "complete" in capsys.readouterr().out.casefold()
 
 
@@ -356,7 +367,7 @@ def test_queue_3_command_completes(
         "flush_queue_3",
         FeatureInvocation(scenario, ("playlist_id", "transition_reader")),
     )
-    main.flush_queue_3_command(dry_run=True)
+    (main.flush_queue_3_command(dry_run=True))
     assert "Queue 3" in capsys.readouterr().out
 
 
@@ -390,7 +401,7 @@ def test_new_wine_command_completes(
     )
     scenario = NewWineCommandCompletesScenario(summary=summary)
     monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(scenario))
-    main.flush_new_wine_command(dry_run=True, no_discovery=False)
+    (main.flush_new_wine_command(dry_run=True, no_discovery=False))
     assert "New Wine" in capsys.readouterr().out
 
 
@@ -420,8 +431,10 @@ def test_slow_listening_command_completes(
         results=(),
     )
     scenario = SlowListeningCommandCompletesScenario(summary=summary)
-    monkeypatch.setattr(main.slow_listening, "flush_slow_listening", scenario.run)
-    main.flush_slow_listening_command(dry_run=True)
+    monkeypatch.setattr(
+        main.slow_listening, "flush_slow_listening", AsyncMock(side_effect=scenario.run)
+    )
+    (main.flush_slow_listening_command(dry_run=True))
     assert "Slow Listening" in capsys.readouterr().out
 
 
@@ -448,9 +461,11 @@ def test_requeue_command_completes(
     )
     scenario = RequeueCommandCompletesScenario(summary=summary)
     monkeypatch.setattr(
-        main.requeue_for_a_dream, "flush_requeue_for_a_dream", scenario.run
+        main.requeue_for_a_dream,
+        "flush_requeue_for_a_dream",
+        AsyncMock(side_effect=scenario.run),
     )
-    main.flush_requeue_for_a_dream_command(dry_run=True)
+    (main.flush_requeue_for_a_dream_command(dry_run=True))
     assert "empty" in capsys.readouterr().out.casefold()
 
 
@@ -475,8 +490,12 @@ def test_discography_command_handles_an_empty_plan(
         open_slots=10,
     )
     scenario = DiscographyCommandHandlesAnEmptyPlanScenario(plan=plan)
-    monkeypatch.setattr(main.discography, "build_discography_plan", scenario.build)
-    main.plan_discographies_command(dry_run=True)
+    monkeypatch.setattr(
+        main.discography,
+        "build_discography_plan",
+        AsyncMock(side_effect=scenario.build),
+    )
+    (main.plan_discographies_command(dry_run=True))
     assert "No artists" in capsys.readouterr().out
 
 
@@ -523,8 +542,10 @@ def test_palace_command_completes(
         "fill_palace_of_memory",
         FeatureInvocation(scenario, ("playlist_id",)),
     )
-    main.fill_palace_of_memory_command(
-        dry_run=True, alphabetical_start=None, set_alphabetical_cursor=None
+    (
+        main.fill_palace_of_memory_command(
+            dry_run=True, alphabetical_start=None, set_alphabetical_cursor=None
+        )
     )
     assert "Palace of Memory" in capsys.readouterr().out
 

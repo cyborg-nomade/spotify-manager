@@ -2,14 +2,13 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import AuditWriter
 from spotify_manager.application.ports.listening import ListeningHistory
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.music import AlbumCatalog
 from spotify_manager.application.ports.music import PlaylistAccess
 from spotify_manager.application.ports.music import TrackMembership
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue_result import RequeueForADreamSummary
 from spotify_manager.infrastructure.legacy.history import ExportListeningHistory
 from spotify_manager.infrastructure.legacy.spotify import RequeuePlaylistAccess

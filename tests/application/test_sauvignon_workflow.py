@@ -40,7 +40,7 @@ class Effects(RunObservations):
     def prepare(self) -> None:
         """Keep the scripted invocation's existing retry authority."""
 
-    def append(self, additions: list[PendingAlbum]) -> None:
+    async def append(self, additions: list[PendingAlbum]) -> None:
         """Record accepted proposals before their possible ambiguous failure.
 
         Args:
@@ -53,7 +53,7 @@ class Effects(RunObservations):
         """Return the original scripted local date for the calendar boundary."""
         return WEEK
 
-    def choose(
+    async def choose(
         self, item: AlbumRecommendation, *args: object
     ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
         """Return original configured controls or the first edition.
@@ -104,7 +104,7 @@ class _ScriptedTracks:
 
     source: Effects
 
-    def run(
+    async def run(
         self,
         seeds: tuple[FoundArtSeed, ...],
         heard: set[tuple[str, str]],
@@ -126,7 +126,7 @@ class _ScriptedAlbums:
 
     source: Effects
 
-    def run(
+    async def run(
         self,
         tracks: tuple[FoundArtCandidate, ...],
         excluded: set[tuple[str, str]],
@@ -179,7 +179,7 @@ EVENTS = [
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_sauvignon_failure_prefix(failure: str) -> None:
+async def test_sauvignon_failure_prefix(failure: str) -> None:
     """Protect every observed stage and accepted write before later failure.
 
     Args:
@@ -190,7 +190,7 @@ def test_sauvignon_failure_prefix(failure: str) -> None:
         recommendations=(recommendation(), recommendation("two", "Other")),
     )
     with pytest.raises(RuntimeError, match=failure):
-        _workflow(effects).run("destination", 2, None, 30, False)
+        (await _workflow(effects).run("destination", 2, None, 30, False))
     assert effects.events == EVENTS[: EVENTS.index(failure) + 1]
     expected = (
         ["spotify:track:one", "spotify:track:two"]
@@ -201,7 +201,7 @@ def test_sauvignon_failure_prefix(failure: str) -> None:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_sauvignon_completed_run(dry_run: bool) -> None:
+async def test_sauvignon_completed_run(dry_run: bool) -> None:
     """Protect original preview counts, audit and requested selection limit.
 
     Args:
@@ -210,7 +210,7 @@ def test_sauvignon_completed_run(dry_run: bool) -> None:
     effects = Effects(
         recommendations=(recommendation(), recommendation("two", "Other"))
     )
-    summary = _workflow(effects).run("destination", 1, None, 30, dry_run)
+    summary = await _workflow(effects).run("destination", 1, None, 30, dry_run)
     assert summary.selected == 1
     assert summary.playlist_length_after == (0 if dry_run else 1)
     assert summary.live_scrobbles_added == 2
@@ -218,14 +218,14 @@ def test_sauvignon_completed_run(dry_run: bool) -> None:
     assert "choose:two" not in effects.events
 
 
-def test_sauvignon_fresh_membership() -> None:
+async def test_sauvignon_fresh_membership() -> None:
     """Protect album and track duplicate filtering and initial-size projection."""
     effects = Effects(
         initial=(marker("initial"),),
         current=(marker("one"), marker("other", "track-two")),
         recommendations=(recommendation(), recommendation("two", "Other")),
     )
-    summary = _workflow(effects).run("destination", 2, None, 30, False)
+    summary = await _workflow(effects).run("destination", 2, None, 30, False)
     assert [result.action for result in summary.results] == ["already represented"] * 2
     assert summary.selected == 0
     assert summary.playlist_length_after == 1
@@ -236,7 +236,7 @@ def test_sauvignon_fresh_membership() -> None:
 @pytest.mark.parametrize(
     "choice,action,paused", [("skip", "skipped", False), ("quit", "quit", True)]
 )
-def test_sauvignon_controls(choice: str, action: str, paused: bool) -> None:
+async def test_sauvignon_controls(choice: str, action: str, paused: bool) -> None:
     """Protect skip continuation and immediate quit before later observations.
 
     Args:
@@ -248,13 +248,13 @@ def test_sauvignon_controls(choice: str, action: str, paused: bool) -> None:
         recommendations=(recommendation(), recommendation("two", "Other")),
         choices={"one": choice},
     )
-    summary = _workflow(effects).run("destination", 3, None, 30, False)
+    summary = await _workflow(effects).run("destination", 3, None, 30, False)
     assert summary.results[0].action == action
     assert summary.paused is paused
     assert ("choose:two" in effects.events) is not paused
 
 
-def test_sauvignon_artist_and_album_uniqueness() -> None:
+async def test_sauvignon_artist_and_album_uniqueness() -> None:
     """Protect artist suppression before choice and album suppression before loading."""
     effects = Effects(
         recommendations=(
@@ -263,7 +263,7 @@ def test_sauvignon_artist_and_album_uniqueness() -> None:
             recommendation("one", "Other"),
         )
     )
-    summary = _workflow(effects).run("destination", 3, None, 30, True)
+    summary = await _workflow(effects).run("destination", 3, None, 30, True)
     assert [result.action for result in summary.results] == [
         "would add",
         "artist already selected",
@@ -274,14 +274,14 @@ def test_sauvignon_artist_and_album_uniqueness() -> None:
 
 
 @pytest.mark.parametrize("maximum", [None, 20, 5])
-def test_sauvignon_capacity(maximum: int | None) -> None:
+async def test_sauvignon_capacity(maximum: int | None) -> None:
     """Retain history refresh and audit when explicit or fallback capacity is full.
 
     Args:
         maximum: Original explicit or fallback capacity.
     """
     effects = Effects(initial=(marker("existing"),) * 20)
-    summary = _workflow(effects).run("destination", None, maximum, 30, False)
+    summary = await _workflow(effects).run("destination", None, maximum, 30, False)
     assert summary.requested_count == 0
     assert effects.events == EVENTS[:3] + ["audit"]
 
@@ -289,7 +289,7 @@ def test_sauvignon_capacity(maximum: int | None) -> None:
 @pytest.mark.parametrize(
     "count,maximum,seeds", [(1, 20, 30), (0, None, 30), (None, 0, 30), (None, 20, 0)]
 )
-def test_sauvignon_validation(
+async def test_sauvignon_validation(
     count: int | None, maximum: int | None, seeds: int
 ) -> None:
     """Reject original invalid requests before time and external observations.
@@ -301,7 +301,7 @@ def test_sauvignon_validation(
     """
     effects = Effects()
     with pytest.raises(SauvignonConfigError):
-        _workflow(effects).run("destination", count, maximum, seeds, False)
+        (await _workflow(effects).run("destination", count, maximum, seeds, False))
     assert effects.events == []
 
 

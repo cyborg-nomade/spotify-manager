@@ -27,7 +27,7 @@ class SavedAlbumPage:
 class SavedMirrorEffects(Protocol):
     """Original live rows, mirror authority, replacement and preflight audit seams."""
 
-    def previous(self) -> tuple[YourLibraryAlbum, ...]:
+    async def previous(self) -> tuple[YourLibraryAlbum, ...]:
         """Read original usable existing mirror, or empty when it is missing.
 
         Returns:
@@ -41,7 +41,7 @@ class SavedMirrorEffects(Protocol):
             message: Original visible page stage.
         """
 
-    def page(self, offset: int) -> SavedAlbumPage:
+    async def page(self, offset: int) -> SavedAlbumPage:
         """Read and parse original live rows through caller-owned retry semantics.
 
         Args:
@@ -61,7 +61,7 @@ class SavedMirrorEffects(Protocol):
             Original canonical ordered mirror.
         """
 
-    def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
+    async def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
         """Back up and replace the original mirror before publication acknowledgment.
 
         Args:
@@ -78,7 +78,7 @@ class SavedMirrorEffects(Protocol):
             Original UTC preflight completion timestamp.
         """
 
-    def audit(self, refresh: SavedAlbumRefresh) -> None:
+    async def audit(self, refresh: SavedAlbumRefresh) -> None:
         """Accept the original preflight audit, including unchanged mirrors.
 
         Args:
@@ -98,7 +98,7 @@ class SavedMirror:
     effects: SavedMirrorEffects
     minimum: int = 5
 
-    def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+    async def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
         """Refresh original live rows and publish only changed canonical facts.
 
         Returns:
@@ -108,15 +108,15 @@ class SavedMirror:
             PalaceOfMemoryDataError: Live paging or usable population is invalid.
             PalaceOfMemoryStateError: Original replacement or audit fails.
         """
-        previous = self._previous()
-        albums, skipped = self._gather()
+        previous = await self._previous()
+        albums, skipped = await self._gather()
         current = self.effects.canonical(albums)
         if len(current) < self.minimum:
             raise PalaceOfMemoryDataError(
                 f"Spotify returned fewer than {self.minimum} saved albums."
             )
         changed = previous != current
-        backup = self.effects.replace(current) if changed else None
+        backup = (await self.effects.replace(current)) if changed else None
         before = {album.spotify_id for album in previous}
         after = {album.spotify_id for album in current}
         refresh = SavedAlbumRefresh(
@@ -129,22 +129,22 @@ class SavedMirror:
             changed,
             backup,
         )
-        self.effects.audit(refresh)
+        await self.effects.audit(refresh)
         return current, refresh
 
-    def _previous(self) -> tuple[YourLibraryAlbum, ...]:
+    async def _previous(self) -> tuple[YourLibraryAlbum, ...]:
         try:
-            return self.effects.previous()
+            return await self.effects.previous()
         except PalaceOfMemoryDataError:
             return ()
 
-    def _gather(self) -> tuple[list[YourLibraryAlbum], int]:
+    async def _gather(self) -> tuple[list[YourLibraryAlbum], int]:
         albums: list[YourLibraryAlbum] = []
         skipped = 0
         offset = 0
         while True:
             self.effects.progress(f"Refreshing saved albums at offset {offset}")
-            page = self.effects.page(offset)
+            page = await self.effects.page(offset)
             albums.extend(page.albums)
             skipped += page.rows - len(page.albums)
             offset += page.rows

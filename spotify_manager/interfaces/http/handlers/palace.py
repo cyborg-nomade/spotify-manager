@@ -1,14 +1,14 @@
 """Validate and present palace HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
 
 
-def cmd_fill_palace_of_memory(
+async def cmd_fill_palace_of_memory(
     client: Spotify,
     dry_run: bool,
     alphabetical_start: str | None,
@@ -50,7 +50,7 @@ def cmd_fill_palace_of_memory(
             )
         except palace_of_memory.PalaceOfMemoryConfigError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_palace_of_memory_job(
+    return await jobs.start_palace_of_memory_job(
         client,
         playlist_id,
         dry_run=dry_run,

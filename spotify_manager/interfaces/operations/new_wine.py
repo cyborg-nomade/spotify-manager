@@ -2,8 +2,6 @@
 
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.new_wine import NewWineOptions as NewWineOptions
 from spotify_manager.application.new_wine import (
     flush_new_wine as execute_flush_new_wine,
@@ -20,6 +18,7 @@ from spotify_manager.application.new_wine_values import (
     NewWineConfigError as NewWineConfigError,
 )
 from spotify_manager.application.new_wine_values import NewWineError as NewWineError
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.new_wine import new_wine_dependencies
 from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
@@ -57,7 +56,7 @@ from spotify_manager.routines.new_wine import parse_playlist_id as parse_playlis
 from spotify_manager.routines.new_wine import validate_state as validate_state
 
 
-def flush_new_wine(
+async def flush_new_wine(
     sp: Spotify,
     options: NewWineOptions,
     callbacks: NewWineCallbacks,
@@ -88,4 +87,4 @@ def flush_new_wine(
         _CLOCK_RESOURCE,
         _LOCAL_YEAR_RESOURCE,
     )
-    return execute_flush_new_wine(options, dependencies)
+    return await execute_flush_new_wine(options, dependencies)

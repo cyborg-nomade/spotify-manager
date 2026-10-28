@@ -72,7 +72,7 @@ class ResolutionMemory:
         if self.failure == name:
             raise OSError(name)
 
-    def search(self, scrobble: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, scrobble: Scrobble) -> tuple[SpotifyTrackMatch, ...]:
         """Observe a search in original selection order.
 
         Args:
@@ -84,7 +84,7 @@ class ResolutionMemory:
         self._step(scrobble.track)
         return self.matches.get(scrobble.track, ())
 
-    def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
+    async def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
         """Observe shared liked status after every search.
 
         Args:
@@ -119,7 +119,7 @@ def _workflow(memory: ResolutionMemory, threshold: float = 0.9) -> HistoricalRes
 
 
 @pytest.mark.parametrize("present", [False, True])
-def test_searches_precede_liked_observation_and_duplicate_projection(
+async def test_searches_precede_liked_observation_and_duplicate_projection(
     present: bool,
 ) -> None:
     """Existing membership takes precedence over duplicate additions.
@@ -130,7 +130,7 @@ def test_searches_precede_liked_observation_and_duplicate_projection(
     memory = ResolutionMemory(matches={"first": (_match(),), "second": (_match(),)})
     selections = (_selection("first"), _selection("second"), _selection("missing"))
     playlist = PlaylistState(3, frozenset({"same"}) if present else frozenset())
-    result = _workflow(memory).run(selections, playlist)
+    result = await _workflow(memory).run(selections, playlist)
     expected = (
         ["already present", "already present", "no match"]
         if present
@@ -163,7 +163,7 @@ def test_searches_precede_liked_observation_and_duplicate_projection(
     "liked,threshold,accepted",
     [(False, 0.9, False), (False, 0.5, True), (True, 0.9, True)],
 )
-def test_album_threshold_and_liked_override_flow_into_results(
+async def test_album_threshold_and_liked_override_flow_into_results(
     liked: bool, threshold: float, accepted: bool
 ) -> None:
     """Keep rejected search matches out of qualification and pending additions.
@@ -176,7 +176,7 @@ def test_album_threshold_and_liked_override_flow_into_results(
     memory = ResolutionMemory(
         matches={"first": (_match(score=0.5),)}, liked_ids={"same"} if liked else set()
     )
-    result = _workflow(memory, threshold).run(
+    result = await _workflow(memory, threshold).run(
         (_selection("first"),), PlaylistState(0, frozenset())
     )
     assert result.results[0].qualifying_matches == int(accepted)
@@ -186,21 +186,21 @@ def test_album_threshold_and_liked_override_flow_into_results(
         assert result.pending_matches[0].liked is liked
 
 
-def test_pending_matches_follow_original_selection_order() -> None:
+async def test_pending_matches_follow_original_selection_order() -> None:
     """Maintain ordered unique additions independently of search identities."""
     memory = ResolutionMemory(
         matches={"first": (_match("b"),), "second": (_match("a"),)}
     )
-    result = _workflow(memory).run(
+    result = await _workflow(memory).run(
         (_selection("first"), _selection("second")), PlaylistState(0, frozenset())
     )
     assert [match.spotify_id for match in result.pending_matches] == ["b", "a"]
 
 
-def test_empty_selection_retains_liked_observation_and_progress() -> None:
+async def test_empty_selection_retains_liked_observation_and_progress() -> None:
     """Observe the liked boundary even when no searches are needed."""
     memory = ResolutionMemory()
-    result = _workflow(memory).run((), PlaylistState(0, frozenset()))
+    result = await _workflow(memory).run((), PlaylistState(0, frozenset()))
     assert memory.events == ["liked"] and memory.groups == []
     assert memory.messages == ["Checking liked Spotify matches"]
     assert result.results == ()
@@ -208,7 +208,9 @@ def test_empty_selection_retains_liked_observation_and_progress() -> None:
 
 
 @pytest.mark.parametrize("failure", ["first", "second", "liked"])
-def test_search_and_liked_failures_propagate_in_original_order(failure: str) -> None:
+async def test_search_and_liked_failures_propagate_in_original_order(
+    failure: str,
+) -> None:
     """Stop at the failed observation without constructing partial outcomes.
 
     Args:
@@ -216,15 +218,18 @@ def test_search_and_liked_failures_propagate_in_original_order(failure: str) -> 
     """
     memory = ResolutionMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
-        _workflow(memory).run(
-            (_selection("first"), _selection("second")), PlaylistState(0, frozenset())
+        (
+            await _workflow(memory).run(
+                (_selection("first"), _selection("second")),
+                PlaylistState(0, frozenset()),
+            )
         )
     expected = ["cancel", "first", "cancel", "second", "liked"]
     assert memory.events == expected[: expected.index(failure) + 1]
 
 
 @pytest.mark.parametrize("check", [1, 2])
-def test_cancellation_precedes_each_selection_search(check: int) -> None:
+async def test_cancellation_precedes_each_selection_search(check: int) -> None:
     """Suppress liked reads after cancellation between selected plays.
 
     Args:
@@ -232,7 +237,10 @@ def test_cancellation_precedes_each_selection_search(check: int) -> None:
     """
     memory = ResolutionMemory(cancel_at=check)
     with pytest.raises(BlastFromPastCancelledError):
-        _workflow(memory).run(
-            (_selection("first"), _selection("second")), PlaylistState(0, frozenset())
+        (
+            await _workflow(memory).run(
+                (_selection("first"), _selection("second")),
+                PlaylistState(0, frozenset()),
+            )
         )
     assert memory.events[-1] == "cancel" and "liked" not in memory.events

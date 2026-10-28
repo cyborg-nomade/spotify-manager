@@ -4,25 +4,22 @@ from collections.abc import Iterator
 from datetime import UTC
 from datetime import datetime
 from datetime import tzinfo
-from functools import partial
-from threading import Thread
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import Mock
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import queue_3
 from tests.interfaces.test_discovery_slice import _choose
 from tests.interfaces.test_discovery_slice import _start
 from tests.interfaces.test_discovery_slice import _wait
 from tests.interfaces.test_slow_listening_slice import _stop
-from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_queue_3 import FakeSpotify
 from tests.routines.test_queue_3 import raw_release
@@ -76,17 +73,16 @@ def queue_3_http(
         Real HTTP handlers and mutable Spotify simulation with worker cleanup.
     """
     spotify = _spotify()
-    threads: list[Thread] = []
     monkeypatch.setattr(queue_3, "datetime", Queue3Clock)
     monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
-    try:
-        yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield (http, spotify)
+        finally:
+            _stop()
 
 
 @pytest.mark.parametrize("preview", [False, True])

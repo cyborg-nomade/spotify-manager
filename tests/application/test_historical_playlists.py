@@ -80,7 +80,7 @@ class PlaylistMemory:
         if self.failure == name:
             raise OSError(name)
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Observe existing destination facts.
 
         Returns:
@@ -110,7 +110,7 @@ class PlaylistMemory:
             (result,), (_match(),) if self.pending else ()
         )
 
-    def append(self, matches: list[SpotifyTrackMatch]) -> None:
+    async def append(self, matches: list[SpotifyTrackMatch]) -> None:
         """Accept the original ordered pending matches.
 
         Args:
@@ -171,7 +171,7 @@ class ScriptedBlast:
 
     memory: PlaylistMemory
 
-    def run(self, count: int) -> BlastFromPastBatch:
+    async def run(self, count: int) -> BlastFromPastBatch:
         """Return the scripted selection.
 
         Args:
@@ -193,7 +193,7 @@ class ScriptedRadio:
 
     memory: PlaylistMemory
 
-    def run(self) -> DailyMindRadioBatch:
+    async def run(self) -> DailyMindRadioBatch:
         """Return the original scripted anniversary outcome."""
         return self.memory.radio()
 
@@ -208,7 +208,7 @@ class ScriptedResolution:
 
     memory: PlaylistMemory
 
-    def run(
+    async def run(
         self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
     ) -> SpotifySelectionResolution:
         """Return the original scripted resolution.
@@ -250,7 +250,7 @@ def _radio(memory: PlaylistMemory) -> AnniversaryPlaylist:
         (None, -1, "Maximum playlist"),
     ],
 )
-def test_invalid_blast_request_precedes_every_observation(
+async def test_invalid_blast_request_precedes_every_observation(
     count: int | None, maximum: int | None, message: str
 ) -> None:
     """Validate explicit configuration before cancellation, presentation or reads.
@@ -262,14 +262,14 @@ def test_invalid_blast_request_precedes_every_observation(
     """
     memory = PlaylistMemory()
     with pytest.raises(BlastFromPastConfigError, match=message):
-        _blast(memory).run("target", count, maximum, False)
+        (await _blast(memory).run("target", count, maximum, False))
     assert not memory.events and not memory.messages
 
 
 @pytest.mark.parametrize(
     "count,maximum,expected", [(2, None, 2), (None, None, 10), (None, 8, 5)]
 )
-def test_blast_capacity_determines_selection_count(
+async def test_blast_capacity_determines_selection_count(
     count: int | None, maximum: int | None, expected: int
 ) -> None:
     """Observe the destination once before applying count or capacity selection.
@@ -280,7 +280,7 @@ def test_blast_capacity_determines_selection_count(
         expected: Effective selection count.
     """
     memory = PlaylistMemory()
-    result = _blast(memory).run("target", count, maximum, False)
+    result = await _blast(memory).run("target", count, maximum, False)
     assert memory.counts == [expected] and result.requested_count == expected
     assert result.playlist_id == "target" and result.batch is not None
     assert memory.events == ["cancel", "read", "select", "cancel", "resolve", "append"]
@@ -289,14 +289,14 @@ def test_blast_capacity_determines_selection_count(
 
 
 @pytest.mark.parametrize("total", [3, 4])
-def test_blast_full_destination_skips_history_and_matching(total: int) -> None:
+async def test_blast_full_destination_skips_history_and_matching(total: int) -> None:
     """Capacity is clamped at zero for full or oversized destinations.
 
     Args:
         total: Observed playlist length.
     """
     memory = PlaylistMemory(total=total)
-    result = _blast(memory).run("target", None, 3, False)
+    result = await _blast(memory).run("target", None, 3, False)
     assert memory.events == ["cancel", "read"]
     assert result.batch is None and not result.results
     assert result.requested_count == result.added == 0
@@ -306,7 +306,7 @@ def test_blast_full_destination_skips_history_and_matching(total: int) -> None:
 @pytest.mark.parametrize(
     "preview,pending", [(False, False), (True, False), (True, True)]
 )
-def test_blast_preview_and_empty_resolution_suppress_append(
+async def test_blast_preview_and_empty_resolution_suppress_append(
     preview: bool, pending: bool
 ) -> None:
     """Only real pending additions affect the projected destination size.
@@ -316,16 +316,16 @@ def test_blast_preview_and_empty_resolution_suppress_append(
         pending: Whether resolution includes an addition.
     """
     memory = PlaylistMemory(pending=pending)
-    result = _blast(memory).run("target", 1, None, preview)
+    result = await _blast(memory).run("target", 1, None, preview)
     assert memory.events == ["cancel", "read", "select", "cancel", "resolve"]
     assert result.playlist_length_after == 3 and result.added == int(pending)
     assert memory.messages == ["Loading the Spotify playlist"]
 
 
-def test_radio_empty_selection_retains_nullable_lengths() -> None:
+async def test_radio_empty_selection_retains_nullable_lengths() -> None:
     """Check cancellation after selection but skip every Spotify observation."""
     memory = PlaylistMemory(empty=True)
-    result = _radio(memory).run("target", False)
+    result = await _radio(memory).run("target", False)
     assert memory.events == ["cancel", "select", "cancel"]
     assert (
         result.playlist_length_before is None and result.playlist_length_after is None
@@ -336,7 +336,7 @@ def test_radio_empty_selection_retains_nullable_lengths() -> None:
 @pytest.mark.parametrize(
     "preview,pending", [(False, True), (False, False), (True, True)]
 )
-def test_radio_selection_precedes_destination_observation(
+async def test_radio_selection_precedes_destination_observation(
     preview: bool, pending: bool
 ) -> None:
     """Maintain radio's distinct preparation order and preview result actions.
@@ -346,7 +346,7 @@ def test_radio_selection_precedes_destination_observation(
         pending: Whether resolution includes an addition.
     """
     memory = PlaylistMemory(pending=pending)
-    result = _radio(memory).run("target", preview)
+    result = await _radio(memory).run("target", preview)
     expected = ["cancel", "select", "cancel", "read", "resolve"]
     added = pending and not preview
     if added:
@@ -362,7 +362,7 @@ def test_radio_selection_precedes_destination_observation(
 
 @pytest.mark.parametrize("check", [1, 2])
 @pytest.mark.parametrize("radio", [False, True])
-def test_cancellation_stops_at_the_original_preparation_boundary(
+async def test_cancellation_stops_at_the_original_preparation_boundary(
     check: int, radio: bool
 ) -> None:
     """Prevent matching and append when either routine preparation check cancels.
@@ -374,16 +374,18 @@ def test_cancellation_stops_at_the_original_preparation_boundary(
     memory = PlaylistMemory(cancel_at=check)
     with pytest.raises(BlastFromPastCancelledError):
         if radio:
-            _radio(memory).run("target", False)
+            (await _radio(memory).run("target", False))
         else:
-            _blast(memory).run("target", 1, None, False)
+            (await _blast(memory).run("target", 1, None, False))
     assert memory.checks == check and memory.events[-1] == "cancel"
     assert "resolve" not in memory.events and not memory.appended
 
 
 @pytest.mark.parametrize("failure", ["read", "select", "resolve", "append"])
 @pytest.mark.parametrize("radio", [False, True])
-def test_observation_and_mutation_failures_propagate(failure: str, radio: bool) -> None:
+async def test_observation_and_mutation_failures_propagate(
+    failure: str, radio: bool
+) -> None:
     """Retain the original exception and suppress later observations or writes.
 
     Args:
@@ -393,7 +395,7 @@ def test_observation_and_mutation_failures_propagate(failure: str, radio: bool) 
     memory = PlaylistMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
         if radio:
-            _radio(memory).run("target", False)
+            (await _radio(memory).run("target", False))
         else:
-            _blast(memory).run("target", 1, None, False)
+            (await _blast(memory).run("target", 1, None, False))
     assert memory.events[-1] == failure and not memory.appended

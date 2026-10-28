@@ -29,7 +29,7 @@ class ReleaseAnswer:
     answer: str
     offered: list[tuple[str, ...]]
 
-    def choose_release(
+    async def choose_release(
         self,
         source: new_wine.PlaylistTrack,
         candidates: tuple[new_wine.ReleaseCandidate, ...],
@@ -59,7 +59,7 @@ class EndpointAnswer:
     answer: str
     offered: list[tuple[int, int]]
 
-    def choose_endpoint(
+    async def choose_endpoint(
         self,
         source: new_wine.PlaylistTrack,
         tracks: tuple[new_wine.ReleaseTrack, ...],
@@ -139,7 +139,7 @@ class FakeSpotify:
         self.album_contains_calls: list[list[str]] = []
         self.fail_next_delete = False
 
-    def _get(self, path: str, *, limit: int, offset: int):
+    async def _get(self, path: str, *, limit: int, offset: int):
         playlist_id = path.split("/")[1]
         tracks = self.playlists[playlist_id]
         page = tracks[offset : offset + limit]
@@ -149,7 +149,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def _post(self, path: str, *, payload: dict[str, object]):
+    async def _post(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         uri = str(payload["uris"][0])  # type: ignore[index]
         track_id = uri.split("spotify:track:")[-1]
@@ -163,7 +163,7 @@ class FakeSpotify:
         self.mutations.append(("add", playlist_id, track_id))
         return {}
 
-    def _delete(self, path: str, *, payload: dict[str, object]):
+    async def _delete(self, path: str, *, payload: dict[str, object]):
         if self.fail_next_delete:
             self.fail_next_delete = False
             raise RuntimeError("interrupted after add")
@@ -176,7 +176,7 @@ class FakeSpotify:
         self.mutations.append(("remove", playlist_id, track_id))
         return {}
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
         return {
@@ -184,7 +184,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -200,21 +200,21 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(releases) else None,
         }
 
-    def current_user_saved_tracks_contains(self, track_ids: list[str]):
+    async def current_user_saved_tracks_contains(self, track_ids: list[str]):
         self.liked_contains_calls.append(list(track_ids))
         return [track_id in self.liked_ids for track_id in track_ids]
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         self.album_contains_calls.append(list(album_ids))
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def current_user_saved_albums_add(self, album_ids: list[str]):
+    async def current_user_saved_albums_add(self, album_ids: list[str]):
         for album_id in album_ids:
             self.saved_album_ids.add(album_id)
             self.mutations.append(("save", "library", album_id))
         return None
 
-    def current_user_saved_albums_delete(self, album_ids: list[str]):
+    async def current_user_saved_albums_delete(self, album_ids: list[str]):
         for album_id in album_ids:
             self.saved_album_ids.discard(album_id)
             self.mutations.append(("unsave", "library", album_id))
@@ -231,7 +231,7 @@ def paths(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
+async def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
     """Flush advances every snapshotted album track.
 
     Args:
@@ -281,7 +281,7 @@ def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
     assert state["track_progress"]["t2"]["prior_unliked_streak"] == 1
 
 
-def test_canonical_cutoff_completes_album_and_offers_follow_up(
+async def test_canonical_cutoff_completes_album_and_offers_follow_up(
     tmp_path: Path,
 ) -> None:
     """Canonical cutoff completes album and offers follow up.
@@ -357,7 +357,7 @@ def test_canonical_cutoff_completes_album_and_offers_follow_up(
     assert spotify.playlists["new"] == []
 
 
-def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
+async def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
     tmp_path: Path,
 ) -> None:
     """Canonical cutoff governs drop evaluation and unsaving.
@@ -411,7 +411,7 @@ def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
     assert not ({"t5", "t6"} & set(spotify.liked_contains_calls[-1]))
 
 
-def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
+async def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
     """Canonical endpoint review can skip one entry.
 
     Args:
@@ -447,7 +447,7 @@ def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
     assert state["active_run"]["entries"][0]["status"] == "skipped"
 
 
-def test_canonical_endpoint_review_can_continue_the_full_tracklist(
+async def test_canonical_endpoint_review_can_continue_the_full_tracklist(
     tmp_path: Path,
 ) -> None:
     """Canonical endpoint review can continue the full tracklist.
@@ -487,7 +487,7 @@ def test_canonical_endpoint_review_can_continue_the_full_tracklist(
     assert [item["id"] for item in spotify.playlists["new"]] == ["t2"]
 
 
-def test_canonical_endpoint_mode_requires_an_interactive_reader(
+async def test_canonical_endpoint_mode_requires_an_interactive_reader(
     tmp_path: Path,
 ) -> None:
     """Canonical endpoint mode requires an interactive reader.
@@ -502,22 +502,24 @@ def test_canonical_endpoint_mode_requires_an_interactive_reader(
     spotify.playlists["new"] = [track]
 
     with pytest.raises(new_wine.NewWineConfigError, match="choice reader"):
-        new_wine.flush_new_wine(
-            spotify,
-            NewWineOptions(
-                destination="new",
-                sauvignon="sauv",
-                endpoint_mode=True,
-                cellar=None,
-                no_discovery=False,
-                dry_run=False,
-            ),
-            NewWineCallbacks(choose=Answer(new_wine.CHOICE_FINISH)),
-            storage=NewWineStorage(**paths(tmp_path)),
+        (
+            new_wine.flush_new_wine(
+                spotify,
+                NewWineOptions(
+                    destination="new",
+                    sauvignon="sauv",
+                    endpoint_mode=True,
+                    cellar=None,
+                    no_discovery=False,
+                    dry_run=False,
+                ),
+                NewWineCallbacks(choose=Answer(new_wine.CHOICE_FINISH)),
+                storage=NewWineStorage(**paths(tmp_path)),
+            )
         )
 
 
-def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
+async def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
     tmp_path: Path,
 ) -> None:
     """Flush refills new wine to ten from top of wine cellar.
@@ -576,7 +578,7 @@ def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
     ]
 
 
-def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
+async def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
     tmp_path: Path,
 ) -> None:
     """No discovery refill keeps ineligible tracks in cellar order.
@@ -696,7 +698,7 @@ def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
     ]
 
 
-def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
+async def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
     """Refill resumes between add and cellar removal.
 
     Args:
@@ -710,20 +712,22 @@ def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
     spotify.fail_next_delete = True
 
     with pytest.raises(RuntimeError, match="interrupted after add"):
-        new_wine.flush_new_wine(
-            spotify,
-            NewWineOptions(
-                destination="new",
-                sauvignon="sauv",
-                cellar="wine",
-                no_discovery=False,
-                endpoint_mode=False,
-                dry_run=False,
-            ),
-            NewWineCallbacks(
-                choose=UnexpectedInteraction("empty flush should not prompt")
-            ),
-            storage=NewWineStorage(**paths(tmp_path)),
+        (
+            new_wine.flush_new_wine(
+                spotify,
+                NewWineOptions(
+                    destination="new",
+                    sauvignon="sauv",
+                    cellar="wine",
+                    no_discovery=False,
+                    endpoint_mode=False,
+                    dry_run=False,
+                ),
+                NewWineCallbacks(
+                    choose=UnexpectedInteraction("empty flush should not prompt")
+                ),
+                storage=NewWineStorage(**paths(tmp_path)),
+            )
         )
 
     interrupted_state = json.loads((tmp_path / "state.json").read_text())
@@ -762,7 +766,7 @@ def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
     assert completed_state["active_run"]["status"] == "completed"
 
 
-def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
+async def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
     """Refill dry run simulates ten without mutation.
 
     Args:
@@ -813,7 +817,9 @@ def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
     assert not (tmp_path / "state.json").exists()
 
 
-def test_refill_dry_run_uses_projected_post_flush_capacity(tmp_path: Path) -> None:
+async def test_refill_dry_run_uses_projected_post_flush_capacity(
+    tmp_path: Path,
+) -> None:
     """Refill dry run uses projected post flush capacity.
 
     Args:
@@ -879,7 +885,7 @@ def test_refill_dry_run_uses_projected_post_flush_capacity(tmp_path: Path) -> No
     ]
 
 
-def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
+async def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
     """Full new wine does not query wine cellar.
 
     Args:
@@ -887,7 +893,7 @@ def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
     """
     spotify = FakeSpotify()
 
-    summary = new_wine._refill_new_wine(
+    summary = await new_wine._refill_new_wine(
         spotify,
         "new",
         "not-configured-in-fake",
@@ -911,7 +917,7 @@ def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
     assert summary.results == ()
 
 
-def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
+async def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
     tmp_path: Path,
 ) -> None:
     """Three consecutive unliked tracks jump to next liked track.
@@ -980,7 +986,7 @@ def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
     assert not (tmp_path / "removed.jsonl").exists()
 
 
-def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
+async def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
     tmp_path: Path,
 ) -> None:
     """Three unliked tracks after last like drop and unsave album.
@@ -1043,7 +1049,7 @@ def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
     assert removed["action"] == "new_wine_three_consecutive_unliked"
 
 
-def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
+async def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
     """Live like breaks the consecutive streak.
 
     Args:
@@ -1086,7 +1092,7 @@ def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
     assert [track["id"] for track in spotify.playlists["new"]] == ["t4"]
 
 
-def test_dropped_album_remains_saved_when_it_meets_keep_rule(
+async def test_dropped_album_remains_saved_when_it_meets_keep_rule(
     tmp_path: Path,
 ) -> None:
     """Dropped album remains saved when it meets keep rule.
@@ -1139,7 +1145,7 @@ def test_dropped_album_remains_saved_when_it_meets_keep_rule(
     assert not (tmp_path / "removed.jsonl").exists()
 
 
-def test_last_album_track_sends_first_track_to_sauvignon(
+async def test_last_album_track_sends_first_track_to_sauvignon(
     tmp_path: Path,
 ) -> None:
     """Last album track sends first track to sauvignon.
@@ -1187,7 +1193,7 @@ def test_last_album_track_sends_first_track_to_sauvignon(
     ]
 
 
-def test_sauvignon_does_not_save_album_below_keep_threshold(
+async def test_sauvignon_does_not_save_album_below_keep_threshold(
     tmp_path: Path,
 ) -> None:
     """Sauvignon does not save album below keep threshold.
@@ -1244,7 +1250,7 @@ def test_sauvignon_does_not_save_album_below_keep_threshold(
     ]
 
 
-def test_legacy_sauvignon_plan_saves_after_source_was_removed(
+async def test_legacy_sauvignon_plan_saves_after_source_was_removed(
     tmp_path: Path,
 ) -> None:
     """Legacy sauvignon plan saves after source was removed.
@@ -1262,15 +1268,19 @@ def test_legacy_sauvignon_plan_saves_after_source_was_removed(
     spotify.playlists["new"] = [tracks[1]]
     spotify.playlists["sauv"] = [tracks[0]]
     spotify.liked_ids = {"t2"}
-    source = new_wine.load_playlist_tracks(
-        spotify,
-        "new",
-        NoRetry(),
+    source = (
+        new_wine.load_playlist_tracks(
+            spotify,
+            "new",
+            NoRetry(),
+        )
     )[0]
-    target = new_wine.load_release_tracks(
-        spotify,
-        source.release,
-        NoRetry(),
+    target = (
+        new_wine.load_release_tracks(
+            spotify,
+            source.release,
+            NoRetry(),
+        )
     )[0]
     state = new_wine._default_state()
     run = new_wine._new_run("new", (source,), None, False, False)
@@ -1313,7 +1323,7 @@ def test_legacy_sauvignon_plan_saves_after_source_was_removed(
     assert spotify.mutations == [("save", "library", "album")]
 
 
-def test_album_endpoint_can_start_another_current_year_release(
+async def test_album_endpoint_can_start_another_current_year_release(
     tmp_path: Path,
 ) -> None:
     """Album endpoint can start another current year release.
@@ -1383,7 +1393,7 @@ def test_album_endpoint_can_start_another_current_year_release(
     assert state["track_progress"]["f1"]["prior_unliked_streak"] == 0
 
 
-def test_drop_endpoint_can_finish_without_a_follow_up_release(
+async def test_drop_endpoint_can_finish_without_a_follow_up_release(
     tmp_path: Path,
 ) -> None:
     """Drop endpoint can finish without a follow up release.
@@ -1447,7 +1457,7 @@ def test_drop_endpoint_can_finish_without_a_follow_up_release(
     ]
 
 
-def test_drop_endpoint_can_start_another_current_year_release(
+async def test_drop_endpoint_can_start_another_current_year_release(
     tmp_path: Path,
 ) -> None:
     """Drop endpoint can start another current year release.
@@ -1507,7 +1517,7 @@ def test_drop_endpoint_can_start_another_current_year_release(
     ]
 
 
-def test_single_prompts_for_current_year_release_and_starts_at_first_track(
+async def test_single_prompts_for_current_year_release_and_starts_at_first_track(
     tmp_path: Path,
 ) -> None:
     """Single prompts for current year release and starts at first track.
@@ -1610,7 +1620,7 @@ def test_single_prompts_for_current_year_release_and_starts_at_first_track(
     assert spotify.playlists["new"] == []
 
 
-def test_selected_release_uses_track_number_not_alphabetical_response(
+async def test_selected_release_uses_track_number_not_alphabetical_response(
     tmp_path: Path,
 ) -> None:
     """Selected release uses track number not alphabetical response.
@@ -1670,7 +1680,7 @@ def test_selected_release_uses_track_number_not_alphabetical_response(
     assert [track["id"] for track in spotify.playlists["new"]] == ["a1"]
 
 
-def test_switching_from_single_to_album_starts_at_album_opener(
+async def test_switching_from_single_to_album_starts_at_album_opener(
     tmp_path: Path,
 ) -> None:
     """Switching from single to album starts at album opener.
@@ -1737,7 +1747,7 @@ def test_switching_from_single_to_album_starts_at_album_opener(
     assert [track["id"] for track in spotify.playlists["new"]] == ["a1"]
 
 
-def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
+async def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
     """Current year release scan exhausts non chronological pages."""
     spotify = FakeSpotify()
     older = [
@@ -1782,7 +1792,7 @@ def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
     ]
 
 
-def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
+async def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
     """Single release prompt can drop current release.
 
     Args:
@@ -1834,7 +1844,9 @@ def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
     assert spotify.playlists["sauv"] == []
 
 
-def test_lone_current_year_single_is_dropped_automatically(tmp_path: Path) -> None:
+async def test_lone_current_year_single_is_dropped_automatically(
+    tmp_path: Path,
+) -> None:
     """Lone current year single is dropped automatically.
 
     Args:
@@ -1880,7 +1892,7 @@ def test_lone_current_year_single_is_dropped_automatically(tmp_path: Path) -> No
     assert removed["action"] == "new_wine_only_current_year_single"
 
 
-def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
+async def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
     """Completed single is never added to sauvignon.
 
     Args:
@@ -1932,7 +1944,7 @@ def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
     assert spotify.playlists["sauv"] == []
 
 
-def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
+async def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
     tmp_path: Path,
 ) -> None:
     """Dry run reports unsave without mutating spotify or state.
@@ -1979,7 +1991,7 @@ def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
     assert json.loads((tmp_path / "log.jsonl").read_text())["dry_run"] is True
 
 
-def test_interrupted_add_before_remove_resumes_without_double_advance(
+async def test_interrupted_add_before_remove_resumes_without_double_advance(
     tmp_path: Path,
 ) -> None:
     """Interrupted add before remove resumes without double advance.
@@ -2000,20 +2012,22 @@ def test_interrupted_add_before_remove_resumes_without_double_advance(
     options = paths(tmp_path)
 
     with pytest.raises(RuntimeError, match="interrupted"):
-        new_wine.flush_new_wine(
-            spotify,
-            NewWineOptions(
-                destination="new",
-                sauvignon="sauv",
-                cellar=None,
-                no_discovery=False,
-                endpoint_mode=False,
-                dry_run=False,
-            ),
-            NewWineCallbacks(
-                choose=UnexpectedInteraction("album tracks should not prompt")
-            ),
-            storage=NewWineStorage(**options),
+        (
+            new_wine.flush_new_wine(
+                spotify,
+                NewWineOptions(
+                    destination="new",
+                    sauvignon="sauv",
+                    cellar=None,
+                    no_discovery=False,
+                    endpoint_mode=False,
+                    dry_run=False,
+                ),
+                NewWineCallbacks(
+                    choose=UnexpectedInteraction("album tracks should not prompt")
+                ),
+                storage=NewWineStorage(**options),
+            )
         )
 
     assert [track["id"] for track in spotify.playlists["new"]] == ["t1", "t2"]

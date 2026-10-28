@@ -4,8 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.scrobble_lookup_run import TrackHistoryLookup
 from spotify_manager.infrastructure import scrobble_lookup as history
 from spotify_manager.infrastructure.lookup_resources import SpotifyTrackLookup
@@ -17,7 +16,7 @@ DEFAULT_SCROBBLES_PATH = (
 )
 
 
-def latest(path: Path, track: str, artist: str) -> datetime | None:
+async def latest(path: Path, track: str, artist: str) -> datetime | None:
     """Bind original public export codec and matching timestamp boundary.
 
     Args:
@@ -28,7 +27,7 @@ def latest(path: Path, track: str, artist: str) -> datetime | None:
     Returns:
         Original latest matching play or none.
     """
-    return history.latest(path, track, artist, TIMEZONE)
+    return await history.latest(path, track, artist, TIMEZONE)
 
 
 def resources(

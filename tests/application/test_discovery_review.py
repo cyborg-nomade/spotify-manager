@@ -121,10 +121,10 @@ def _names(case: ReviewCase) -> list[str]:
     return [name for name, value in case.effects.events]
 
 
-def test_plan_checkpoint_precedes_effects_and_completion_audit_follows_ack() -> None:
+async def test_plan_checkpoint_precedes_effects_and_completion_audit() -> None:
     """Ordinary progression preserves observation, planning and acknowledgment order."""
     case = _case()
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].target_track == "next"
     assert _names(case) == [
         "progress",
@@ -149,11 +149,11 @@ def test_plan_checkpoint_precedes_effects_and_completion_audit_follows_ack() -> 
     )
 
 
-def test_saved_ordinary_plan_still_observes_current_catalog_before_execution() -> None:
+async def test_saved_ordinary_plan_observes_current_catalog_before() -> None:
     """A saved plan skips decision work while retaining original source observations."""
     case = _case()
     case.entry["plan"] = _plan()
-    results, paused = case.review.review([case.entry], None)
+    results, paused = await case.review.review([case.entry], None)
     assert not paused and len(results) == 1
     assert _names(case)[:3] == ["progress", "catalog", "tracks"]
     assert "memberships" not in _names(case)
@@ -161,42 +161,46 @@ def test_saved_ordinary_plan_still_observes_current_catalog_before_execution() -
 
 
 @pytest.mark.parametrize("status", ["completed", "skipped"])
-def test_completed_entries_skip_source_validation_and_progress(status: str) -> None:
+async def test_completed_entries_skip_source_validation_and_progress(
+    status: str,
+) -> None:
     """Already acknowledged entries need no source, observation or callback."""
     case = _case()
-    assert case.review.review([{"status": status}], "run") == ((), False)
+    assert (await case.review.review([{"status": status}], "run")) == ((), False)
     assert case.effects.events == []
 
 
 @pytest.mark.parametrize("raw", [None, [], "invalid"])
-def test_invalid_entry_retains_original_error_before_any_effect(raw: object) -> None:
+async def test_invalid_entry_retains_original_error_before_any_effect(
+    raw: object,
+) -> None:
     """Malformed entry containers fail before attempting source translation."""
     case = _case()
     with pytest.raises(NewKidsStateError, match="invalid entry"):
-        case.review.review([raw], "run")
+        (await case.review.review([raw], "run"))
     assert case.effects.events == []
 
 
-def test_missing_source_release_is_prepended_before_ordinary_planning() -> None:
+async def test_missing_source_release_is_prepended_before_ordinary_planning() -> None:
     """A playlist release absent from the catalog remains a review candidate."""
     case = _case()
     case.facts.catalogs.clear()
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].action == "advance"
     assert _names(case)[:3] == ["progress", "catalog", "tracks"]
 
 
-def test_source_fallback_does_not_duplicate_an_existing_release_identity() -> None:
+async def test_source_fallback_does_not_duplicate_an_existing_release() -> None:
     """Edition identity deduplication still uses the fallback source release."""
     case = _case()
     case.facts.catalogs["artist"] = (replace(ALBUM, spotify_id="alternate"),)
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].target_track == "next"
     assert ("tracks", "album") in case.effects.events
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_ordinary_skip_audits_before_checkpoint_and_returns_public_result(
+async def test_ordinary_skip_audits_before_checkpoint_and_returns_public(
     preview: bool,
 ) -> None:
     """Ordinary skips differ from composer skips in both audit and result behavior."""
@@ -205,7 +209,7 @@ def test_ordinary_skip_audits_before_checkpoint_and_returns_public_result(
     case.facts.catalogs["artist"] = (ALBUM, other)
     case.facts.releases.update(album=(track("source"),), other=(track("other"),))
     case.facts.choices.append("__skip__")
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].action == "skip"
     assert case.entry["status"] == "skipped"
     expected_tail = (
@@ -215,25 +219,21 @@ def test_ordinary_skip_audits_before_checkpoint_and_returns_public_result(
     assert _names(case).count("progress") == 1
 
 
-def test_ordinary_quit_leaves_pending_entry_and_does_not_process_later_entries() -> (
-    None
-):
+async def test_ordinary_quit_leaves_pending_entry_and_does_not_process() -> None:
     """Operator pause stops the snapshot immediately without accepting a plan."""
     case = _case()
     case.facts.catalogs["artist"] = (ALBUM, release("other"))
     case.facts.releases.update(album=(track("source"),), other=(track("other"),))
     case.facts.choices.append("__quit__")
-    assert case.review.review([case.entry, None], "run") == ((), True)
+    assert (await case.review.review([case.entry, None], "run")) == ((), True)
     assert case.entry["status"] == "pending" and case.entry["plan"] is None
     assert "checkpoint" not in _names(case)
 
 
-def test_composer_plan_is_checkpointed_before_the_ordinary_source_observations() -> (
-    None
-):
+async def test_composer_plan_is_checkpointed_before_the_ordinary_source() -> None:
     """Works observations and their saved plan precede unconditional source reads."""
     case = _case(owned=(WORKS,))
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].composer_playlist == WORKS.name
     assert _names(case)[:6] == [
         "progress",
@@ -246,11 +246,11 @@ def test_composer_plan_is_checkpointed_before_the_ordinary_source_observations()
     assert _names(case).count("playlist") == 1
 
 
-def test_composer_completion_observes_artist_assessment_only_at_last_work() -> None:
+async def test_composer_completion_observes_artist_assessment_only_at_last() -> None:
     """Finished works retain the ordinary saved/top membership assessment rules."""
     case = _case(owned=(WORKS,))
     case.facts.playlists["works"] = (SOURCE,)
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert not paused and results[0].action == "unfollowed"
     assert "top" in _names(case) and "saved" in _names(case)
     assert _names(case).index("top") < _names(case).index("checkpoint")
@@ -258,13 +258,13 @@ def test_composer_completion_observes_artist_assessment_only_at_last_work() -> N
 
 @pytest.mark.parametrize("choice", ["__skip__", "__quit__"])
 @pytest.mark.parametrize("preview", [False, True])
-def test_composer_control_choices_skip_catalog_observation(
+async def test_composer_control_choices_skip_catalog_observation(
     choice: str, preview: bool
 ) -> None:
     """Composer controls resolve before catalog reads and never emit skip results."""
     case = _case(preview=preview, owned=(WORKS, OTHER_WORKS))
     case.facts.choices.append(choice)
-    results, paused = case.review.review([case.entry], "run")
+    results, paused = await case.review.review([case.entry], "run")
     assert results == () and paused == (choice == "__quit__")
     assert "catalog" not in _names(case) and "audit" not in _names(case)
     if choice == "__skip__":
@@ -277,18 +277,18 @@ def test_composer_control_choices_skip_catalog_observation(
         assert case.entry["status"] == "skipped"
 
 
-def test_saved_valid_composer_plan_skips_new_route_and_works_reads() -> None:
+async def test_saved_valid_composer_plan_skips_new_route_and_works_reads() -> None:
     """Valid saved works plans execute after unconditional source catalog reads."""
     case = _case(owned=(WORKS,))
     plan = _plan()
     plan["composer_playlist_id"] = "works"
     case.entry["plan"] = plan
-    case.review.review([case.entry], "run")
+    (await case.review.review([case.entry], "run"))
     assert "playlist" not in _names(case) and "choice" not in _names(case)
     assert "stale" not in _names(case)
 
 
-def test_stale_composer_plan_is_discarded_before_checkpoint_and_replanning() -> None:
+async def test_stale_composer_plan_is_discarded_before_checkpoint_and() -> None:
     """Invalid routing clears both saved plan and route before its original message."""
     case = _case()
     plan = _plan()
@@ -297,15 +297,13 @@ def test_stale_composer_plan_is_discarded_before_checkpoint_and_replanning() -> 
     case.review.execution.state["composer_routes"] = {
         "artist": {"playlist_id": "missing"}
     }
-    case.review.review([case.entry], "run")
+    (await case.review.review([case.entry], "run"))
     assert _names(case)[:5] == ["progress", "stale", "checkpoint", "catalog", "tracks"]
     assert case.entry["plan"] != plan
     assert case.review.execution.state["composer_routes"] == {}
 
 
-def test_stale_plan_with_malformed_routes_is_checkpointed_before_route_validation() -> (
-    None
-):
+async def test_stale_plan_with_malformed_routes_is_checkpointed_before() -> None:
     """Malformed route containers retain the original delayed validation boundary."""
     case = _case()
     plan = _plan()
@@ -313,28 +311,26 @@ def test_stale_plan_with_malformed_routes_is_checkpointed_before_route_validatio
     case.entry["plan"] = plan
     case.review.execution.state["composer_routes"] = []
     with pytest.raises(NewKidsStateError, match="composer-route"):
-        case.review.review([case.entry], "run")
+        (await case.review.review([case.entry], "run"))
     assert _names(case) == ["progress", "stale", "checkpoint"]
     assert case.entry["plan"] is None
 
 
-def test_optional_progress_callback_does_not_change_effect_order() -> None:
+async def test_optional_progress_callback_does_not_change_effect_order() -> None:
     """An absent progress callback simply suppresses its notifications."""
     case = _case()
     review = replace(case.review, progress_callback=None)
-    results, paused = review.review([case.entry], "run")
+    results, paused = await review.review([case.entry], "run")
     assert len(results) == 1 and not paused
     assert "progress" not in _names(case)
 
 
-def test_completion_audit_failure_retains_acknowledged_entry_without_end_progress() -> (
-    None
-):
+async def test_completion_audit_failure_retains_acknowledged_entry_without() -> None:
     """Successful execution is checkpointed before a completion audit can fail."""
     case = _case()
     case.effects.fail_at = "audit"
     with pytest.raises(OSError, match="audit"):
-        case.review.review([case.entry], "run")
+        (await case.review.review([case.entry], "run"))
     assert case.entry["status"] == "completed"
     assert _names(case)[-2:] == ["checkpoint", "audit"]
     assert _names(case).count("progress") == 1

@@ -19,11 +19,13 @@ ORIGINAL = json.loads(
 
 
 @pytest.mark.parametrize("index,scenario", list(enumerate(CASES)))
-def test_original_complete_legacy_workflow(index: int, scenario: Scenario) -> None:
+async def test_original_complete_legacy_workflow(
+    index: int, scenario: Scenario
+) -> None:
     """Preserve original results, effects, bytes and partial acceptance.
 
     Args:
         index: Immutable original observation index.
         scenario: Original workflow and interruption.
     """
-    assert observe(scenario) == ORIGINAL[index]
+    assert (await observe(scenario)) == ORIGINAL[index]

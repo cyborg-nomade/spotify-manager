@@ -1,8 +1,8 @@
 """Validate and present queue fill HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.queue import QueueChoiceRequest
@@ -11,7 +11,7 @@ from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import the_queue as the_queue
 
 
-def cmd_fill_queue_from_lastfm(
+async def cmd_fill_queue_from_lastfm(
     client: Spotify,
     count: int | None,
     max_playlist_length: int | None,
@@ -51,7 +51,7 @@ def cmd_fill_queue_from_lastfm(
         if count is None and max_playlist_length is None
         else count
     )
-    return jobs.start_queue_fill_job(
+    return await jobs.start_queue_fill_job(
         client,
         playlists,
         api_key,

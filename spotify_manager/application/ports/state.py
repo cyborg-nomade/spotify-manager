@@ -82,3 +82,44 @@ class RoutineState(Protocol):
         Raises:
             StateError: Validation, persistence, or conflict handling fails.
         """
+
+
+class AsyncRoutineState(Protocol):
+    """Existing routine namespace contract, retaining its JSON boundary typing.
+
+    Any remains here for compatibility with heterogeneous, versioned legacy JSON
+    and its validators. New music ports exchange typed values instead.
+    """
+
+    async def load(self) -> dict[str, Any]:
+        """Load this routine's validated state.
+
+        Returns:
+            A detached namespace object with its existing schema.
+
+        Raises:
+            StateError: The namespace cannot be read or validated.
+        """
+
+    async def save(
+        self,
+        value: dict[str, Any],
+        *,
+        message: str | None = None,
+    ) -> object:
+        """Persist this routine's complete state.
+
+        Args:
+            value: Complete namespace object validated by the existing routine.
+            message: Optional commit description.
+
+        Returns:
+            The original store result, which callers need not inspect.
+
+        Raises:
+            StateError: Validation, persistence, or conflict handling fails.
+        """
+
+
+# The synchronous public protocol keeps its original identity across legacy imports.
+BlockingRoutineState = RoutineState

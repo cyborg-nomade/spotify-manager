@@ -19,6 +19,7 @@ from spotify_manager.interfaces.cli.formatting import scrobble_date
 from spotify_manager.interfaces.cli.history import present_history_summary
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
@@ -41,7 +42,7 @@ class SomethingOldCLI:
 
     display: ConsoleDisplay
 
-    def ask_artist(
+    async def ask_artist(
         self,
         console: Console,
         artist_name: str,
@@ -82,7 +83,7 @@ class SomethingOldCLI:
                     candidate.spotify_id,
                 )
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Artist number or (q)uit",
                 choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
                 default="q",
@@ -94,7 +95,7 @@ class SomethingOldCLI:
         finally:
             status.start()
 
-    def _prompt_something_old_mode(
+    async def _prompt_something_old_mode(
         self,
         console: Console,
         artist: something_old.GoldenOldieArtist,
@@ -128,7 +129,7 @@ class SomethingOldCLI:
             table.add_row("2", "Spotify", "Up to 10 current popular tracks")
             table.add_row("3", "Catalog", "One complete studio album or EP")
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Selection or (q)uit",
                 choices=["1", "2", "3", "q"],
                 default="1",
@@ -143,7 +144,7 @@ class SomethingOldCLI:
         finally:
             status.start()
 
-    def _prompt_something_old_album(
+    async def _prompt_something_old_album(
         self,
         console: Console,
         artist: something_old.GoldenOldieArtist,
@@ -185,7 +186,7 @@ class SomethingOldCLI:
                     edition,
                 )
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Release number or (q)uit",
                 choices=[*(str(index) for index in range(1, len(releases) + 1)), "q"],
                 default="q",
@@ -242,14 +243,14 @@ class SomethingOldCLI:
                 style="bold green",
             )
 
-    def _run_something_old(self, dry_run: bool) -> None:
+    async def _run_something_old(self, dry_run: bool) -> None:
         """Fill an empty Something Old slot from Last.fm Golden Oldies.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._something_old_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = something_old.parse_playlist_id(
                 configuration.something_old_new_playlist
@@ -269,8 +270,8 @@ class SomethingOldCLI:
             with self._something_old_console.status(
                 "Preparing Something Old"
             ) as self._something_old_status:
-                summary = something_old.run_something_old(
-                    self.runtime.client(),
+                summary = await something_old.run_something_old(
+                    (await self.runtime.client()),
                     lastfm_client,
                     SomethingOldOptions(
                         playlist_id=playlist_id,
@@ -298,36 +299,36 @@ class SomethingOldCLI:
     def _something_old_log(self, message: str) -> None:
         return self._something_old_console.print(message, style="yellow")
 
-    def _something_old_ask_something_old_artist(
+    async def _something_old_ask_something_old_artist(
         self,
         artist: something_old.GoldenOldieArtist,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self.ask_artist(
+        return await self.ask_artist(
             self._something_old_console,
             artist.artist,
             candidates,
             self._something_old_status,
         )
 
-    def _something_old_ask_something_old_mode(
+    async def _something_old_ask_something_old_mode(
         self,
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
     ) -> str:
-        return self._prompt_something_old_mode(
+        return await self._prompt_something_old_mode(
             self._something_old_console,
             artist,
             spotify_artist,
             self._something_old_status,
         )
 
-    def _something_old_ask_something_old_album(
+    async def _something_old_ask_something_old_album(
         self,
         artist: something_old.GoldenOldieArtist,
         releases: tuple[slow_listening.DiscographyRelease, ...],
     ) -> str:
-        return self._prompt_something_old_album(
+        return await self._prompt_something_old_album(
             self._something_old_console, artist, releases, self._something_old_status
         )
 
@@ -446,7 +447,7 @@ class SomethingOldInteraction:
 
     owner: SomethingOldCLI
 
-    def choose_mode(
+    async def choose_mode(
         self,
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
@@ -460,9 +461,11 @@ class SomethingOldInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._something_old_ask_something_old_mode(artist, spotify_artist)
+        return await self.owner._something_old_ask_something_old_mode(
+            artist, spotify_artist
+        )
 
-    def choose_album(
+    async def choose_album(
         self,
         artist: something_old.GoldenOldieArtist,
         releases: tuple[slow_listening.DiscographyRelease, ...],
@@ -476,9 +479,9 @@ class SomethingOldInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._something_old_ask_something_old_album(artist, releases)
+        return await self.owner._something_old_ask_something_old_album(artist, releases)
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist: something_old.GoldenOldieArtist,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
@@ -492,4 +495,6 @@ class SomethingOldInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._something_old_ask_something_old_artist(artist, candidates)
+        return await self.owner._something_old_ask_something_old_artist(
+            artist, candidates
+        )

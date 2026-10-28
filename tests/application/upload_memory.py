@@ -52,7 +52,7 @@ def commit(
     )
 
 
-def run_upload(plan: LibraryFilesUploadPlan, memory: UploadMemory) -> object:
+async def run_upload(plan: LibraryFilesUploadPlan, memory: UploadMemory) -> object:
     """Run the original application sequence without production composition.
 
     Args:
@@ -64,7 +64,7 @@ def run_upload(plan: LibraryFilesUploadPlan, memory: UploadMemory) -> object:
     """
     actions = RecordedUpload(memory)
     try:
-        return upload(actions, plan)
+        return await upload(actions, plan)
     except (RuntimeError, OSError) as error:
         return {
             "error": type(error).__name__,
@@ -83,7 +83,7 @@ class RecordedUpload:
 
     memory: UploadMemory
 
-    def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
+    async def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
         """Observe remote at the recorded boundary.
 
         Args:
@@ -94,7 +94,7 @@ class RecordedUpload:
         """
         return remote(self.memory, plan)
 
-    def materialize(self, plan: LibraryFilesUploadPlan) -> None:
+    async def materialize(self, plan: LibraryFilesUploadPlan) -> None:
         """Observe materialize at the recorded boundary.
 
         Args:
@@ -114,7 +114,9 @@ class RecordedUpload:
         """
         return manifest(plan, stale)
 
-    def commit(self, plan: LibraryFilesUploadPlan, operations: list[object]) -> object:
+    async def commit(
+        self, plan: LibraryFilesUploadPlan, operations: list[object]
+    ) -> object:
         """Observe commit at the recorded boundary.
 
         Args:

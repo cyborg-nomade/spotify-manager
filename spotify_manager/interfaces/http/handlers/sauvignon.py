@@ -1,8 +1,8 @@
 """Validate and present sauvignon HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
@@ -13,7 +13,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
-def cmd_fill_sauvignon_from_lastfm(
+async def cmd_fill_sauvignon_from_lastfm(
     client: Spotify,
     count: int | None,
     max_playlist_length: int | None,
@@ -55,7 +55,7 @@ def cmd_fill_sauvignon_from_lastfm(
         if count is None and max_playlist_length is None
         else max_playlist_length
     )
-    return jobs.start_sauvignon_job(
+    return await jobs.start_sauvignon_job(
         client,
         playlist_id,
         api_key,

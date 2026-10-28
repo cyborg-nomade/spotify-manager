@@ -12,14 +12,14 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 class PalaceStateAccess(Protocol):
     """Read original cursor authority and accept complete replacement checkpoints."""
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read original complete durable cursor facts.
 
         Returns:
             Original mutable cursor namespace.
         """
 
-    def save(self, payload: dict[str, object], /) -> object:
+    async def save(self, payload: dict[str, object], /) -> object:
         """Accept original complete cursor replacement.
 
         Args:
@@ -64,7 +64,7 @@ class PalaceEffects(Protocol):
             Original selected zero-based position.
         """
 
-    def playlist(self, recheck: bool) -> PlaylistState:
+    async def playlist(self, recheck: bool) -> PlaylistState:
         """Read original initial or final live membership authority.
 
         Args:
@@ -74,7 +74,7 @@ class PalaceEffects(Protocol):
             Original valid complete destination facts.
         """
 
-    def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Read the original first playable marker without reordering the response.
 
         Args:
@@ -84,7 +84,7 @@ class PalaceEffects(Protocol):
             Original complete first marker.
         """
 
-    def search(self, artist: str, album: str) -> SpotifyAlbum | None:
+    async def search(self, artist: str, album: str) -> SpotifyAlbum | None:
         """Search only after the original saved-edition policy finds no match.
 
         Args:
@@ -95,7 +95,7 @@ class PalaceEffects(Protocol):
             Original qualified remote release or none.
         """
 
-    def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
+    async def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
         """Accept the original retry-wrapped distinct marker append.
 
         Args:
@@ -122,7 +122,7 @@ class PalaceEffects(Protocol):
             Original complete replacement namespace.
         """
 
-    def audit(self, summary: PalaceOfMemorySummary) -> None:
+    async def audit(self, summary: PalaceOfMemorySummary) -> None:
         """Accept original real-run audit after the cursor checkpoint.
 
         Args:

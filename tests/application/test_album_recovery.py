@@ -65,7 +65,7 @@ class MemoryRecovery:
         if name == self.fail:
             raise RuntimeError(name)
 
-    def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
+    async def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
         """Load original history and bind checkpoint persistence.
 
         Returns:
@@ -75,7 +75,7 @@ class MemoryRecovery:
         self.state.checkpoint = self
         return self.records, self.state
 
-    def save(self, state: RecoveryState) -> None:
+    async def save(self, state: RecoveryState) -> None:
         """Record an accepted recovery checkpoint.
 
         Args:
@@ -83,7 +83,7 @@ class MemoryRecovery:
         """
         self._effect("checkpoint")
 
-    def albums(
+    async def albums(
         self, records: list[RemovedAlbumRecord]
     ) -> tuple[RecoveryAlbum | None, ...]:
         """Return controlled metadata observations.
@@ -97,7 +97,7 @@ class MemoryRecovery:
         self._effect("catalog")
         return self.observations
 
-    def follow_artists(
+    async def follow_artists(
         self, artists: list[AlbumArtist], state: RecoveryState, dry_run: bool
     ) -> tuple[int, int]:
         """Observe the credited artists before any album restoration.
@@ -113,7 +113,7 @@ class MemoryRecovery:
         self._effect(f"follow:{len(artists)}:{dry_run}")
         return len(artists), int(bool(artists))
 
-    def saved(self, record: RemovedAlbumRecord) -> bool:
+    async def saved(self, record: RemovedAlbumRecord) -> bool:
         """Observe current saved status.
 
         Args:
@@ -125,7 +125,7 @@ class MemoryRecovery:
         self._effect("saved")
         return self.is_saved
 
-    def restore(self, record: RemovedAlbumRecord) -> None:
+    async def restore(self, record: RemovedAlbumRecord) -> None:
         """Accept one remote restore.
 
         Args:
@@ -134,7 +134,9 @@ class MemoryRecovery:
         self._effect("restore")
         self.is_saved = True
 
-    def record_album(self, album: RecoveryAlbum, record: RemovedAlbumRecord) -> bool:
+    async def record_album(
+        self, album: RecoveryAlbum, record: RemovedAlbumRecord
+    ) -> bool:
         """Accept a mirror and statistics update.
 
         Args:
@@ -147,7 +149,7 @@ class MemoryRecovery:
         self._effect("mirror")
         return True
 
-    def audit(self, event: dict[str, object]) -> None:
+    async def audit(self, event: dict[str, object]) -> None:
         """Accept the completed album event.
 
         Args:
@@ -230,10 +232,10 @@ class MemoryRecovery:
         return self.clock()
 
 
-def test_recovery_orders_artist_and_album_effects() -> None:
+async def test_recovery_orders_artist_and_album_effects() -> None:
     """Retain the full write, audit, checkpoint, and progress sequence."""
     fixture = MemoryRecovery()
-    result = recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
+    result = await recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
     assert fixture.effects == [
         "load",
         "progress:0/1",
@@ -257,14 +259,16 @@ def test_recovery_orders_artist_and_album_effects() -> None:
 
 
 @pytest.mark.parametrize("already_saved", [False, True])
-def test_recovery_preview_preserves_reads_without_writes(already_saved: bool) -> None:
+async def test_recovery_preview_preserves_reads_without_writes(
+    already_saved: bool,
+) -> None:
     """Preview counts remain sensitive to live membership.
 
     Args:
         already_saved: Whether the album is currently saved.
     """
     fixture = MemoryRecovery(is_saved=already_saved)
-    result = recover_albums(fixture, fixture, fixture, fixture, dry_run=True)
+    result = await recover_albums(fixture, fixture, fixture, fixture, dry_run=True)
     assert result.albums_restored == int(not already_saved)
     assert fixture.state.processed_album_ids == {"album"}
     assert not {"restore", "mirror", "audit", "checkpoint"}.intersection(
@@ -273,10 +277,10 @@ def test_recovery_preview_preserves_reads_without_writes(already_saved: bool) ->
     assert "saved" in fixture.effects
 
 
-def test_already_saved_future_release_still_updates_mirror() -> None:
+async def test_already_saved_future_release_still_updates_mirror() -> None:
     """Current remote membership does not skip the local repair boundary."""
     fixture = MemoryRecovery(is_saved=True)
-    recover_albums(fixture, fixture, fixture, fixture)
+    (await recover_albums(fixture, fixture, fixture, fixture))
     assert "restore" not in fixture.effects
     assert fixture.effects[7:11] == [
         "mirror",
@@ -295,7 +299,7 @@ def test_already_saved_future_release_still_updates_mirror() -> None:
         RecoveryAlbum("Old", None, (), "2000", "year"),
     ],
 )
-def test_nonfuture_albums_have_no_membership_or_restore(
+async def test_nonfuture_albums_have_no_membership_or_restore(
     album: RecoveryAlbum | None,
 ) -> None:
     """Unavailable, undated, and past albums still complete and checkpoint.
@@ -304,7 +308,7 @@ def test_nonfuture_albums_have_no_membership_or_restore(
         album: Metadata observation to process.
     """
     fixture = MemoryRecovery(observations=(album,))
-    result = recover_albums(fixture, fixture, fixture, fixture)
+    result = await recover_albums(fixture, fixture, fixture, fixture)
     assert not {"saved", "restore", "mirror"}.intersection(fixture.effects)
     assert result.processed == 1
     assert result.unavailable == int(album is None)
@@ -314,14 +318,14 @@ def test_nonfuture_albums_have_no_membership_or_restore(
 
 
 @pytest.mark.parametrize("limit", [0, -1])
-def test_limit_preserves_python_slice_semantics(limit: int) -> None:
+async def test_limit_preserves_python_slice_semantics(limit: int) -> None:
     """Zero and negative limits retain their original pending-record slice.
 
     Args:
         limit: Original CLI/API limit passed through to the use case.
     """
     fixture = MemoryRecovery()
-    result = recover_albums(
+    result = await recover_albums(
         fixture,
         fixture,
         fixture,
@@ -333,19 +337,21 @@ def test_limit_preserves_python_slice_semantics(limit: int) -> None:
     assert fixture.effects == ["load", "progress:0/0", "finish"]
 
 
-def test_restart_skips_completed_records() -> None:
+async def test_restart_skips_completed_records() -> None:
     """Completed IDs survive a new use-case invocation without new observations."""
     fixture = MemoryRecovery(state=RecoveryState({"album"}, set()))
-    result = recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
+    result = await recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
     assert result.processed == 0
     assert fixture.effects == ["load", "progress:1/1", "finish"]
 
 
-def test_excess_metadata_preserves_artist_effects_before_strict_zip_error() -> None:
+async def test_excess_metadata_preserves_artist_effects_before_strict_zip_error() -> (
+    None
+):
     """An oversized response retains its legacy effects before raising."""
     fixture = MemoryRecovery(observations=(_future(), _future()))
     with pytest.raises(ValueError, match="zip"):
-        recover_albums(fixture, fixture, fixture, fixture)
+        (await recover_albums(fixture, fixture, fixture, fixture))
     assert "follow:4:False" in fixture.effects
     assert fixture.state.processed_album_ids == {"album"}
     assert "finish" not in fixture.effects
@@ -354,7 +360,7 @@ def test_excess_metadata_preserves_artist_effects_before_strict_zip_error() -> N
 @pytest.mark.parametrize(
     "failure", ["saved", "restore", "mirror", "audit", "checkpoint"]
 )
-def test_failed_recovery_retains_accepted_writes(failure: str) -> None:
+async def test_failed_recovery_retains_accepted_writes(failure: str) -> None:
     """Only accepted boundaries affect remote and completed-work state.
 
     Args:
@@ -362,7 +368,7 @@ def test_failed_recovery_retains_accepted_writes(failure: str) -> None:
     """
     fixture = MemoryRecovery(fail=failure)
     with pytest.raises(RuntimeError, match=failure):
-        recover_albums(fixture, fixture, fixture, fixture)
+        (await recover_albums(fixture, fixture, fixture, fixture))
     assert fixture.is_saved is (failure in {"mirror", "audit", "checkpoint"})
     assert bool(fixture.state.processed_album_ids) is (failure == "checkpoint")
     assert fixture.effects[-1] == failure

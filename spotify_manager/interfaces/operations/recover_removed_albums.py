@@ -1,14 +1,13 @@
 """Invoke recover removed albums use cases for CLI and HTTP features."""
 
-import time
+import asyncio
 from dataclasses import dataclass
 from datetime import date as date
 from functools import partial as partial
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.album_recovery import recover_albums as recover_albums
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recovery_values import (
     RecoverySummary as RecoverySummary,
 )
@@ -54,7 +53,7 @@ from spotify_manager.routines.recover_removed_albums import (
 )
 
 
-def recover_removed_albums(
+async def recover_removed_albums(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
@@ -63,7 +62,7 @@ def recover_removed_albums(
     dry_run: bool = False,
     limit: int | None = None,
     today: date | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -102,7 +101,7 @@ def recover_removed_albums(
         transient_retry_delay_seconds,
         transient_max_attempts,
     )
-    return recover_albums(
+    return await recover_albums(
         library,
         RecoveryPresenter(echo),
         _CLOCK_RESOURCE,

@@ -2,6 +2,7 @@
 
 import json
 from collections import deque
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
@@ -10,6 +11,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from types import ModuleType
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -79,11 +81,11 @@ class Scenario:
         supports_dry_run: Whether the routine accepts dry_run.
     """
 
-    operation: Callable[..., object]
+    operation: Callable[..., Awaitable[object]]
     remote: Callable[[], object]
     supports_dry_run: bool = True
 
-    def run(self, dry_run: bool) -> object:
+    async def run(self, dry_run: bool) -> object:
         """Invoke the routine against the same fixture state on every restart.
 
         Args:
@@ -97,8 +99,8 @@ class Scenario:
             OSError: The routine cannot read or write an artifact.
         """
         if self.supports_dry_run:
-            return self.operation(dry_run=dry_run)
-        return self.operation()
+            return await self.operation(dry_run=dry_run)
+        return await self.operation()
 
 
 def effects(
@@ -200,13 +202,13 @@ def requeue(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     return Scenario(operation, partial(_requeue_remote, spotify))
 
 
-def _run_requeue(
+async def _run_requeue(
     spotify: requeue_fakes.FakeSpotify,
     root: Path,
     trace: Trace,
     dry_run: bool,
 ) -> object:
-    return requeue_for_a_dream.flush_requeue_for_a_dream(
+    return await requeue_for_a_dream.async_flush_requeue_for_a_dream(
         spotify,
         "playlist",
         dry_run=dry_run,
@@ -241,14 +243,14 @@ def _seed_progression(
     spotify.playlists[playlist] = [tracks[0]]
 
 
-def _run_wine(
+async def _run_wine(
     spotify: wine_fakes.FakeSpotify,
     root: Path,
     trace: Trace,
     dry_run: bool,
 ) -> object:
     paths = wine_fakes.paths(root)
-    return new_wine.flush_new_wine(
+    return await new_wine.async_flush_new_wine(
         spotify,
         NewWineOptions(
             destination="new",
@@ -290,14 +292,14 @@ def wine(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     )
 
 
-def _run_slow(
+async def _run_slow(
     spotify: slow_fakes.FakeSpotify,
     root: Path,
     trace: Trace,
     dry_run: bool,
 ) -> object:
     paths = slow_fakes.paths(root)
-    return slow_listening.flush_slow_listening(
+    return await slow_listening.async_flush_slow_listening(
         spotify,
         "slow",
         TraceReleaseOrder(trace),
@@ -328,14 +330,14 @@ def slow(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     )
 
 
-def _run_kids(
+async def _run_kids(
     spotify: kids_fakes.FakeSpotify,
     root: Path,
     trace: Trace,
     dry_run: bool,
 ) -> object:
     paths = kids_fakes.isolated_paths(root)
-    return new_kids.flush_new_kids(
+    return await new_kids.async_flush_new_kids(
         spotify,
         DiscoveryOptions(
             new_kids_playlist_id="new",
@@ -398,7 +400,7 @@ def queue(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     spotify.playlists["queue"] = [tracks[0]]
     effects(patch, trace, spotify, the_queue, audit="append_event")
     operation = partial(
-        the_queue.flush_queue,
+        the_queue.async_flush_queue,
         spotify,
         queue_fakes.queue_playlists(),
         echo=trace,
@@ -442,13 +444,15 @@ def album(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         A repeatable live evaluation without a dry-run mode.
     """
     spotify = album_fakes.FakeSpotify(saved_tracks={"t1"}, album_tracks=_album_tracks())
-    patch.setattr(spotify, "album", _album_details)
+    patch.setattr(spotify, "album", AsyncMock(side_effect=_album_details))
     trace.watch(patch, spotify, "album", "spotify.album")
     trace.watch(patch, spotify, "album_tracks", "spotify.album_tracks")
     trace.watch(
         patch, spotify, "current_user_saved_tracks_contains", "spotify.contains"
     )
-    operation = partial(library_lookups.evaluate_album_live, spotify, album_id="alb1")
+    operation = partial(
+        library_lookups.async_evaluate_album_live, spotify, album_id="alb1"
+    )
     return Scenario(operation, partial(_album_remote, spotify), supports_dry_run=False)
 
 
@@ -472,7 +476,7 @@ def history(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     trace.watch(patch, scrobble_history, "_write_export_atomic", "mirror")
     trace.watch(patch, scrobble_history, "_append_log", "audit")
     operation = partial(
-        scrobble_history.refresh_scrobble_history,
+        scrobble_history.async_refresh_scrobble_history,
         lastfm,
         expected_username="man-et-arms",
         export_path=root / "lastfm.json",
@@ -487,7 +491,7 @@ def history(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
 class MutablePalaceSpotify(palace_fakes.FakeSpotify):
     """Extend the Palace recorder so restarted reads see accepted playlist writes."""
 
-    def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
+    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
         """Record an accepted write and expose the added tracks to later reads.
 
         Args:
@@ -497,7 +501,7 @@ class MutablePalaceSpotify(palace_fakes.FakeSpotify):
         Returns:
             The original fake's response.
         """
-        result = super()._post(path, payload)
+        result = await super()._post(path, payload)
         uris = payload["uris"]
         assert isinstance(uris, list)
         for uri in uris:
@@ -526,10 +530,10 @@ def palace(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     return Scenario(operation, partial(_palace_remote, spotify))
 
 
-def _run_palace(
+async def _run_palace(
     spotify: MutablePalaceSpotify, root: Path, trace: Trace, dry_run: bool
 ) -> palace_of_memory.PalaceOfMemorySummary:
-    return palace_of_memory.fill_palace_of_memory(
+    return await palace_of_memory.async_fill_palace_of_memory(
         spotify,
         PalaceOptions("palace", dry_run=dry_run, today=date(2026, 8, 4)),
         PalaceCallbacks(
@@ -599,7 +603,7 @@ def analysis(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     patch.setattr(analyse_library, "new_run_id", _fixed_run_id)
     _watch_analysis(patch, trace, spotify)
     operation = partial(
-        analyse_library.analyse_library_sync_routine,
+        analyse_library.async_analyse_library_sync_routine,
         spotify,
         paths=analysis_fakes.paths_for(root, "sync"),
         echo=trace,
@@ -662,7 +666,7 @@ def review(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     _review_files(patch, root)
     _watch_review(patch, trace, spotify)
     operation = partial(
-        review_album_limits.review_album_limits,
+        review_album_limits.async_review_album_limits,
         spotify,
         action_reader=TraceChoices(trace, deque(["r", "r"])),
         use_cache=False,
@@ -673,8 +677,8 @@ def review(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     return Scenario(operation, partial(_album_remote, spotify), supports_dry_run=False)
 
 
-def _run_upload(api: FakeHfApi, root: Path, dry_run: bool) -> object:
-    plan = upload_library_files.prepare_library_files_upload(
+async def _run_upload(api: FakeHfApi, root: Path, dry_run: bool) -> object:
+    plan = await upload_library_files.async_prepare_library_files_upload(
         include_lastfm=False,
         files_dir=root,
         repo_id="fixture/space",
@@ -682,7 +686,7 @@ def _run_upload(api: FakeHfApi, root: Path, dry_run: bool) -> object:
     if dry_run:
         return plan
     # The existing fake implements only the Hub operations used by this routine.
-    return upload_library_files.upload_library_files(plan, api=api)  # type: ignore[arg-type]
+    return await upload_library_files.async_upload_library_files(plan, api=api)  # type: ignore[arg-type]
 
 
 def upload(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
@@ -731,17 +735,19 @@ def release(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     artist = release_check.RankedArtist("artist", "Artist", 200, 1)
     history_dry_runs: list[bool] = []
     release_fakes.patch_history_and_ranking(patch, (artist,), history_dry_runs)
-    trace.watch(patch, scrobble_history, "refresh_scrobble_history", "history.refresh")
+    trace.watch(
+        patch, scrobble_history, "async_refresh_scrobble_history", "history.refresh"
+    )
     spotify = _release_spotify()
     effects(patch, trace, spotify, release_check, audit="append_event")
     operation = partial(_run_release, spotify, root)
     return Scenario(operation, partial(_release_remote, spotify, history_dry_runs))
 
 
-def _run_release(
+async def _run_release(
     spotify: release_fakes.FakeSpotify, root: Path, dry_run: bool
 ) -> release_check.ReleaseCheckSummary:
-    return release_check.run_release_check(
+    return await release_check.async_run_release_check(
         spotify,
         None,  # type: ignore[arg-type]  # History is supplied by the observation port.
         ReleaseCheckOptions(
@@ -788,7 +794,7 @@ class TraceDiscovery(NoRetry):
 
     trace: Trace
 
-    def choose(
+    async def choose(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
         """Observe an unexpected interaction through the original trace harness.

@@ -1,8 +1,8 @@
 """Validate and present discovery HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.discovery import NewKidsChoiceRequest
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
@@ -10,7 +10,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import new_kids as new_kids
 
 
-def cmd_flush_new_kids(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_flush_new_kids(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start an interactive New Kids flush with reconnectable web state.
 
     Args:
@@ -21,7 +21,7 @@ def cmd_flush_new_kids(client: Spotify, dry_run: bool) -> BlastJobResult:
         Original feature response with unchanged fields and validation.
     """
     playlist_ids = jobs._configured_album_discovery_playlists()
-    return jobs.start_new_kids_job(client, *playlist_ids, dry_run=dry_run)
+    return await jobs.start_new_kids_job(client, *playlist_ids, dry_run=dry_run)
 
 
 def cmd_active_new_kids_jobs() -> list[BlastJobResult]:

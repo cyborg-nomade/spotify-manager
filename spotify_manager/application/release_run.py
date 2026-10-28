@@ -32,24 +32,26 @@ class ReleaseRun:
     mapping: ArtistMapping
     matching: FutureRecordMatching
 
-    def run(self) -> ReleaseCheckSummary:
+    async def run(self) -> ReleaseCheckSummary:
         """Load destinations, review ordered artists and accept completion or pause.
 
         Returns:
             Original complete or paused workflow outcome.
         """
-        destinations = load_destinations(self.progress, self.wine_id, self.vintage_id)
+        destinations = await load_destinations(
+            self.progress, self.wine_id, self.vintage_id
+        )
         artists = ReleaseArtists(self.progress, destinations, self.mapping)
         review = ReleaseReview(self.progress, destinations, self.reader, self.matching)
         for artist in self.progress.opening.artists:
-            mapped = artists.resolve(artist)
+            mapped = await artists.resolve(artist)
             if mapped == "quit":
                 return self._summary(destinations.duplicates, paused=True)
             if mapped is None:
                 continue
-            if not review.check_artist(artist, mapped):
+            if not (await review.check_artist(artist, mapped)):
                 return self._summary(destinations.duplicates, paused=True)
-        self.progress.finish()
+        await self.progress.finish()
         return self._summary(destinations.duplicates, paused=False)
 
     def _summary(self, duplicates: int, paused: bool) -> ReleaseCheckSummary:

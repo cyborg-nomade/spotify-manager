@@ -1,8 +1,8 @@
 """Validate and present slow listening HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.slow_listening import (
@@ -15,7 +15,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
 
 
-def cmd_flush_slow_listening(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_flush_slow_listening(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start an interactive Slow Listening flush with reconnectable state.
 
     Args:
@@ -35,7 +35,7 @@ def cmd_flush_slow_listening(client: Spotify, dry_run: bool) -> BlastJobResult:
         )
     except slow_listening.SlowListeningConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_slow_listening_job(client, playlist_id, dry_run=dry_run)
+    return await jobs.start_slow_listening_job(client, playlist_id, dry_run=dry_run)
 
 
 def cmd_active_slow_listening_jobs() -> list[BlastJobResult]:

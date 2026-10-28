@@ -6,7 +6,7 @@ from typing import cast
 
 from spotify_manager.application.ports.queue_playlists import ImportAccess
 from spotify_manager.application.ports.runtime import TimestampClock
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.queue_3_values import AnnualImportResult
 from spotify_manager.application.queue_3_values import Queue3ConfigError
 from spotify_manager.application.queue_3_values import SeedAction
@@ -95,7 +95,7 @@ class AnnualDiscoveryImport:
     presentation: ImportPresentation
     now: TimestampClock
 
-    def run(
+    async def run(
         self,
         playlist_id: str,
         current: list[PlaylistTrack],
@@ -129,24 +129,24 @@ class AnnualDiscoveryImport:
             return current, ()
         source_year = active_year - 1
         source_id = resolve_yearly_playlist(owned, source_year)
-        selection = select_import(current, self.access.read(source_id))
+        selection = select_import(current, (await self.access.read(source_id)))
         results = _results(selection, source_year, dry_run)
         if selection.additions and not dry_run:
-            self.access.append(
+            await self.access.append(
                 playlist_id,
                 list(selection.additions),
                 f"importing {source_year} Great Discoveries into Queue 3",
             )
-        self._audit(selection, results, active_year, source_id, dry_run)
+        await self._audit(selection, results, active_year, source_id, dry_run)
         current.extend(selection.additions)
         if not dry_run:
-            self._complete(state, imports, selection, active_year, source_id)
+            await self._complete(state, imports, selection, active_year, source_id)
         self.presentation.imported(
             source_year, len(selection.additions), len(results), dry_run
         )
         return current, results
 
-    def _audit(
+    async def _audit(
         self,
         selection: ImportSelection,
         results: tuple[AnnualImportResult, ...],
@@ -155,7 +155,7 @@ class AnnualDiscoveryImport:
         dry_run: bool,
     ) -> None:
         for track, result in zip(selection.considered, results, strict=True):
-            self.access.audit(
+            await self.access.audit(
                 "annual_import_artist",
                 {
                     "active_year": active_year,
@@ -170,7 +170,7 @@ class AnnualDiscoveryImport:
                 },
             )
 
-    def _complete(
+    async def _complete(
         self,
         state: dict[str, object],
         imports: dict[str, object],
@@ -186,4 +186,4 @@ class AnnualDiscoveryImport:
             "artists_seen": len(selection.considered),
             "artists_added": len(selection.additions),
         }
-        self.state_access.save(state)
+        await self.state_access.save(state)

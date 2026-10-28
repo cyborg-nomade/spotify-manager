@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import queue_3
 from tests.routines.test_queue_3 import FakeSpotify
@@ -61,16 +62,29 @@ class ImportBoundaries:
         """
         self._record("audit", (event_type, details))
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Reject unexpected state reads inside an already prepared import."""
         raise AssertionError("Unexpected namespace load")
 
-    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
+    async def save(
+        self, value: dict[str, object], *, message: str | None = None
+    ) -> None:
         """Observe the complete accepted namespace at its original checkpoint.
 
         Args:
             value: Complete namespace with import completion set.
             message: Existing optional store message.
+        """
+        self.record_checkpoint(value, message=message)
+
+    def record_checkpoint(
+        self, value: dict[str, object], *, message: str | None = None
+    ) -> None:
+        """Record the original accepted checkpoint from either storage boundary.
+
+        Args:
+            value: Complete namespace with import completion set.
+            message: Original optional store message.
         """
         self._record("checkpoint", deepcopy(value))
 
@@ -106,7 +120,7 @@ def _spotify() -> FakeSpotify:
     return spotify
 
 
-def _run(
+async def _run(
     spotify: FakeSpotify,
     boundaries: ImportBoundaries,
     state: dict[str, object],
@@ -114,7 +128,7 @@ def _run(
     *,
     preview: bool = False,
 ) -> tuple[list[new_wine.PlaylistTrack], tuple[queue_3.AnnualImportResult, ...]]:
-    return queue_3._annual_import(
+    return await queue_3._annual_import(
         cast(Spotify, spotify),
         "queue3",
         current,
@@ -132,7 +146,7 @@ def _run(
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_original_annual_import_batches_before_all_audits_and_checkpoint(
+async def test_original_annual_import_batches_before_all_audits_and_checkpoint(
     monkeypatch: pytest.MonkeyPatch, preview: bool
 ) -> None:
     """Distinct source artists are audited after additions and before acknowledgment.
@@ -146,7 +160,7 @@ def test_original_annual_import_batches_before_all_audits_and_checkpoint(
     monkeypatch.setattr(queue_3, "append_event", boundaries.audit)
     state: dict[str, object] = {"annual_imports": {}}
     current: list[new_wine.PlaylistTrack] = []
-    updated, results = _run(spotify, boundaries, state, current, preview=preview)
+    updated, results = await _run(spotify, boundaries, state, current, preview=preview)
     assert updated is current and [track.spotify_id for track in current] == [
         "first",
         "other",
@@ -167,7 +181,7 @@ def test_original_annual_import_batches_before_all_audits_and_checkpoint(
 
 
 @pytest.mark.parametrize("failure", ["add", "audit", "checkpoint", "message"])
-def test_original_import_failure_keeps_accepted_projection_boundaries(
+async def test_original_import_failure_keeps_accepted_projection_boundaries(
     monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
     """Remote writes precede audits; working state changes precede completion writes.
@@ -182,14 +196,14 @@ def test_original_import_failure_keeps_accepted_projection_boundaries(
     state: dict[str, object] = {"annual_imports": {}}
     current: list[new_wine.PlaylistTrack] = []
     with pytest.raises(OSError, match=failure):
-        _run(spotify, boundaries, state, current)
+        (await _run(spotify, boundaries, state, current))
     assert bool(current) == (failure in {"checkpoint", "message"})
     assert bool(state["annual_imports"]) == (failure in {"checkpoint", "message"})
     assert bool(spotify.mutations) == (failure != "add")
     assert boundaries.events[-1][0] == failure
 
 
-def test_original_completed_import_returns_without_source_lookup_or_messages(
+async def test_original_completed_import_returns_without_source_lookup_or_messages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Completed yearly records suppress the whole import even during previews.
@@ -202,7 +216,10 @@ def test_original_completed_import_returns_without_source_lookup_or_messages(
     monkeypatch.setattr(queue_3, "append_event", boundaries.audit)
     state: dict[str, object] = {"annual_imports": {"2026": {"completed": "yes"}}}
     current: list[new_wine.PlaylistTrack] = []
-    assert _run(spotify, boundaries, state, current, preview=True) == (current, ())
+    assert (await _run(spotify, boundaries, state, current, preview=True)) == (
+        current,
+        (),
+    )
     assert boundaries.events == []
 
 
@@ -212,7 +229,7 @@ def _unreadable_source(
     raise new_wine.NewWineError("source unavailable")
 
 
-def test_import_translates_playlist_failure_without_accepting_effects(
+async def test_import_translates_playlist_failure_without_accepting_effects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Playlist errors retain their Queue 3 type, message and original cause.
@@ -220,11 +237,15 @@ def test_import_translates_playlist_failure_without_accepting_effects(
     Args:
         monkeypatch: Scoped playlist-reader substitution.
     """
-    monkeypatch.setattr(new_wine, "load_playlist_tracks", _unreadable_source)
+    monkeypatch.setattr(
+        new_wine,
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=_unreadable_source),
+    )
     boundaries = ImportBoundaries()
     state: dict[str, object] = {"annual_imports": {}}
     with pytest.raises(queue_3.Queue3Error, match="source unavailable") as error:
-        _run(_spotify(), boundaries, state, [])
+        (await _run(_spotify(), boundaries, state, []))
     assert isinstance(error.value.__cause__, new_wine.NewWineError)
     assert boundaries.events == []
     assert state == {"annual_imports": {}}

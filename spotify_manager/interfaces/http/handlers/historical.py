@@ -1,14 +1,14 @@
 """Validate and present historical HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 
 
-def cmd_blast_from_the_past(
+async def cmd_blast_from_the_past(
     client: Spotify, count: int | None, max_playlist_length: int | None, dry_run: bool
 ) -> BlastJobResult:
     """Start a background Friday-routine playlist update.
@@ -36,7 +36,7 @@ def cmd_blast_from_the_past(
         )
     except blast_from_past.BlastFromPastConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_blast_job(
+    return await jobs.start_blast_job(
         client, playlist_id, effective_count, max_playlist_length, dry_run
     )
 

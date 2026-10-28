@@ -9,7 +9,7 @@ from tests.support.something_old_run import original_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_original_something_old_run(name: str, case: dict[str, object]) -> None:
+async def test_original_something_old_run(name: str, case: dict[str, object]) -> None:
     """Match original complete summaries and boundary failure prefixes.
 
     Args:
@@ -18,10 +18,9 @@ def test_original_something_old_run(name: str, case: dict[str, object]) -> None:
     """
     assert name
     assert (
-        original_outcome(
+        await original_outcome(
             cast(str, case["scenario"]),
             cast(bool, case["preview"]),
             cast(str | None, case["failure"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

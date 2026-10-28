@@ -4,8 +4,6 @@ from datetime import date as date
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.palace_values import (
     AlphabeticalCursorUpdate as AlphabeticalCursorUpdate,
 )
@@ -21,6 +19,7 @@ from spotify_manager.application.palace_values import (
 from spotify_manager.application.palace_values import (
     SavedAlbumRefresh as SavedAlbumRefresh,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.palace_cursor import palace_cursor
 from spotify_manager.bootstrap.palace_history import palace_history
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
@@ -75,7 +74,7 @@ from spotify_manager.routines.palace_of_memory import (
 from spotify_manager.routines.palace_of_memory import validate_state as validate_state
 
 
-def refresh_saved_albums(
+async def refresh_saved_albums(
     spotify: Spotify,
     *,
     path: Path = DEFAULT_ALBUMS_PATH,
@@ -103,10 +102,10 @@ def refresh_saved_albums(
     configured = saved_mirror(
         spotify, path, backups_dir, log_path, retry_call, progress_callback
     )
-    return configured.run()
+    return await configured.run()
 
 
-def select_historical_albums(
+async def select_historical_albums(
     *,
     count: int = HISTORY_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
@@ -131,10 +130,10 @@ def select_historical_albums(
         IndexError: An original custom index is out of range.
     """
     configured = palace_history(path, today, random_index_reader, progress_callback)
-    return configured.run(count)
+    return await configured.run(count)
 
 
-def set_alphabetical_cursor(
+async def set_alphabetical_cursor(
     spotify: Spotify,
     position: int,
     *,
@@ -175,10 +174,10 @@ def set_alphabetical_cursor(
         retry_call,
         progress_callback,
     )
-    return configured.update(position)
+    return await configured.update(position)
 
 
-def fill_palace_of_memory(
+async def fill_palace_of_memory(
     spotify: Spotify,
     options: PalaceOptions,
     callbacks: PalaceCallbacks,
@@ -200,6 +199,6 @@ def fill_palace_of_memory(
     """
     resources = resources or PalaceResources()
     configured = palace(spotify, options, callbacks, resources)
-    return configured.run(
+    return await configured.run(
         options.playlist_id, options.dry_run, options.alphabetical_start
     )

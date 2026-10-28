@@ -30,7 +30,7 @@ from spotify_manager.bootstrap import upload_library as upload_library
 from spotify_manager.routines.upload_library_files import FILES_DIR as FILES_DIR
 
 
-def prepare_library_files_upload(
+async def prepare_library_files_upload(
     *,
     include_your_library: bool = True,
     include_lastfm: bool = True,
@@ -50,7 +50,7 @@ def prepare_library_files_upload(
     Returns:
         Original prepare library files upload result.
     """
-    return upload_run.prepare(
+    return await upload_run.prepare(
         upload_library.preparation(),
         files_dir,
         include_your_library,
@@ -60,7 +60,7 @@ def prepare_library_files_upload(
     )
 
 
-def upload_library_files(
+async def upload_library_files(
     plan: LibraryFilesUploadPlan, *, api: HfApi | None = None
 ) -> LibraryFilesUploadResult:
     """Upload the plan to the configured HF Space in one commit.
@@ -72,4 +72,4 @@ def upload_library_files(
     Returns:
         Original upload library files result.
     """
-    return upload_run.upload(upload_library.actions(api), plan)
+    return await upload_run.upload(upload_library.actions(api), plan)

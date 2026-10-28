@@ -21,7 +21,7 @@ from spotify_manager.domain.history_matching import PlaylistState
 class DormantEffects(Protocol):
     """Original history, destination, artist mapping and live liked-track boundaries."""
 
-    def candidates(self, today: date) -> tuple[DormantArtist, ...]:
+    async def candidates(self, today: date) -> tuple[DormantArtist, ...]:
         """Read original history eligibility.
 
         Args:
@@ -31,14 +31,14 @@ class DormantEffects(Protocol):
             Alphabetically ordered candidates.
         """
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Read destination membership before selection.
 
         Returns:
             Original size and represented artists/tracks.
         """
 
-    def mapping(
+    async def mapping(
         self, artist: DormantArtist, rank: int
     ) -> SpotifyArtistCandidate | None:
         """Resolve the original unique exact artist mapping.
@@ -51,7 +51,7 @@ class DormantEffects(Protocol):
             Unique mapping or no unambiguous match.
         """
 
-    def append(self, tracks: list[CatalogTrack]) -> None:
+    async def append(self, tracks: list[CatalogTrack]) -> None:
         """Accept original ordered markers.
 
         Args:
@@ -80,14 +80,14 @@ class _Selection:
     results: list[DormantArtistResult] = field(default_factory=list)
     pending: list[CatalogTrack] = field(default_factory=list)
 
-    def select(self, candidate: DormantArtist, rank: int) -> None:
+    async def select(self, candidate: DormantArtist, rank: int) -> None:
         """Observe mapping before live liked status and record original outcomes.
 
         Args:
             candidate: Original alphabetical candidate.
             rank: Position in the full eligible history list.
         """
-        mapped = self.effects.mapping(candidate, rank)
+        mapped = await self.effects.mapping(candidate, rank)
         if mapped is None:
             self.output.echo(
                 f"Skipped {candidate.name}: no unambiguous Spotify mapping."
@@ -98,7 +98,7 @@ class _Selection:
                 )
             )
             return
-        track = self.tracks.run(mapped.spotify_id)
+        track = await self.tracks.run(mapped.spotify_id)
         if track is None:
             self.output.echo(
                 f"Skipped {candidate.name}: no liked primary-artist track."
@@ -163,7 +163,7 @@ class DormantRecovery:
     output: Messages
     lookback: int = 4
 
-    def run(self, count: int, dry_run: bool) -> DormantArtistSummary:
+    async def run(self, count: int, dry_run: bool) -> DormantArtistSummary:
         """Recover original alphabetical candidates until enough distinct tracks.
 
         Args:
@@ -181,18 +181,18 @@ class DormantRecovery:
         if count < 1:
             raise ValueError("count must be at least 1")
         today = self.clock.today()
-        candidates = self.effects.candidates(today)
-        playlist = self.effects.read()
+        candidates = await self.effects.candidates(today)
+        playlist = await self.effects.read()
         represented = set(playlist.primary_artist_keys)
-        represented_count = sum(
-            candidate.key in represented for candidate in candidates
-        )
+        represented_count = 0
+        for candidate in candidates:
+            represented_count += candidate.key in represented
         selection = _Selection(
             self.effects, self.tracks, playlist, self.output, represented
         )
-        self._select(candidates, count, selection)
+        await self._select(candidates, count, selection)
         if selection.pending and not dry_run:
-            self.effects.append(selection.pending)
+            await self.effects.append(selection.pending)
         self.progress.progress(
             len(selection.pending), count, "Dormant-artist recovery complete"
         )
@@ -207,7 +207,7 @@ class DormantRecovery:
             tuple(selection.results),
         )
 
-    def _select(
+    async def _select(
         self, candidates: tuple[DormantArtist, ...], count: int, selection: _Selection
     ) -> None:
         for rank, candidate in enumerate(candidates, start=1):
@@ -221,4 +221,4 @@ class DormantRecovery:
                 count,
                 f"Checking dormant artist {candidate.name}",
             )
-            selection.select(candidate, rank)
+            await selection.select(candidate, rank)

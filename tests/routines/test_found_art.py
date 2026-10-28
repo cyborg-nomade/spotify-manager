@@ -7,6 +7,7 @@ from datetime import datetime
 from functools import partial
 from functools import partialmethod
 from pathlib import Path
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -35,7 +36,7 @@ class FakeLastFm:
         self.similar: dict[tuple[str, str], tuple[LastFmSimilarTrack, ...]] = {}
         self.similar_calls: list[tuple[str, str, int]] = []
 
-    def recent_tracks(
+    async def recent_tracks(
         self,
         *,
         from_timestamp: int,
@@ -46,7 +47,7 @@ class FakeLastFm:
         assert limit == 200
         return self.recent
 
-    def similar_tracks(
+    async def similar_tracks(
         self,
         artist: str,
         track: str,
@@ -82,7 +83,7 @@ class FakeSpotify:
         self.liked_ids: set[str] = set()
         self.posts: list[tuple[str, dict[str, object]]] = []
 
-    def search(
+    async def search(
         self,
         q: str,
         limit: int,
@@ -94,10 +95,10 @@ class FakeSpotify:
         assert kwargs["type"] == "track"
         return {"tracks": {"items": self.search_results.get(q, [])}}
 
-    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
         return [spotify_id in self.liked_ids for spotify_id in ids]
 
-    def _post(self, path: str, payload: dict[str, object]) -> None:
+    async def _post(self, path: str, payload: dict[str, object]) -> None:
         self.posts.append((path, payload))
 
 
@@ -149,7 +150,7 @@ def test_listening_weeks_start_on_friday_in_berlin() -> None:
     assert found_art.listening_week_start(friday_in_berlin) == date(2026, 7, 24)
 
 
-def test_refresh_history_merges_only_new_live_scrobbles(tmp_path: Path) -> None:
+async def test_refresh_history_merges_only_new_live_scrobbles(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     recent_path = tmp_path / "recent.jsonl"
     export_path.write_text(
@@ -251,7 +252,7 @@ def test_seed_selection_is_stable_within_week_and_rotates_next_week() -> None:
     assert {item.key for item in first} != {item.key for item in following}
 
 
-def test_candidates_exclude_heard_tracks_and_combine_seed_support(
+async def test_candidates_exclude_heard_tracks_and_combine_seed_support(
     tmp_path: Path,
 ) -> None:
     lastfm = FakeLastFm()
@@ -278,28 +279,32 @@ def test_candidates_exclude_heard_tracks_and_combine_seed_support(
     assert len(candidates[0].supporting_seeds) == 2
     assert len(lastfm.similar_calls) == 2
 
-    found_art.gather_candidates(
-        lastfm,
-        seeds,
-        set(),
-        cache_path=tmp_path / "cache.json",
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 7, 23, 1, tzinfo=UTC),
+    (
+        found_art.gather_candidates(
+            lastfm,
+            seeds,
+            set(),
+            cache_path=tmp_path / "cache.json",
+            log_path=tmp_path / "log.jsonl",
+            now=datetime(2026, 7, 23, 1, tzinfo=UTC),
+        )
     )
     assert len(lastfm.similar_calls) == 2
 
-    found_art.gather_candidates(
-        lastfm,
-        seeds,
-        set(),
-        cache_path=tmp_path / "cache.json",
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 7, 24, 1, tzinfo=UTC),
+    (
+        found_art.gather_candidates(
+            lastfm,
+            seeds,
+            set(),
+            cache_path=tmp_path / "cache.json",
+            log_path=tmp_path / "log.jsonl",
+            now=datetime(2026, 7, 24, 1, tzinfo=UTC),
+        )
     )
     assert len(lastfm.similar_calls) == 4
 
 
-def test_candidate_order_is_stable_within_week_and_rotates_next_week(
+async def test_candidate_order_is_stable_within_week_and_rotates_next_week(
     tmp_path: Path,
 ) -> None:
     lastfm = FakeLastFm()
@@ -342,7 +347,7 @@ def test_candidate_order_is_stable_within_week_and_rotates_next_week(
     assert [item.key for item in first] != [item.key for item in following]
 
 
-def test_spotify_resolution_skips_liked_track_and_selects_unliked_match() -> None:
+async def test_spotify_resolution_skips_liked_track_and_selects_unliked_match() -> None:
     spotify = FakeSpotify()
     first = candidate("Artist One", "Liked Song", 1.0)
     second = candidate("Artist Two", "Fresh Song", 0.9)
@@ -372,7 +377,7 @@ def test_spotify_resolution_skips_liked_track_and_selects_unliked_match() -> Non
     assert [match.spotify_id for match in pending] == ["fresh"]
 
 
-def test_spotify_resolution_recognizes_alternate_playlist_edition() -> None:
+async def test_spotify_resolution_recognizes_alternate_playlist_edition() -> None:
     spotify = FakeSpotify()
     existing = candidate("Artist", "Song - 2011 Remastered", 1.0)
 
@@ -391,7 +396,7 @@ def test_spotify_resolution_recognizes_alternate_playlist_edition() -> None:
     assert pending == ()
 
 
-def test_spotify_resolution_selects_only_one_track_per_artist() -> None:
+async def test_spotify_resolution_selects_only_one_track_per_artist() -> None:
     spotify = FakeSpotify()
     candidates = (
         candidate("Repeated Artist", "First Song", 1.0),
@@ -456,7 +461,7 @@ def test_listening_week_accepts_date_naive_datetime_and_default(
     assert found_art.listening_week_start() == date(2026, 7, 24)
 
 
-def test_refresh_history_translates_shared_state_error(
+async def test_refresh_history_translates_shared_state_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail(*_args: object, **_kwargs: object) -> None:
@@ -464,12 +469,12 @@ def test_refresh_history_translates_shared_state_error(
 
     monkeypatch.setattr(
         found_art.shared_scrobble_history,
-        "refresh_scrobble_history",
-        fail,
+        "async_refresh_scrobble_history",
+        AsyncMock(side_effect=fail),
     )
 
     with pytest.raises(found_art.FoundArtStateError, match="bad history"):
-        found_art.refresh_scrobble_history(FakeLastFm())
+        (found_art.refresh_scrobble_history(FakeLastFm()))
 
 
 def test_track_history_aggregation_handles_empty_old_and_renamed_scrobbles() -> None:
@@ -517,24 +522,26 @@ def test_seed_selection_rejects_invalid_or_insufficient_history() -> None:
         )
 
 
-def test_similar_cache_rejects_corruption_and_unwritable_destination(
+async def test_similar_cache_rejects_corruption_and_unwritable_destination(
     tmp_path: Path,
 ) -> None:
     cache_path = tmp_path / "cache.json"
     cache_path.write_text("not-json")
     with pytest.raises(found_art.FoundArtStateError, match="cache is invalid"):
-        found_art._load_similar_cache(cache_path)
+        (found_art._load_similar_cache(cache_path))
 
     cache_path.write_text(json.dumps({"version": 2, "entries": []}))
     with pytest.raises(found_art.FoundArtStateError, match="cache is invalid"):
-        found_art._load_similar_cache(cache_path)
+        (found_art._load_similar_cache(cache_path))
 
     blocked_parent = tmp_path / "blocked"
     blocked_parent.write_text("file")
     with pytest.raises(found_art.FoundArtStateError, match="Could not save"):
-        found_art._save_similar_cache(
-            {"version": 1, "entries": {}},
-            blocked_parent / "cache.json",
+        (
+            found_art._save_similar_cache(
+                {"version": 1, "entries": {}},
+                blocked_parent / "cache.json",
+            )
         )
 
 
@@ -571,11 +578,11 @@ def test_cached_similar_tracks_validates_shape_and_week() -> None:
     )
 
 
-def test_previous_additions_are_read_and_invalid_logs_are_rejected(
+async def test_previous_additions_are_read_and_invalid_logs_are_rejected(
     tmp_path: Path,
 ) -> None:
     missing = tmp_path / "missing.jsonl"
-    assert found_art.previously_added_track_keys(missing) == set()
+    assert (found_art.previously_added_track_keys(missing)) == set()
 
     log_path = tmp_path / "found-art.jsonl"
     log_path.write_text(
@@ -594,22 +601,22 @@ def test_previous_additions_are_read_and_invalid_logs_are_rejected(
         )
         + "\n"
     )
-    assert found_art.previously_added_track_keys(log_path) == {
+    assert (found_art.previously_added_track_keys(log_path)) == {
         found_art.canonical_track_key("Artist", "Track")
     }
 
     log_path.write_text(json.dumps({"results": "bad"}) + "\n")
     with pytest.raises(found_art.FoundArtStateError, match="at line 1"):
-        found_art.previously_added_track_keys(log_path)
+        (found_art.previously_added_track_keys(log_path))
 
     log_path.write_text(
         json.dumps({"results": [{"action": "added", "candidate": "bad"}]}) + "\n"
     )
     with pytest.raises(found_art.FoundArtStateError, match="at line 1"):
-        found_art.previously_added_track_keys(log_path)
+        (found_art.previously_added_track_keys(log_path))
 
 
-def test_gather_candidates_validates_limit_and_emits_progress(
+async def test_gather_candidates_validates_limit_and_emits_progress(
     tmp_path: Path,
 ) -> None:
     """Gather candidates validates limit and emits progress.
@@ -618,11 +625,13 @@ def test_gather_candidates_validates_limit_and_emits_progress(
         tmp_path: Isolated original fixture storage.
     """
     with pytest.raises(found_art.FoundArtConfigError, match="at least 1"):
-        found_art.gather_candidates(
-            FakeLastFm(),
-            (),
-            set(),
-            candidate_pool_size=0,
+        (
+            found_art.gather_candidates(
+                FakeLastFm(),
+                (),
+                set(),
+                candidate_pool_size=0,
+            )
         )
 
     lastfm = FakeLastFm()
@@ -646,7 +655,7 @@ def test_gather_candidates_validates_limit_and_emits_progress(
     assert progress == ["Getting Last.fm neighbors for seed 1/1"]
 
 
-def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
+async def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
     """Spotify resolution covers no match duplicate and dry run."""
     spotify = FakeSpotify()
     candidates = (
@@ -681,7 +690,7 @@ def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
     assert progress[-1] == "Checking candidates against Spotify Liked Songs"
 
 
-def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
+async def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
     match = blast_from_past.SpotifyTrackMatch(
         spotify_id="track-id",
         uri="spotify:track:track-id",
@@ -718,7 +727,7 @@ def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
     )
     log_path = tmp_path / "log.jsonl"
 
-    found_art.append_found_art_log(summary, log_path)
+    (found_art.append_found_art_log(summary, log_path))
 
     record = json.loads(log_path.read_text())
     assert record["results"][0]["match"]["spotify_id"] == "track-id"
@@ -728,7 +737,7 @@ def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
     blocked = tmp_path / "blocked"
     blocked.write_text("file")
     with pytest.raises(found_art.FoundArtStateError, match="Could not write"):
-        found_art.append_found_art_log(summary, blocked / "log.jsonl")
+        (found_art.append_found_art_log(summary, blocked / "log.jsonl"))
 
 
 @pytest.mark.parametrize(
@@ -740,24 +749,26 @@ def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
         (1, None, 0, "Seed count"),
     ],
 )
-def test_run_found_art_rejects_invalid_limits(
+async def test_run_found_art_rejects_invalid_limits(
     count: int | None,
     maximum: int | None,
     seed_count: int,
     message: str,
 ) -> None:
     with pytest.raises(found_art.FoundArtConfigError, match=message):
-        found_art.run_found_art(
-            object(),  # type: ignore[arg-type]
-            FakeLastFm(),
-            "playlist",
-            count=count,
-            max_playlist_length=maximum,
-            seed_count=seed_count,
+        (
+            found_art.run_found_art(
+                object(),  # type: ignore[arg-type]
+                FakeLastFm(),
+                "playlist",
+                count=count,
+                max_playlist_length=maximum,
+                seed_count=seed_count,
+            )
         )
 
 
-def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
+async def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -785,31 +796,37 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     playlist = blast_from_past.PlaylistState(2, frozenset())
     calls: list[tuple[str, object]] = []
     monkeypatch.setattr(
-        LegacyRecommendationRun, "refresh", Mock(return_value=(history, 1))
+        LegacyRecommendationRun,
+        "refresh",
+        AsyncMock(side_effect=Mock(return_value=(history, 1))),
     )
     monkeypatch.setattr(RecommendationSeeds, "run", Mock(return_value=(chosen_seed,)))
     monkeypatch.setattr(
-        CandidateGathering, "run", Mock(return_value=(chosen_candidate,))
+        CandidateGathering,
+        "run",
+        AsyncMock(side_effect=Mock(return_value=(chosen_candidate,))),
     )
     monkeypatch.setattr(
         RecommendationResolution,
         "run",
-        Mock(
-            return_value=(
-                (found_art.FoundArtResult(chosen_candidate, match, "added"),),
-                (match,),
+        AsyncMock(
+            side_effect=Mock(
+                return_value=(
+                    (found_art.FoundArtResult(chosen_candidate, match, "added"),),
+                    (match,),
+                )
             )
         ),
     )
     monkeypatch.setattr(
         found_art.blast_from_past,
-        "load_playlist_state",
-        Mock(return_value=playlist),
+        "async_load_playlist_state",
+        AsyncMock(side_effect=Mock(return_value=playlist)),
     )
     monkeypatch.setattr(
         found_art.blast_from_past,
-        "add_spotify_matches",
-        partial(_record_playlist_additions, calls),
+        "async_add_spotify_matches",
+        AsyncMock(side_effect=partial(_record_playlist_additions, calls)),
     )
     monkeypatch.setattr(
         LegacyRecommendationRun,

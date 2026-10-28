@@ -45,7 +45,9 @@ class PlannerMemory:
         if self.failure == name:
             raise OSError(name)
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Observe a track read.
 
         Args:
@@ -57,7 +59,7 @@ class PlannerMemory:
         self._record("read", release.spotify_id)
         return self.observed.get(release.spotify_id, ())
 
-    def memberships(
+    async def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
     ) -> dict[str, bool]:
         """Observe live evaluation before ordering or prompting a successor.
@@ -91,11 +93,11 @@ class PlannerMemory:
         self._record("choice", (source, current, following))
         return self.choice
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Observe an accepted same-date ordering checkpoint."""
         self._record("checkpoint", None)
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: PlaylistTrack,
         current: DiscographyRelease,
@@ -120,7 +122,7 @@ def _planner(memory: PlannerMemory) -> Queue3Planner:
 
 
 @pytest.mark.parametrize("cached", [False, True])
-def test_within_release_advance_needs_no_likes_or_choice(cached: bool) -> None:
+async def test_within_release_advance_needs_no_likes_or_choice(cached: bool) -> None:
     """The next playable marker uses one shared observation across repeated plans.
 
     Args:
@@ -131,7 +133,7 @@ def test_within_release_advance_needs_no_likes_or_choice(cached: bool) -> None:
     planner = _planner(memory)
     if cached:
         planner.tracks["first"] = tracks
-    plan = planner.plan(SOURCE, (FIRST, SECOND))
+    plan = await planner.plan(SOURCE, (FIRST, SECOND))
     assert plan == {
         "action": "advance",
         "current_release": asdict(FIRST),
@@ -140,12 +142,12 @@ def test_within_release_advance_needs_no_likes_or_choice(cached: bool) -> None:
         "evaluation": None,
         "reason": None,
     }
-    assert planner.plan(SOURCE, (FIRST, SECOND)) == plan
+    assert (await planner.plan(SOURCE, (FIRST, SECOND))) == plan
     assert memory.events == ([] if cached else [("read", "first")])
 
 
 @pytest.mark.parametrize("tracks", [(), (TARGET,)])
-def test_unmapped_marker_restarts_or_completes_without_live_evaluation(
+async def test_unmapped_marker_restarts_or_completes_without_live_evaluation(
     tracks: tuple[ReleaseTrack, ...],
 ) -> None:
     """An empty edition and an edition with no matching marker retain distinct reasons.
@@ -155,7 +157,7 @@ def test_unmapped_marker_restarts_or_completes_without_live_evaluation(
     """
     memory = PlannerMemory({"first": tracks})
     planner = _planner(memory)
-    plan = planner.plan(SOURCE, (FIRST,))
+    plan = await planner.plan(SOURCE, (FIRST,))
     assert plan is not None and plan["evaluation"] is None
     assert plan["action"] == ("advance" if tracks else "complete")
     assert plan["reason"] == (
@@ -163,12 +165,12 @@ def test_unmapped_marker_restarts_or_completes_without_live_evaluation(
         if tracks
         else "current eligible release has no playable tracks"
     )
-    assert planner.plan(SOURCE, (FIRST,)) == plan
+    assert (await planner.plan(SOURCE, (FIRST,))) == plan
     assert memory.events == [("read", "first")]
 
 
 @pytest.mark.parametrize("catalog", [(), (SECOND,)])
-def test_ineligible_source_starts_at_first_eligible_release(
+async def test_ineligible_source_starts_at_first_eligible_release(
     catalog: tuple[DiscographyRelease, ...],
 ) -> None:
     """Ineligible sources avoid unnecessary current-release and liked-status reads.
@@ -177,7 +179,7 @@ def test_ineligible_source_starts_at_first_eligible_release(
         catalog: Empty or eligible observed catalog.
     """
     memory = PlannerMemory({"second": (TARGET,)})
-    plan = _planner(memory).plan(SOURCE, catalog)
+    plan = await _planner(memory).plan(SOURCE, catalog)
     assert plan is not None and plan["evaluation"] is None
     assert plan["action"] == ("next_release" if catalog else "complete")
     assert [name for name, value in memory.events] == (
@@ -185,10 +187,10 @@ def test_ineligible_source_starts_at_first_eligible_release(
     )
 
 
-def test_last_track_of_final_release_has_evaluation_and_no_target() -> None:
+async def test_last_track_of_final_release_has_evaluation_and_no_target() -> None:
     """Final completion keeps the live album decision without another prompt."""
     memory = PlannerMemory({"first": (release_track("source"),)})
-    plan = _planner(memory).plan(SOURCE, (FIRST,))
+    plan = await _planner(memory).plan(SOURCE, (FIRST,))
     assert plan is not None
     assert plan["action"] == "complete" and plan["target"] is None
     assert plan["reason"] == "last track of the final studio release"
@@ -198,7 +200,9 @@ def test_last_track_of_final_release_has_evaluation_and_no_target() -> None:
 
 
 @pytest.mark.parametrize("choice", ["advance", "quit", "invalid"])
-def test_boundary_evaluates_then_checkpoints_order_before_choice(choice: str) -> None:
+async def test_boundary_evaluates_then_checkpoints_order_before_choice(
+    choice: str,
+) -> None:
     """An equal-date successor prompts only after saving the deterministic tie order.
 
     Args:
@@ -213,10 +217,10 @@ def test_boundary_evaluates_then_checkpoints_order_before_choice(choice: str) ->
         with pytest.raises(
             Queue3Error, match="Release transition must be advance or quit"
         ):
-            planner.plan(SOURCE, (FIRST, second))
+            (await planner.plan(SOURCE, (FIRST, second)))
         assert memory.events[-1][0] == "choice"
         return
-    plan = planner.plan(SOURCE, (FIRST, second))
+    plan = await planner.plan(SOURCE, (FIRST, second))
     assert (plan is None) == (choice == "quit")
     assert [name for name, value in memory.events] == (
         ["read", "evaluate", "checkpoint", "choice", "read"]
@@ -226,19 +230,21 @@ def test_boundary_evaluates_then_checkpoints_order_before_choice(choice: str) ->
     assert planner.ordering.saved == {"artist:2000": ["first", "second"]}
 
 
-def test_accepted_empty_successor_retains_cached_empty_observation() -> None:
+async def test_accepted_empty_successor_retains_cached_empty_observation() -> None:
     """A failed transition never refetches a known empty release in the same run."""
     memory = PlannerMemory()
     planner = _planner(memory)
     for _attempt in range(2):
         with pytest.raises(Queue3Error, match="Second has no playable tracks"):
-            planner.transition(SOURCE, FIRST, SECOND)
+            (await planner.transition(SOURCE, FIRST, SECOND))
     assert [name for name, value in memory.events] == ["choice", "read", "choice"]
     assert planner.tracks == {"second": ()}
 
 
 @pytest.mark.parametrize("failure", ["read", "evaluate", "checkpoint", "choice"])
-def test_planner_failures_stop_at_original_observation_boundaries(failure: str) -> None:
+async def test_planner_failures_stop_at_original_observation_boundaries(
+    failure: str,
+) -> None:
     """Failed effects do not proceed to later reads, choices or writes.
 
     Args:
@@ -248,7 +254,7 @@ def test_planner_failures_stop_at_original_observation_boundaries(failure: str) 
     planner = _planner(memory)
     second = replace(SECOND, chronology_date=FIRST.chronology_date)
     with pytest.raises(OSError, match=failure):
-        planner.plan(SOURCE, (FIRST, second))
+        (await planner.plan(SOURCE, (FIRST, second)))
     assert memory.events[-1][0] == failure
     assert bool(planner.tracks) == (failure != "read")
     assert bool(planner.ordering.saved) == (failure in {"checkpoint", "choice"})

@@ -1,10 +1,8 @@
 """Bind original artist-review files, catalog seams and synchronous Spotify retries."""
 
-import time
+import asyncio
 from collections import Counter
 from pathlib import Path
-
-from spotipy import Spotify
 
 from spotify_manager.application.artist_review_catalog import ArtistCatalog
 from spotify_manager.application.artist_review_effects import ReviewCatalog
@@ -16,6 +14,7 @@ from spotify_manager.application.artist_review_values import ArtistReviewState
 from spotify_manager.application.artist_review_values import ReviewCounts
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_review_values import QueuePlaylists
 from spotify_manager.infrastructure.artist_review_resources import ReviewFiles
@@ -100,7 +99,7 @@ def recovery_session(
     Returns:
         Recovery context sharing the exact original mutable authorities.
     """
-    resources = ReviewResources(sp, paths, echo, time, 0, 0, None)
+    resources = ReviewResources(sp, paths, echo, asyncio, 0, 0, None)
     spotify = ReviewSpotifyAccess(sp, retry)
     catalog = ReviewCatalog(resources)
     return ReviewSession(

@@ -1,13 +1,14 @@
 """Capture original annual ranking, shallow state and retry reconciliation."""
 
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from datetime import datetime
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import new_year as legacy
@@ -53,7 +54,7 @@ def _play(artist: str, track: str, album: str, when: str) -> Scrobble:
     )
 
 
-def reconcile_outcome(
+async def reconcile_outcome(
     top: bool, failure: str | None, automatic: bool, size: int
 ) -> object:
     """Observe original batch reconciliation, top placement and retry acceptance.
@@ -72,8 +73,14 @@ def reconcile_outcome(
     uris = [f"uri-{index}" for index in range(size)] + ["uri-0", "uri-0"]
     result: dict[str, object] = {}
     try:
-        with patch.object(new_wine, "load_playlist_tracks", edge.playlist):
-            legacy._add_missing(cast(Spotify, edge), "destination", uris, edge, top=top)
+        with patch.object(
+            new_wine, "async_load_playlist_tracks", AsyncMock(side_effect=edge.playlist)
+        ):
+            (
+                await legacy._add_missing(
+                    cast(Spotify, edge), "destination", uris, edge, top=top
+                )
+            )
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result.update(trace=edge.trace, contents=edge.contents["destination"])
@@ -94,11 +101,11 @@ def cases(name: str) -> list[dict[str, object]]:
     )
 
 
-def resumed_outcome(
+async def resumed_outcome(
     profile: str,
     preview: bool,
     run: Callable[
-        [AnnualObservations, bool, int | None], dict[str, object]
+        [AnnualObservations, bool, int | None], Awaitable[dict[str, object]]
     ] = original_run,
 ) -> object:
     """Observe original permissive resumed records and delayed native failure prefixes.
@@ -115,7 +122,7 @@ def resumed_outcome(
     _alter_run(edge, profile)
     result: dict[str, object] = {}
     try:
-        result["result"] = run(edge, preview, 2025)
+        result["result"] = await run(edge, preview, 2025)
     except (RuntimeError, KeyError, TypeError, IndexError, AttributeError) as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result.update(trace=edge.trace, state=edge.state, contents=edge.contents)
@@ -155,10 +162,10 @@ def _alter_uri(run: dict[str, object], plan: dict[str, object], profile: str) ->
         run["completed"] = ["top tracks" if kind == "tracks" else "top artists"]
 
 
-def large_outcome(
+async def large_outcome(
     preview: bool,
     run: Callable[
-        [AnnualObservations, bool, int | None], dict[str, object]
+        [AnnualObservations, bool, int | None], Awaitable[dict[str, object]]
     ] = original_run,
 ) -> object:
     """Observe original caps and a top artist whose marker lies outside the top fifty.
@@ -171,7 +178,7 @@ def large_outcome(
         Complete original capped plan, uncapped marker lookup and accepted effects.
     """
     with patch.object(support, "plays", _large_plays):
-        return outcome("normal", preview, None, run=run)
+        return await outcome("normal", preview, None, run=run)
 
 
 def _large_plays() -> tuple[Scrobble, ...]:

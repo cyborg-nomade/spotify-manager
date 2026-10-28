@@ -9,14 +9,14 @@ from datetime import datetime
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
-
-from spotipy import Spotify
 
 from spotify_manager.application.golden_selection import AlbumChoice
 from spotify_manager.application.golden_selection import ArtistChoice
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
@@ -209,7 +209,7 @@ class OldObservations:
         self.record("spotify-tracks", artist.spotify_id)
         return (TRACK,)
 
-    def album_tracks(
+    async def album_tracks(
         self,
         spotify: Spotify,
         artist: legacy.GoldenOldieArtist,
@@ -277,7 +277,7 @@ class OldObservations:
         """
         self.record("progress", message)
 
-    def choose_mode(
+    async def choose_mode(
         self, artist: legacy.GoldenOldieArtist, spotify: legacy.SpotifyArtistCandidate
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -291,7 +291,7 @@ class OldObservations:
         """
         return self.mode(artist, spotify)
 
-    def choose_album(
+    async def choose_album(
         self, artist: legacy.GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -316,26 +316,34 @@ class OldObservations:
 
 def _patches(edge: OldObservations) -> tuple[tuple[object, str, object], ...]:
     return (
-        (legacy, "_load_playlist_state", edge.playlist),
+        (legacy, "_load_playlist_state", AsyncMock(side_effect=edge.playlist)),
         (
             HistoryRefresh,
             "run",
             partialmethod(something_old_history, edge.history),
         ),
-        (legacy, "resolve_spotify_artist", edge.resolve),
-        (legacy, "select_lastfm_top_tracks", edge.lastfm_tracks),
-        (legacy, "select_spotify_top_tracks", edge.spotify_tracks),
-        (legacy, "select_album_tracks", edge.album_tracks),
-        (legacy, "_add_tracks", edge.append),
+        (legacy, "async_resolve_spotify_artist", AsyncMock(side_effect=edge.resolve)),
+        (
+            legacy,
+            "async_select_lastfm_top_tracks",
+            AsyncMock(side_effect=edge.lastfm_tracks),
+        ),
+        (
+            legacy,
+            "async_select_spotify_top_tracks",
+            AsyncMock(side_effect=edge.spotify_tracks),
+        ),
+        (legacy, "async_select_album_tracks", AsyncMock(side_effect=edge.album_tracks)),
+        (legacy, "_add_tracks", AsyncMock(side_effect=edge.append)),
         (legacy, "_append_log", edge.audit),
     )
 
 
-def _run(edge: OldObservations, preview: bool) -> object:
+async def _run(edge: OldObservations, preview: bool) -> object:
     with ExitStack() as stack:
         for module, name, callback in _patches(edge):
             stack.enter_context(patch.object(module, name, callback))
-        result = legacy.run_something_old(
+        result = await legacy.async_run_something_old(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
             SomethingOldOptions(
@@ -354,7 +362,7 @@ def _run(edge: OldObservations, preview: bool) -> object:
     return asdict(result)
 
 
-def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
     """Observe the original complete workflow before coordinator extraction.
 
     Args:
@@ -368,7 +376,7 @@ def original_outcome(scenario: str, preview: bool, failure: str | None) -> objec
     edge = OldObservations(scenario, failure)
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _run(edge, preview)
+        outcome["result"] = await _run(edge, preview)
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome["trace"] = edge.trace

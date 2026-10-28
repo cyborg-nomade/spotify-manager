@@ -1,19 +1,21 @@
 """Bind restartable Queue flush to original synchronous SDK and storage seams."""
 
+import asyncio
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -50,7 +52,7 @@ class LegacyQueueFlush:
         """Resolve the original falsey retry boundary before state authority."""
         self.requests = self.configured_retry or NoRetry()
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -67,9 +69,11 @@ class LegacyQueueFlush:
         Returns:
             Original caller-owned state handle.
         """
-        from spotify_manager.routines.the_queue import _state_access
+        from spotify_manager.routines.the_queue import (
+            _async_state_access as _async_state_access,
+        )
 
-        return _state_access(self.state_path, self.state_service)
+        return _async_state_access(self.state_path, self.state_service)
 
     def default_state(self) -> dict[str, object]:
         """Create original empty preview state without durable reads.
@@ -89,15 +93,19 @@ class LegacyQueueFlush:
         """
         return self.playlists.queue
 
-    def queue(self) -> tuple[PlaylistTrack, ...]:
+    async def queue(self) -> tuple[PlaylistTrack, ...]:
         """Read original live Queue membership even during resumed execution.
 
         Returns:
             Original live markers in source order.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        return load_playlist_tracks(self.spotify, self.playlists.queue, self.requests)
+        return await load_playlist_tracks(
+            self.spotify, self.playlists.queue, self.requests
+        )
 
     def new_run(self, tracks: tuple[PlaylistTrack, ...]) -> dict[str, object]:
         """Retain the original daily snapshot seam and distinct clock reads.
@@ -112,28 +120,32 @@ class LegacyQueueFlush:
 
         return _new_flush_run(self.playlists.queue, tracks)
 
-    def queue_2(self) -> set[str]:
+    async def queue_2(self) -> set[str]:
         """Read original promotion membership before unlucky membership.
 
         Returns:
             Original represented primary artist identities.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        tracks = load_playlist_tracks(
+        tracks = await load_playlist_tracks(
             self.spotify, self.playlists.queue_2, self.requests
         )
         return {track.primary_artist_id for track in tracks}
 
-    def unlucky(self) -> set[str]:
+    async def unlucky(self) -> set[str]:
         """Read original unlucky membership after promotion membership.
 
         Returns:
             Original represented primary artist identities.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        tracks = load_playlist_tracks(
+        tracks = await load_playlist_tracks(
             self.spotify, self.playlists.unlucky_ones, self.requests
         )
         return {track.primary_artist_id for track in tracks}
@@ -164,7 +176,7 @@ class LegacyQueueFlush:
 
         return _catalog_track_from_record(raw)
 
-    def append(
+    async def append(
         self, destination: str, source: PlaylistTrack, target: CatalogTrack
     ) -> None:
         """Accept the original destination marker with its unchanged retry text.
@@ -174,12 +186,14 @@ class LegacyQueueFlush:
             source: Original authoritative source marker.
             target: Original selected destination marker.
         """
-        from spotify_manager.routines.review_artists import add_playlist_item
+        from spotify_manager.routines.review_artists import (
+            async_add_playlist_item as add_playlist_item,
+        )
 
         playlist, description = self._destination(destination, source)
         for attempt in self.requests.attempts(description):
-            with attempt:
-                add_playlist_item(self.spotify, playlist, target.uri)
+            async with attempt:
+                await add_playlist_item(self.spotify, playlist, target.uri)
 
     def _destination(self, destination: str, source: PlaylistTrack) -> tuple[str, str]:
         if destination == "queue":
@@ -197,7 +211,7 @@ class LegacyQueueFlush:
             f"adding {source.primary_artist_name} to Unlucky Ones",
         )
 
-    def following(self, source: PlaylistTrack) -> bool:
+    async def following(self, source: PlaylistTrack) -> bool:
         """Read and validate original follow status even during preview.
 
         Args:
@@ -208,48 +222,54 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.the_queue import _flush_following
 
-        return _flush_following(self.spotify, source, self.requests)
+        return await _flush_following(self.spotify, source, self.requests)
 
-    def unfollow(self, source: PlaylistTrack) -> None:
+    async def unfollow(self, source: PlaylistTrack) -> None:
         """Accept original artist removal before local mirror removal.
 
         Args:
             source: Original authoritative source marker.
         """
-        from spotify_manager.routines.review_artists import remove_library_artists
+        from spotify_manager.routines.review_artists import (
+            async_remove_library_artists as remove_library_artists,
+        )
 
         for attempt in self.requests.attempts(
             f"unfollowing {source.primary_artist_name}"
         ):
-            with attempt:
-                remove_library_artists(
+            async with attempt:
+                await remove_library_artists(
                     self.spotify, [f"spotify:artist:{source.primary_artist_id}"]
                 )
 
-    def remove_local(self, source: PlaylistTrack) -> None:
+    async def remove_local(self, source: PlaylistTrack) -> None:
         """Retain original mirror removal after accepted unfollow.
 
         Args:
             source: Original authoritative source marker.
         """
-        from spotify_manager.routines.new_kids import remove_local_artist
+        from spotify_manager.routines.new_kids import (
+            async_remove_local_artist as remove_local_artist,
+        )
 
-        remove_local_artist(source.primary_artist_id, self.artists_path)
+        await remove_local_artist(source.primary_artist_id, self.artists_path)
 
-    def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
+    async def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
         """Accept original source marker removal with unchanged retry text.
 
         Args:
             source: Original authoritative source marker.
             uris: Original ordered removable URIs.
         """
-        from spotify_manager.routines.review_artists import remove_playlist_items
+        from spotify_manager.routines.review_artists import (
+            async_remove_playlist_items as remove_playlist_items,
+        )
 
         for attempt in self.requests.attempts(
             f"removing the previous Queue marker for {source.primary_artist_name}"
         ):
-            with attempt:
-                remove_playlist_items(self.spotify, self.playlists.queue, uris)
+            async with attempt:
+                await remove_playlist_items(self.spotify, self.playlists.queue, uris)
 
     def result(
         self, source: PlaylistTrack, plan: dict[str, object], preview: bool
@@ -268,7 +288,7 @@ class LegacyQueueFlush:
 
         return _flush_result(source, plan, preview)
 
-    def audit(
+    async def audit(
         self, run: dict[str, object], source: PlaylistTrack, result: FlushResult
     ) -> None:
         """Accept original completion fields before marking the entry completed.
@@ -278,15 +298,20 @@ class LegacyQueueFlush:
             source: Original authoritative source marker.
             result: Original completed outcome.
         """
-        from spotify_manager.routines.the_queue import append_event
+        from spotify_manager.routines.the_queue import append_event as _append_event
 
-        append_event(
-            self.log_path,
-            "flush_artist_completed",
-            run_id=run.get("run_id"),
-            artist_id=source.primary_artist_id,
-            result=asdict(result),
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_event,
+                    self.log_path,
+                    "flush_artist_completed",
+                    run_id=run.get("run_id"),
+                    artist_id=source.primary_artist_id,
+                    result=asdict(result),
+                )
+            )
+            await finish_blocking(file_operation)
 
     def present(
         self,

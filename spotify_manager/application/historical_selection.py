@@ -30,7 +30,7 @@ class BlastSelection:
     inputs: HistoricalInputs
     progress: Messages
 
-    def run(self, count: int) -> BlastFromPastBatch:
+    async def run(self, count: int) -> BlastFromPastBatch:
         """Choose tracks from the random source's original index order.
 
         Args:
@@ -46,12 +46,12 @@ class BlastSelection:
         if count < 1:
             raise BlastFromPastError("Count must be at least 1.")
         self.progress.echo("Loading Last.fm scrobbles")
-        history = self.inputs.history()
+        history = await self.inputs.history()
         cutoff = self.inputs.cutoff()
         available = eligible_dates(history, self.inputs.first_date, cutoff)
         _validate_population(count, available, cutoff)
         self.progress.echo("Requesting unique date indexes from Random.org")
-        indexes = self.inputs.random(len(available), count)
+        indexes = await self.inputs.random(len(available), count)
         self.progress.echo("Applying Last.fm pagination rules")
         selections = []
         for index in indexes.indexes:
@@ -106,7 +106,7 @@ class AnniversarySelection:
     inputs: HistoricalInputs
     progress: Messages
 
-    def run(self) -> DailyMindRadioBatch:
+    async def run(self) -> DailyMindRadioBatch:
         """Choose one play from each populated anniversary date.
 
         Returns:
@@ -116,7 +116,7 @@ class AnniversarySelection:
             LastFmExportError: The history has no date buckets.
         """
         self.progress.echo("Loading Last.fm scrobbles")
-        history = self.inputs.history()
+        history = await self.inputs.history()
         if not history:
             raise LastFmExportError(
                 "The Last.fm export does not contain any scrobbles."
@@ -129,7 +129,7 @@ class AnniversarySelection:
         if not populated:
             return DailyMindRadioBatch(None, targets, missing, ())
         self.progress.echo("Requesting a selection timestamp from Random.org")
-        generated_at = self.inputs.timestamp()
+        generated_at = await self.inputs.timestamp()
         self.progress.echo("Applying Last.fm pagination rules")
         indexes = {day: index for index, day in enumerate(targets)}
         selections = []

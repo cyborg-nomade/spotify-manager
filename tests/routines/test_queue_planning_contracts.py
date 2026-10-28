@@ -7,7 +7,9 @@ from tests.support.queue_planning import original_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_original_queue_planning_contract(name: str, case: dict[str, object]) -> None:
+async def test_original_queue_planning_contract(
+    name: str, case: dict[str, object]
+) -> None:
     """Retain every original plan and read order before extracting its policies.
 
     Args:
@@ -15,4 +17,4 @@ def test_original_queue_planning_contract(name: str, case: dict[str, object]) ->
         case: Original configured planning facts and observed outcome.
     """
     assert name
-    assert original_outcome(case) == case["outcome"]
+    assert (await original_outcome(case)) == case["outcome"]
