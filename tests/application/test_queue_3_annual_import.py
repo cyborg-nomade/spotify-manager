@@ -44,7 +44,7 @@ class ImportMemory:
         if name == self.failure:
             raise OSError(name)
 
-    def read(self, playlist_id: str) -> list[PlaylistTrack]:
+    async def read(self, playlist_id: str) -> list[PlaylistTrack]:
         """Observe a playlist read.
 
         Args:
@@ -56,7 +56,7 @@ class ImportMemory:
         self._record("read", playlist_id)
         return self.source
 
-    def append(
+    async def append(
         self, playlist_id: str, tracks: list[PlaylistTrack], description: str
     ) -> None:
         """Accept an append after its failure boundary.
@@ -69,7 +69,7 @@ class ImportMemory:
         self._record("append", (playlist_id, tracks, description))
         self.remote.extend(tracks)
 
-    def audit(self, event: str, details: dict[str, object]) -> None:
+    async def audit(self, event: str, details: dict[str, object]) -> None:
         """Observe the original structured audit.
 
         Args:
@@ -78,7 +78,7 @@ class ImportMemory:
         """
         self._record("audit", (event, details))
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Reject unexpected reads of already prepared state.
 
         Raises:
@@ -86,7 +86,9 @@ class ImportMemory:
         """
         raise AssertionError("Unexpected state read")
 
-    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
+    async def save(
+        self, value: dict[str, object], *, message: str | None = None
+    ) -> None:
         """Accept a detached checkpoint after its failure boundary.
 
         Args:
@@ -145,7 +147,9 @@ def _service(memory: ImportMemory) -> AnnualDiscoveryImport:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_import_records_original_fields_and_preserves_namespace(preview: bool) -> None:
+async def test_import_records_original_fields_and_preserves_namespace(
+    preview: bool,
+) -> None:
     """Mixed existing/new artists retain ordering and original checkpoint fields.
 
     Args:
@@ -155,7 +159,7 @@ def test_import_records_original_fields_and_preserves_namespace(preview: bool) -
     memory = ImportMemory([MARKER, existing, MARKER])
     current = [existing]
     state: dict[str, object] = {"annual_imports": {}, "unknown": "preserved"}
-    updated, results = _service(memory).run(
+    updated, results = await _service(memory).run(
         "queue", current, state, OWNED, 2026, preview
     )
     assert updated is current and current == [existing, MARKER]
@@ -200,7 +204,7 @@ def test_import_records_original_fields_and_preserves_namespace(preview: bool) -
 
 
 @pytest.mark.parametrize("previous", [None, "invalid", {}, {"completed": False}])
-def test_empty_source_still_checkpoints_completion(previous: object) -> None:
+async def test_empty_source_still_checkpoints_completion(previous: object) -> None:
     """Only a truthy completed record suppresses an annual import.
 
     Args:
@@ -208,7 +212,10 @@ def test_empty_source_still_checkpoints_completion(previous: object) -> None:
     """
     memory = ImportMemory()
     state: dict[str, object] = {"annual_imports": {"2026": previous}}
-    assert _service(memory).run("queue", [], state, OWNED, 2026, False) == ([], ())
+    assert (await _service(memory).run("queue", [], state, OWNED, 2026, False)) == (
+        [],
+        (),
+    )
     assert [name for name, value in memory.events] == [
         "read",
         "clock",
@@ -219,7 +226,7 @@ def test_empty_source_still_checkpoints_completion(previous: object) -> None:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_completed_guard_needs_no_source_or_effects(preview: bool) -> None:
+async def test_completed_guard_needs_no_source_or_effects(preview: bool) -> None:
     """A truthy completion flag suppresses source resolution even for a preview.
 
     Args:
@@ -228,7 +235,9 @@ def test_completed_guard_needs_no_source_or_effects(preview: bool) -> None:
     memory = ImportMemory()
     state: dict[str, object] = {"annual_imports": {"2026": {"completed": "yes"}}}
     current: list[PlaylistTrack] = []
-    updated, results = _service(memory).run("queue", current, state, (), 2026, preview)
+    updated, results = await _service(memory).run(
+        "queue", current, state, (), 2026, preview
+    )
     assert updated is current and results == ()
     assert memory.events == []
 
@@ -236,7 +245,7 @@ def test_completed_guard_needs_no_source_or_effects(preview: bool) -> None:
 @pytest.mark.parametrize(
     "failure", ["read", "append", "audit", "clock", "checkpoint", "message"]
 )
-def test_failure_preserves_only_earlier_accepted_effects(failure: str) -> None:
+async def test_failure_preserves_only_earlier_accepted_effects(failure: str) -> None:
     """Recovery boundaries preserve the original remote/local divergence.
 
     Args:
@@ -246,7 +255,7 @@ def test_failure_preserves_only_earlier_accepted_effects(failure: str) -> None:
     current: list[PlaylistTrack] = []
     state: dict[str, object] = {"annual_imports": {}}
     with pytest.raises(OSError, match=failure):
-        _service(memory).run("queue", current, state, OWNED, 2026, False)
+        (await _service(memory).run("queue", current, state, OWNED, 2026, False))
     assert bool(memory.remote) == (failure not in {"read", "append"})
     assert bool(current) == (failure in {"clock", "checkpoint", "message"})
     assert bool(state["annual_imports"]) == (failure in {"checkpoint", "message"})
@@ -275,10 +284,10 @@ def test_source_resolution_rejects_missing_and_ambiguous_ids(
     assert str(error.value) == expected
 
 
-def test_memory_rejects_unexpected_namespace_reads() -> None:
+async def test_memory_rejects_unexpected_namespace_reads() -> None:
     """The test store exposes an explicit failure for accidental duplicate loads."""
     with pytest.raises(AssertionError, match="Unexpected state read"):
-        ImportMemory().load()
+        (await ImportMemory().load())
 
 
 @dataclass
@@ -305,7 +314,7 @@ class ImportReviewMemory(ImportMemory):
 
 @pytest.mark.parametrize("preview", [False, True])
 @pytest.mark.parametrize("completed", [False, True])
-def test_standalone_review_summarizes_existing_and_new_artists(
+async def test_standalone_review_summarizes_existing_and_new_artists(
     preview: bool, completed: bool
 ) -> None:
     """The standalone review retains its own saved-completion summary contract.
@@ -317,7 +326,7 @@ def test_standalone_review_summarizes_existing_and_new_artists(
     memory = ImportReviewMemory([MARKER])
     state: dict[str, object] = {"annual_imports": {"2026": {"completed": completed}}}
     service = AnnualImportReview(_service(memory), memory)
-    result = service.run("queue", [MARKER], state, OWNED, 2026, preview)
+    result = await service.run("queue", [MARKER], state, OWNED, 2026, preview)
     assert result.active_year == 2026 and result.source_year == 2025
     assert result.already_completed == completed and result.dry_run == preview
     assert result.additions == 0 and result.already_present == (0 if completed else 1)
@@ -326,7 +335,7 @@ def test_standalone_review_summarizes_existing_and_new_artists(
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_standalone_review_counts_proposed_and_accepted_additions(
+async def test_standalone_review_counts_proposed_and_accepted_additions(
     preview: bool,
 ) -> None:
     """Preview additions and real additions count identically in the public summary.
@@ -336,6 +345,8 @@ def test_standalone_review_counts_proposed_and_accepted_additions(
     """
     memory = ImportReviewMemory([MARKER])
     service = AnnualImportReview(_service(memory), memory)
-    result = service.run("queue", [], {"annual_imports": {}}, OWNED, 2026, preview)
+    result = await service.run(
+        "queue", [], {"annual_imports": {}}, OWNED, 2026, preview
+    )
     assert result.additions == 1 and result.already_present == 0
     assert len(result.results) == 1

@@ -35,7 +35,7 @@ class AnnualPlanning:
     output: Messages
     timezone: tzinfo
 
-    def run(
+    async def run(
         self, year: int, preview: bool, destinations: dict[str, str], obsessions: str
     ) -> RetrospectivePlan:
         """Refresh and resolve the complete original top fifty/twenty/five plan.
@@ -55,38 +55,41 @@ class AnnualPlanning:
         self.output.echo(
             "Rebuilding complete Last.fm history before ranking the previous year"
         )
-        history = self.history.run(self.username, preview, True).history
+        history = (await self.history.run(self.username, preview, True)).history
         ranked = rank_year(history, year, self.timezone)
         if not ranked["tracks"]:
             raise NewYearError(f"No scrobbles found for {year}.")
+        obsession_uris = []
+        for track in await self.catalog.playlist(obsessions):
+            obsession_uris.append(track.uri)
         plan: RetrospectivePlan = {
             "tracks": ranked["tracks"][:50],
             "albums": ranked["albums"][:20],
             "artists": ranked["artists"][:5],
             "destinations": destinations,
-            "obsessions": [track.uri for track in self.catalog.playlist(obsessions)],
+            "obsessions": obsession_uris,
         }
-        self._tracks(plan["tracks"])
-        self._albums(plan["albums"])
-        memory = self.catalog.playlist(destinations["memory"])
-        self._artists(plan["artists"], ranked["tracks"], memory)
+        await self._tracks(plan["tracks"])
+        await self._albums(plan["albums"])
+        memory = await self.catalog.playlist(destinations["memory"])
+        await self._artists(plan["artists"], ranked["tracks"], memory)
         return plan
 
-    def _tracks(self, items: list[YearEntry]) -> None:
+    async def _tracks(self, items: list[YearEntry]) -> None:
         for item in items:
             self.output.echo(
                 f"Top track: {item['artist']} — {item['name']} ({item['scrobbles']})"
             )
-            item["uri"] = self.resolution.track(item)
+            item["uri"] = await self.resolution.track(item)
 
-    def _albums(self, items: list[YearEntry]) -> None:
+    async def _albums(self, items: list[YearEntry]) -> None:
         for item in items:
             self.output.echo(
                 f"Top album: {item['artist']} — {item['name']} ({item['scrobbles']})"
             )
-            item["uri"] = self.resolution.album_marker(item)
+            item["uri"] = await self.resolution.album_marker(item)
 
-    def _artists(
+    async def _artists(
         self,
         items: list[YearEntry],
         ranked: list[YearEntry],
@@ -94,18 +97,22 @@ class AnnualPlanning:
     ) -> None:
         for item in items:
             self.output.echo(f"Top artist: {item['artist']} ({item['scrobbles']})")
-            identity = self.resolution.artist_identity(item)
+            identity = await self.resolution.artist_identity(item)
             item["artist_id"] = identity
             marker = existing_primary_marker(memory, identity)
             item["uri"] = (
-                marker if marker is not None else self._marker(item, ranked, identity)
+                marker
+                if marker is not None
+                else (await self._marker(item, ranked, identity))
             )
 
-    def _marker(self, artist: YearEntry, ranked: list[YearEntry], identity: str) -> str:
+    async def _marker(
+        self, artist: YearEntry, ranked: list[YearEntry], identity: str
+    ) -> str:
         for candidate in ranked:
             if candidate["artist"].casefold() != artist["artist"].casefold():
                 continue
-            uri = self.resolution.track(candidate)
-            if self.resolution.catalog.primary(uri) == identity:
+            uri = await self.resolution.track(candidate)
+            if (await self.resolution.catalog.primary(uri)) == identity:
                 return uri
         raise NewYearError(f"No primary-artist track for {artist['artist']}.")

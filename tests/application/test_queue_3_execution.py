@@ -55,7 +55,7 @@ def _queue(tracks: list[PlaylistTrack]) -> Queue3LiveQueue:
 
 @pytest.mark.parametrize("preview", [False, True])
 @pytest.mark.parametrize("action", ["advance", "composer_advance", "next_release"])
-def test_replacement_preserves_append_message_remove_message_order(
+async def test_replacement_preserves_append_message_remove_message_order(
     preview: bool,
     action: str,
 ) -> None:
@@ -68,7 +68,7 @@ def test_replacement_preserves_append_message_remove_message_order(
     memory = ExecutionMemory(remote={"source"})
     queue = _queue([SOURCE])
     transition = _transition(action)
-    assert _service(memory, preview).run(transition, queue) == (action, TARGET)
+    assert (await _service(memory, preview).run(transition, queue)) == (action, TARGET)
     assert queue.ids == {"target"} and queue.tracks == [SOURCE]
     assert memory.remote == ({"source"} if preview else {"target"})
     assert [name for name, value in memory.events] == (
@@ -77,7 +77,7 @@ def test_replacement_preserves_append_message_remove_message_order(
 
 
 @pytest.mark.parametrize("failure", ["append", "added", "remove", "removed"])
-def test_playlist_failures_preserve_prior_projection_and_remote_acceptance(
+async def test_playlist_failures_preserve_prior_projection_and_remote(
     failure: str,
 ) -> None:
     """No later effect runs after an interrupted mutation or message.
@@ -88,7 +88,7 @@ def test_playlist_failures_preserve_prior_projection_and_remote_acceptance(
     memory = ExecutionMemory(failure, remote={"source"})
     queue = _queue([SOURCE])
     with pytest.raises(OSError, match=failure):
-        _service(memory).run(_transition(), queue)
+        (await _service(memory).run(_transition(), queue))
     expected = {"source", "target"}
     if failure == "append":
         expected = {"source"}
@@ -98,42 +98,42 @@ def test_playlist_failures_preserve_prior_projection_and_remote_acceptance(
     assert memory.events[-1][0] == failure
 
 
-def test_library_reconciliation_precedes_missing_marker_guard() -> None:
+async def test_library_reconciliation_precedes_missing_marker_guard() -> None:
     """Already accepted library effects survive an absent-source/replacement error."""
     memory = ExecutionMemory()
     transition = _transition()
     evaluation = evaluate_release(SOURCE.release, (TARGET,), {"target": True})
     transition.plan["evaluation"] = evaluation.model_dump(mode="json")
     with pytest.raises(Queue3StateError, match="both absent"):
-        _service(memory).run(transition, _queue([]))
+        (await _service(memory).run(transition, _queue([])))
     assert memory.events[0][0] == "library" and len(memory.events) == 1
 
 
-def test_existing_replacement_needs_no_saved_release_or_repeated_append() -> None:
+async def test_existing_replacement_needs_no_saved_release_or_repeated() -> None:
     """An accepted target needs no source or release facts before ordinary cleanup."""
     memory = ExecutionMemory()
     transition = _transition()
     transition.plan.update(current_release=None, target_release=None)
     queue = _queue([playlist_track("target", RELEASE)])
-    assert _service(memory).run(transition, queue) == ("advance", TARGET)
+    assert (await _service(memory).run(transition, queue)) == ("advance", TARGET)
     assert [name for name, value in memory.events] == ["remove", "removed"]
     assert queue.ids == set()
 
 
-def test_new_target_requires_a_saved_release_even_in_preview() -> None:
+async def test_new_target_requires_a_saved_release_even_in_preview() -> None:
     """Preview keeps the same plan validation boundary as real mutation."""
     transition = _transition()
     transition.plan.update(current_release=None, target_release=None)
     with pytest.raises(Queue3StateError, match="no saved target release"):
-        _service(ExecutionMemory(), True).run(transition, _queue([SOURCE]))
+        (await _service(ExecutionMemory(), True).run(transition, _queue([SOURCE])))
 
 
-def test_source_fallback_uri_does_not_rewrite_original_projection_selection() -> None:
+async def test_source_fallback_uri_does_not_rewrite_projection_selection() -> None:
     """Logical-credit mismatch retains the original fallback-removal projection."""
     transition = replace(_transition(), artist_id="logical")
     memory = ExecutionMemory(remote={"source"})
     queue = _queue([SOURCE])
-    _service(memory).run(transition, queue)
+    (await _service(memory).run(transition, queue))
     assert memory.remote == {"target"} and queue.ids == {"source", "target"}
     append = memory.events[0][1]
     assert isinstance(append, tuple)
@@ -141,7 +141,7 @@ def test_source_fallback_uri_does_not_rewrite_original_projection_selection() ->
 
 
 @pytest.mark.parametrize("composer", [False, True])
-def test_cleanup_restricts_composer_routes_to_the_original_source(
+async def test_cleanup_restricts_composer_routes_to_the_original_source(
     composer: bool,
 ) -> None:
     """Ordinary cleanup removes all live artist markers; composer cleanup removes one.
@@ -156,13 +156,13 @@ def test_cleanup_restricts_composer_routes_to_the_original_source(
     queue.ids.discard("unrelated")
     transition = _transition()
     transition.plan["composer_playlist_id"] = "works" if composer else None
-    _service(memory).run(transition, queue)
+    (await _service(memory).run(transition, queue))
     assert queue.ids == ({"other", "target"} if composer else {"target"})
 
 
 @pytest.mark.parametrize("preview", [False, True])
 @pytest.mark.parametrize("present", [False, True])
-def test_completion_always_reports_after_optional_marker_cleanup(
+async def test_completion_always_reports_after_optional_marker_cleanup(
     preview: bool, present: bool
 ) -> None:
     """An already absent final marker still produces the original completion message.
@@ -174,14 +174,14 @@ def test_completion_always_reports_after_optional_marker_cleanup(
     memory = ExecutionMemory(remote={"source"} if present else set())
     queue = _queue([SOURCE] if present else [])
     transition = _transition("complete")
-    _service(memory, preview).run(transition, queue)
+    (await _service(memory, preview).run(transition, queue))
     assert queue.ids == set()
     assert memory.events[-1] == ("completed", ("Artist", preview))
     assert len(memory.events) == (2 if present and not preview else 1)
 
 
 @pytest.mark.parametrize("action", ["skip", "unknown", "advance"])
-def test_skip_and_tolerated_incomplete_actions_do_not_mutate_playlist(
+async def test_skip_and_tolerated_incomplete_actions_do_not_mutate_playlist(
     action: str,
 ) -> None:
     """An absent target retains original no-op behavior for an otherwise advance action.
@@ -193,40 +193,40 @@ def test_skip_and_tolerated_incomplete_actions_do_not_mutate_playlist(
     transition = _transition(action)
     transition.plan.update(target=None, reason=False)
     queue = _queue([SOURCE])
-    assert _service(memory).run(transition, queue) == (action, None)
+    assert (await _service(memory).run(transition, queue)) == (action, None)
     assert queue.ids == {"source"}
     assert memory.events == (
         [("skipped", ("Artist", False))] if action == "skip" else []
     )
 
 
-def test_composer_resume_without_source_leaves_other_artist_markers_untouched() -> None:
+async def test_composer_resume_without_source_leaves_other_artist_markers() -> None:
     """A completed composer replacement never falls back to performer-wide cleanup."""
     queue = _queue([playlist_track("target", RELEASE)])
     transition = _transition()
     transition.plan["composer_playlist_id"] = "works"
     memory = ExecutionMemory()
-    _service(memory).run(transition, queue)
+    (await _service(memory).run(transition, queue))
     assert memory.events == []
 
 
-def test_evaluation_without_current_release_does_not_reconcile_library() -> None:
+async def test_evaluation_without_current_release_does_not_reconcile() -> None:
     """Legacy optional release decoding suppresses reconciliation without a release."""
     transition = _transition("skip")
     transition.plan["current_release"] = None
     evaluation = evaluate_release(SOURCE.release, (), {})
     transition.plan["evaluation"] = evaluation.model_dump(mode="json")
     memory = ExecutionMemory()
-    _service(memory).run(transition, _queue([]))
+    (await _service(memory).run(transition, _queue([])))
     assert [name for name, value in memory.events] == ["skipped"]
 
 
-def test_target_marker_falls_back_to_current_release_and_logical_credit() -> None:
+async def test_target_marker_falls_back_to_current_release_and_logical() -> None:
     """A missing target release retains the original current-release fallback."""
     transition = replace(_transition(), artist_name="Logical Name")
     transition.plan["target_release"] = None
     memory = ExecutionMemory()
-    _service(memory).run(transition, _queue([SOURCE]))
+    (await _service(memory).run(transition, _queue([SOURCE])))
     payload = memory.events[0][1]
     assert isinstance(payload, tuple)
     marker = payload[1][0]
@@ -237,7 +237,9 @@ def test_target_marker_falls_back_to_current_release_and_logical_credit() -> Non
 
 
 @pytest.mark.parametrize("field", ["current_release", "target_release", "target"])
-def test_saved_records_are_decoded_before_library_reconciliation(field: str) -> None:
+async def test_saved_records_are_decoded_before_library_reconciliation(
+    field: str,
+) -> None:
     """Malformed target facts cannot trigger partial library effects.
 
     Args:
@@ -250,11 +252,11 @@ def test_saved_records_are_decoded_before_library_reconciliation(field: str) -> 
     )
     memory = ExecutionMemory()
     with pytest.raises(Queue3StateError):
-        _service(memory).run(transition, _queue([SOURCE]))
+        (await _service(memory).run(transition, _queue([SOURCE])))
     assert memory.events == []
 
 
-def test_library_failure_prevents_all_playlist_effects() -> None:
+async def test_library_failure_prevents_all_playlist_effects() -> None:
     """Playlist mutations wait for completed-release reconciliation to succeed."""
     transition = _transition()
     transition.plan["evaluation"] = evaluate_release(SOURCE.release, (), {}).model_dump(
@@ -263,6 +265,6 @@ def test_library_failure_prevents_all_playlist_effects() -> None:
     memory = ExecutionMemory(failure="library")
     queue = _queue([SOURCE])
     with pytest.raises(OSError, match="library"):
-        _service(memory).run(transition, queue)
+        (await _service(memory).run(transition, queue))
     assert queue.ids == {"source"}
     assert [name for name, value in memory.events] == ["library"]

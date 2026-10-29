@@ -10,7 +10,7 @@ from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import FlushSummary
 from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.application.ports.runtime import Clock
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 
 
@@ -73,7 +73,7 @@ class DiscoveryRun:
     dry_run: bool
     clock: Clock
 
-    def prepare(
+    async def prepare(
         self,
         initial: list[PlaylistTrack] | None = None,
         live: list[PlaylistTrack] | None = None,
@@ -100,17 +100,17 @@ class DiscoveryRun:
         )
         if resumed:
             run = cast(dict[str, object], raw)
-            length_before = len(self._tracks(live))
+            length_before = len(await self._tracks(live))
             prefill: tuple[FillResult, ...] = ()
         else:
-            run, length_before, prefill = self._start(initial)
+            run, length_before, prefill = await self._start(initial)
         entries = run.get("entries")
         if not isinstance(entries, list):
             raise NewKidsStateError("New Kids active run has invalid entries.")
-        live_ids = {track.spotify_id for track in self._tracks(live)}
+        live_ids = {track.spotify_id for track in (await self._tracks(live))}
         return ReviewSnapshot(run, entries, live_ids, length_before, prefill, resumed)
 
-    def finish(
+    async def finish(
         self, snapshot: ReviewSnapshot, results: tuple[FlushResult, ...], paused: bool
     ) -> FlushSummary:
         """Refill completed runs and clear their active record at original checkpoints.
@@ -127,8 +127,8 @@ class DiscoveryRun:
         postfill: tuple[FillResult, ...] = ()
         if not paused:
             if self.fill_from_queue:
-                length_after, postfill = self._refill(snapshot.run)
-            self._clear()
+                length_after, postfill = await self._refill(snapshot.run)
+            await self._clear()
         return FlushSummary(
             results,
             snapshot.prefill,
@@ -148,34 +148,38 @@ class DiscoveryRun:
             "resumed before starting this run."
         )
 
-    def _tracks(self, supplied: list[PlaylistTrack] | None) -> list[PlaylistTrack]:
+    async def _tracks(
+        self, supplied: list[PlaylistTrack] | None
+    ) -> list[PlaylistTrack]:
         if supplied is not None:
             return list(supplied)
-        return list(self.transfer.access.playlist(self.playlist_id))
+        return list(await self.transfer.access.playlist(self.playlist_id))
 
-    def _start(
+    async def _start(
         self, initial: list[PlaylistTrack] | None
     ) -> tuple[dict[str, object], int, tuple[FillResult, ...]]:
-        current = self._tracks(initial)
+        current = await self._tracks(initial)
         length_before = len(current)
         prefill: tuple[FillResult, ...] = ()
         if self.fill_from_queue:
-            current, prefill, _remaining = self.transfer.move(current, self.state)
+            current, prefill, _remaining = await self.transfer.move(current, self.state)
         run = new_run(self.playlist_id, current, self.state, self.clock)
         if not self.dry_run:
             self.state[self.active_key] = run
-            self.state_access.save(self.state)
+            await self.state_access.save(self.state)
         return run, length_before, prefill
 
-    def _refill(self, run: dict[str, object]) -> tuple[int, tuple[FillResult, ...]]:
+    async def _refill(
+        self, run: dict[str, object]
+    ) -> tuple[int, tuple[FillResult, ...]]:
         if not self.dry_run:
             run["status"] = "refilling"
-            self.state_access.save(self.state)
-        current = self._tracks(None)
-        current, results, _remaining = self.transfer.move(current, self.state)
+            await self.state_access.save(self.state)
+        current = await self._tracks(None)
+        current, results, _remaining = await self.transfer.move(current, self.state)
         return len(current), results
 
-    def _clear(self) -> None:
+    async def _clear(self) -> None:
         if not self.dry_run:
             self.state[self.active_key] = None
-            self.state_access.save(self.state)
+            await self.state_access.save(self.state)

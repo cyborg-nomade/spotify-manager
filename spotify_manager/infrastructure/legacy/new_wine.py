@@ -1,18 +1,20 @@
 """Bind New Wine ports to the established synchronous integration boundaries."""
 
+import asyncio
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.application.ports.listening import RetryCall
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import new_wine as legacy
@@ -52,7 +54,7 @@ class LegacyNewWine:
         """
         return legacy.NEW_WINE_TARGET_SIZE
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read original ordered playlist observations.
 
         Args:
@@ -61,11 +63,13 @@ class LegacyNewWine:
         Returns:
             Parsed playable markers.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        return load_playlist_tracks(self.client, playlist_id, self.retry)
+        return await load_playlist_tracks(self.client, playlist_id, self.retry)
 
-    def load_state(self, dry_run: bool) -> dict[str, object]:
+    async def load_state(self, dry_run: bool) -> dict[str, object]:
         """Resolve namespace access after both initial playlist reads.
 
         Args:
@@ -74,26 +78,28 @@ class LegacyNewWine:
         Returns:
             Existing namespace or original preview defaults.
         """
+        from spotify_manager.routines.new_wine import (
+            _async_state_access as _async_state_access,
+        )
         from spotify_manager.routines.new_wine import _default_state
-        from spotify_manager.routines.new_wine import _state_access
 
-        self._state_access = _state_access(self.state_path, self.state_service)
-        return _default_state() if dry_run else self._state_access.load()
+        self._state_access = _async_state_access(self.state_path, self.state_service)
+        return _default_state() if dry_run else (await self._state_access.load())
 
     def _state(self) -> RoutineState:
         if self._state_access is None:
             raise RuntimeError("New Wine state has not been loaded.")
         return self._state_access
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Persist one namespace checkpoint.
 
         Args:
             state: Complete mutable namespace.
         """
-        self._state().save(state)
+        await self._state().save(state)
 
-    def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Read selected release tracks with original parsing.
 
         Args:
@@ -102,11 +108,13 @@ class LegacyNewWine:
         Returns:
             Ordered playable tracks.
         """
-        from spotify_manager.routines.new_wine import load_release_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
-        return load_release_tracks(self.client, release, self.retry)
+        return await load_release_tracks(self.client, release, self.retry)
 
-    def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
+    async def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
         """Read current-year primary-credit candidates.
 
         Args:
@@ -116,22 +124,26 @@ class LegacyNewWine:
         Returns:
             Original ordered release candidates.
         """
-        from spotify_manager.routines.new_wine import current_year_releases
+        from spotify_manager.routines.new_wine import (
+            async_current_year_releases as current_year_releases,
+        )
 
-        return current_year_releases(self.client, artist_id, year, self.retry)
+        return await current_year_releases(self.client, artist_id, year, self.retry)
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Fill missing likes under the original batching and validation rules.
 
         Args:
             ids: Requested track IDs in order.
             cache: Run-scoped membership cache updated in place.
         """
-        from spotify_manager.routines.new_wine import get_liked_statuses
+        from spotify_manager.routines.new_wine import (
+            async_get_liked_statuses as get_liked_statuses,
+        )
 
-        get_liked_statuses(self.client, ids, cache, self.retry)
+        await get_liked_statuses(self.client, ids, cache, self.retry)
 
-    def append(self, playlist_id: str, track: ReleaseTrack) -> None:
+    async def append(self, playlist_id: str, track: ReleaseTrack) -> None:
         """Append a replacement with the original retry description.
 
         Args:
@@ -140,9 +152,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _add_playlist_track
 
-        _add_playlist_track(self.client, playlist_id, track, self.retry)
+        await _add_playlist_track(self.client, playlist_id, track, self.retry)
 
-    def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Remove a source after required additions.
 
         Args:
@@ -151,9 +163,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _remove_playlist_track
 
-        _remove_playlist_track(self.client, playlist_id, source, self.retry)
+        await _remove_playlist_track(self.client, playlist_id, source, self.retry)
 
-    def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
+    async def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
         """Retain each original saved-membership SDK boundary and parser.
 
         Args:
@@ -166,10 +178,11 @@ class LegacyNewWine:
         from spotify_manager.routines.new_wine import _saved_for_drop
         from spotify_manager.routines.new_wine import _saved_for_keep
 
-        reader = _saved_for_drop if removing else _saved_for_keep
-        return reader(self.client, release, self.retry)
+        if removing:
+            return await _saved_for_drop(self.client, release, self.retry)
+        return await _saved_for_keep(self.client, release, self.retry)
 
-    def save_album(self, release: ReleaseCandidate) -> None:
+    async def save_album(self, release: ReleaseCandidate) -> None:
         """Save a qualifying album remotely.
 
         Args:
@@ -177,9 +190,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _save_album
 
-        _save_album(self.client, release, self.retry)
+        await _save_album(self.client, release, self.retry)
 
-    def unsave_album(self, release: ReleaseCandidate) -> None:
+    async def unsave_album(self, release: ReleaseCandidate) -> None:
         """Unsave a rejected album remotely.
 
         Args:
@@ -187,9 +200,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _unsave_album
 
-        _unsave_album(self.client, release, self.retry)
+        await _unsave_album(self.client, release, self.retry)
 
-    def mirror_album(self, release: ReleaseCandidate) -> None:
+    async def mirror_album(self, release: ReleaseCandidate) -> None:
         """Publish a qualifying album through the existing mirror/statistics helper.
 
         Args:
@@ -197,9 +210,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _add_local_album
 
-        _add_local_album(release, self.albums_path)
+        await _add_local_album(release, self.albums_path)
 
-    def remove_mirror_album(self, release: ReleaseCandidate) -> None:
+    async def remove_mirror_album(self, release: ReleaseCandidate) -> None:
         """Publish removal through the existing mirror/statistics helper.
 
         Args:
@@ -207,9 +220,9 @@ class LegacyNewWine:
         """
         from spotify_manager.routines.new_wine import _remove_local_album
 
-        _remove_local_album(release.spotify_id, self.albums_path)
+        await _remove_local_album(release.spotify_id, self.albums_path)
 
-    def removed_audit(
+    async def removed_audit(
         self, release: ReleaseCandidate, evaluation: AlbumEvaluation, reason: str
     ) -> None:
         """Append the original album-recovery record after mirror removal.
@@ -220,26 +233,37 @@ class LegacyNewWine:
             reason: Original drop action identifier.
         """
         from spotify_manager.routines.review_album_limits import (
-            append_removed_album_log,
+            append_removed_album_log as _append_removed_album_log,
         )
 
-        append_removed_album_log(
-            album=YourLibraryAlbum(
-                artist=release.primary_artist_name, album=release.name, uri=release.uri
-            ),
-            evaluation=evaluation,
-            log_path=self.removed_path,
-            action=reason,
-            live_liked_tracks=evaluation.liked_tracks,
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_removed_album_log,
+                    album=YourLibraryAlbum(
+                        artist=release.primary_artist_name,
+                        album=release.name,
+                        uri=release.uri,
+                    ),
+                    evaluation=evaluation,
+                    log_path=self.removed_path,
+                    action=reason,
+                    live_liked_tracks=evaluation.liked_tracks,
+                )
+            )
+            await finish_blocking(file_operation)
 
-    def audit(self, run_id: str, result: FlushResult) -> None:
+    async def audit(self, run_id: str, result: FlushResult) -> None:
         """Append the original New Wine audit result.
 
         Args:
             run_id: Original execution identifier.
             result: Completed or skipped result, including previews.
         """
-        from spotify_manager.routines.new_wine import append_log
+        from spotify_manager.routines.new_wine import append_log as _append_log
 
-        append_log(run_id, result, self.log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_log, run_id, result, self.log_path)
+            )
+            await finish_blocking(file_operation)

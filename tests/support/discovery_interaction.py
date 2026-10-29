@@ -26,7 +26,7 @@ class DiscoveryScript(NoRetry):
     candidates: list[tuple[ChoiceCandidate, ...]] | None = None
     progress_messages: list[str] | None = None
 
-    def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
+    async def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
         """Accept the scripted identity or reject an unexpected prompt.
 
         Args:

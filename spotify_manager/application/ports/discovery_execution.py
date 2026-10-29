@@ -9,7 +9,9 @@ from spotify_manager.domain.discovery import CatalogTrack
 class DiscoveryEffects(Protocol):
     """Perform one accepted effect using the caller's existing retry boundary."""
 
-    def append(self, playlist_id: str, track: CatalogTrack, description: str) -> None:
+    async def append(
+        self, playlist_id: str, track: CatalogTrack, description: str
+    ) -> None:
         """Append a chosen marker.
 
         Args:
@@ -18,7 +20,7 @@ class DiscoveryEffects(Protocol):
             description: Original retry description.
         """
 
-    def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack, label: str) -> None:
         """Remove the original marker after securing destinations.
 
         Args:
@@ -27,7 +29,7 @@ class DiscoveryEffects(Protocol):
             label: Original review playlist display label.
         """
 
-    def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
+    async def membership(self, playlist_id: str) -> tuple[set[str], set[str]]:
         """Observe destination artist and track memberships.
 
         Args:
@@ -37,7 +39,7 @@ class DiscoveryEffects(Protocol):
             Mutable artist and track identifier sets from live markers.
         """
 
-    def followed(self, artist_id: str, artist_name: str) -> bool:
+    async def followed(self, artist_id: str, artist_name: str) -> bool:
         """Read the original tolerant artist-follow response.
 
         Args:
@@ -48,7 +50,7 @@ class DiscoveryEffects(Protocol):
             First truthy status, otherwise false.
         """
 
-    def unfollow(self, artist_id: str, artist_name: str) -> None:
+    async def unfollow(self, artist_id: str, artist_name: str) -> None:
         """Unfollow an artist remotely.
 
         Args:
@@ -56,7 +58,7 @@ class DiscoveryEffects(Protocol):
             artist_name: Original retry display name.
         """
 
-    def remove_local_artist(self, artist_id: str) -> None:
+    async def remove_local_artist(self, artist_id: str) -> None:
         """Remove a successfully unfollowed artist from the canonical mirror.
 
         Args:

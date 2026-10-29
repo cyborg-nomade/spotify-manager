@@ -69,7 +69,7 @@ class HistoricalResolution:
     check_cancel: Cancellation
     progress: Messages
 
-    def run(
+    async def run(
         self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
     ) -> SpotifySelectionResolution:
         """Resolve all plays before projecting existing membership and duplicates.
@@ -90,7 +90,7 @@ class HistoricalResolution:
         for index, selection in enumerate(selections, start=1):
             self.check_cancel.check()
             self.progress.echo(f"Searching Spotify track {index}/{len(selections)}")
-            groups.append(self.catalog.search(selection.scrobble))
+            groups.append(await self.catalog.search(selection.scrobble))
         self.progress.echo("Checking liked Spotify matches")
-        liked = self.catalog.liked(groups)
+        liked = await self.catalog.liked(groups)
         return _project(selections, groups, liked, playlist, threshold)

@@ -2,8 +2,6 @@
 
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.genre_run import GenreReveal as GenreReveal
 from spotify_manager.application.genre_values import (
     GenreRevealCompleteError as GenreRevealCompleteError,
@@ -20,6 +18,7 @@ from spotify_manager.application.genre_values import (
 from spotify_manager.application.genre_values import (
     GenreRevealStateError as GenreRevealStateError,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.genres import GenreRouteEntry as GenreRouteEntry
 from spotify_manager.infrastructure.genre_models import (
     GenreRevealRunResult as GenreRevealRunResult,
@@ -35,13 +34,13 @@ from spotify_manager.routines.genre_reveal import (
 from spotify_manager.routines.genre_reveal import PageReader as PageReader
 from spotify_manager.routines.genre_reveal import _default_state as _default_state
 from spotify_manager.routines.genre_reveal import (
+    async_mark_genre_completed as mark_genre_completed,
+)
+from spotify_manager.routines.genre_reveal import (
     first_incomplete_genre as first_incomplete_genre,
 )
 from spotify_manager.routines.genre_reveal import (
     load_genre_reveal_state as load_genre_reveal_state,
-)
-from spotify_manager.routines.genre_reveal import (
-    mark_genre_completed as mark_genre_completed,
 )
 from spotify_manager.routines.genre_reveal import (
     parse_destination_playlist_id as parse_destination_playlist_id,
@@ -50,7 +49,7 @@ from spotify_manager.routines.genre_reveal import read_public_page as read_publi
 from spotify_manager.routines.genre_reveal import validate_state as validate_state
 
 
-def process_next_genre(
+async def process_next_genre(
     sp: Spotify,
     slug: str,
     name: str,
@@ -78,5 +77,31 @@ def process_next_genre(
         ValidationError: Original request values are invalid.
     """
     effects = LegacyGenreReveal(sp, page_reader, log_path)
-    GenreReveal(effects).run(slug, name, destination_playlist_id)
+    await GenreReveal(effects).run(slug, name, destination_playlist_id)
     return effects.result
+
+
+__all__ = [
+    "DEFAULT_LOG_PATH",
+    "DEFAULT_STATE_PATH",
+    "GenreReveal",
+    "GenreRevealCompleteError",
+    "GenreRevealConfigError",
+    "GenreRevealLogError",
+    "GenreRevealRunResult",
+    "GenreRevealSourceError",
+    "GenreRevealStateError",
+    "GenreRouteEntry",
+    "LegacyGenreReveal",
+    "PUBLIC_GENRE_PAGES",
+    "PageReader",
+    "Path",
+    "Spotify",
+    "first_incomplete_genre",
+    "load_genre_reveal_state",
+    "mark_genre_completed",
+    "parse_destination_playlist_id",
+    "process_next_genre",
+    "read_public_page",
+    "validate_state",
+]

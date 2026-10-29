@@ -3,12 +3,13 @@
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.album_recommendations import AlbumGathering
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
@@ -34,7 +35,7 @@ class RunSpotify:
     def __init__(self, observations: RunObservations) -> None:
         self.observations = observations
 
-    def _post(self, endpoint: str, payload: dict[str, list[str]]) -> None:
+    async def _post(self, endpoint: str, payload: dict[str, list[str]]) -> None:
         """Record an accepted append before its possible ambiguous failure.
 
         Args:
@@ -46,13 +47,13 @@ class RunSpotify:
         self.observations.record("append")
 
 
-def _first(
+async def _first(
     observations: RunObservations,
     sp: object,
     album: legacy.SpotifyAlbumOption,
     retry: object,
 ) -> legacy.FirstTrack:
-    return observations.first(album)
+    return await observations.first(album)
 
 
 def _immediate(operation: Callable[[], object], description: str) -> object:
@@ -62,16 +63,22 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 def _bind(monkeypatch: pytest.MonkeyPatch, observations: RunObservations) -> None:
     monkeypatch.setattr(LegacySauvignon, "refresh", observations.refresh)
     monkeypatch.setattr(RecommendationSeeds, "run", observations.seeds)
-    monkeypatch.setattr(CandidateGathering, "run", observations.tracks)
+    monkeypatch.setattr(
+        CandidateGathering, "run", AsyncMock(side_effect=observations.tracks)
+    )
     monkeypatch.setattr(LegacySauvignon, "read", observations.read)
     monkeypatch.setattr(LegacySauvignon, "previous", observations.previous)
-    monkeypatch.setattr(AlbumGathering, "run", observations.albums)
-    monkeypatch.setattr(AlbumEditionChoice, "choose", observations.choose)
+    monkeypatch.setattr(
+        AlbumGathering, "run", AsyncMock(side_effect=observations.albums)
+    )
+    monkeypatch.setattr(
+        AlbumEditionChoice, "choose", AsyncMock(side_effect=observations.choose)
+    )
     monkeypatch.setattr(LegacySauvignon, "first", observations.first)
     monkeypatch.setattr(LegacySauvignon, "audit", observations.audit)
 
 
-def _run(
+async def _run(
     observations: RunObservations,
     tmp_path: Path,
     dry_run: bool = False,
@@ -118,7 +125,7 @@ SUCCESS = [
 
 
 @pytest.mark.parametrize("failure", SUCCESS)
-def test_original_failure_prefix(
+async def test_original_failure_prefix(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
 ) -> None:
     """Protect every original failure prefix and remotely accepted additions."""
@@ -128,7 +135,7 @@ def test_original_failure_prefix(
     )
     _bind(monkeypatch, observations)
     with pytest.raises(RuntimeError, match=failure):
-        _run(observations, tmp_path)
+        (await _run(observations, tmp_path))
     assert observations.events == SUCCESS[: SUCCESS.index(failure) + 1]
     accepted = (
         ["spotify:track:one", "spotify:track:two"]
@@ -138,7 +145,7 @@ def test_original_failure_prefix(
     assert observations.accepted == accepted
 
 
-def test_original_fresh_recheck_summary(
+async def test_original_fresh_recheck_summary(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Retain original album/track suppression and initial-size projection."""
@@ -148,7 +155,7 @@ def test_original_fresh_recheck_summary(
         recommendations=(recommendation(), recommendation("two", "Other")),
     )
     _bind(monkeypatch, observations)
-    summary = _run(observations, tmp_path)
+    summary = await _run(observations, tmp_path)
     assert observations.accepted == []
     assert [result.action for result in summary.results] == ["already represented"] * 2
     assert summary.playlist_length_before == summary.playlist_length_after == 1
@@ -156,7 +163,7 @@ def test_original_fresh_recheck_summary(
     assert observations.events[-2:] == ["read:2", "audit"]
 
 
-def test_original_preview_still_audits(
+async def test_original_preview_still_audits(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Retain original preview audit after proposals without a remote append."""
@@ -164,7 +171,7 @@ def test_original_preview_still_audits(
         recommendations=(recommendation(), recommendation("two", "Other"))
     )
     _bind(monkeypatch, observations)
-    summary = _run(observations, tmp_path, True)
+    summary = await _run(observations, tmp_path, True)
     assert observations.events == SUCCESS[:11] + ["audit"]
     assert observations.accepted == []
     assert summary.selected == 2
@@ -172,13 +179,13 @@ def test_original_preview_still_audits(
     assert summary.live_scrobbles_added == 2
 
 
-def test_original_capacity_still_refreshes_and_audits(
+async def test_original_capacity_still_refreshes_and_audits(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Retain refresh and audit effects when destination capacity is full."""
     observations = RunObservations(initial=(marker("existing"),) * 20)
     _bind(monkeypatch, observations)
-    summary = _run(observations, tmp_path, count=None)
+    summary = await _run(observations, tmp_path, count=None)
     assert observations.events == SUCCESS[:3] + ["audit"]
     assert summary.requested_count == 0
     assert summary.history_albums == summary.history_scrobbles == 1
@@ -187,7 +194,7 @@ def test_original_capacity_still_refreshes_and_audits(
 @pytest.mark.parametrize(
     "choice,action,paused", [("skip", "skipped", False), ("quit", "quit", True)]
 )
-def test_original_controls(
+async def test_original_controls(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     choice: str,
@@ -199,7 +206,7 @@ def test_original_controls(
         recommendations=(recommendation(),), choices={"one": choice}
     )
     _bind(monkeypatch, observations)
-    summary = _run(observations, tmp_path)
+    summary = await _run(observations, tmp_path)
     assert [result.action for result in summary.results] == [action]
     assert summary.paused is paused
     assert observations.events == SUCCESS[:8] + ["audit"]
@@ -237,7 +244,9 @@ class FalseyRetry:
         raise AssertionError("falsey retry was invoked")
 
 
-def test_sauvignon_invalid_request_precedes_retry_configuration(tmp_path: Path) -> None:
+async def test_sauvignon_invalid_request_precedes_retry_configuration(
+    tmp_path: Path,
+) -> None:
     """Preserve original validation before evaluating a supplied falsey retry callable.
 
     Args:
@@ -245,19 +254,24 @@ def test_sauvignon_invalid_request_precedes_retry_configuration(tmp_path: Path) 
     """
     events: list[str] = []
     with pytest.raises(legacy.SauvignonConfigError):
-        legacy.fill_sauvignon_from_lastfm(
-            cast(Spotify, object()),
-            cast(legacy.LastFmReader, object()),
-            SauvignonOptions(
-                playlist_id="destination", count=0, max_playlist_length=None, now=STAMP
-            ),
-            SauvignonCallbacks(choice_reader=None, retry_call=FalseyRetry(events)),
-            SauvignonResources(log_path=tmp_path / "audit"),
+        (
+            legacy.fill_sauvignon_from_lastfm(
+                cast(Spotify, object()),
+                cast(legacy.LastFmReader, object()),
+                SauvignonOptions(
+                    playlist_id="destination",
+                    count=0,
+                    max_playlist_length=None,
+                    now=STAMP,
+                ),
+                SauvignonCallbacks(choice_reader=None, retry_call=FalseyRetry(events)),
+                SauvignonResources(log_path=tmp_path / "audit"),
+            )
         )
     assert events == []
 
 
-def test_sauvignon_falsey_retry_is_resolved_before_history(
+async def test_sauvignon_falsey_retry_is_resolved_before_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -269,21 +283,23 @@ def test_sauvignon_falsey_retry_is_resolved_before_history(
     """
     observed = RunObservations()
     _bind(monkeypatch, observed)
-    legacy.fill_sauvignon_from_lastfm(
-        cast(Spotify, RunSpotify(observed)),
-        cast(legacy.LastFmReader, object()),
-        SauvignonOptions(
-            playlist_id="destination",
-            count=1,
-            max_playlist_length=None,
-            dry_run=True,
-            now=STAMP,
-        ),
-        SauvignonCallbacks(
-            choice_reader=None,
-            progress_callback=ProgressMessages(observed),
-            retry_call=FalseyRetry(observed.events),
-        ),
-        SauvignonResources(log_path=tmp_path / "audit"),
+    (
+        legacy.fill_sauvignon_from_lastfm(
+            cast(Spotify, RunSpotify(observed)),
+            cast(legacy.LastFmReader, object()),
+            SauvignonOptions(
+                playlist_id="destination",
+                count=1,
+                max_playlist_length=None,
+                dry_run=True,
+                now=STAMP,
+            ),
+            SauvignonCallbacks(
+                choice_reader=None,
+                progress_callback=ProgressMessages(observed),
+                retry_call=FalseyRetry(observed.events),
+            ),
+            SauvignonResources(log_path=tmp_path / "audit"),
+        )
     )
     assert observed.events == ["retry:boolean"] + SUCCESS[:7] + ["audit"]

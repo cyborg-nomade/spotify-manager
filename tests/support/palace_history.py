@@ -8,6 +8,7 @@ from dataclasses import field
 from datetime import date
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
 from spotify_manager.application.historical_values import RandomIndexSet
@@ -117,7 +118,9 @@ class HistoryReads:
         """
         self.progress(message)
 
-    def sample(self, population: int, count: int) -> blast_from_past.RandomIndexSet:
+    async def sample(
+        self, population: int, count: int
+    ) -> blast_from_past.RandomIndexSet:
         """Observe the same fixture boundary through its named resource method.
 
         Args:
@@ -140,7 +143,7 @@ def _indexes(profile: str, count: int, population: int) -> tuple[int, ...]:
     return tuple(range(count))
 
 
-def original_outcome(profile: str, count: int, second: int) -> object:
+async def original_outcome(profile: str, count: int, second: int) -> object:
     """Observe the original history coordinator before its extraction.
 
     Args:
@@ -154,19 +157,28 @@ def original_outcome(profile: str, count: int, second: int) -> object:
     edge = HistoryReads(profile, second)
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _run(edge, count)
+        outcome["result"] = await _run(edge, count)
     except (RuntimeError, IndexError) as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome["trace"] = edge.trace
     return json.loads(json.dumps(outcome, default=str))
 
 
-def _run(edge: HistoryReads, count: int) -> object:
+async def _run(edge: HistoryReads, count: int) -> object:
     with ExitStack() as stack:
         stack.enter_context(
-            patch.object(blast_from_past, "load_scrobbles_by_date", edge.read)
+            patch.object(
+                blast_from_past,
+                "async_load_scrobbles_by_date",
+                AsyncMock(side_effect=edge.read),
+            )
         )
-        generated, cutoff, available, selected = legacy.select_historical_albums(
+        (
+            generated,
+            cutoff,
+            available,
+            selected,
+        ) = await legacy.async_select_historical_albums(
             count=count,
             path=Path("history"),
             today=date(2026, 8, 8),
@@ -204,7 +216,7 @@ class HistoryInputs:
     path: Path
     cutoff_date: date
 
-    def history(self) -> dict[date, list[Scrobble]]:
+    async def history(self) -> dict[date, list[Scrobble]]:
         """Read the original dated history and retain its observation trace."""
         return self.reads.read(self.path)
 
@@ -212,7 +224,7 @@ class HistoryInputs:
         """Return the original fixed cutoff after the file observation."""
         return self.cutoff_date
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Read the existing scripted index response.
 
         Args:

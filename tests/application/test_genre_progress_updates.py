@@ -28,7 +28,7 @@ class Effects:
     events: list[str] = field(default_factory=list)
     accepted: GenreProgress | None = None
 
-    def read(self) -> GenreProgress:
+    async def read(self) -> GenreProgress:
         """Read current original metadata.
 
         Returns:
@@ -46,7 +46,7 @@ class Effects:
         self.events.append("clock")
         return STAMP
 
-    def save(self, state: GenreProgress) -> None:
+    async def save(self, state: GenreProgress) -> None:
         """Accept changed state before a possible later failure.
 
         Args:
@@ -61,18 +61,20 @@ class Effects:
             raise OSError("accepted save")
 
 
-def test_identical_genre_update_keeps_metadata_and_performs_no_write() -> None:
+async def test_identical_genre_update_keeps_metadata_and_performs_no_write() -> None:
     """Preserve original metadata and result identity for identical editable fields."""
     state = GenreProgress(("first",), True, updated_at=STAMP)
     effects = Effects(state)
-    assert UpdateGenreProgress(effects).run(state.completed, state.hide_done) is state
+    assert (
+        await UpdateGenreProgress(effects).run(state.completed, state.hide_done)
+    ) is state
     assert effects.events == ["read"] and effects.accepted is None
 
 
 @pytest.mark.parametrize(
     "completed,hidden", [(("second", "first"), True), (("first",), False)]
 )
-def test_changed_genre_update_accepts_original_order_and_new_timestamp(
+async def test_changed_genre_update_accepts_original_order_and_new_timestamp(
     completed: tuple[str, ...], hidden: bool
 ) -> None:
     """Either changed field produces one timestamped replacement after the current read.
@@ -82,15 +84,15 @@ def test_changed_genre_update_accepts_original_order_and_new_timestamp(
         hidden: Desired original visibility setting.
     """
     effects = Effects(GenreProgress(("first",), True))
-    result = UpdateGenreProgress(effects).run(completed, hidden)
+    result = await UpdateGenreProgress(effects).run(completed, hidden)
     assert result == GenreProgress(completed, hidden, updated_at=STAMP)
     assert effects.events == ["read", "clock", "save"] and effects.accepted is result
 
 
-def test_genre_update_failure_keeps_the_accepted_replacement() -> None:
+async def test_genre_update_failure_keeps_the_accepted_replacement() -> None:
     """An accepted-save failure preserves the replacement and propagates its error."""
     effects = Effects(GenreProgress((), False), fail=True)
     with pytest.raises(OSError, match="accepted save"):
-        UpdateGenreProgress(effects).run(("first",), True)
+        (await UpdateGenreProgress(effects).run(("first",), True))
     assert effects.events == ["read", "clock", "save"]
     assert effects.accepted == GenreProgress(("first",), True, updated_at=STAMP)

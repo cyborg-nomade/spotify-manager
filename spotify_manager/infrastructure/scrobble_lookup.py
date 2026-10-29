@@ -1,5 +1,6 @@
 """Original matching history parsing, timestamp errors and local conversion."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import tzinfo
@@ -10,9 +11,11 @@ from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.scrobble_lookup_run import latest_history_timestamp
 from spotify_manager.domain.history import normalize_name
 from spotify_manager.domain.titles import without_sliding_qualifiers
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
-def latest(
+async def latest(
     path: Path,
     track: str,
     artist: str,
@@ -32,9 +35,15 @@ def latest(
     Raises:
         LastFmExportError: An original row, matching date or final timestamp fails.
     """
-    from spotify_manager.routines.blast_from_past import load_scrobble_export
+    from spotify_manager.routines.blast_from_past import (
+        load_scrobble_export as _load_scrobble_export,
+    )
 
-    payload = load_scrobble_export(path)
+    async with blocking_capacity():
+        file_operation = asyncio.create_task(
+            asyncio.to_thread(_load_scrobble_export, path)
+        )
+        payload = await finish_blocking(file_operation)
     return latest_from_export(payload, track, artist, timezone)
 
 
@@ -147,7 +156,7 @@ class ScrobbleHistory:
     path: Path
     timezone: tzinfo
 
-    def latest(self, track: str, artist: str) -> datetime | None:
+    async def latest(self, track: str, artist: str) -> datetime | None:
         """Read the latest matching play.
 
         Args:
@@ -157,7 +166,7 @@ class ScrobbleHistory:
         Returns:
             Latest play time, or none.
         """
-        return latest(self.path, track, artist, self.timezone)
+        return await latest(self.path, track, artist, self.timezone)
 
 
 @dataclass(frozen=True)

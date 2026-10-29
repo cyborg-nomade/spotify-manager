@@ -1,0 +1,329 @@
+[
+  {
+    "module": "catalog",
+    "name": "PythonMembership",
+    "method": "membership",
+    "arguments": [
+      "identity"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "catalog",
+    "name": "PythonGenrePages",
+    "method": "read",
+    "arguments": [
+      "url"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "queue",
+    "name": "PythonQueueArtistChoice",
+    "method": "choose_artist",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "artist_review",
+    "name": "PythonArtistTrackChoice",
+    "method": "choose_track",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "artist_review",
+    "name": "PythonArtistReleaseChoice",
+    "method": "choose_release",
+    "arguments": [
+      "artist",
+      "candidates",
+      "allow_decline"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "queue_3",
+    "name": "PythonQueueTransition",
+    "method": "choose_transition",
+    "arguments": [
+      "source",
+      "current",
+      "following"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "queue_3",
+    "name": "PythonComposerChoice",
+    "method": "choose_composer",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "discovery",
+    "name": "PythonDiscoveryInteraction",
+    "method": "choose",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "release_check",
+    "name": "PythonReleaseArtistChoice",
+    "method": "choose_artist",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "release_check",
+    "name": "PythonReleaseChoice",
+    "method": "choose_release",
+    "arguments": [
+      "artist",
+      "release",
+      "track",
+      "destinations",
+      "unattached"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "slow_listening",
+    "name": "PythonReleaseOrder",
+    "method": "order_releases",
+    "arguments": [
+      "date",
+      "releases"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "slow_listening",
+    "name": "PythonListeningCompletion",
+    "method": "complete",
+    "arguments": [
+      "source"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "slow_listening",
+    "name": "PythonTrackAction",
+    "method": "choose_track",
+    "arguments": [
+      "source",
+      "target",
+      "release"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "wine",
+    "name": "PythonWineReleaseChoice",
+    "method": "choose_release",
+    "arguments": [
+      "source",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "wine",
+    "name": "PythonWineEndpointChoice",
+    "method": "choose_endpoint",
+    "arguments": [
+      "source",
+      "tracks",
+      "current_index"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "recommendations",
+    "name": "PythonRecommendedAlbumChoice",
+    "method": "choose_album",
+    "arguments": [
+      "recommendation",
+      "options"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "golden",
+    "name": "PythonGoldenArtistChoice",
+    "method": "choose_artist",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "golden",
+    "name": "PythonGoldenAlbumChoice",
+    "method": "choose_album",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "golden",
+    "name": "PythonListeningMode",
+    "method": "choose_mode",
+    "arguments": [
+      "artist",
+      "target"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "golden",
+    "name": "PythonOldArtistChoice",
+    "method": "choose_artist",
+    "arguments": [
+      "artist",
+      "candidates"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "runtime",
+    "name": "PythonAnalysisWait",
+    "method": "wait",
+    "arguments": [
+      "notice"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "runtime",
+    "name": "PythonWait",
+    "method": "sleep",
+    "arguments": [
+      "seconds"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "runtime",
+    "name": "PythonRandomIndexes",
+    "method": "sample",
+    "arguments": [
+      "population",
+      "count"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "runtime",
+    "name": "PythonRandomTimestamp",
+    "method": "now",
+    "arguments": [],
+    "keywords": {}
+  },
+  {
+    "module": "discography",
+    "name": "PythonDiscographySelection",
+    "method": "select_releases",
+    "arguments": [
+      "artist",
+      "releases"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "album_limits",
+    "name": "PythonAlbumAction",
+    "method": "choose_action",
+    "arguments": [
+      "album",
+      "evaluation"
+    ],
+    "keywords": {}
+  },
+  {
+    "module": "history",
+    "name": "PythonHistoryReader",
+    "method": "recent_tracks",
+    "arguments": [],
+    "keywords": {
+      "from_timestamp": 1,
+      "to_timestamp": 9,
+      "limit": 200
+    }
+  },
+  {
+    "module": "history",
+    "name": "PythonRecommendationReader",
+    "method": "similar_tracks",
+    "arguments": [
+      "artist",
+      "track"
+    ],
+    "keywords": {
+      "limit": 200
+    }
+  },
+  {
+    "module": "history",
+    "name": "PythonRecommendationReader",
+    "method": "recent_tracks",
+    "arguments": [],
+    "keywords": {
+      "from_timestamp": 1,
+      "to_timestamp": 9,
+      "limit": 200
+    }
+  },
+  {
+    "module": "history",
+    "name": "PythonNeighborReader",
+    "method": "similar_tracks",
+    "arguments": [
+      "artist",
+      "track"
+    ],
+    "keywords": {
+      "limit": 200
+    }
+  },
+  {
+    "module": "history",
+    "name": "PythonNeighborReader",
+    "method": "recent_tracks",
+    "arguments": [],
+    "keywords": {
+      "from_timestamp": 1,
+      "to_timestamp": 9,
+      "limit": 200
+    }
+  },
+  {
+    "module": "history",
+    "name": "PythonNeighborReader",
+    "method": "similar_artists",
+    "arguments": [
+      "artist"
+    ],
+    "keywords": {
+      "limit": 200
+    }
+  }
+]

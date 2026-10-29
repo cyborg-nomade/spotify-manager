@@ -7,7 +7,7 @@ from typing import Protocol
 class StateWriter(Protocol):
     """Persist a complete namespace through its existing store."""
 
-    def save(self, state: dict[str, object], /) -> object:
+    async def save(self, state: dict[str, object], /) -> object:
         """Accept one namespace checkpoint.
 
         Args:
@@ -21,7 +21,7 @@ class StateWriter(Protocol):
 class Checkpoint(Protocol):
     """Checkpoint the current invocation without exposing a forwarding callback."""
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Persist the invocation's current state at an accepted boundary."""
 
 
@@ -39,16 +39,16 @@ class NamespaceCheckpoint:
     state: dict[str, object]
     dry_run: bool
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Persist accepted preferences only during real execution."""
         if not self.dry_run:
-            self.store.save(self.state)
+            await self.store.save(self.state)
 
 
 class ModelCheckpoint[T](Protocol):
     """Persist a complete typed progress model."""
 
-    def save(self, state: T) -> None:
+    async def save(self, state: T) -> None:
         """Accept current progress.
 
         Args:
@@ -60,5 +60,5 @@ class ModelCheckpoint[T](Protocol):
 class NoCheckpoint:
     """Keep standalone preview planning detached from persistent preferences."""
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Accept a detached planning checkpoint without storing state."""

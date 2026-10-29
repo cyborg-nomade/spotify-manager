@@ -5,6 +5,7 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,7 +34,8 @@ def client(
     )
     web.app.dependency_overrides[api.get_client] = lambda: object()
     try:
-        yield TestClient(web.app)
+        with TestClient(web.app) as http:
+            yield http
     finally:
         web.app.dependency_overrides.pop(api.get_client, None)
 
@@ -202,8 +204,8 @@ def test_genre_reveal_source_preview(
     )
     monkeypatch.setattr(
         web.genre_reveal,
-        "discover_genre_source",
-        lambda slug, name: preview,
+        "async_discover_genre_source",
+        AsyncMock(side_effect=lambda slug, name: preview),
     )
 
     response = client.get(
@@ -219,7 +221,7 @@ def test_genre_reveal_source_preview(
     ("method", "target"),
     [
         ("get", "load_genre_reveal_state"),
-        ("put", "save_genre_reveal_state"),
+        ("put", "async_save_genre_reveal_state"),
     ],
 )
 def test_genre_reveal_state_errors_are_reported(
@@ -251,7 +253,9 @@ def test_genre_reveal_source_error_is_reported(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise genre_reveal.GenreRevealSourceError("source unavailable")
 
-    monkeypatch.setattr(web.genre_reveal, "discover_genre_source", fail)
+    monkeypatch.setattr(
+        web.genre_reveal, "async_discover_genre_source", AsyncMock(side_effect=fail)
+    )
 
     response = client.get(
         "/genre-reveal/source",
@@ -273,20 +277,22 @@ def test_genre_reveal_run_marks_state_only_after_spotify_succeeds(
     )
     monkeypatch.setattr(
         web.genre_reveal,
-        "process_next_genre",
-        lambda client, slug, name, destination_playlist_id, log_path: (
-            genre_reveal.GenreRevealRunResult(
-                slug=slug,
-                name=name,
-                every_noise_url=("https://everynoise.com/engenremap-kerkkoor.html"),
-                source_playlist_id="source",
-                source_playlist_uri="spotify:playlist:source",
-                source_playlist_url="https://open.spotify.com/playlist/source",
-                destination_playlist_id=destination_playlist_id,
-                source_track_uris=["spotify:track:0000000000000000000000"],
-                added_track_uris=["spotify:track:0000000000000000000000"],
-                already_present_track_uris=[],
-                completed_at=datetime.now(UTC),
+        "async_process_next_genre",
+        AsyncMock(
+            side_effect=lambda client, slug, name, destination_playlist_id, log_path: (
+                genre_reveal.GenreRevealRunResult(
+                    slug=slug,
+                    name=name,
+                    every_noise_url=("https://everynoise.com/engenremap-kerkkoor.html"),
+                    source_playlist_id="source",
+                    source_playlist_uri="spotify:playlist:source",
+                    source_playlist_url="https://open.spotify.com/playlist/source",
+                    destination_playlist_id=destination_playlist_id,
+                    source_track_uris=["spotify:track:0000000000000000000000"],
+                    added_track_uris=["spotify:track:0000000000000000000000"],
+                    already_present_track_uris=[],
+                    completed_at=datetime.now(UTC),
+                )
             )
         ),
     )
@@ -317,7 +323,9 @@ def test_genre_reveal_failure_leaves_state_incomplete(
     def fail(*args: object, **kwargs: object) -> None:
         raise genre_reveal.GenreRevealSourceError("Spotify embed unavailable")
 
-    monkeypatch.setattr(web.genre_reveal, "process_next_genre", fail)
+    monkeypatch.setattr(
+        web.genre_reveal, "async_process_next_genre", AsyncMock(side_effect=fail)
+    )
 
     response = client.post(
         "/genre-reveal/run-next",
@@ -347,7 +355,9 @@ def test_genre_reveal_rate_limit_returns_promptly_and_releases_lock(
             headers={"Retry-After": "120"},
         )
 
-    monkeypatch.setattr(web.genre_reveal, "process_next_genre", rate_limit)
+    monkeypatch.setattr(
+        web.genre_reveal, "async_process_next_genre", AsyncMock(side_effect=rate_limit)
+    )
 
     response = client.post(
         "/genre-reveal/run-next",
@@ -414,7 +424,9 @@ def test_genre_reveal_run_translates_operational_errors(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr(web.genre_reveal, "process_next_genre", fail)
+    monkeypatch.setattr(
+        web.genre_reveal, "async_process_next_genre", AsyncMock(side_effect=fail)
+    )
 
     response = client.post(
         "/genre-reveal/run-next",

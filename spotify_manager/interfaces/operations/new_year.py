@@ -1,10 +1,9 @@
 """Invoke new year use cases for CLI and HTTP features."""
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.new_year_membership import RetryCall as RetryCall
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import new_year as composition
 from spotify_manager.core.state.service import StateService as StateService
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
@@ -13,7 +12,7 @@ from spotify_manager.routines.new_year import validate_state as validate_state
 from spotify_manager.settings import Settings as Settings
 
 
-def run_new_year(
+async def run_new_year(
     sp: Spotify,
     lastfm: scrobble_history.LastFmReader,
     configuration: Settings,
@@ -45,6 +44,6 @@ def run_new_year(
         NewYearError: Original source, marker or destination authority fails.
         ScrobbleHistoryCancelledError: Original cancellation requests a stop.
     """
-    return composition.compose(
+    return await composition.compose(
         sp, lastfm, configuration, state_service, echo, cancel_check, retry_call
     ).run(year, dry_run)

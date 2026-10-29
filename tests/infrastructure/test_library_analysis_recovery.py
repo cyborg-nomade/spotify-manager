@@ -53,7 +53,7 @@ class RetryScript:
             raise response
         return response
 
-    def wait(self, notice: RetryNotice) -> bool:
+    async def wait(self, notice: RetryNotice) -> bool:
         """Record the original interactive retry decision.
 
         Args:
@@ -65,7 +65,7 @@ class RetryScript:
         self.notices.append(notice)
         return self.decision
 
-    def sleep(self, delay: float) -> None:
+    async def sleep(self, delay: float) -> None:
         """Observe original default waits, including zero delays.
 
         Args:
@@ -74,11 +74,11 @@ class RetryScript:
         self.delays.append(delay)
 
 
-def _read(
+async def _read(
     retry: LibraryRetry, script: RetryScript, maximum: int | None = None
 ) -> object:
     for attempt in retry.attempts("reading facts", max_attempts=maximum):
-        with attempt:
+        async with attempt:
             response = script.call()
     return response
 
@@ -88,7 +88,7 @@ def _error(status: int | None) -> SpotifyException:
 
 
 @pytest.mark.parametrize("status", [None, 403, 429])
-def test_nontransient_failures_keep_original_type_cause_and_skip_retry(
+async def test_nontransient_failures_keep_type_cause_and_skip_retry(
     tmp_path: Path, status: int | None
 ) -> None:
     """Preserve original nontransient and rate-limit translation without waiting.
@@ -98,7 +98,7 @@ def test_nontransient_failures_keep_original_type_cause_and_skip_retry(
         status: Original terminal Spotify status.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     failure = _error(status)
     script = RetryScript(deque([failure]))
     retry = LibraryRetry(
@@ -113,13 +113,13 @@ def test_nontransient_failures_keep_original_type_cause_and_skip_retry(
     )
     expected = SpotifyRateLimitError if status == 429 else LibrarySyncError
     with pytest.raises(expected) as observed:
-        _read(retry, script)
+        await _read(retry, script)
     assert observed.value.__cause__ is failure
     assert script.notices == []
     assert memory.effects == []
 
 
-def test_server_attempt_limit_keeps_original_last_failure_and_accepted_retry_prefix(
+async def test_server_attempt_limit_keeps_last_failure_and_accepted_retry(
     tmp_path: Path,
 ) -> None:
     """Retain original bounded retries and omit a wait after the terminal attempt.
@@ -128,7 +128,7 @@ def test_server_attempt_limit_keeps_original_last_failure_and_accepted_retry_pre
         tmp_path: Original independent output family.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     failures = [_error(500), _error(503)]
     script = RetryScript(deque(failures))
     retry = LibraryRetry(
@@ -144,7 +144,7 @@ def test_server_attempt_limit_keeps_original_last_failure_and_accepted_retry_pre
     with pytest.raises(
         LibrarySyncError, match="HTTP 503 persisted for 2 attempts"
     ) as observed:
-        _read(retry, script, 2)
+        await _read(retry, script, 2)
     assert observed.value.__cause__ is failures[-1]
     assert script.notices == [RetryNotice(500, "reading facts", 1, 10)]
     assert script.delays == []
@@ -153,7 +153,7 @@ def test_server_attempt_limit_keeps_original_last_failure_and_accepted_retry_pre
 @pytest.mark.parametrize(
     "failure", [RequestsConnectionError("reset"), RequestsTimeout("timeout")]
 )
-def test_transport_attempt_limit_does_not_retry_after_its_bound(
+async def test_transport_attempt_limit_does_not_retry_after_its_bound(
     tmp_path: Path, failure: RequestsConnectionError | RequestsTimeout
 ) -> None:
     """Retain original bounded transport exhaustion and native cause.
@@ -163,7 +163,7 @@ def test_transport_attempt_limit_does_not_retry_after_its_bound(
         failure: Original transport failure.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     script = RetryScript(deque([failure]))
     retry = LibraryRetry(
         session.paths,
@@ -178,12 +178,12 @@ def test_transport_attempt_limit_does_not_retry_after_its_bound(
     with pytest.raises(
         LibrarySyncError, match="connection remained unavailable for 1 attempts"
     ) as observed:
-        _read(retry, script, 1)
+        await _read(retry, script, 1)
     assert observed.value.__cause__ is failure
     assert memory.effects == []
 
 
-def test_default_retry_wait_observes_zero_sleep_and_shared_failure_attempts(
+async def test_default_retry_wait_observes_zero_sleep_and_shared_failure(
     tmp_path: Path,
 ) -> None:
     """Keep original default zero waits and mixed server/transport attempt numbering.
@@ -192,7 +192,7 @@ def test_default_retry_wait_observes_zero_sleep_and_shared_failure_attempts(
         tmp_path: Original independent output family.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     script = RetryScript(
         deque([_error(500), RequestsConnectionError("reset"), "accepted"])
     )
@@ -206,7 +206,7 @@ def test_default_retry_wait_observes_zero_sleep_and_shared_failure_attempts(
         0,
         100,
     )
-    assert _read(retry, script) == "accepted"
+    assert await _read(retry, script) == "accepted"
     assert script.delays == [0, 0]
     assert [name for name, _value in memory.effects] == [
         "server_retry_scheduled",
@@ -217,7 +217,7 @@ def test_default_retry_wait_observes_zero_sleep_and_shared_failure_attempts(
 
 
 @pytest.mark.parametrize("failure", [_error(500), RequestsConnectionError("reset")])
-def test_retry_wait_cancellation_retains_original_error_cause(
+async def test_retry_wait_cancellation_retains_original_error_cause(
     tmp_path: Path, failure: BaseException
 ) -> None:
     """Keep original interactive cancellation after its accepted retry audit.
@@ -227,7 +227,7 @@ def test_retry_wait_cancellation_retains_original_error_cause(
         failure: Original server or transport failure.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     script = RetryScript(deque([failure]), decision=False)
     retry = LibraryRetry(
         session.paths,
@@ -242,21 +242,23 @@ def test_retry_wait_cancellation_retains_original_error_cause(
     with pytest.raises(
         LibraryAnalysisCancelledError, match="paused during a Spotify retry wait"
     ) as observed:
-        _read(retry, script)
+        await _read(retry, script)
     assert observed.value.__cause__ is failure
     assert len(script.notices) == 1
 
 
-def test_system_exit_retains_original_propagation_without_audit(tmp_path: Path) -> None:
+async def test_system_exit_retains_original_propagation_without_audit(
+    tmp_path: Path,
+) -> None:
     """Retain original propagation for process-control errors outside ordinary failures.
 
     Args:
         tmp_path: Original independent output family.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     with pytest.raises(SystemExit):
-        with AnalysisFailure(
+        async with AnalysisFailure(
             session, "failed", (LibraryAnalysisCancelledError, KeyboardInterrupt)
         ):
             raise SystemExit(4)
@@ -270,7 +272,7 @@ def test_system_exit_retains_original_propagation_without_audit(tmp_path: Path) 
         {"targets": {"stats_history": {"existed": True, "backup_file": "before.json"}}},
     ],
 )
-def test_backed_up_history_retains_original_shape_failures(
+async def test_backed_up_history_retains_original_shape_failures(
     tmp_path: Path, manifest: object
 ) -> None:
     """Keep original invalid manifest and backed-up history errors.
@@ -282,12 +284,12 @@ def test_backed_up_history_retains_original_shape_failures(
     memory = AnalysisMemory(
         raw={tmp_path / "manifest.json": manifest, tmp_path / "before.json": "invalid"}
     )
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     with pytest.raises(LibrarySyncError, match="invalid"):
-        backups.pre_analysis_stats_history(session.paths, tmp_path, session.files)
+        (backups.pre_analysis_stats_history(session.paths, tmp_path, memory))
 
 
-def test_absent_backed_up_history_is_empty_without_reading_another_file(
+async def test_absent_backed_up_history_is_empty_without_reading_another(
     tmp_path: Path,
 ) -> None:
     """Keep original history absence semantics when the analysis created that output.
@@ -297,10 +299,8 @@ def test_absent_backed_up_history_is_empty_without_reading_another_file(
     """
     manifest = {"targets": {"stats_history": {"existed": False}}}
     memory = AnalysisMemory(raw={tmp_path / "manifest.json": manifest})
-    session = memory_session(memory, tmp_path)
-    assert (
-        backups.pre_analysis_stats_history(session.paths, tmp_path, session.files) == {}
-    )
+    session = await memory_session(memory, tmp_path)
+    assert (backups.pre_analysis_stats_history(session.paths, tmp_path, memory)) == {}
     assert memory.effects == [("read", tmp_path / "manifest.json")]
 
 
@@ -309,7 +309,7 @@ def _publish(path: Path, source: str) -> None:
 
 
 @pytest.mark.parametrize("run_id", ["", "../run", "run/name", "run\\name", "run..name"])
-def test_restore_rejects_original_invalid_run_ids_before_reading(
+async def test_restore_rejects_original_invalid_run_ids_before_reading(
     tmp_path: Path, run_id: str
 ) -> None:
     """Retain original path-component rejection, including embedded double dots.
@@ -319,11 +319,11 @@ def test_restore_rejects_original_invalid_run_ids_before_reading(
         run_id: Original unusable requested identity.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     with pytest.raises(
         LibrarySyncRestoreError, match="Invalid library-analysis run id"
     ):
-        restore_library_sync(run_id, [session.paths], session.files)
+        (restore_library_sync(run_id, [session.paths], memory))
     assert memory.effects == []
 
 
@@ -339,7 +339,7 @@ def test_restore_rejects_original_invalid_run_ids_before_reading(
         },
     ],
 )
-def test_restore_retains_original_missing_manifest_target_and_backup_errors(
+async def test_restore_retains_missing_manifest_target_and_backup_errors(
     tmp_path: Path, manifest: object
 ) -> None:
     """Keep original first-match selection and missing undo-file failures.
@@ -349,14 +349,14 @@ def test_restore_retains_original_missing_manifest_target_and_backup_errors(
         manifest: Original unusable undo data.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     path = session.paths.backups_dir / "requested/manifest.json"
     memory.raw[path] = manifest
     with pytest.raises(LibrarySyncRestoreError):
-        restore_library_sync("requested", [session.paths], session.files)
+        (restore_library_sync("requested", [session.paths], memory))
 
 
-def test_restore_skips_unknown_targets_and_removes_outputs_absent_before_analysis(
+async def test_restore_skips_unknown_targets_and_removes_outputs_absent(
     tmp_path: Path,
 ) -> None:
     """Retain original manifest encounter order and deletion of newly created outputs.
@@ -365,14 +365,14 @@ def test_restore_skips_unknown_targets_and_removes_outputs_absent_before_analysi
         tmp_path: Original independent output family.
     """
     memory = AnalysisMemory()
-    session = memory_session(memory, tmp_path)
+    session = await memory_session(memory, tmp_path)
     path = session.paths.backups_dir / "requested/manifest.json"
     memory.raw[path] = {
         "run_id": "requested",
         "targets": {"unknown": {}, "tracks": None, "albums": {"existed": False}},
     }
     session.paths.albums_total.write_text("new output")
-    assert restore_library_sync("requested", [session.paths], session.files) == (
+    assert (restore_library_sync("requested", [session.paths], memory)) == (
         session.paths.albums_total.name,
     )
     assert not session.paths.albums_total.exists()

@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.routines import queue_3
 from tests.routines.test_queue_3 import FakeSpotify
 from tests.routines.test_queue_3_import_boundaries import ImportBoundaries
@@ -25,7 +26,7 @@ class ImportEntryBoundaries(ImportBoundaries):
     completed: bool = False
     loaded: dict[str, object] | None = None
 
-    def load(self) -> dict[str, object]:
+    def load_namespace(self) -> dict[str, object]:
         """Return the same namespace so tests can detect preview mutation.
 
         Returns:
@@ -48,7 +49,7 @@ class ImportEntryBoundaries(ImportBoundaries):
         self._record("progress", (done, total, message))
 
 
-def _run_entry(
+async def _run_entry(
     spotify: FakeSpotify, memory: ImportEntryBoundaries, preview: bool
 ) -> queue_3.AnnualImportSummary:
     return queue_3.import_previous_year_discoveries(
@@ -66,14 +67,42 @@ def _run_entry(
 
 def _state_access(
     path: Path, service: queue_3.StateService | None
-) -> queue_3.RoutineState:
+) -> BlockingRoutineState:
     assert service is not None
-    return cast(queue_3.RoutineState, service)
+    return ImportEntryState(cast(ImportEntryBoundaries, service))
+
+
+@dataclass(frozen=True)
+class ImportEntryState:
+    """Supply the original synchronous state boundary below the async file view.
+
+    Args:
+        source: Existing checkpoint, progress and import observations.
+    """
+
+    source: ImportEntryBoundaries
+
+    def load(self) -> dict[str, object]:
+        """Read the same original mutable namespace.
+
+        Returns:
+            Original caller-owned state document.
+        """
+        return self.source.load_namespace()
+
+    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
+        """Accept the original checkpoint before later progress presentation.
+
+        Args:
+            value: Original complete checkpoint.
+            message: Original optional storage message.
+        """
+        self.source.record_checkpoint(value, message=message)
 
 
 @pytest.mark.parametrize("preview", [False, True])
 @pytest.mark.parametrize("completed", [False, True])
-def test_import_entry_preserves_preparation_progress_and_preview_clone(
+async def test_import_entry_preserves_preparation_progress_and_preview_clone(
     monkeypatch: pytest.MonkeyPatch, preview: bool, completed: bool
 ) -> None:
     """Completed records still observe the destination before loading stored state.
@@ -86,11 +115,12 @@ def test_import_entry_preserves_preparation_progress_and_preview_clone(
     memory = ImportEntryBoundaries(completed=completed)
     monkeypatch.setattr(queue_3, "_state_access", _state_access)
     monkeypatch.setattr(queue_3, "append_event", memory.audit)
-    result = _run_entry(_spotify(), memory, preview)
+    result = await _run_entry(_spotify(), memory, preview)
     names = [name for name, value in memory.events]
     assert names[0] == "progress"
     assert names.index("read") < names.index("load")
     assert names[-1] == "progress"
+    assert ("checkpoint" in names) == (not completed and not preview)
     assert result.already_completed == completed and result.dry_run == preview
     assert result.additions == (0 if completed else 2)
     assert result.already_present == 0

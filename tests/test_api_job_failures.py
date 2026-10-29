@@ -1,5 +1,6 @@
 """Failure-state contracts shared by reconnectable API background jobs."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
@@ -9,6 +10,7 @@ from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -43,7 +45,7 @@ class ImmediateEvent:
     def set(self) -> None:
         self.set_value = True
 
-    def wait(self, timeout: float | None = None) -> bool:
+    async def wait(self, timeout: float | None = None) -> bool:
         self.waits.append(0 if timeout is None else timeout)
         if self.cancel_on_wait:
             self.set_value = True
@@ -56,7 +58,7 @@ class RunnerSpec:
 
     name: str
     command: str
-    run: Callable[[str, object], None]
+    run: Callable[[str, object], Awaitable[None]]
     module: ModuleType
     target: str
     domain_error: Callable[[], Exception]
@@ -600,7 +602,7 @@ def _remove_job(job: api._BlastJob) -> None:
 
 @pytest.mark.parametrize("spec", RUNNERS, ids=lambda spec: spec.name)
 @pytest.mark.parametrize("failure_kind", ["domain", "unexpected"])
-def test_job_runners_capture_failures(
+async def test_job_runners_capture_failures(
     monkeypatch: pytest.MonkeyPatch,
     spec: RunnerSpec,
     failure_kind: str,
@@ -612,9 +614,9 @@ def test_job_runners_capture_failures(
     def fail(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(spec.module, spec.target, fail)
+    monkeypatch.setattr(spec.module, spec.target, AsyncMock(side_effect=fail))
     try:
-        spec.run(job.result.job_id, spotify)
+        await spec.run(job.result.job_id, spotify)
     finally:
         _remove_job(job)
 
@@ -627,17 +629,17 @@ def test_job_runners_capture_failures(
 
 
 @pytest.mark.parametrize("spec", RUNNERS, ids=lambda spec: spec.name)
-def test_job_runners_serialize_success_and_restore_callbacks(
+async def test_job_runners_serialize_success_and_restore_callbacks(
     monkeypatch: pytest.MonkeyPatch,
     spec: RunnerSpec,
 ) -> None:
     job = _job(spec)
     spotify = CallbackSpotify()
     summary = _success_result(spec)
-    monkeypatch.setattr(spec.module, spec.target, lambda *_args, **_kwargs: summary)
+    monkeypatch.setattr(spec.module, spec.target, AsyncMock(return_value=summary))
 
     try:
-        spec.run(job.result.job_id, spotify)
+        await spec.run(job.result.job_id, spotify)
     finally:
         _remove_job(job)
 
@@ -653,7 +655,7 @@ def test_job_runners_serialize_success_and_restore_callbacks(
     ids=lambda spec: spec.name,
 )
 @pytest.mark.parametrize("failure_kind", ["rate", "transient"])
-def test_interactive_job_runners_pause_for_retryable_spotify_failures(
+async def test_interactive_job_runners_pause_for_retryable_spotify_failures(
     monkeypatch: pytest.MonkeyPatch,
     spec: RunnerSpec,
     failure_kind: str,
@@ -673,9 +675,9 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
     def fail(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(spec.module, spec.target, fail)
+    monkeypatch.setattr(spec.module, spec.target, AsyncMock(side_effect=fail))
     try:
-        spec.run(job.result.job_id, spotify)
+        await spec.run(job.result.job_id, spotify)
     finally:
         _remove_job(job)
 
@@ -686,7 +688,7 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
         assert job.result.retry_at is not None
 
 
-def test_new_wine_retries_rate_limited_operation_automatically(
+async def test_new_wine_retries_rate_limited_operation_automatically(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A Retry-After response resumes the same New Wine API operation."""
@@ -700,7 +702,7 @@ def test_new_wine_retries_rate_limited_operation_automatically(
     )
     monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(scenario))
     try:
-        spec.run(job.result.job_id, CallbackSpotify())
+        await spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
     assert scenario.attempts == 2
@@ -710,7 +712,7 @@ def test_new_wine_retries_rate_limited_operation_automatically(
     assert any("Retrying automatically" in entry.message for entry in job.result.logs)
 
 
-def test_new_kids_retries_rate_limited_operation_automatically(
+async def test_new_kids_retries_rate_limited_operation_automatically(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A Retry-After response resumes the same New Kids API operation."""
@@ -737,7 +739,7 @@ def test_new_kids_retries_rate_limited_operation_automatically(
         ),
     )
     try:
-        spec.run(job.result.job_id, CallbackSpotify())
+        await spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
     assert scenario.attempts == 2
@@ -747,7 +749,7 @@ def test_new_kids_retries_rate_limited_operation_automatically(
     assert any("Retrying automatically" in entry.message for entry in job.result.logs)
 
 
-def test_new_wine_rate_limit_wait_can_be_cancelled(
+async def test_new_wine_rate_limit_wait_can_be_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Cancel interrupts an automatic Retry-After wait without another call."""
@@ -759,7 +761,7 @@ def test_new_wine_rate_limit_wait_can_be_cancelled(
     scenario = NewWineRateLimitWaitCanBeCancelledScenario(attempts=attempts, spec=spec)
     monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(scenario))
     try:
-        spec.run(job.result.job_id, CallbackSpotify())
+        await spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
     assert scenario.attempts == 1
@@ -768,7 +770,7 @@ def test_new_wine_rate_limit_wait_can_be_cancelled(
     assert job.result.retry_at is None
 
 
-def test_new_kids_rate_limit_wait_can_be_cancelled(
+async def test_new_kids_rate_limit_wait_can_be_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Cancel interrupts a New Kids Retry-After wait without another call."""
@@ -793,7 +795,7 @@ def test_new_kids_rate_limit_wait_can_be_cancelled(
         ),
     )
     try:
-        spec.run(job.result.job_id, CallbackSpotify())
+        await spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
     assert scenario.attempts == 1
@@ -817,7 +819,7 @@ def test_new_kids_rate_limit_wait_can_be_cancelled(
     ),
     ids=lambda spec: spec.name,
 )
-def test_queue_jobs_report_connection_failures(
+async def test_queue_jobs_report_connection_failures(
     monkeypatch: pytest.MonkeyPatch,
     spec: RunnerSpec,
 ) -> None:
@@ -827,9 +829,9 @@ def test_queue_jobs_report_connection_failures(
     def fail(*_args, **_kwargs):
         raise api.RequestException("offline")
 
-    monkeypatch.setattr(spec.module, spec.target, fail)
+    monkeypatch.setattr(spec.module, spec.target, AsyncMock(side_effect=fail))
     try:
-        spec.run(job.result.job_id, spotify)
+        await spec.run(job.result.job_id, spotify)
     finally:
         _remove_job(job)
 
@@ -843,7 +845,7 @@ def test_queue_jobs_report_connection_failures(
     tuple(spec for spec in RUNNERS if spec.cancellation_error is not None),
     ids=lambda spec: spec.name,
 )
-def test_interactive_job_runners_record_clean_cancellation(
+async def test_interactive_job_runners_record_clean_cancellation(
     monkeypatch: pytest.MonkeyPatch,
     spec: RunnerSpec,
 ) -> None:
@@ -854,9 +856,9 @@ def test_interactive_job_runners_record_clean_cancellation(
     def cancel(*_args, **_kwargs):
         raise spec.cancellation_error
 
-    monkeypatch.setattr(spec.module, spec.target, cancel)
+    monkeypatch.setattr(spec.module, spec.target, AsyncMock(side_effect=cancel))
     try:
-        spec.run(job.result.job_id, spotify)
+        await spec.run(job.result.job_id, spotify)
     finally:
         _remove_job(job)
 
@@ -878,7 +880,7 @@ class NewWineRetriesRateLimitedOperationAutomaticallyScenario:
     attempts: int
     spec: Any
 
-    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+    async def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
         """Execute the original flush mock boundary.
 
         Args:
@@ -890,7 +892,7 @@ class NewWineRetriesRateLimitedOperationAutomaticallyScenario:
             Original fixture result.
         """
         for attempt in retry_call.attempts("refilling New Wine from Wine Cellar"):
-            with attempt:
+            async with attempt:
                 self.operation()
         return _success_result(self.spec)
 
@@ -921,7 +923,7 @@ class NewKidsRetriesRateLimitedOperationAutomaticallyScenario:
     attempts: int
     spec: Any
 
-    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+    async def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
         """Execute the original flush mock boundary.
 
         Args:
@@ -933,7 +935,7 @@ class NewKidsRetriesRateLimitedOperationAutomaticallyScenario:
             Original fixture result.
         """
         for attempt in retry_call.attempts("loading releases for New Kids"):
-            with attempt:
+            async with attempt:
                 self.operation()
         return _success_result(self.spec)
 
@@ -963,7 +965,7 @@ class NewWineRateLimitWaitCanBeCancelledScenario:
     attempts: int
     spec: Any
 
-    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+    async def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
         """Execute the original flush mock boundary.
 
         Args:
@@ -975,7 +977,7 @@ class NewWineRateLimitWaitCanBeCancelledScenario:
             Original fixture result.
         """
         for attempt in retry_call.attempts("refilling New Wine from Wine Cellar"):
-            with attempt:
+            async with attempt:
                 self.operation()
         return _success_result(self.spec)
 
@@ -1003,7 +1005,7 @@ class NewKidsRateLimitWaitCanBeCancelledScenario:
     attempts: int
     spec: Any
 
-    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+    async def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
         """Execute the original flush mock boundary.
 
         Args:
@@ -1015,7 +1017,7 @@ class NewKidsRateLimitWaitCanBeCancelledScenario:
             Original fixture result.
         """
         for attempt in retry_call.attempts("loading releases for New Kids"):
-            with attempt:
+            async with attempt:
                 self.operation()
         return _success_result(self.spec)
 

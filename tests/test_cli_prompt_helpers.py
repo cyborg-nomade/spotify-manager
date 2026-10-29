@@ -121,8 +121,7 @@ def test_artist_release_prompt_marks_ineligible_release(
             (candidate,),  # type: ignore[arg-type]
             allow_decline=False,
         )
-        == main.artist_review.CHOICE_SKIP
-    )
+    ) == main.artist_review.CHOICE_SKIP
 
 
 @pytest.mark.parametrize(
@@ -159,8 +158,7 @@ def test_new_wine_prompt_maps_common_actions(
             source,  # type: ignore[arg-type]
             (candidate,),  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
 
 
 @pytest.mark.parametrize(
@@ -194,8 +192,7 @@ def test_new_kids_prompt_maps_every_action(
             "Artist",
             (candidate,),  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
 
 
 def test_album_discovery_renderer_handles_empty_and_detailed_rows() -> None:
@@ -244,28 +241,32 @@ def test_slow_listening_order_reprompts_until_complete(
         lambda *_args, **_kwargs: next(responses),
     )
 
-    assert main.ask_slow_listening_release_order(
-        _console(),
-        "2020-01-01",
-        candidates,  # type: ignore[arg-type]
+    assert (
+        main.ask_slow_listening_release_order(
+            _console(),
+            "2020-01-01",
+            candidates,  # type: ignore[arg-type]
+        )
     ) == ("release-2", "release-1")
 
 
 def test_slow_listening_order_can_quit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: "q")
     with pytest.raises(main.slow_listening.SlowListeningCancelledError):
-        main.ask_slow_listening_release_order(
-            _console(),
-            "2020",
-            (
-                SimpleNamespace(
-                    name="A",
-                    release_type="Album",
-                    total_tracks=1,
-                    plain=True,
-                    saved=True,
-                ),
-            ),  # type: ignore[arg-type]
+        (
+            main.ask_slow_listening_release_order(
+                _console(),
+                "2020",
+                (
+                    SimpleNamespace(
+                        name="A",
+                        release_type="Album",
+                        total_tracks=1,
+                        plain=True,
+                        saved=True,
+                    ),
+                ),  # type: ignore[arg-type]
+            )
         )
 
 
@@ -290,8 +291,7 @@ def test_slow_listening_action_maps_every_choice(
             SimpleNamespace(name="Next"),  # type: ignore[arg-type]
             SimpleNamespace(name="Album"),  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
 
 
 @pytest.mark.parametrize(
@@ -318,8 +318,7 @@ def test_queue_3_release_transition_maps_actions(
             release,  # type: ignore[arg-type]
             release,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
 
 
 @pytest.mark.parametrize(
@@ -338,8 +337,7 @@ def test_queue_3_composer_prompt_maps_actions(
             "Composer",
             (SimpleNamespace(spotify_id="playlist-1", name="Works", total_tracks=5),),  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
 
 
 def test_discography_selection_reprompts_then_parses(
@@ -361,10 +359,12 @@ def test_discography_selection_reprompts_then_parses(
         lambda *_args, **_kwargs: next(responses),
     )
 
-    assert main.ask_discography_release_selection(
-        _console(),
-        SimpleNamespace(name="Artist"),  # type: ignore[arg-type]
-        (release,),  # type: ignore[arg-type]
+    assert (
+        main.ask_discography_release_selection(
+            _console(),
+            SimpleNamespace(name="Artist"),  # type: ignore[arg-type]
+            (release,),  # type: ignore[arg-type]
+        )
     ) == ("release-1",)
 
 
@@ -386,10 +386,12 @@ def test_discography_selection_can_clear_or_quit(
 
     if response == "q":
         with pytest.raises(main.discography.DiscographyCancelledError):
-            main.ask_discography_release_selection(
-                _console(),
-                SimpleNamespace(name="Artist"),  # type: ignore[arg-type]
-                (release,),  # type: ignore[arg-type]
+            (
+                main.ask_discography_release_selection(
+                    _console(),
+                    SimpleNamespace(name="Artist"),  # type: ignore[arg-type]
+                    (release,),  # type: ignore[arg-type]
+                )
             )
     else:
         assert (
@@ -398,8 +400,7 @@ def test_discography_selection_can_clear_or_quit(
                 SimpleNamespace(name="Artist"),  # type: ignore[arg-type]
                 (release,),  # type: ignore[arg-type]
             )
-            == ()
-        )
+        ) == ()
 
 
 def test_slow_listening_completion_pauses_for_user() -> None:
@@ -410,10 +411,12 @@ def test_slow_listening_completion_pauses_for_user() -> None:
         input=lambda *_args, **_kwargs: calls.append("input"),
     )
 
-    main.acknowledge_slow_listening_completion(
-        console,  # type: ignore[arg-type]
-        SimpleNamespace(primary_artist_name="Artist"),  # type: ignore[arg-type]
-        progress,  # type: ignore[arg-type]
+    (
+        main.acknowledge_slow_listening_completion(
+            console,  # type: ignore[arg-type]
+            SimpleNamespace(primary_artist_name="Artist"),  # type: ignore[arg-type]
+            progress,  # type: ignore[arg-type]
+        )
     )
 
     assert calls == ["print", "input"]
@@ -453,8 +456,7 @@ def test_something_old_artist_prompt_maps_selection_and_quit(
             candidates,  # type: ignore[arg-type]
             status,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
     assert status.calls == ["stop", "start"]
 
 
@@ -498,8 +500,7 @@ def test_release_check_artist_prompt_maps_all_actions(
             (candidate,),  # type: ignore[arg-type]
             progress,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
     assert progress.calls == ["stop", "start"]
 
 
@@ -515,8 +516,7 @@ def test_release_check_artist_prompt_handles_no_candidates(
             (),
             progress,  # type: ignore[arg-type]
         )
-        == main.release_check.CHOICE_SKIP
-    )
+    ) == main.release_check.CHOICE_SKIP
 
 
 @pytest.mark.parametrize(
@@ -563,8 +563,7 @@ def test_queue_artist_prompt_maps_all_actions(
             candidates,  # type: ignore[arg-type]
             progress,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
     assert progress.calls == ["stop", "start"]
 
 
@@ -581,8 +580,7 @@ def test_queue_artist_prompt_handles_no_candidates(
             (),
             progress,  # type: ignore[arg-type]
         )
-        == main.the_queue.CHOICE_SKIP
-    )
+    ) == main.the_queue.CHOICE_SKIP
     assert progress.calls == ["stop", "start"]
 
 
@@ -617,8 +615,7 @@ def test_sauvignon_album_prompt_maps_every_action(
             (option,),  # type: ignore[arg-type]
             progress,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
     assert progress.calls == ["stop", "start"]
 
 
@@ -670,6 +667,5 @@ def test_something_old_album_prompt_maps_selection_and_quit(
             releases,  # type: ignore[arg-type]
             status,  # type: ignore[arg-type]
         )
-        == expected
-    )
+    ) == expected
     assert status.calls == ["stop", "start"]

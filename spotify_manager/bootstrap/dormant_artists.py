@@ -4,12 +4,11 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.dormant_recovery import DormantRecovery
 from spotify_manager.application.dormant_tracks import DormantLikedTrack
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import OptionalReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
 from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.routines import blast_from_past_artists as legacy

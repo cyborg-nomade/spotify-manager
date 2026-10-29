@@ -1,23 +1,23 @@
 """Validate and present analysis HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.operations import analyse_library as library_analysis
 
 
-def cmd_analyse_library_async() -> AnalysisJobResult:
+async def cmd_analyse_library_async() -> AnalysisJobResult:
     """Start an export-only ``*_async`` library analysis.
 
     Returns:
         Original feature response with unchanged fields and validation.
     """
-    return jobs.start_analysis_job("async")
+    return await jobs.start_analysis_job("async")
 
 
-def cmd_analyse_library_sync(client: Spotify) -> AnalysisJobResult:
+async def cmd_analyse_library_sync(client: Spotify) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis.
 
     Args:
@@ -26,10 +26,10 @@ def cmd_analyse_library_sync(client: Spotify) -> AnalysisJobResult:
     Returns:
         Original feature response with unchanged fields and validation.
     """
-    return jobs.start_analysis_job("sync", client)
+    return await jobs.start_analysis_job("sync", client)
 
 
-def cmd_refresh_library_mirrors(
+async def cmd_refresh_library_mirrors(
     client: Spotify, full_rebuild: bool
 ) -> AnalysisJobResult:
     """Refresh canonical saved-album and liked-track mirrors from Spotify.
@@ -41,10 +41,10 @@ def cmd_refresh_library_mirrors(
     Returns:
         Original feature response with unchanged fields and validation.
     """
-    return jobs.start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
+    return await jobs.start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
 
 
-def cmd_refresh_library_mirror_resource(
+async def cmd_refresh_library_mirror_resource(
     resource: library_analysis.ResourceName, client: Spotify, full_rebuild: bool
 ) -> AnalysisJobResult:
     """Refresh one canonical Spotify mirror with independent progress.
@@ -57,7 +57,7 @@ def cmd_refresh_library_mirror_resource(
     Returns:
         Original feature response with unchanged fields and validation.
     """
-    return jobs.start_analysis_job(
+    return await jobs.start_analysis_job(
         "mirrors", client, full_rebuild=full_rebuild, mirror_resource=resource
     )
 

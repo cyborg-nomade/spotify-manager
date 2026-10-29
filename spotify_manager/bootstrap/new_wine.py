@@ -1,13 +1,12 @@
 """Compose one complete synchronous New Wine invocation."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import YearClock
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.infrastructure.legacy.new_wine import LegacyNewWine
 from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess

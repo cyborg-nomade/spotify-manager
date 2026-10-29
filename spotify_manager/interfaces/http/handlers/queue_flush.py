@@ -1,13 +1,12 @@
 """Validate and present queue flush HTTP requests."""
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import the_queue as the_queue
 
 
-def cmd_flush_queue(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_flush_queue(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start a reconnectable flush of the first ten Queue artists.
 
     Args:
@@ -17,7 +16,7 @@ def cmd_flush_queue(client: Spotify, dry_run: bool) -> BlastJobResult:
     Returns:
         Original feature response with unchanged fields and validation.
     """
-    return jobs.start_queue_flush_job(
+    return await jobs.start_queue_flush_job(
         client, jobs._configured_queue_playlists(), dry_run=dry_run
     )
 

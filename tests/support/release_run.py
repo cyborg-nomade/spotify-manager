@@ -233,7 +233,7 @@ class Effects:
         """
         self._event("progress", done, total, message)
 
-    def persist(self, state: ReleaseState) -> None:
+    async def persist(self, state: ReleaseState) -> None:
         """Accept a complete checkpoint before a possible later failure.
 
         Args:
@@ -244,7 +244,17 @@ class Effects:
         self.saves.append(deepcopy(state))
         self._event("persist")
 
-    def audit(self, run_id: str, event: str, **details: object) -> None:
+    async def audit(self, run_id: str, event: str, **details: object) -> None:
+        """Accept original audit fields before a possible later failure.
+
+        Args:
+            run_id: Durable identity.
+            event: Event name.
+            details: Ordered event fields.
+        """
+        self.record_audit(run_id, event, **details)
+
+    def record_audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original audit fields before a possible later failure.
 
         Args:
@@ -254,7 +264,7 @@ class Effects:
         """
         self._event("audit:" + event, run_id, details)
 
-    def wine(self) -> PlaylistSnapshot:
+    async def wine(self) -> PlaylistSnapshot:
         """Observe Wine Cellar before its cleanup.
 
         Returns:
@@ -274,7 +284,7 @@ class Effects:
             )
         return PlaylistSnapshot(entries, membership(entries))
 
-    def cleanup(
+    async def cleanup(
         self, snapshot: PlaylistSnapshot, preview: bool
     ) -> tuple[int, PlaylistMembership]:
         """Observe original Wine Cellar cleanup.
@@ -289,7 +299,7 @@ class Effects:
         self._event("cleanup", preview)
         return (1 if self.profile == "duplicate_wine" else 0), snapshot.membership
 
-    def vintage(self) -> PlaylistMembership:
+    async def vintage(self) -> PlaylistMembership:
         """Observe New Vintage after Wine Cellar cleanup.
 
         Returns:
@@ -309,7 +319,7 @@ class Effects:
             return membership(entries)
         return membership(())
 
-    def composers(self) -> tuple[OwnedPlaylist, ...]:
+    async def composers(self) -> tuple[OwnedPlaylist, ...]:
         """Observe owned composer playlists.
 
         Returns:
@@ -353,7 +363,7 @@ class Effects:
             return None
         return ARTIST
 
-    def catalog(
+    async def catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate, start: date
     ) -> tuple[ReleaseCandidate, ...]:
         """Observe the catalog after artist exclusions.
@@ -386,7 +396,7 @@ class Effects:
             TRACK,
         )
 
-    def first_track(self, candidate: ReleaseCandidate) -> ReleaseTrack | None:
+    async def first_track(self, candidate: ReleaseCandidate) -> ReleaseTrack | None:
         """Observe a playable first track before eligibility review.
 
         Args:
@@ -461,7 +471,7 @@ class Effects:
             return "invalid"
         return "pending" if unattached and self.profile != "single_current" else "add"
 
-    def add(
+    async def add(
         self,
         destination: str,
         destination_membership: PlaylistMembership,
@@ -484,7 +494,7 @@ class Effects:
         self._event("add:" + destination, track.spotify_id, preview)
         return "would add" if preview else "added"
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: RankedArtist,
         candidate: ReleaseCandidate,
@@ -517,7 +527,7 @@ class ScriptedMapping:
 
     effects: Effects
 
-    def run(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
+    async def run(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
         """Observe the original mapping stage.
 
         Args:
@@ -539,7 +549,7 @@ class ScriptedMatching:
 
     effects: Effects
 
-    def run(
+    async def run(
         self,
         track: ReleaseTrack,
         records: tuple[ReleaseCandidate, ...],

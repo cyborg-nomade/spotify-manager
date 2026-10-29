@@ -96,7 +96,7 @@ class Effects:
         assert stamp == STAMP
         return RUN_ID
 
-    def load(self) -> ReleaseState:
+    async def load(self) -> ReleaseState:
         """Observe the original opaque state after date resolution.
 
         Returns:
@@ -144,7 +144,7 @@ class Effects:
         assert active == self.state["active_run"]
         return self.artists
 
-    def persist(self, state: ReleaseState) -> None:
+    async def persist(self, state: ReleaseState) -> None:
         """Record accepted original checkpoint before a possible later failure.
 
         Args:
@@ -154,7 +154,7 @@ class Effects:
         self.saved.append(deepcopy(state))
         self._record("persist")
 
-    def audit(self, run_id: str, event: str, **details: object) -> None:
+    async def audit(self, run_id: str, event: str, **details: object) -> None:
         """Record accepted original start event after the initial checkpoint.
 
         Args:
@@ -176,7 +176,7 @@ class ScriptedHistory:
 
     effects: Effects
 
-    def run(
+    async def run(
         self, username: str | None, preview: bool, rebuild: bool, now: datetime
     ) -> ScrobbleHistorySummary:
         """Observe the original real-refresh boundary, including previews.
@@ -206,7 +206,7 @@ EVENTS = ["clock", "date", "load", "refresh", "rank", "run_id", "persist", "audi
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_release_opening_failure_prefix(failure: str) -> None:
+async def test_release_opening_failure_prefix(failure: str) -> None:
     """Protect clock order and checkpoints before a later audit failure.
 
     Args:
@@ -214,14 +214,14 @@ def test_release_opening_failure_prefix(failure: str) -> None:
     """
     effects = Effects(failure=failure)
     with pytest.raises(RuntimeError, match=failure):
-        _workflow(effects).run(False)
+        (await _workflow(effects).run(False))
     assert effects.events == EVENTS[: EVENTS.index(failure) + 1]
     assert bool(effects.saved) is (EVENTS.index(failure) >= EVENTS.index("persist"))
     assert bool(effects.audits) is (failure == "audit")
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_release_opening_fresh_state_and_preview(preview: bool) -> None:
+async def test_release_opening_fresh_state_and_preview(preview: bool) -> None:
     """Retain actual history refresh, original deep copy and preview state isolation.
 
     Args:
@@ -229,7 +229,7 @@ def test_release_opening_fresh_state_and_preview(preview: bool) -> None:
     """
     original: ReleaseState = {"operator": {"keep": "original"}, "active_run": None}
     effects = Effects(state=original)
-    opened = _workflow(effects).run(preview)
+    opened = await _workflow(effects).run(preview)
     assert effects.events == (EVENTS[:6] if preview else EVENTS)
     assert opened.persisted_state is original and opened.state is not original
     assert opened.history_refresh is HISTORY and opened.artists == (ARTIST,)
@@ -250,7 +250,7 @@ def test_release_opening_fresh_state_and_preview(preview: bool) -> None:
         ("2026-08-31", date(2026, 1, 1)),
     ],
 )
-def test_release_opening_original_window_start(
+async def test_release_opening_original_window_start(
     previous: object, expected: date
 ) -> None:
     """Preserve original earliest previous-check/year-start rule and nonstring fallback.
@@ -260,31 +260,33 @@ def test_release_opening_original_window_start(
         expected: Original inclusive check-window start.
     """
     effects = Effects(state={"last_checked_through": previous})
-    assert _workflow(effects).run(True).checked_from == expected
+    assert (await _workflow(effects).run(True)).checked_from == expected
 
 
-def test_release_opening_invalid_previous_after_history_before_checkpoint() -> None:
+async def test_release_opening_invalid_previous_after_history_before_checkpoint() -> (
+    None
+):
     """Retain original refresh/ranking before previous-window validation failure."""
     effects = Effects(state={"last_checked_through": "invalid"})
     with pytest.raises(
         ReleaseCheckStateError, match="previous release-check date"
     ) as error:
-        _workflow(effects).run(False)
+        (await _workflow(effects).run(False))
     assert isinstance(error.value.__cause__, ValueError)
     assert effects.events == EVENTS[:5]
     assert effects.saved == [] and effects.audits == []
 
 
-def test_release_opening_no_eligible_artists_after_refresh() -> None:
+async def test_release_opening_no_eligible_artists_after_refresh() -> None:
     """Retain minimum errors before window parsing and start effects."""
     effects = Effects(state={"last_checked_through": "invalid"}, artists=())
     with pytest.raises(ReleaseCheckError, match="at least 100 scrobbles"):
-        _workflow(effects).run(False)
+        (await _workflow(effects).run(False))
     assert effects.events == EVENTS[:5]
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_release_opening_resume_authority(preview: bool) -> None:
+async def test_release_opening_resume_authority(preview: bool) -> None:
     """Resume the frozen ranking and window without refreshing history.
 
     Args:
@@ -292,7 +294,7 @@ def test_release_opening_resume_authority(preview: bool) -> None:
     """
     active = _active()
     effects = Effects(state={"active_run": active, "last_checked_through": "invalid"})
-    opened = _workflow(effects).run(preview)
+    opened = await _workflow(effects).run(preview)
     assert effects.events == EVENTS[:3] + ["restore"]
     assert opened.resumed and opened.history_refresh is None
     assert opened.checked_from == date(2025, 12, 31) and opened.checked_through == date(
@@ -307,7 +309,7 @@ def test_release_opening_resume_authority(preview: bool) -> None:
     "key,missing",
     [("checked_from", False), ("checked_through", False), ("run_id", True)],
 )
-def test_release_opening_invalid_active_window(key: str, missing: bool) -> None:
+async def test_release_opening_invalid_active_window(key: str, missing: bool) -> None:
     """Retain original frozen-ranking observation before narrowed active-window errors.
 
     Args:
@@ -323,16 +325,16 @@ def test_release_opening_invalid_active_window(key: str, missing: bool) -> None:
     with pytest.raises(
         ReleaseCheckStateError, match="active release-check window"
     ) as error:
-        _workflow(effects).run(False)
+        (await _workflow(effects).run(False))
     assert isinstance(error.value.__cause__, (ValueError, KeyError))
     assert effects.events == EVENTS[:3] + ["restore"]
 
 
-def test_release_opening_restore_error_precedes_window_validation() -> None:
+async def test_release_opening_restore_error_precedes_window_validation() -> None:
     """Retain original invalid-ranking failure before a malformed persisted window."""
     active = _active()
     active["checked_from"] = "invalid"
     effects = Effects(state={"active_run": active}, failure="restore")
     with pytest.raises(RuntimeError, match="restore"):
-        _workflow(effects).run(False)
+        (await _workflow(effects).run(False))
     assert effects.events == EVENTS[:3] + ["restore"]

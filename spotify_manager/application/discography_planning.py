@@ -27,7 +27,7 @@ from spotify_manager.domain.discography_values import QueueName
 class ReleaseSelector(Protocol):
     """Own the operator interaction for select releases."""
 
-    def select_releases(
+    async def select_releases(
         self, artist: QueueArtist, releases: tuple[CatalogRelease, ...], /
     ) -> tuple[str, ...]:
         """Read or report the original operator interaction.
@@ -45,7 +45,7 @@ class ReleaseSelector(Protocol):
 class PriorityState(Protocol):
     """Read the current original discography priority namespace."""
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Return the complete original priority state before queue observations.
 
         Returns:
@@ -102,7 +102,7 @@ class DiscographyPlanning:
     declined: set[str] = field(default_factory=set)
     memory_loaded: bool = False
 
-    def run(self) -> DiscographyPlan:
+    async def run(self) -> DiscographyPlan:
         """Read priority first and select the original round-week batch without writes.
 
         Returns:
@@ -111,22 +111,22 @@ class DiscographyPlanning:
         Raises:
             DiscographyError: An original fact or interactive choice is invalid.
         """
-        start = cast(QueueName, self.reads.state.load()["next_queue"])
+        start = cast(QueueName, (await self.reads.state.load())["next_queue"])
         self.reads.progress.echo("Loading discography artist queues")
-        self.queues, self.markers = self.reads.queues.run()
+        self.queues, self.markers = await self.reads.queues.run()
         self.memory_loaded = bool(self.queues["memory_lane"])
-        first = self._find(start, None)
+        first = await self._find(start, None)
         if first is None:
             return DiscographyPlan(start, start, (), 0, 0)
-        return self._pack(start, first)
+        return await self._pack(start, first)
 
-    def _pack(self, start: QueueName, first: ArtistSelection) -> DiscographyPlan:
+    async def _pack(self, start: QueueName, first: ArtistSelection) -> DiscographyPlan:
         artists = [first]
         self.selected.add(first.spotify_id)
         total = first.release_count
         last_queue = first.source_queue
         while (remaining := (-total) % self.week_releases) != 0:
-            match = self._find(next_queue(last_queue), remaining)
+            match = await self._find(next_queue(last_queue), remaining)
             if match is None:
                 break
             artists.append(match)
@@ -141,14 +141,18 @@ class DiscographyPlanning:
             (-total) % self.week_releases,
         )
 
-    def _find(self, start: QueueName, remaining: int | None) -> ArtistSelection | None:
+    async def _find(
+        self, start: QueueName, remaining: int | None
+    ) -> ArtistSelection | None:
         for queue in queue_cycle(start):
-            match = self._find_in_queue(self._candidates(queue), remaining)
+            match = await self._find_in_queue(
+                (await self._candidates(queue)), remaining
+            )
             if match is not None:
                 return match
         return None
 
-    def _find_in_queue(
+    async def _find_in_queue(
         self,
         candidates: tuple[QueueArtist, ...],
         remaining: int | None,
@@ -156,9 +160,9 @@ class DiscographyPlanning:
         for candidate in candidates:
             if candidate.spotify_id in self.selected | self.declined:
                 continue
-            if remaining is not None and not self._fits(candidate, remaining):
+            if remaining is not None and not (await self._fits(candidate, remaining)):
                 continue
-            releases = self._choose(candidate)
+            releases = await self._choose(candidate)
             if not releases:
                 self.declined.add(candidate.spotify_id)
                 continue
@@ -168,36 +172,36 @@ class DiscographyPlanning:
             )
         return None
 
-    def _candidates(self, queue: QueueName) -> tuple[QueueArtist, ...]:
+    async def _candidates(self, queue: QueueName) -> tuple[QueueArtist, ...]:
         if queue != "memory_lane" or self.memory_loaded:
             return self.queues[queue]
-        selection = self.reads.history.run()
+        selection = await self.reads.history.run()
         self.reads.progress.echo(
             f"Random.org selected {selection.selected_date.isoformat()}; "
             f"second {selection.generated_at.second} chose "
             f"{selection.artist.name} ({selection.position} of "
             f"{selection.artists_on_date} artists)"
         )
-        candidate = self.reads.mapping.resolve(selection)
+        candidate = await self.reads.mapping.resolve(selection)
         self.queues["memory_lane"] = (candidate,)
         self.memory_loaded = True
         return self.queues["memory_lane"]
 
-    def _catalog(self, candidate: QueueArtist) -> tuple[CatalogRelease, ...]:
+    async def _catalog(self, candidate: QueueArtist) -> tuple[CatalogRelease, ...]:
         cached = self.catalogs.get(candidate.spotify_id)
         if cached is not None:
             return cached
         self.reads.progress.echo(f"Loading {candidate.name}'s release catalog")
-        catalog = self.reads.catalog.run(candidate.spotify_id)
+        catalog = await self.reads.catalog.run(candidate.spotify_id)
         self.catalogs[candidate.spotify_id] = catalog
         return catalog
 
-    def _choose(self, candidate: QueueArtist) -> tuple[CatalogRelease, ...]:
+    async def _choose(self, candidate: QueueArtist) -> tuple[CatalogRelease, ...]:
         cached = self.choices.get(candidate.spotify_id)
         if cached is not None:
             return cached
-        catalog = self._catalog(candidate)
-        identities = self.reads.choose.select_releases(candidate, catalog)
+        catalog = await self._catalog(candidate)
+        identities = await self.reads.choose.select_releases(candidate, catalog)
         releases = selected_releases(catalog, identities)
         if releases is None:
             raise DiscographyError(
@@ -206,6 +210,6 @@ class DiscographyPlanning:
         self.choices[candidate.spotify_id] = releases
         return releases
 
-    def _fits(self, candidate: QueueArtist, remaining: int) -> bool:
-        defaults = sum(release.default for release in self._catalog(candidate))
+    async def _fits(self, candidate: QueueArtist, remaining: int) -> bool:
+        defaults = sum(release.default for release in (await self._catalog(candidate)))
         return 0 < defaults <= remaining

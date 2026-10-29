@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import palace_of_memory as legacy
 
 
@@ -26,7 +25,7 @@ class CatalogRows:
 
     response: object
 
-    def search(self, **options: object) -> object:
+    async def search(self, **options: object) -> object:
         """Return original raw catalog search observations.
 
         Args:
@@ -38,7 +37,7 @@ class CatalogRows:
         assert options["type"] == "album"
         return self.response
 
-    def album_tracks(self, identity: str, limit: int, offset: int) -> object:
+    async def album_tracks(self, identity: str, limit: int, offset: int) -> object:
         """Return original first-track paging observations.
 
         Args:
@@ -134,7 +133,7 @@ def _track_inputs(result: list[dict[str, object]]) -> None:
             )
 
 
-def original_outcome(case: dict[str, object]) -> object:
+async def original_outcome(case: dict[str, object]) -> object:
     """Observe original catalog functions before extracting codecs and ranking.
 
     Args:
@@ -146,21 +145,21 @@ def original_outcome(case: dict[str, object]) -> object:
     edge = CatalogRows(case["payload"])
     result: dict[str, object] = {}
     try:
-        value = _selection(edge, cast(str, case["kind"]))
+        value = await _selection(edge, cast(str, case["kind"]))
         result["result"] = asdict(value) if value is not None else None
     except legacy.PalaceOfMemoryDataError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     return json.loads(json.dumps(result))
 
 
-def _selection(
+async def _selection(
     edge: CatalogRows, kind: str
 ) -> legacy.SpotifyAlbum | legacy.SpotifyFirstTrack | None:
     if kind == "album":
-        return legacy.search_spotify_album(
+        return await legacy.async_search_spotify_album(
             cast(Spotify, edge), "Artist", "Release", NoRetry()
         )
-    return legacy.load_first_track(cast(Spotify, edge), MAPPED, NoRetry())
+    return await legacy.async_load_first_track(cast(Spotify, edge), MAPPED, NoRetry())
 
 
 def cases() -> list[dict[str, object]]:

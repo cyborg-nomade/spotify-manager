@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from functools import partial
 from pathlib import Path
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -128,10 +129,10 @@ class FakeSpotify:
         self.album_items: dict[str, list[dict[str, object]]] = {}
         self.posts: list[tuple[str, dict[str, object]]] = []
 
-    def search(self, **_kwargs: object) -> dict[str, object]:
+    async def search(self, **_kwargs: object) -> dict[str, object]:
         return {"tracks": {"items": self.search_items}}
 
-    def album_tracks(
+    async def album_tracks(
         self,
         album_id: str,
         *,
@@ -142,7 +143,7 @@ class FakeSpotify:
         assert offset == 0
         return {"items": self.album_items.get(album_id, [])}
 
-    def _post(self, path: str, payload: dict[str, object]) -> None:
+    async def _post(self, path: str, payload: dict[str, object]) -> None:
         self.posts.append((path, payload))
 
 
@@ -170,7 +171,7 @@ def test_configuration_and_album_identity_rules() -> None:
     }
 
 
-def test_previous_additions_are_loaded_and_corruption_is_not_masked(
+async def test_previous_additions_are_loaded_and_corruption_is_not_masked(
     tmp_path: Path,
 ) -> None:
     log_path = tmp_path / "sauvignon.jsonl"
@@ -192,14 +193,14 @@ def test_previous_additions_are_loaded_and_corruption_is_not_masked(
         + "\n",
         encoding="utf-8",
     )
-    assert sauvignon.previously_added_album_keys(log_path) == {
+    assert (sauvignon.previously_added_album_keys(log_path)) == {
         sauvignon.canonical_album_key("Artist", "Album")
     }
-    assert sauvignon.previously_added_album_keys(tmp_path / "missing") == set()
+    assert (sauvignon.previously_added_album_keys(tmp_path / "missing")) == set()
 
     log_path.write_text("not json\n", encoding="utf-8")
     with pytest.raises(sauvignon.SauvignonStateError, match="line 1"):
-        sauvignon.previously_added_album_keys(log_path)
+        (sauvignon.previously_added_album_keys(log_path))
 
 
 @pytest.mark.parametrize(
@@ -237,7 +238,7 @@ def test_album_option_accepts_spotify_eps() -> None:
     assert parsed.release_type == "EP"
 
 
-def test_search_candidate_albums_deduplicates_and_validates_responses() -> None:
+async def test_search_candidate_albums_deduplicates_and_validates_responses() -> None:
     """Search candidate albums deduplicates and validates responses."""
     spotify = FakeSpotify()
     spotify.search_items = [raw_spotify_track(), raw_spotify_track()]
@@ -248,12 +249,12 @@ def test_search_candidate_albums_deduplicates_and_validates_responses() -> None:
     )
     assert [option.spotify_id for option in options] == ["album-id"]
 
-    spotify.search = Mock(side_effect=empty_object)  # type: ignore[method-assign]
+    spotify.search = AsyncMock(side_effect=empty_object)  # type: ignore[method-assign]
     with pytest.raises(sauvignon.SauvignonSpotifyError, match="invalid search"):
-        sauvignon.search_candidate_albums(spotify, track_candidate(), NoRetry())
+        (sauvignon.search_candidate_albums(spotify, track_candidate(), NoRetry()))
 
 
-def test_album_recommendations_aggregate_evidence_and_apply_exclusions(
+async def test_album_recommendations_aggregate_evidence_and_apply_exclusions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Album recommendations aggregate evidence and apply exclusions.
@@ -276,8 +277,8 @@ def test_album_recommendations_aggregate_evidence_and_apply_exclusions(
     }
     monkeypatch.setattr(
         sauvignon,
-        "search_candidate_albums",
-        partial(_candidate_options, options),
+        "async_search_candidate_albums",
+        AsyncMock(side_effect=partial(_candidate_options, options)),
     )
 
     ranked = sauvignon.gather_album_recommendations(
@@ -304,7 +305,7 @@ def test_album_recommendations_aggregate_evidence_and_apply_exclusions(
     assert ranked[0].weekly_rank > 0
 
 
-def test_album_choice_prompts_only_for_materially_different_editions() -> None:
+async def test_album_choice_prompts_only_for_materially_different_editions() -> None:
     """Album choice prompts only for materially different editions."""
     same = recommendation(
         options=(album_option(spotify_id="one"), album_option(spotify_id="two"))
@@ -313,7 +314,7 @@ def test_album_choice_prompts_only_for_materially_different_editions() -> None:
     scenario = AlbumChoicePromptsOnlyForMateriallyDifferentEditionsScenario(
         called=called
     )
-    assert sauvignon.choose_album_option(same, scenario).spotify_id == "one"
+    assert (sauvignon.choose_album_option(same, scenario)).spotify_id == "one"
     assert scenario.called is False
     ambiguous = recommendation(
         options=(
@@ -324,18 +325,16 @@ def test_album_choice_prompts_only_for_materially_different_editions() -> None:
     selected = sauvignon.choose_album_option(ambiguous, Answer("two"))
     assert isinstance(selected, sauvignon.SpotifyAlbumOption)
     assert selected.spotify_id == "two"
-    assert sauvignon.choose_album_option(ambiguous, None) == "skip"
+    assert (sauvignon.choose_album_option(ambiguous, None)) == "skip"
     assert (
         sauvignon.choose_album_option(ambiguous, Answer(sauvignon.CHOICE_SKIP))
-        == "skip"
-    )
+    ) == "skip"
     assert (
         sauvignon.choose_album_option(ambiguous, Answer(sauvignon.CHOICE_QUIT))
-        == "quit"
-    )
+    ) == "quit"
 
 
-def test_first_track_uses_spotify_order_and_reports_invalid_data() -> None:
+async def test_first_track_uses_spotify_order_and_reports_invalid_data() -> None:
     """First track uses spotify order and reports invalid data."""
     spotify = FakeSpotify()
     spotify.album_items["album-id"] = [
@@ -346,18 +345,18 @@ def test_first_track_uses_spotify_order_and_reports_invalid_data() -> None:
     selected = sauvignon.load_first_track(spotify, album_option(), NoRetry())
     assert selected.name == "Opening"
 
-    spotify.album_tracks = Mock(side_effect=empty_object)  # type: ignore[method-assign]
+    spotify.album_tracks = AsyncMock(side_effect=empty_object)  # type: ignore[method-assign]
     with pytest.raises(sauvignon.SauvignonSpotifyError, match="invalid tracks"):
-        sauvignon.load_first_track(spotify, album_option(), NoRetry())
+        (sauvignon.load_first_track(spotify, album_option(), NoRetry()))
 
     spotify.album_tracks = (  # type: ignore[method-assign]
-        Mock(return_value={"items": [{"id": None}]})
+        AsyncMock(return_value={"items": [{"id": None}]})
     )
     with pytest.raises(sauvignon.SauvignonSpotifyError, match="No playable"):
-        sauvignon.load_first_track(spotify, album_option(), NoRetry())
+        (sauvignon.load_first_track(spotify, album_option(), NoRetry()))
 
 
-def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
+async def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -382,7 +381,11 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
     album_recommendation = recommendation(options=(album,))
     first = sauvignon.FirstTrack("first", "spotify:track:first", "Opening")
     scrobbles = [blast_from_past.Scrobble("Known", "Known Artist", "Known Album", 1)]
-    monkeypatch.setattr(LegacySauvignon, "refresh", Mock(return_value=(scrobbles, 2)))
+    monkeypatch.setattr(
+        LegacySauvignon,
+        "refresh",
+        AsyncMock(side_effect=Mock(return_value=(scrobbles, 2))),
+    )
     monkeypatch.setattr(
         sauvignon_integration,
         "aggregate_track_history",
@@ -393,19 +396,25 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
         ),
     )
     monkeypatch.setattr(RecommendationSeeds, "run", Mock(return_value=(seed,)))
-    monkeypatch.setattr(CandidateGathering, "run", Mock(return_value=(candidate,)))
     monkeypatch.setattr(
-        sauvignon.new_wine,
-        "load_playlist_tracks",
-        Mock(return_value=()),
+        CandidateGathering,
+        "run",
+        AsyncMock(side_effect=Mock(return_value=(candidate,))),
     )
     monkeypatch.setattr(
-        AlbumGathering, "run", Mock(return_value=(album_recommendation,))
+        sauvignon.new_wine,
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=Mock(return_value=())),
+    )
+    monkeypatch.setattr(
+        AlbumGathering,
+        "run",
+        AsyncMock(side_effect=Mock(return_value=(album_recommendation,))),
     )
     monkeypatch.setattr(
         sauvignon,
-        "load_first_track",
-        Mock(return_value=first),
+        "async_load_first_track",
+        AsyncMock(side_effect=Mock(return_value=first)),
     )
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
@@ -429,12 +438,12 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
             {"uris": ["spotify:track:first"]},
         )
     ]
-    assert sauvignon.previously_added_album_keys(tmp_path / "sauvignon.jsonl") == {
+    assert (sauvignon.previously_added_album_keys(tmp_path / "sauvignon.jsonl")) == {
         album_recommendation.key
     }
 
 
-def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
+async def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -472,10 +481,12 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
     monkeypatch.setattr(
         LegacySauvignon,
         "refresh",
-        Mock(
-            return_value=(
-                [blast_from_past.Scrobble("Seed", "Seed", "Seed Album", 1)],
-                0,
+        AsyncMock(
+            side_effect=Mock(
+                return_value=(
+                    [blast_from_past.Scrobble("Seed", "Seed", "Seed Album", 1)],
+                    0,
+                )
             )
         ),
     )
@@ -500,18 +511,22 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        CandidateGathering, "run", Mock(return_value=(track_candidate(),))
+        CandidateGathering,
+        "run",
+        AsyncMock(side_effect=Mock(return_value=(track_candidate(),))),
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
-        "load_playlist_tracks",
-        Mock(return_value=()),
+        "async_load_playlist_tracks",
+        AsyncMock(side_effect=Mock(return_value=())),
     )
-    monkeypatch.setattr(AlbumGathering, "run", Mock(return_value=recommendations))
+    monkeypatch.setattr(
+        AlbumGathering, "run", AsyncMock(side_effect=Mock(return_value=recommendations))
+    )
     monkeypatch.setattr(
         sauvignon,
-        "load_first_track",
-        _fixture_first_track,
+        "async_load_first_track",
+        AsyncMock(side_effect=_fixture_first_track),
     )
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
@@ -532,18 +547,24 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
     assert summary.paused is True
     assert summary.selected == 1
     assert spotify.posts == []
-    assert sauvignon.previously_added_album_keys(tmp_path / "dry.jsonl") == set()
+    assert (sauvignon.previously_added_album_keys(tmp_path / "dry.jsonl")) == set()
 
 
-def test_fill_sauvignon_full_playlist_and_invalid_limits(
+async def test_fill_sauvignon_full_playlist_and_invalid_limits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(LegacySauvignon, "refresh", lambda *_args, **_kwargs: ([], 0))
+    monkeypatch.setattr(
+        LegacySauvignon,
+        "refresh",
+        AsyncMock(side_effect=lambda *_args, **_kwargs: ([], 0)),
+    )
     monkeypatch.setattr(
         sauvignon.new_wine,
-        "load_playlist_tracks",
-        lambda *_args, **_kwargs: tuple(object() for _ in range(20)),
+        "async_load_playlist_tracks",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: tuple(object() for _ in range(20))
+        ),
     )
     summary = sauvignon.fill_sauvignon_from_lastfm(
         object(),
@@ -562,12 +583,14 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
         {"seed_count": 0},
     ):
         with pytest.raises(sauvignon.SauvignonConfigError):
-            sauvignon.fill_sauvignon_from_lastfm(
-                object(),
-                object(),
-                SauvignonOptions(playlist_id="sauvignon", **kwargs),
-                SauvignonCallbacks(choice_reader=None),
-                SauvignonResources(log_path=tmp_path / "invalid.jsonl"),
+            (
+                sauvignon.fill_sauvignon_from_lastfm(
+                    object(),
+                    object(),
+                    SauvignonOptions(playlist_id="sauvignon", **kwargs),
+                    SauvignonCallbacks(choice_reader=None),
+                    SauvignonResources(log_path=tmp_path / "invalid.jsonl"),
+                )
             )
 
 
@@ -582,7 +605,7 @@ class AlbumChoicePromptsOnlyForMateriallyDifferentEditionsScenario:
 
     called: bool
 
-    def choose_album(self, *_args: object) -> str:
+    async def choose_album(self, *_args: object) -> str:
         """Execute the original should not prompt mock boundary.
 
         Args:

@@ -112,7 +112,7 @@ def service(tmp_path: Path) -> StateService:
     return StateService(JsonStateStore(tmp_path / "state.json"))
 
 
-def test_namespaces_share_one_document(tmp_path: Path) -> None:
+async def test_namespaces_share_one_document(tmp_path: Path) -> None:
     """Namespaces share one document.
 
     Args:
@@ -124,17 +124,17 @@ def test_namespaces_share_one_document(tmp_path: Path) -> None:
 
     first_value = first.load()
     first_value["count"] = 2
-    first.save(first_value)
+    (first.save(first_value))
     second_value = second.load()
     second_value["enabled"] = True
-    second.save(second_value)
+    (second.save(second_value))
 
     document = json.loads((tmp_path / "state.json").read_text())
     assert document["namespaces"]["first"]["value"] == {"count": 2}
     assert document["namespaces"]["second"]["value"] == {"enabled": True}
 
 
-def test_concurrent_different_namespaces_merge(tmp_path: Path) -> None:
+async def test_concurrent_different_namespaces_merge(tmp_path: Path) -> None:
     """Concurrent different namespaces merge.
 
     Args:
@@ -147,16 +147,16 @@ def test_concurrent_different_namespaces_merge(tmp_path: Path) -> None:
     second_value = second.load()
 
     first_value["count"] = 1
-    first.save(first_value)
+    (first.save(first_value))
     second_value["count"] = 2
-    second.save(second_value)
+    (second.save(second_value))
 
     snapshot = state.snapshot()
     assert snapshot.document["namespaces"]["first"]["value"]["count"] == 1
     assert snapshot.document["namespaces"]["second"]["value"]["count"] == 2
 
 
-def test_namespace_write_rebases_after_store_conflict(tmp_path: Path) -> None:
+async def test_namespace_write_rebases_after_store_conflict(tmp_path: Path) -> None:
     """Namespace write rebases after store conflict.
 
     Args:
@@ -166,7 +166,7 @@ def test_namespace_write_rebases_after_store_conflict(tmp_path: Path) -> None:
 
     state = StateService(ConflictingStore(backing_store))
     queue = state.namespace("queue", ObjectDefinition({"count": 0}))
-    queue.load()
+    (queue.load())
 
     saved = queue.save({"count": 1})
 
@@ -175,7 +175,7 @@ def test_namespace_write_rebases_after_store_conflict(tmp_path: Path) -> None:
     assert saved.document["namespaces"]["external"]["value"] == {"completed": True}
 
 
-def test_concurrent_same_namespace_is_rejected(tmp_path: Path) -> None:
+async def test_concurrent_same_namespace_is_rejected(tmp_path: Path) -> None:
     """Concurrent same namespace is rejected.
 
     Args:
@@ -188,14 +188,14 @@ def test_concurrent_same_namespace_is_rejected(tmp_path: Path) -> None:
     second_value = second.load()
 
     first_value["count"] = 1
-    first.save(first_value)
+    (first.save(first_value))
     second_value["count"] = 2
 
     with pytest.raises(StateConflictError, match="changed in another process"):
-        second.save(second_value)
+        (second.save(second_value))
 
 
-def test_load_returns_detached_values(tmp_path: Path) -> None:
+async def test_load_returns_detached_values(tmp_path: Path) -> None:
     """Load returns detached values.
 
     Args:
@@ -208,10 +208,10 @@ def test_load_returns_detached_values(tmp_path: Path) -> None:
     loaded["items"].append("one")
 
     assert detached == {"items": []}
-    assert namespace.load() == {"items": []}
+    assert (namespace.load()) == {"items": []}
 
 
-def test_save_requires_load(tmp_path: Path) -> None:
+async def test_save_requires_load(tmp_path: Path) -> None:
     """Save requires load.
 
     Args:
@@ -220,10 +220,10 @@ def test_save_requires_load(tmp_path: Path) -> None:
     namespace = service(tmp_path).namespace("queue", ObjectDefinition())
 
     with pytest.raises(StateDocumentError, match="must be loaded"):
-        namespace.save({"count": 1})
+        (namespace.save({"count": 1}))
 
 
-def test_replace_uses_revision_guard(tmp_path: Path) -> None:
+async def test_replace_uses_revision_guard(tmp_path: Path) -> None:
     """Replace uses revision guard.
 
     Args:
@@ -232,8 +232,8 @@ def test_replace_uses_revision_guard(tmp_path: Path) -> None:
     state = service(tmp_path)
     original = state.snapshot()
     first = state.namespace("queue", ObjectDefinition())
-    first.load()
-    first.save({"count": 1})
+    (first.load())
+    (first.save({"count": 1}))
 
     with pytest.raises(StateConflictError):
         state.replace(
@@ -285,7 +285,7 @@ def test_replace_namespace_wraps_domain_validation_errors(tmp_path: Path) -> Non
         )
 
 
-def test_export_does_not_change_state(tmp_path: Path) -> None:
+async def test_export_does_not_change_state(tmp_path: Path) -> None:
     """Export does not change state.
 
     Args:
@@ -293,8 +293,8 @@ def test_export_does_not_change_state(tmp_path: Path) -> None:
     """
     state = service(tmp_path)
     namespace = state.namespace("queue", ObjectDefinition())
-    namespace.load()
-    namespace.save({"count": 1})
+    (namespace.load())
+    (namespace.save({"count": 1}))
     before = state.snapshot()
 
     exported = state.export(tmp_path / "snapshot.json")

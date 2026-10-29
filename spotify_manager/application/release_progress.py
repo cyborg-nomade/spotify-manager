@@ -85,7 +85,7 @@ class ReleaseProgress:
         self.completed.add(artist.key)
         self.opening.active["completed_artist_keys"] = sorted(self.completed)
 
-    def complete(self, artist: RankedArtist) -> None:
+    async def complete(self, artist: RankedArtist) -> None:
         """Mark an artist complete and batch read-only real-run checkpoints.
 
         Args:
@@ -94,20 +94,20 @@ class ReleaseProgress:
         self.mark_completed(artist)
         if self.preview:
             return
-        self.checkpoint_completed()
+        await self.checkpoint_completed()
 
-    def checkpoint_completed(self) -> None:
+    async def checkpoint_completed(self) -> None:
         """Batch a real artist completion after its preceding accepted effects."""
         self.completed_changes += 1
         if self.completed_changes >= self.interval:
-            self.save()
+            await self.save()
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Accept working state, then reset the real-run batching counter."""
-        self.effects.persist(self.opening.state)
+        await self.effects.persist(self.opening.state)
         self.completed_changes = 0
 
-    def flush_learning(self, force: bool = False) -> None:
+    async def flush_learning(self, force: bool = False) -> None:
         """Save only preview learning when its original checkpoint is due.
 
         Args:
@@ -117,10 +117,10 @@ class ReleaseProgress:
             return
         if not force and self.learned_changes < self.interval:
             return
-        self.effects.persist(self.opening.persisted_state)
+        await self.effects.persist(self.opening.persisted_state)
         self.learned_changes = 0
 
-    def remember_mapping(
+    async def remember_mapping(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate
     ) -> None:
         """Remember the mapping and batch preview learning separately from run state.
@@ -136,9 +136,9 @@ class ReleaseProgress:
             mapped
         )
         self.learned_changes += 1
-        self.flush_learning()
+        await self.flush_learning()
 
-    def skip_permanently(self, artist: RankedArtist) -> None:
+    async def skip_permanently(self, artist: RankedArtist) -> None:
         """Save a permanent skip with the original preview/real audit ordering.
 
         Args:
@@ -156,15 +156,15 @@ class ReleaseProgress:
             _section(self.opening.persisted_state, "skipped_artists")[artist.key] = (
                 record
             )
-            self.effects.persist(self.opening.persisted_state)
+            await self.effects.persist(self.opening.persisted_state)
             self.learned_changes = 0
             return
-        self.effects.audit(
+        await self.effects.audit(
             self.opening.run_id, "artist_permanently_skipped", artist=artist.name
         )
-        self.save()
+        await self.save()
 
-    def pause(self, artist: RankedArtist, release: str | None = None) -> None:
+    async def pause(self, artist: RankedArtist, release: str | None = None) -> None:
         """Flush preview learning or audit a pause before returning its summary.
 
         Args:
@@ -172,12 +172,12 @@ class ReleaseProgress:
             release: Reviewed release, absent for an artist-mapping pause.
         """
         if self.preview:
-            self.flush_learning(force=True)
+            await self.flush_learning(force=True)
             return
         details: dict[str, object] = {"artist": artist.name}
         if release is not None:
             details["release"] = release
-        self.effects.audit(self.opening.run_id, "run_paused", **details)
+        await self.effects.audit(self.opening.run_id, "run_paused", **details)
 
     def store_pending(self, pending: PendingSingle) -> None:
         """Retain a pending single in working state, including during previews.
@@ -191,7 +191,7 @@ class ReleaseProgress:
             "first_track": asdict(pending.first_track),
         }
 
-    def record(self, result: ReleaseCheckResult, terminal: bool = True) -> None:
+    async def record(self, result: ReleaseCheckResult, terminal: bool = True) -> None:
         """Append a result, then audit it before changing terminal restart state.
 
         Args:
@@ -201,7 +201,7 @@ class ReleaseProgress:
         self.results.append(result)
         if self.preview:
             return
-        self.effects.audit(
+        await self.effects.audit(
             self.opening.run_id, "release_checked", result=asdict(result)
         )
         if not terminal:
@@ -216,23 +216,23 @@ class ReleaseProgress:
         }
         _section(self.opening.state, "pending_singles").pop(result.release_id, None)
 
-    def finish_release(self) -> None:
+    async def finish_release(self) -> None:
         """Clear the current marker and checkpoint accepted real-run release work."""
         self.opening.active["pending_release_id"] = None
         if not self.preview:
-            self.save()
+            await self.save()
 
-    def finish(self) -> None:
+    async def finish(self) -> None:
         """Accept final success state before its audit, or flush preview learning."""
         if self.preview:
-            self.flush_learning(force=True)
+            await self.flush_learning(force=True)
             return
         state = self.opening.state
         state["last_successful_check_at"] = self.effects.clock().isoformat()
         state["last_checked_through"] = self.opening.checked_through.isoformat()
         state["active_run"] = None
-        self.save()
-        self.effects.audit(
+        await self.save()
+        await self.effects.audit(
             self.opening.run_id,
             "run_completed",
             checked_through=self.opening.checked_through.isoformat(),

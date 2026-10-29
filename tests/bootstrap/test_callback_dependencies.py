@@ -199,6 +199,25 @@ def test_argument_guard_rejects_bound_methods() -> None:
     assert function_argument_reason(uses[0]) is None
 
 
+@pytest.mark.parametrize("dependency", ["source.read", "stage.run", "self.execute"])
+def test_thread_bridge_requires_an_exact_reviewed_resource_reason(
+    dependency: str,
+) -> None:
+    """Reject undocumented worker calls even when the method type is unknown.
+
+    Args:
+        dependency: Unreviewed I/O or concealed application execution dependency.
+    """
+    tree = ast.parse(
+        "import asyncio\n"
+        "async def execute(source, stage, self):\n"
+        f"    await asyncio.to_thread({dependency})\n"
+    )
+    uses = function_arguments("example", tree, defined_functions({"example": tree}))
+    assert len(uses) == 1
+    assert function_argument_reason(uses[0]) is None
+
+
 def test_argument_guard_ignores_data_shadowing_a_function() -> None:
     """Do not mistake an ordinary parameter for an imported function name."""
     tree = ast.parse(
@@ -207,6 +226,14 @@ def test_argument_guard_ignores_data_shadowing_a_function() -> None:
     assert (
         function_arguments("example", tree, defined_functions({"example": tree})) == []
     )
+
+
+def test_executor_cannot_conceal_an_application_stage() -> None:
+    """Reject executor dispatch outside the exact synchronous API loop bridge."""
+    tree = ast.parse("def execute(executor, stage):\n    executor.submit(stage.run)\n")
+    uses = function_arguments("example", tree, defined_functions({"example": tree}))
+    assert len(uses) == 1
+    assert function_argument_reason(uses[0]) is None
 
 
 def _prohibited_arguments(module: str, tree: ast.Module, known: set[str]) -> list[str]:

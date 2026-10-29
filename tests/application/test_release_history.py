@@ -29,7 +29,7 @@ class Catalog:
     events: list[tuple[str, object]] = field(default_factory=list)
     fail_likes: bool = False
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read one release that passed the inexpensive history prefilter.
 
         Args:
@@ -41,7 +41,7 @@ class Catalog:
         self.events.append(("tracks", release.spotify_id))
         return self.releases.get(release.spotify_id, ())
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Populate missing statuses without overwriting accepted cached observations.
 
         Args:
@@ -59,26 +59,24 @@ class Catalog:
             cache.setdefault(spotify_id, self.liked.get(spotify_id, False))
 
 
-def test_insufficient_history_never_reads_tracks_or_membership() -> None:
+async def test_insufficient_history_never_reads_tracks_or_membership() -> None:
     """Studio minimum applies before any live observation."""
     catalog = Catalog()
     history = {("artist", "album"): frozenset({"one", "two"})}
-    assert played_releases(catalog, (release("album"),), history, {}, {}) == ()
+    assert (await played_releases(catalog, (release("album"),), history, {}, {})) == ()
     assert catalog.events == []
 
 
-def test_prefilter_can_pass_other_artist_titles_but_final_matching_rejects_them() -> (
-    None
-):
+async def test_prefilter_can_pass_other_artist_titles_but_final_matching() -> None:
     """The cheap prefilter deliberately ignores credits; the full decision does not."""
     tracks = (track("one"), track("two"), track("three"))
     catalog = Catalog(releases={"album": tracks})
     history = {("other artist", "album"): frozenset({"one", "two", "three"})}
-    assert played_releases(catalog, (release("album"),), history, {}, {}) == ()
+    assert (await played_releases(catalog, (release("album"),), history, {}, {})) == ()
     assert catalog.events == [("tracks", "album"), ("likes", ["one", "two", "three"])]
 
 
-def test_duplicate_releases_keep_result_order_and_share_observed_tracks() -> None:
+async def test_duplicate_releases_keep_result_order_and_share_observed() -> None:
     """A duplicate entry remains a result while its track read is reused."""
     album = release("album")
     tracks = (track("one"), track("two"), track("three"))
@@ -86,7 +84,9 @@ def test_duplicate_releases_keep_result_order_and_share_observed_tracks() -> Non
     history = {("artist", "album"): frozenset({"one", "two", "three"})}
     track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
     liked: dict[str, bool] = {}
-    assert played_releases(catalog, (album, album), history, track_cache, liked) == (
+    assert (
+        await played_releases(catalog, (album, album), history, track_cache, liked)
+    ) == (
         album,
         album,
     )
@@ -102,16 +102,16 @@ def test_duplicate_releases_keep_result_order_and_share_observed_tracks() -> Non
     }
 
 
-def test_track_observation_survives_a_later_membership_failure() -> None:
+async def test_track_observation_survives_a_later_membership_failure() -> None:
     """Shared accepted tracks remain cached even if subsequent membership fails."""
     album = replace(release("album"), tier=1)
     catalog = Catalog(releases={"album": (track("one"),)}, fail_likes=True)
     history = {("artist", "album"): frozenset({"one"})}
     cache: dict[str, tuple[CatalogTrack, ...]] = {}
     with pytest.raises(RuntimeError, match="likes interrupted"):
-        played_releases(catalog, (album,), history, cache, {})
+        (await played_releases(catalog, (album,), history, cache, {}))
     assert cache == {"album": (track("one"),)}
-    assert played_releases(catalog, (album,), history, cache, {}) == (album,)
+    assert (await played_releases(catalog, (album,), history, cache, {})) == (album,)
     assert catalog.events == [
         ("tracks", "album"),
         ("likes", ["one"]),
@@ -119,18 +119,20 @@ def test_track_observation_survives_a_later_membership_failure() -> None:
     ]
 
 
-def test_cached_empty_tracks_and_existing_likes_are_retained() -> None:
+async def test_cached_empty_tracks_and_existing_likes_are_retained() -> None:
     """Accepted cache contents are never refreshed by the completion use case."""
     album = replace(release("album"), tier=1)
     catalog = Catalog(releases={"album": (track("one"),)}, liked={"one": False})
     history = {("artist", "album"): frozenset({"one"})}
     likes = {"one": True}
-    assert played_releases(catalog, (album,), history, {"album": ()}, likes) == ()
+    assert (
+        await played_releases(catalog, (album,), history, {"album": ()}, likes)
+    ) == ()
     assert catalog.events == [("likes", [])]
     assert likes == {"one": True}
 
 
-def test_configured_limits_filter_fallback_catalog_and_apply_studio_minimum() -> None:
+async def test_configured_limits_filter_fallback_catalog_and_apply_studio() -> None:
     """Existing caller-owned thresholds continue to control observation eligibility."""
     album, single = release("album"), replace(release("single"), tier=1)
     catalog = Catalog(releases={"album": (track("one"),), "single": (track("single"),)})
@@ -138,7 +140,9 @@ def test_configured_limits_filter_fallback_catalog_and_apply_studio_minimum() ->
         ("artist", "album"): frozenset({"one"}),
         ("artist", "single"): frozenset({"single"}),
     }
-    assert played_releases(
-        catalog, (single, album), history, {}, {}, release_limit=1, studio_minimum=1
+    assert (
+        await played_releases(
+            catalog, (single, album), history, {}, {}, release_limit=1, studio_minimum=1
+        )
     ) == (album,)
     assert catalog.events == [("tracks", "album"), ("likes", ["one"])]

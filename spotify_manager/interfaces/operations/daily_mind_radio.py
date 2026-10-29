@@ -3,8 +3,6 @@
 from datetime import date as date
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.historical_values import (
     DailyMindRadioBatch as DailyMindRadioBatch,
 )
@@ -12,6 +10,7 @@ from spotify_manager.application.historical_values import (
     DailyMindRadioSpotifySummary as DailyMindRadioSpotifySummary,
 )
 from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.historical_playlists import anniversary_playlist
 from spotify_manager.bootstrap.historical_playlists import anniversary_selection
 from spotify_manager.routines import blast_from_past as blast_from_past
@@ -24,7 +23,7 @@ from spotify_manager.routines.daily_mind_radio import (
 )
 
 
-def select_daily_mind_radio(
+async def select_daily_mind_radio(
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
     random_timestamp_reader: RandomTimestampReader = (FETCH_RANDOM_TIMESTAMP_RESOURCE),
@@ -48,10 +47,10 @@ def select_daily_mind_radio(
     configured = anniversary_selection(
         path, today, random_timestamp_reader, progress_callback
     )
-    return configured.run()
+    return await configured.run()
 
 
-def add_daily_mind_radio_to_spotify(
+async def add_daily_mind_radio_to_spotify(
     sp: Spotify,
     playlist_id: str,
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
@@ -92,4 +91,4 @@ def add_daily_mind_radio_to_spotify(
         retry_call,
         cancel_check,
     )
-    return configured.run(playlist_id, dry_run)
+    return await configured.run(playlist_id, dry_run)

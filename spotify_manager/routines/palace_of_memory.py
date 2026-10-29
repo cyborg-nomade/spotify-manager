@@ -5,7 +5,7 @@ from datetime import date
 from datetime import datetime as datetime
 from pathlib import Path
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.palace_values import (
     AlphabeticalCursorUpdate as AlphabeticalCursorUpdate,
@@ -31,12 +31,11 @@ from spotify_manager.application.palace_values import (
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import RandomIndexes
 from spotify_manager.application.ports.runtime import Retry
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
-
-# UFI
 from spotify_manager.domain import history as history_policy
 from spotify_manager.domain import palace_albums
 from spotify_manager.domain import palace_history
@@ -52,6 +51,15 @@ from spotify_manager.domain.palace_values import SpotifyFirstTrack as SpotifyFir
 from spotify_manager.infrastructure import palace_catalog
 from spotify_manager.infrastructure import palace_cursor
 from spotify_manager.infrastructure import palace_files
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingRandomIndexes as LegacyRandomIndexes,
+)
+
+# UFI
 from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.infrastructure.routine_state_codecs import PalaceOfMemoryStateCodec
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
@@ -144,7 +152,7 @@ def _append_refresh_log(path: Path, refresh: SavedAlbumRefresh) -> None:
     palace_files.append_audit(path, refresh, "saved-album refresh log")
 
 
-def refresh_saved_albums(
+async def async_refresh_saved_albums(
     spotify: Spotify,
     *,
     path: Path = DEFAULT_ALBUMS_PATH,
@@ -173,7 +181,7 @@ def refresh_saved_albums(
         refresh_saved_albums as operation,
     )
 
-    return operation(
+    return await operation(
         spotify,
         path=path,
         backups_dir=backups_dir,
@@ -289,7 +297,7 @@ def rank_albums(
     return history_policy.rank_albums(scrobbles)
 
 
-def select_historical_albums(
+async def async_select_historical_albums(
     *,
     count: int = HISTORY_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
@@ -322,7 +330,7 @@ def select_historical_albums(
         select_historical_albums as operation,
     )
 
-    return operation(
+    return await operation(
         count=count,
         path=path,
         today=today,
@@ -346,7 +354,7 @@ def _spotify_artist_names(raw_album: dict[str, object]) -> tuple[str, ...]:
     return palace_catalog.artist_names(raw_album)
 
 
-def search_spotify_album(
+async def async_search_spotify_album(
     spotify: Spotify,
     artist: str,
     album: str,
@@ -369,8 +377,8 @@ def search_spotify_album(
     clean_artist = artist.replace('"', " ").strip()
     clean_album = album.replace('"', " ").strip()
     for attempt in retry_call.attempts(f"searching Spotify for {artist} - {album}"):
-        with attempt:
-            response = _search_album(spotify, clean_album, clean_artist)
+        async with attempt:
+            response = await _search_album(spotify, clean_album, clean_artist)
     return palace_albums.preferred_catalog(
         artist,
         album,
@@ -379,7 +387,7 @@ def search_spotify_album(
     )
 
 
-def load_first_track(
+async def async_load_first_track(
     spotify: Spotify,
     album: SpotifyAlbum,
     retry_call: RetryCall,
@@ -398,8 +406,8 @@ def load_first_track(
         PalaceOfMemoryDataError: Original track data is invalid or has no marker.
     """
     for attempt in retry_call.attempts(f"loading the first track of {album.album}"):
-        with attempt:
-            response = _first_album_page(spotify, album)
+        async with attempt:
+            response = await _first_album_page(spotify, album)
     return palace_catalog.first_track(response, album)
 
 
@@ -444,9 +452,8 @@ def save_state(
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "palace_of_memory",
@@ -455,7 +462,13 @@ def _state_access(
     )
 
 
-def set_alphabetical_cursor(
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
+
+
+async def async_set_alphabetical_cursor(
     spotify: Spotify,
     position: int,
     *,
@@ -490,7 +503,7 @@ def set_alphabetical_cursor(
         set_alphabetical_cursor as operation,
     )
 
-    return operation(
+    return await operation(
         spotify,
         position,
         albums_path=albums_path,
@@ -508,7 +521,7 @@ def _append_log(path: Path, summary: PalaceOfMemorySummary) -> None:
     palace_files.append_audit(path, summary, "Palace log")
 
 
-def fill_palace_of_memory(
+async def async_fill_palace_of_memory(
     spotify: Spotify,
     options: PalaceOptions,
     callbacks: PalaceCallbacks,
@@ -517,25 +530,25 @@ def fill_palace_of_memory(
     """Gather original alphabetical and historical markers and apply live authority.
 
     Args:
-    spotify: Caller-owned client.
-    options: Destinations and execution mode.
-    callbacks: Operator decisions, notifications and retry ownership.
-    resources: Persistent files and checkpoint authority.
+        spotify: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-    The original typed summary and accepted effects.
+        The original typed summary and accepted effects.
 
     Raises:
-    RuntimeError: Observations, selections or persistence cannot complete.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.operations.palace_of_memory import (
         fill_palace_of_memory as operation,
     )
 
-    return operation(spotify, options, callbacks, resources)
+    return await operation(spotify, options, callbacks, resources)
 
 
-def _read_palace_playlist(
+async def _read_palace_playlist(
     spotify: Spotify,
     playlist_id: str,
     retry: RetryCall,
@@ -545,40 +558,42 @@ def _read_palace_playlist(
         "rechecking Palace of Memory" if recheck else "loading Palace of Memory"
     )
     for attempt in retry.attempts(description):
-        with attempt:
-            playlist = blast_from_past.load_playlist_state(spotify, playlist_id)
+        async with attempt:
+            playlist = await blast_from_past.async_load_playlist_state(
+                spotify, playlist_id
+            )
     if not isinstance(playlist, blast_from_past.PlaylistState):
         raise PalaceOfMemoryDataError("Spotify returned invalid Palace playlist data.")
     return playlist
 
 
-def _append_first_tracks(
+async def _append_first_tracks(
     spotify: Spotify,
     playlist_id: str,
     pending: tuple[SpotifyFirstTrack, ...],
     retry: RetryCall,
 ) -> None:
     for attempt in retry.attempts("adding first tracks to Palace of Memory"):
-        with attempt:
-            _post_first_tracks(spotify, playlist_id, pending)
+        async with attempt:
+            await _post_first_tracks(spotify, playlist_id, pending)
 
 
-def _post_first_tracks(
+async def _post_first_tracks(
     spotify: Spotify,
     playlist_id: str,
     pending: tuple[SpotifyFirstTrack, ...],
 ) -> object:
-    return spotify._post(
+    return await spotify._post(
         f"playlists/{playlist_id}/items",
         payload={"uris": [track.uri for track in pending]},
     )
 
 
-def _read_saved_album_page(
+async def _read_saved_album_page(
     spotify: Spotify,
     current_offset: int,
 ) -> object:
-    return spotify.current_user_saved_albums(
+    return await spotify.current_user_saved_albums(
         limit=SAVED_ALBUM_PAGE_SIZE,
         offset=current_offset,
     )
@@ -597,8 +612,10 @@ def _replace_saved_albums(
     )
 
 
-def _search_album(spotify: Spotify, clean_album: str, clean_artist: str) -> object:
-    return spotify.search(
+async def _search_album(
+    spotify: Spotify, clean_album: str, clean_artist: str
+) -> object:
+    return await spotify.search(
         q=f'album:"{clean_album}" artist:"{clean_artist}"',
         type="album",
         limit=SPOTIFY_SEARCH_LIMIT,
@@ -606,5 +623,223 @@ def _search_album(spotify: Spotify, clean_album: str, clean_artist: str) -> obje
     )
 
 
-def _first_album_page(spotify: Spotify, album: SpotifyAlbum) -> object:
-    return spotify.album_tracks(album.spotify_id, limit=50, offset=0)
+async def _first_album_page(spotify: Spotify, album: SpotifyAlbum) -> object:
+    return await spotify.album_tracks(album.spotify_id, limit=50, offset=0)
+
+
+def refresh_saved_albums(
+    spotify: LegacySpotify,
+    *,
+    path: Path = DEFAULT_ALBUMS_PATH,
+    backups_dir: Path = DEFAULT_ALBUM_BACKUPS_DIR,
+    log_path: Path = DEFAULT_ALBUM_REFRESH_LOG_PATH,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+    """Refresh original canonical saved facts before alphabetical selection.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        path: Original canonical mirror location.
+        backups_dir: Original replaced-mirror backup directory.
+        log_path: Original preflight audit location.
+        retry_call: Original optional read retry policy.
+        progress_callback: Original optional paging presenter.
+
+    Returns:
+        Original refreshed mirror and complete preflight outcome.
+
+    Raises:
+        PalaceOfMemoryError: Original live paging, replacement or audit fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_refresh_saved_albums(
+            legacy_spotify(spotify),
+            path=path,
+            backups_dir=backups_dir,
+            log_path=log_path,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def select_historical_albums(
+    *,
+    count: int = HISTORY_COUNT,
+    path: Path = DEFAULT_SCROBBLES_PATH,
+    today: date | None = None,
+    random_index_reader: RandomIndexReader | LegacyRandomIndexes = RANDOM_INDEXES,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
+    """Gather original eligible album ranks and Random.org date selections.
+
+    Args:
+        count: Original requested historical selection size.
+        path: Original complete scrobble export location.
+        today: Original optional effective local date.
+        random_index_reader: Original caller-owned index reader.
+        progress_callback: Original optional stage presenter.
+
+    Returns:
+        Original generated time, cutoff, eligible count and ordered album facts.
+
+    Raises:
+        PalaceOfMemoryError: Original history, population or random source fails.
+        IndexError: An original custom index is out of range.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonRandomIndexes
+
+    return run_python(
+        async_select_historical_albums(
+            count=count,
+            path=path,
+            today=today,
+            random_index_reader=PythonRandomIndexes(random_index_reader),
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def search_spotify_album(
+    spotify: LegacySpotify, artist: str, album: str, retry_call: RetryCall | LegacyRetry
+) -> SpotifyAlbum | None:
+    """Resolve original exact-artist historical editions by title and search rank.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        artist: Original expected artist display spelling.
+        album: Original historical album title.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original preferred qualified edition or none for no safe match.
+
+    Raises:
+        PalaceOfMemoryDataError: The original search response shape is invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_search_spotify_album(
+            legacy_spotify(spotify), artist, album, PythonRetry(retry_call)
+        )
+    )
+
+
+def load_first_track(
+    spotify: LegacySpotify, album: SpotifyAlbum, retry_call: RetryCall | LegacyRetry
+) -> SpotifyFirstTrack:
+    """Read the original first complete playable marker in response order.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        album: Original resolved historical or saved release.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original first complete marker without reordering or paging ahead.
+
+    Raises:
+        PalaceOfMemoryDataError: Original track data is invalid or has no marker.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_first_track(legacy_spotify(spotify), album, PythonRetry(retry_call))
+    )
+
+
+def set_alphabetical_cursor(
+    spotify: LegacySpotify,
+    position: int,
+    *,
+    albums_path: Path = DEFAULT_ALBUMS_PATH,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+    album_backups_dir: Path = DEFAULT_ALBUM_BACKUPS_DIR,
+    album_refresh_log_path: Path = DEFAULT_ALBUM_REFRESH_LOG_PATH,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    progress_callback: ProgressCallback | None = None,
+) -> AlphabeticalCursorUpdate:
+    """Refresh live facts before persisting the original manual next position.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        position: Original one-based requested next position.
+        albums_path: Original canonical mirror location.
+        state_path: Original cursor location.
+        state_service: Original optional shared state authority.
+        album_backups_dir: Original mirror backup directory.
+        album_refresh_log_path: Original live preflight audit location.
+        retry_call: Original optional retry policy.
+        progress_callback: Original optional stage presenter.
+
+    Returns:
+        Original next position, full saved model and live preflight outcome.
+
+    Raises:
+        PalaceOfMemoryError: Original preflight, position or checkpoint fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_set_alphabetical_cursor(
+            legacy_spotify(spotify),
+            position,
+            albums_path=albums_path,
+            state_path=state_path,
+            state_service=state_service,
+            album_backups_dir=album_backups_dir,
+            album_refresh_log_path=album_refresh_log_path,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def fill_palace_of_memory(
+    spotify: LegacySpotify,
+    options: PalaceOptions,
+    callbacks: PalaceCallbacks,
+    resources: PalaceResources | None = None,
+) -> PalaceOfMemorySummary:
+    """Gather original alphabetical and historical markers and apply live authority.
+
+    Args:
+        spotify: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
+
+    Returns:
+        The original typed summary and accepted effects.
+
+    Raises:
+        RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_palace_callbacks,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_fill_palace_of_memory(
+            legacy_spotify(spotify),
+            options,
+            python_palace_callbacks(callbacks),
+            resources,
+        )
+    )

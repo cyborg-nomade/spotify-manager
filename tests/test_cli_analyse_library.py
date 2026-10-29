@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -49,11 +50,15 @@ def test_async_command_prints_summary_without_constructing_client(
         capsys: Original capsys.
     """
     scenario = AsyncCommandPrintsSummaryWithoutConstructingClientScenario()
-    monkeypatch.setattr(main, "review_client", scenario.no_client)
     monkeypatch.setattr(
-        main.library_sync, "analyse_library_async_routine", scenario.complete_export
+        main, "_native_review_client", AsyncMock(side_effect=scenario.no_client)
     )
-    main.analyse_library_async()
+    monkeypatch.setattr(
+        main.library_sync,
+        "analyse_library_async_routine",
+        AsyncMock(side_effect=scenario.complete_export),
+    )
+    (main.analyse_library_async())
     output = capsys.readouterr().out
     assert "Export library mirror updated" in output
     assert "Run: run-1" in output
@@ -70,13 +75,17 @@ def test_sync_command_uses_no_retry_client_and_prints_summary(
         capsys: Original capsys.
     """
     spotify = object()
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=Mock(return_value=spotify))
+    )
     calls: list[object] = []
     scenario = SyncCommandUsesNoRetryClientAndPrintsSummaryScenario(calls=calls)
     monkeypatch.setattr(
-        main.library_sync, "analyse_library_sync_routine", scenario.complete_sync
+        main.library_sync,
+        "analyse_library_sync_routine",
+        AsyncMock(side_effect=scenario.complete_sync),
     )
-    main.analyse_library_sync()
+    (main.analyse_library_sync())
     assert calls == [spotify]
     assert "Live library mirror updated" in capsys.readouterr().out
 
@@ -85,7 +94,9 @@ def test_sync_command_handles_rate_limit(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
 
     def rate_limited(*_args: Any, **_kwargs: Any) -> None:
         raise main.library_sync.SpotifyRateLimitError(120)
@@ -93,11 +104,11 @@ def test_sync_command_handles_rate_limit(
     monkeypatch.setattr(
         main.library_sync,
         "analyse_library_sync_routine",
-        rate_limited,
+        AsyncMock(side_effect=rate_limited),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.analyse_library_sync()
+        (main.analyse_library_sync())
 
     assert exc.value.exit_code == 0
     output = capsys.readouterr().out
@@ -109,7 +120,9 @@ def test_sync_command_handles_clean_retry_cancellation(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
 
     def cancelled(*_args: Any, **_kwargs: Any) -> None:
         raise main.library_sync.LibraryAnalysisCancelledError("Analysis paused.")
@@ -117,11 +130,11 @@ def test_sync_command_handles_clean_retry_cancellation(
     monkeypatch.setattr(
         main.library_sync,
         "analyse_library_sync_routine",
-        cancelled,
+        AsyncMock(side_effect=cancelled),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.analyse_library_sync()
+        (main.analyse_library_sync())
 
     assert exc.value.exit_code == 0
     assert "Progress was saved" in capsys.readouterr().out
@@ -151,11 +164,11 @@ def test_analysis_command_handles_interrupt_and_sync_failure(
     monkeypatch.setattr(
         main.library_sync,
         "analyse_library_async_routine",
-        fail,
+        AsyncMock(side_effect=fail),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.analyse_library_async()
+        (main.analyse_library_async())
 
     assert exc.value.exit_code == exit_code
     assert message in capsys.readouterr().out
@@ -282,9 +295,11 @@ def test_restore_library_sync_command(
         calls.append(run_id)
         return ("albums_total_new_sync.json", "stats_history_sync.json")
 
-    monkeypatch.setattr(main.library_sync, "restore_library_sync", restore)
+    monkeypatch.setattr(
+        main.library_sync, "restore_library_sync", AsyncMock(side_effect=restore)
+    )
 
-    main.restore_library_sync_command("run-1", yes=True)
+    (main.restore_library_sync_command("run-1", yes=True))
 
     assert calls == ["run-1"]
     assert "albums_total_new_sync.json" in capsys.readouterr().out

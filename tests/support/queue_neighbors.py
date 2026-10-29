@@ -46,7 +46,7 @@ class Neighbors:
 
     requests: list[tuple[str, int]]
 
-    def similar_artists(
+    async def similar_artists(
         self, artist: str, *, limit: int = 50
     ) -> tuple[LastFmSimilarArtist, ...]:
         """Observe one read and return the original ordered fixture.
@@ -62,7 +62,7 @@ class Neighbors:
         return tuple(reversed(NEIGHBORS)) if artist == "Seed B" else NEIGHBORS
 
 
-def original_outcome(limit: int, week: date) -> object:
+async def original_outcome(limit: int, week: date) -> object:
     """Observe the compatibility runner without files or network.
 
     Args:
@@ -79,7 +79,7 @@ def original_outcome(limit: int, week: date) -> object:
         patch.object(legacy, "_save_cache") as save,
         patch.object(legacy, "previously_added_artist_keys", return_value={"previous"}),
     ):
-        result = legacy.gather_artist_recommendations(
+        result = await legacy.async_gather_artist_recommendations(
             cast(legacy.LastFmReader, reader),
             SEEDS,
             {"heard"},

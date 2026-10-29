@@ -14,6 +14,7 @@ from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.retry_attempts import RetryAttempts
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import RetryNotice
+from spotify_manager.routines.scrobble_history import LastFmReader
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ class DelayList:
 
     delays: list[float]
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Record the original requested delay.
 
         Args:
@@ -161,7 +162,7 @@ class Answer:
 
     value: str
 
-    def choose_release(self, *values: object) -> str:
+    async def choose_release(self, *values: object) -> str:
         """Return the scripted release choice.
 
         Args:
@@ -172,7 +173,7 @@ class Answer:
         """
         return self.value
 
-    def choose_endpoint(self, *values: object) -> str:
+    async def choose_endpoint(self, *values: object) -> str:
         """Return the scripted endpoint choice.
 
         Args:
@@ -194,7 +195,7 @@ class Answer:
         """
         return self.value
 
-    def choose_artist(self, *values: object) -> str:
+    async def choose_artist(self, *values: object) -> str:
         """Return the scripted artist choice.
 
         Args:
@@ -205,7 +206,7 @@ class Answer:
         """
         return self.value
 
-    def choose_album(self, *values: object) -> str:
+    async def choose_album(self, *values: object) -> str:
         """Return the scripted album choice.
 
         Args:
@@ -216,7 +217,7 @@ class Answer:
         """
         return self.value
 
-    def choose_mode(self, *values: object) -> str:
+    async def choose_mode(self, *values: object) -> str:
         """Return the scripted selection mode.
 
         Args:
@@ -238,7 +239,7 @@ class Answer:
         """
         return self.value
 
-    def choose_composer(self, *values: object) -> str:
+    async def choose_composer(self, *values: object) -> str:
         """Return the scripted composer choice.
 
         Args:
@@ -249,7 +250,7 @@ class Answer:
         """
         return self.value
 
-    def choose_action(self, *values: object) -> str:
+    async def choose_action(self, *values: object) -> str:
         """Return the scripted review action.
 
         Args:
@@ -271,7 +272,7 @@ class UnexpectedInteraction:
 
     message: str
 
-    def choose_release(self, *values: object) -> Never:
+    async def choose_release(self, *values: object) -> Never:
         """Reject an unexpected release choice.
 
         Args:
@@ -304,7 +305,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def choose_artist(self, *values: object) -> Never:
+    async def choose_artist(self, *values: object) -> Never:
         """Reject an unexpected artist choice.
 
         Args:
@@ -315,7 +316,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def choose_album(self, *values: object) -> Never:
+    async def choose_album(self, *values: object) -> Never:
         """Reject an unexpected album choice.
 
         Args:
@@ -326,7 +327,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def choose_mode(self, *values: object) -> Never:
+    async def choose_mode(self, *values: object) -> Never:
         """Reject an unexpected selection mode.
 
         Args:
@@ -337,7 +338,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def choose_transition(self, *values: object) -> Never:
+    async def choose_transition(self, *values: object) -> Never:
         """Reject an unexpected transition choice.
 
         Args:
@@ -370,7 +371,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def order_releases(self, *values: object) -> Never:
+    async def order_releases(self, *values: object) -> Never:
         """Reject an unexpected release-order prompt.
 
         Args:
@@ -381,7 +382,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def complete(self, *values: object) -> Never:
+    async def complete(self, *values: object) -> Never:
         """Reject an unexpected completion notification.
 
         Args:
@@ -403,7 +404,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def sample(self, *values: object) -> Never:
+    async def sample(self, *values: object) -> Never:
         """Reject an unexpected sample observation.
 
         Args:
@@ -414,7 +415,7 @@ class UnexpectedInteraction:
         """
         pytest.fail(self.message)
 
-    def now(self, *values: object) -> Never:
+    async def now(self, *values: object) -> Never:
         """Reject an unexpected now observation.
 
         Args:
@@ -506,7 +507,7 @@ class UnexpectedInteraction:
 class NoWait:
     """Discard retry waits at the original no-delay test boundary."""
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Accept the original ignored wait.
 
         Args:
@@ -543,7 +544,7 @@ class FixedIndexes:
 
     value: RandomIndexSet
 
-    def sample(self, population: int, count: int) -> RandomIndexSet:
+    async def sample(self, population: int, count: int) -> RandomIndexSet:
         """Return the original index observation.
 
         Args:
@@ -613,7 +614,7 @@ class RetryDecision:
     accepted: bool
     notices: list[RetryNotice] | None = None
 
-    def wait(self, notice: RetryNotice) -> bool:
+    async def wait(self, notice: RetryNotice) -> bool:
         """Record the notice and return the original decision.
 
         Args:
@@ -652,7 +653,7 @@ class _RuntimeOncePolicy:
     def accepted(self) -> None:
         """Accept the original response without additional observations."""
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Retry the original RuntimeError once.
 
         Args:
@@ -705,3 +706,34 @@ class UnexpectedCall(UnexpectedInteraction):
             BaseException: Pytest reports the original unexpected call.
         """
         pytest.fail(self.message)
+
+
+@dataclass(frozen=True)
+class BlockingDelayList:
+    """Record waits in the caller's existing observation list.
+
+    Args:
+        delays: Original ordered wait durations.
+    """
+
+    delays: list[float]
+
+    def sleep(self, seconds: float) -> None:
+        """Record the original requested delay.
+
+        Args:
+            seconds: Original wait duration.
+        """
+        self.delays.append(seconds)
+
+
+def provided_lastfm(source: LastFmReader) -> LastFmReader:
+    """Retain a simulated async reader supplied at the native client factory edge.
+
+    Args:
+        source: Already asynchronous in-memory Last.fm observations.
+
+    Returns:
+        The original simulated reader without a blocking SDK adapter.
+    """
+    return source

@@ -1,7 +1,7 @@
 """Explicit palace CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -39,7 +39,7 @@ class PalaceCLI:
     display: ConsoleDisplay
     sleep: Wait
 
-    def _run_fill_palace_of_memory(
+    async def _run_fill_palace_of_memory(
         self,
         dry_run: bool,
         alphabetical_start: str | None,
@@ -66,9 +66,11 @@ class PalaceCLI:
         summary: palace_of_memory.PalaceOfMemorySummary | None = None
         try:
             if set_alphabetical_cursor is not None:
-                cursor_update = self._execute_cursor_update(set_alphabetical_cursor)
+                cursor_update = await self._execute_cursor_update(
+                    set_alphabetical_cursor
+                )
             else:
-                summary = self._execute_palace_fill(dry_run, alphabetical_start)
+                summary = await self._execute_palace_fill(dry_run, alphabetical_start)
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_fill_palace_of_memory_rate_limit(exc)
         except review_album_limits.SpotifyTransientServerError as exc:
@@ -239,31 +241,31 @@ class PalaceCLI:
                 f"Album mirror backup: {refresh.backup_path}", style="dim"
             )
 
-    def _execute_cursor_update(
+    async def _execute_cursor_update(
         self, position: int
     ) -> palace_of_memory.AlphabeticalCursorUpdate:
         with self._fill_palace_of_memory_console.status(
             "Setting the Palace alphabetical cursor"
         ) as status:
-            return palace_of_memory.set_alphabetical_cursor(
-                self.runtime.review_client(),
+            return await palace_of_memory.set_alphabetical_cursor(
+                (await self.runtime.review_client()),
                 position,
                 progress_callback=StatusOutput(status),
                 retry_call=FillPalaceOfMemoryInteraction(self),
             )
 
-    def _execute_palace_fill(
+    async def _execute_palace_fill(
         self, dry_run: bool, alphabetical_start: str | None
     ) -> palace_of_memory.PalaceOfMemorySummary:
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         playlist_id = palace_of_memory.parse_playlist_id(
             configuration.palace_of_memory_playlist
         )
         with self._fill_palace_of_memory_console.status(
             "Planning Palace of Memory" + (" (dry run)" if dry_run else "")
         ) as status:
-            return palace_of_memory.fill_palace_of_memory(
-                self.runtime.review_client(),
+            return await palace_of_memory.fill_palace_of_memory(
+                (await self.runtime.review_client()),
                 PalaceOptions(
                     playlist_id=playlist_id,
                     dry_run=dry_run,
@@ -288,7 +290,7 @@ class FillPalaceOfMemoryInteraction:
 
     owner: PalaceCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:

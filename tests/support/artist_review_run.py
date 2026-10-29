@@ -1,6 +1,7 @@
 """Capture original artist-review decisions, durable effects and failure recovery."""
 
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import asdict
@@ -13,9 +14,9 @@ from typing import cast
 from unittest.mock import patch
 
 from pydantic import BaseModel
-from spotipy import Spotify
 
 from spotify_manager.application.artist_review_effects import ReviewCatalog
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -493,7 +494,7 @@ class ReviewObservations:
         """
         self.record("echo", text)
 
-    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+    async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
         playlist = path.split("/")[1]
         self.record(f"get:{playlist}", path, limit, offset)
         items = self.playlists.get(playlist, [])[offset : offset + limit]
@@ -503,7 +504,7 @@ class ReviewObservations:
             "next": None,
         }
 
-    def _post(self, path: str, payload: dict[str, list[str]]) -> object:
+    async def _post(self, path: str, payload: dict[str, list[str]]) -> object:
         playlist = path.split("/")[1]
         self.record(f"post:{playlist}", path, payload)
         for uri in payload["uris"]:
@@ -514,7 +515,7 @@ class ReviewObservations:
         self.accepted(f"post:{playlist}")
         return {"snapshot_id": "accepted"}
 
-    def _delete(
+    async def _delete(
         self,
         path: str,
         payload: dict[str, list[dict[str, str]]] | None = None,
@@ -528,7 +529,7 @@ class ReviewObservations:
         self.accepted(f"delete:{name}")
         return None
 
-    def choose_track(
+    async def choose_track(
         self, item: YourLibraryArtist, choices: tuple[legacy.TrackCandidate, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -542,7 +543,7 @@ class ReviewObservations:
         """
         return self.track_choice(item, choices)
 
-    def choose_release(
+    async def choose_release(
         self,
         item: YourLibraryArtist,
         choices: tuple[legacy.ReleaseCandidate, ...],
@@ -651,7 +652,7 @@ def _timestamp() -> str:
     return "2026-08-08T00:00:00+00:00"
 
 
-def invoke(edge: ReviewObservations) -> legacy.ArtistReviewSummary:
+async def invoke(edge: ReviewObservations) -> legacy.ArtistReviewSummary:
     """Run the original complete coordinator through frozen external boundaries.
 
     Args:
@@ -664,7 +665,7 @@ def invoke(edge: ReviewObservations) -> legacy.ArtistReviewSummary:
     limit = {"limit-zero": 0, "limit-negative": -1}.get(edge.profile)
     with ExitStack() as stack:
         _patch_reads(stack, edge)
-        return legacy.review_artists(
+        return await legacy.async_review_artists(
             cast(Spotify, edge),
             PLAYLISTS,
             None if edge.profile == "low-auto-tie" else edge,
@@ -689,11 +690,17 @@ def _patch_reads(stack: ExitStack, edge: ReviewObservations) -> None:
         "update_stats_after_unfollow": edge.stats,
     }
     stack.enter_context(
-        patch.object(ReviewCatalog, "tracks", partialmethod(_resource_tracks, edge))
+        patch.object(
+            ReviewCatalog,
+            "tracks",
+            partialmethod(_resource_tracks, edge),
+        )
     )
     stack.enter_context(
         patch.object(
-            ReviewCatalog, "ranked", partialmethod(_resource_releases, edge, "ranked")
+            ReviewCatalog,
+            "ranked",
+            partialmethod(_resource_releases, edge, "ranked"),
         )
     )
     stack.enter_context(
@@ -707,11 +714,13 @@ def _patch_reads(stack: ExitStack, edge: ReviewObservations) -> None:
         stack.enter_context(patch.object(legacy, name, operation))
 
 
-def outcome(
+async def outcome(
     profile: str,
     failure: str | None = None,
     resume: bool = False,
-    runner: Callable[[ReviewObservations], legacy.ArtistReviewSummary] = invoke,
+    runner: Callable[
+        [ReviewObservations], Awaitable[legacy.ArtistReviewSummary]
+    ] = invoke,
 ) -> dict[str, object]:
     """Observe original result, state, membership and accepted failure prefixes.
 
@@ -729,7 +738,7 @@ def outcome(
     results: list[object] = []
     for _attempt in range(2 if resume else 1):
         try:
-            results.append({"summary": asdict(runner(edge))})
+            results.append({"summary": asdict(await runner(edge))})
         except (RuntimeError, KeyError, TypeError, ValueError) as exc:
             results.append({"error": type(exc).__name__, "message": str(exc)})
     return clone(
@@ -786,7 +795,7 @@ def _without_uris(
     return remaining
 
 
-def _resource_tracks(
+async def _resource_tracks(
     resources: ReviewCatalog,
     edge: ReviewObservations,
     artist: YourLibraryArtist,
@@ -794,7 +803,7 @@ def _resource_tracks(
     return edge.ranked_tracks(artist)
 
 
-def _resource_releases(
+async def _resource_releases(
     resources: ReviewCatalog,
     edge: ReviewObservations,
     kind: str,

@@ -5,7 +5,11 @@ from typing import cast
 from spotify_manager.application.legacy_library_conversion import compare_ids
 from spotify_manager.application.legacy_library_effects import Comparison
 from spotify_manager.application.legacy_library_effects import ComparisonAlbum
+from spotify_manager.bootstrap.execution import run_python
 from spotify_manager.client import get_spotipy_client as get_spotipy_client
+from spotify_manager.infrastructure.legacy_library_resources import (
+    AsyncComparisonMetadata,
+)
 from spotify_manager.infrastructure.legacy_library_resources import (
     LegacyComparisonMetadata,
 )
@@ -73,9 +77,11 @@ def compare_and_get_dict(
     Returns:
         Original complete comparison mapping.
     """
-    return compare_ids(
-        your_library_id_list,
-        total_albums_id_list,
-        LegacyComparisonMetadata(),
-        STANDARD_OUTPUT,
+    return run_python(
+        compare_ids(
+            your_library_id_list,
+            total_albums_id_list,
+            AsyncComparisonMetadata(LegacyComparisonMetadata()),
+            STANDARD_OUTPUT,
+        )
     )

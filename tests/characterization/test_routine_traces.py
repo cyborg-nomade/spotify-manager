@@ -2,7 +2,6 @@
 
 import gzip
 import json
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -70,7 +69,7 @@ def artifacts(root: Path) -> dict[str, Json]:
     return result
 
 
-def capture(trace: Trace, scenario: Scenario, root: Path, dry_run: bool) -> None:
+async def capture(trace: Trace, scenario: Scenario, root: Path, dry_run: bool) -> None:
     """Record a routine outcome followed by its remote and persisted state.
 
     Args:
@@ -84,7 +83,7 @@ def capture(trace: Trace, scenario: Scenario, root: Path, dry_run: bool) -> None
         ValueError: An artifact contains invalid JSON.
         AssertionError: A fixture or unexpected interaction fails.
     """
-    trace.invoke(partial(scenario.run, dry_run))
+    await trace.invoke_async(scenario.run(dry_run))
     trace.record("remote", "snapshot", scenario.remote())
     trace.record("files", "snapshot", artifacts(root))
 
@@ -115,7 +114,7 @@ def _assert_success(trace: Trace) -> None:
 
 
 @pytest.mark.parametrize("name,dry_run", _normal_cases())
-def test_normal_and_dry_run_contract(
+async def test_normal_and_dry_run_contract(
     name: str,
     dry_run: bool,
     monkeypatch: pytest.MonkeyPatch,
@@ -134,14 +133,14 @@ def test_normal_and_dry_run_contract(
     trace = Trace(tmp_path)
     scenario = FACTORIES[name](monkeypatch, tmp_path, trace)
     assert not dry_run or scenario.supports_dry_run
-    capture(trace, scenario, tmp_path, dry_run)
+    await capture(trace, scenario, tmp_path, dry_run)
     _assert_success(trace)
     assert_trace(f"{name}-{'dry' if dry_run else 'normal'}", trace.events)
 
 
 @pytest.mark.parametrize("name,operation,occurrence", _interruption_cases())
 @pytest.mark.parametrize("phase", ["before", "after"])
-def test_interruption_and_restart_contract(
+async def test_interruption_and_restart_contract(
     name: str,
     operation: str,
     occurrence: int,
@@ -163,11 +162,11 @@ def test_interruption_and_restart_contract(
     """
     trace = Trace(tmp_path, Fault(operation, phase, occurrence))
     scenario = FACTORIES[name](monkeypatch, tmp_path, trace)
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert trace.fired, f"Scenario never reached {operation}"
     # Re-enter with the same remote/files, but no process-local service cache.
     reset_state_service()
     reset_library_data_service()
     trace.record("process", "restart")
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert_trace(f"{name}-{operation}-{occurrence}-{phase}", trace.events)

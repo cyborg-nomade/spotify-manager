@@ -42,7 +42,7 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_prepare_lastfm_upload_builds_round_trippable_deterministic_parts(
+async def test_prepare_lastfm_upload_builds_round_trippable_deterministic_parts(
     tmp_path: Path,
 ) -> None:
     payload = {
@@ -73,7 +73,7 @@ def test_prepare_lastfm_upload_builds_round_trippable_deterministic_parts(
     assert first_plan.lastfm_parts[0].local_path.name.endswith("part-aa")
 
 
-def test_upload_materializes_parts_and_deletes_stale_local_and_remote_parts(
+async def test_upload_materializes_parts_and_deletes_stale_local_and_remote_parts(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / upload_library_files.LASTFM_FILENAME
@@ -122,7 +122,7 @@ def test_upload_materializes_parts_and_deletes_stale_local_and_remote_parts(
     assert result.uploaded_files == 1 + len(plan.lastfm_parts)
 
 
-def test_your_library_only_does_not_generate_lastfm_parts(tmp_path: Path) -> None:
+async def test_your_library_only_does_not_generate_lastfm_parts(tmp_path: Path) -> None:
     write_json(
         tmp_path / upload_library_files.YOUR_LIBRARY_FILENAME,
         {"tracks": [{"artist": "Artist", "track": "Track"}]},
@@ -139,14 +139,16 @@ def test_your_library_only_does_not_generate_lastfm_parts(tmp_path: Path) -> Non
     assert plan.lastfm_parts == ()
 
 
-def test_invalid_export_is_rejected_before_upload(tmp_path: Path) -> None:
+async def test_invalid_export_is_rejected_before_upload(tmp_path: Path) -> None:
     source = tmp_path / upload_library_files.YOUR_LIBRARY_FILENAME
     source.write_text("not json", encoding="utf-8")
 
     try:
-        upload_library_files.prepare_library_files_upload(
-            include_lastfm=False,
-            files_dir=tmp_path,
+        (
+            upload_library_files.prepare_library_files_upload(
+                include_lastfm=False,
+                files_dir=tmp_path,
+            )
         )
     except upload_library_files.LibraryFilesUploadError as exc:
         assert "not valid JSON" in str(exc)
@@ -154,16 +156,18 @@ def test_invalid_export_is_rejected_before_upload(tmp_path: Path) -> None:
         raise AssertionError("invalid JSON should fail validation")
 
 
-def test_prepare_rejects_missing_wrong_shape_and_empty_selection(
+async def test_prepare_rejects_missing_wrong_shape_and_empty_selection(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(
         upload_library_files.LibraryFilesUploadError,
         match="does not exist",
     ):
-        upload_library_files.prepare_library_files_upload(
-            include_lastfm=False,
-            files_dir=tmp_path,
+        (
+            upload_library_files.prepare_library_files_upload(
+                include_lastfm=False,
+                files_dir=tmp_path,
+            )
         )
 
     write_json(
@@ -174,23 +178,27 @@ def test_prepare_rejects_missing_wrong_shape_and_empty_selection(
         upload_library_files.LibraryFilesUploadError,
         match="must contain",
     ):
-        upload_library_files.prepare_library_files_upload(
-            include_lastfm=False,
-            files_dir=tmp_path,
+        (
+            upload_library_files.prepare_library_files_upload(
+                include_lastfm=False,
+                files_dir=tmp_path,
+            )
         )
 
     with pytest.raises(
         upload_library_files.LibraryFilesUploadError,
         match="at least one",
     ):
-        upload_library_files.prepare_library_files_upload(
-            include_your_library=False,
-            include_lastfm=False,
-            files_dir=tmp_path,
+        (
+            upload_library_files.prepare_library_files_upload(
+                include_your_library=False,
+                include_lastfm=False,
+                files_dir=tmp_path,
+            )
         )
 
 
-def test_prepare_reports_unreadable_export(
+async def test_prepare_reports_unreadable_export(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -209,9 +217,11 @@ def test_prepare_reports_unreadable_export(
         upload_library_files.LibraryFilesUploadError,
         match="Could not read export",
     ):
-        upload_library_files.prepare_library_files_upload(
-            include_lastfm=False,
-            files_dir=tmp_path,
+        (
+            upload_library_files.prepare_library_files_upload(
+                include_lastfm=False,
+                files_dir=tmp_path,
+            )
         )
 
 
@@ -222,7 +232,7 @@ def test_part_suffix_rejects_unrepresentable_indexes() -> None:
         upload_library_files._part_suffix(26 * 26)
 
 
-def test_materialize_is_noop_without_parts(tmp_path: Path) -> None:
+async def test_materialize_is_noop_without_parts(tmp_path: Path) -> None:
     plan = upload_library_files.LibraryFilesUploadPlan(
         repo_id="repo",
         revision="main",
@@ -230,12 +240,12 @@ def test_materialize_is_noop_without_parts(tmp_path: Path) -> None:
         lastfm_parts=(),
     )
 
-    upload_library_files.materialize_lastfm_parts(plan)
+    (upload_library_files.materialize_lastfm_parts(plan))
 
     assert list(tmp_path.iterdir()) == []
 
 
-def test_materialize_reports_filesystem_failure(tmp_path: Path) -> None:
+async def test_materialize_reports_filesystem_failure(tmp_path: Path) -> None:
     blocked = tmp_path / "blocked"
     blocked.write_text("file")
     plan = upload_library_files.LibraryFilesUploadPlan(
@@ -255,11 +265,11 @@ def test_materialize_reports_filesystem_failure(tmp_path: Path) -> None:
         upload_library_files.LibraryFilesUploadError,
         match="Could not update",
     ):
-        upload_library_files.materialize_lastfm_parts(plan)
+        (upload_library_files.materialize_lastfm_parts(plan))
 
 
 @pytest.mark.parametrize("failure_stage", ["list", "commit", "url"])
-def test_upload_reports_hugging_face_failures(
+async def test_upload_reports_hugging_face_failures(
     tmp_path: Path,
     failure_stage: str,
 ) -> None:
@@ -289,7 +299,9 @@ def test_upload_reports_hugging_face_failures(
         "url": "did not return a commit URL",
     }[failure_stage]
     with pytest.raises(upload_library_files.LibraryFilesUploadError, match=expected):
-        upload_library_files.upload_library_files(
-            plan,
-            api=FailingApi(),  # type: ignore[arg-type]
+        (
+            upload_library_files.upload_library_files(
+                plan,
+                api=FailingApi(),  # type: ignore[arg-type]
+            )
         )

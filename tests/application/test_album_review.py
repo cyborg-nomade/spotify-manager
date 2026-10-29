@@ -27,7 +27,7 @@ class MemoryAlbums:
     failure: str | None = None
     events: list[object] = field(default_factory=list)
 
-    def resolve_album(
+    async def resolve_album(
         self, *, name: str | None, album_id: str | None, artist: str | None
     ) -> Album:
         """Record resolution inputs and return the supplied album identity.
@@ -47,7 +47,7 @@ class MemoryAlbums:
         self._fail("resolve")
         return Album(album_id or "album", name or "Album", artist)
 
-    def album_tracks(self, album_id: str) -> tuple[Track, ...]:
+    async def album_tracks(self, album_id: str) -> tuple[Track, ...]:
         """Return the current ordered tracks after recording the read.
 
         Args:
@@ -63,7 +63,7 @@ class MemoryAlbums:
         self._fail("tracks")
         return self.tracks
 
-    def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
+    async def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
         """Record exact query identifiers, without deduplicating them.
 
         Args:
@@ -95,7 +95,7 @@ class MemoryAlbums:
         (4, 2, "keep", 2),
     ],
 )
-def test_assessment_with_memory_ports(
+async def test_assessment_with_memory_ports(
     total: int, liked: int, decision: str, required: int
 ) -> None:
     """Keep retention decisions and read order stable using only in-memory ports.
@@ -109,7 +109,7 @@ def test_assessment_with_memory_ports(
     tracks = tuple(Track(str(i), str(i), f"spotify:track:{i}") for i in range(total))
     statuses = {str(i): i < liked for i in range(total)}
     memory = MemoryAlbums(tracks, statuses)
-    result = review_album(
+    result = await review_album(
         memory,
         memory,
         request=AlbumReviewRequest(album_id="a", name="Album", artist="Artist"),
@@ -126,7 +126,7 @@ def test_assessment_with_memory_ports(
     ]
 
 
-def test_duplicate_and_missing_identifiers_keep_positions() -> None:
+async def test_duplicate_and_missing_identifiers_keep_positions() -> None:
     """Preserve duplicate track positions and missing-identifier membership."""
     tracks = (
         Track("x", "First", "x"),
@@ -134,7 +134,9 @@ def test_duplicate_and_missing_identifiers_keep_positions() -> None:
         Track("x", "Last", "x"),
     )
     memory = MemoryAlbums(tracks, {"x": True})
-    result = review_album(memory, memory, request=AlbumReviewRequest(album_id="a"))
+    result = await review_album(
+        memory, memory, request=AlbumReviewRequest(album_id="a")
+    )
     assert result.liked == (True, False, True)
     assert memory.events[-1] == ("liked", ("x", "x"))
 
@@ -142,7 +144,7 @@ def test_duplicate_and_missing_identifiers_keep_positions() -> None:
 @pytest.mark.parametrize(
     ("failure", "calls"), [("resolve", 1), ("tracks", 2), ("liked", 3)]
 )
-def test_failures_stop_subsequent_reads(failure: str, calls: int) -> None:
+async def test_failures_stop_subsequent_reads(failure: str, calls: int) -> None:
     """Stop reading after the first integration failure without hiding its error.
 
     Args:
@@ -151,14 +153,14 @@ def test_failures_stop_subsequent_reads(failure: str, calls: int) -> None:
     """
     memory = MemoryAlbums((), {}, failure)
     with pytest.raises(RuntimeError, match=failure):
-        review_album(memory, memory, request=AlbumReviewRequest(name="Album"))
+        (await review_album(memory, memory, request=AlbumReviewRequest(name="Album")))
     assert len(memory.events) == calls
 
 
 @pytest.mark.parametrize(
     ("threshold", "required"), [(-1.0, 0), (0.0, 0), (0.3, 1), (0.75, 1), (2.0, 2)]
 )
-def test_threshold_is_passed_to_policy_unchanged(
+async def test_threshold_is_passed_to_policy_unchanged(
     threshold: float, required: int
 ) -> None:
     """Retain the original behavior for nonpositive and out-of-range thresholds.
@@ -168,17 +170,19 @@ def test_threshold_is_passed_to_policy_unchanged(
         required: Expected minimum liked count.
     """
     memory = MemoryAlbums((Track("x", "Track", "x"),), {"x": True})
-    result = review_album(
+    result = await review_album(
         memory, memory, request=AlbumReviewRequest(name="Album", threshold=threshold)
     )
     assert result.threshold == threshold
     assert result.assessment.required_liked_tracks == required
 
 
-def test_boundary_membership_keys_preserve_falsey_identifier_lookup() -> None:
+async def test_boundary_membership_keys_preserve_falsey_identifier_lookup() -> None:
     """Preserve a parsed legacy lookup key without querying its missing identifier."""
     track = Track(None, "Malformed identifier", "x", membership_key="0")
     memory = MemoryAlbums((track,), {"0": True})
-    result = review_album(memory, memory, request=AlbumReviewRequest(name="Album"))
+    result = await review_album(
+        memory, memory, request=AlbumReviewRequest(name="Album")
+    )
     assert result.liked == (True,)
     assert memory.events[-1] == ("liked", ())

@@ -10,12 +10,13 @@ from functools import partialmethod
 from pathlib import Path
 from typing import Self
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.artist_mapping import ArtistMapping
 from spotify_manager.application.future_release import FutureRecordMatching
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -88,7 +89,7 @@ class OpenedStage:
     context: OpenedReleaseRun
     state_access: RoutineState
 
-    def run(self, dry_run: bool) -> OpenedReleaseRun:
+    async def run(self, dry_run: bool) -> OpenedReleaseRun:
         """Return the same original opening result.
 
         Args:
@@ -105,11 +106,11 @@ def _open(context: OpenedReleaseRun, *args: object) -> tuple[OpenedStage, Opened
     return stage, stage
 
 
-def _wine(effects: Effects, *args: object) -> PlaylistSnapshot:
-    return effects.wine()
+async def _wine(effects: Effects, *args: object) -> PlaylistSnapshot:
+    return await effects.wine()
 
 
-def _cleanup(
+async def _cleanup(
     effects: Effects,
     sp: object,
     destination: str,
@@ -117,15 +118,15 @@ def _cleanup(
     preview: bool,
     retry: object,
 ) -> tuple[int, PlaylistMembership]:
-    return effects.cleanup(snapshot, preview)
+    return await effects.cleanup(snapshot, preview)
 
 
-def _vintage(effects: Effects, *args: object) -> PlaylistMembership:
-    return effects.vintage()
+async def _vintage(effects: Effects, *args: object) -> PlaylistMembership:
+    return await effects.vintage()
 
 
-def _composers(effects: Effects, *args: object) -> tuple[OwnedPlaylist, ...]:
-    return effects.composers()
+async def _composers(effects: Effects, *args: object) -> tuple[OwnedPlaylist, ...]:
+    return await effects.composers()
 
 
 def _resolve(
@@ -134,7 +135,7 @@ def _resolve(
     return effects.resolve(artist)
 
 
-def _catalog(
+async def _catalog(
     effects: Effects,
     sp: object,
     artist: RankedArtist,
@@ -145,10 +146,10 @@ def _catalog(
     from datetime import date
 
     assert isinstance(start, date)
-    return effects.catalog(artist, mapped, start)
+    return await effects.catalog(artist, mapped, start)
 
 
-def _tracks(
+async def _tracks(
     effects: Effects,
     sp: object,
     release: ReleaseCandidate,
@@ -157,7 +158,7 @@ def _tracks(
     first_only: bool = False,
 ) -> tuple[ReleaseTrack, ...]:
     assert first_only
-    track = effects.first_track(release)
+    track = await effects.first_track(release)
     return () if track is None else (track,)
 
 
@@ -172,7 +173,7 @@ def _match(
     return effects.match(track, records, cache)
 
 
-def _add(
+async def _add(
     effects: Effects,
     sp: object,
     destination: str,
@@ -181,43 +182,75 @@ def _add(
     preview: bool,
     retry: object,
 ) -> PlaylistAction:
-    return effects.add(destination, membership, track, preview)
+    return await effects.add(destination, membership, track, preview)
 
 
 def _audit(
     effects: Effects, path: Path, run_id: str, event: str, **details: object
 ) -> None:
-    effects.audit(run_id, event, **details)
+    effects.record_audit(run_id, event, **details)
 
 
-def _persist(effects: Effects, access: object, state: dict[str, object]) -> None:
-    effects.persist(state)
+async def _persist(effects: Effects, access: object, state: dict[str, object]) -> None:
+    (await effects.persist(state))
 
 
 def _bind(
     patch: pytest.MonkeyPatch, context: OpenedReleaseRun, effects: Effects
 ) -> None:
     patch.setattr(release_operations, "release_opening", partial(_open, context))
-    patch.setattr(legacy, "_playlist_snapshot", partial(_wine, effects))
-    patch.setattr(legacy, "_deduplicate_wine_cellar", partial(_cleanup, effects))
-    patch.setattr(legacy, "_playlist_membership", partial(_vintage, effects))
     patch.setattr(
-        composer_playlists, "load_owned_playlists", partial(_composers, effects)
+        legacy, "_playlist_snapshot", AsyncMock(side_effect=partial(_wine, effects))
+    )
+    patch.setattr(
+        legacy,
+        "_deduplicate_wine_cellar",
+        AsyncMock(side_effect=partial(_cleanup, effects)),
+    )
+    patch.setattr(
+        legacy,
+        "_playlist_membership",
+        AsyncMock(side_effect=partial(_vintage, effects)),
+    )
+    patch.setattr(
+        composer_playlists,
+        "async_load_owned_playlists",
+        AsyncMock(side_effect=partial(_composers, effects)),
     )
     patch.setattr(legacy, "_mapped_artist", effects.decode_mapping)
     patch.setattr(legacy, "_pending_single", effects.decode_pending)
-    patch.setattr(ArtistMapping, "run", partialmethod(_resolve_artist, effects))
-    patch.setattr(legacy, "load_recent_catalog", partial(_catalog, effects))
-    patch.setattr(legacy, "load_release_tracks", partial(_tracks, effects))
-    patch.setattr(FutureRecordMatching, "run", partialmethod(_match_record, effects))
-    patch.setattr(legacy, "_add_to_playlist", partial(_add, effects))
+    patch.setattr(
+        ArtistMapping,
+        "run",
+        partialmethod(_resolve_artist, effects),
+    )
+    patch.setattr(
+        legacy,
+        "async_load_recent_catalog",
+        AsyncMock(side_effect=partial(_catalog, effects)),
+    )
+    patch.setattr(
+        legacy,
+        "async_load_release_tracks",
+        AsyncMock(side_effect=partial(_tracks, effects)),
+    )
+    patch.setattr(
+        FutureRecordMatching,
+        "run",
+        partialmethod(_match_record, effects),
+    )
+    patch.setattr(
+        legacy, "_add_to_playlist", AsyncMock(side_effect=partial(_add, effects))
+    )
     patch.setattr(legacy, "append_event", partial(_audit, effects))
-    patch.setattr(legacy, "_persist_state", partial(_persist, effects))
+    patch.setattr(
+        legacy, "_persist_state", AsyncMock(side_effect=partial(_persist, effects))
+    )
     patch.setattr(FixedClock, "effects", effects, raising=False)
     patch.setattr(legacy, "datetime", FixedClock)
 
 
-def observe(
+async def observe(
     profile: str, failure: str | None, patch: pytest.MonkeyPatch
 ) -> dict[str, object]:
     """Observe the complete original runner at deterministic external seams.
@@ -273,7 +306,7 @@ def _fixture() -> dict[str, object]:
 
 
 @pytest.mark.parametrize("profile", PROFILES)
-def test_release_runner_original_contract(
+async def test_release_runner_original_contract(
     profile: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Preserve the original complete workflow and restart artifacts.
@@ -282,11 +315,11 @@ def test_release_runner_original_contract(
         profile: Original workflow scenario.
         monkeypatch: Isolated external boundaries.
     """
-    assert observe(profile, None, monkeypatch) == _fixture()[profile]
+    assert (await observe(profile, None, monkeypatch)) == _fixture()[profile]
 
 
 @pytest.mark.parametrize("failure", FAILURES)
-def test_release_runner_original_failure_prefix(
+async def test_release_runner_original_failure_prefix(
     failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Preserve accepted writes and checkpoints when subsequent work fails.
@@ -295,10 +328,12 @@ def test_release_runner_original_failure_prefix(
         failure: Original accepted effect at which to stop.
         monkeypatch: Isolated external boundaries.
     """
-    assert observe("album", failure, monkeypatch) == _fixture()["failure:" + failure]
+    assert (await observe("album", failure, monkeypatch)) == _fixture()[
+        "failure:" + failure
+    ]
 
 
-def _resolve_artist(
+async def _resolve_artist(
     resources: ArtistMapping,
     effects: Effects,
     artist: RankedArtist,
@@ -306,7 +341,7 @@ def _resolve_artist(
     return effects.resolve(artist)
 
 
-def _match_record(
+async def _match_record(
     resources: FutureRecordMatching,
     effects: Effects,
     track: ReleaseTrack,

@@ -7,13 +7,15 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
 from spotify_manager.domain.library_analysis import model_diff
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import ResourceSyncSummary
+from spotify_manager.infrastructure.analysis_file_ports import (
+    BlockingAnalysisFiles as AnalysisFiles,
+)
 from spotify_manager.models.stats import StatsReport
 
 

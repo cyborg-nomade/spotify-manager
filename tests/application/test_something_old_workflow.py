@@ -53,7 +53,7 @@ class MemoryOld:
         """
         self.edge.record("progress", message)
 
-    def playlist_length(self, recheck: bool) -> int:
+    async def playlist_length(self, recheck: bool) -> int:
         """Supply original initial or changed membership.
 
         Args:
@@ -98,7 +98,7 @@ class MemoryOld:
         """
         return rank_golden_oldies(history)
 
-    def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
+    async def resolve(self, artist: GoldenOldieArtist) -> SpotifyArtistCandidate | None:
         """Supply the original artist mapping or cancellation.
 
         Args:
@@ -110,7 +110,9 @@ class MemoryOld:
         self.edge.record("resolve", artist.artist, True)
         return None if self.edge.scenario == "quit-artist" else ARTIST
 
-    def mode(self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate) -> str:
+    async def mode(
+        self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
+    ) -> str:
         """Supply original mode interaction.
 
         Args:
@@ -122,7 +124,9 @@ class MemoryOld:
         """
         return self.edge.mode(artist, mapped)
 
-    def lastfm_tracks(self, artist: GoldenOldieArtist) -> tuple[SelectedTrack, ...]:
+    async def lastfm_tracks(
+        self, artist: GoldenOldieArtist
+    ) -> tuple[SelectedTrack, ...]:
         """Supply original most-scrobbled markers.
 
         Args:
@@ -134,7 +138,7 @@ class MemoryOld:
         self.edge.record("lastfm-tracks", artist.artist)
         return (TRACK,)
 
-    def spotify_tracks(
+    async def spotify_tracks(
         self, artist: SpotifyArtistCandidate
     ) -> tuple[SelectedTrack, ...]:
         """Supply original popular markers.
@@ -148,7 +152,7 @@ class MemoryOld:
         self.edge.record("spotify-tracks", artist.spotify_id)
         return (TRACK,)
 
-    def album_tracks(
+    async def album_tracks(
         self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
     ) -> tuple[DiscographyRelease | None, tuple[SelectedTrack, ...]]:
         """Supply original release choice or cancellation.
@@ -165,7 +169,7 @@ class MemoryOld:
             return None, ()
         return RELEASE, (TRACK,)
 
-    def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
+    async def append(self, tracks: tuple[SelectedTrack, ...]) -> None:
         """Observe accepted append in source order.
 
         Args:
@@ -173,7 +177,7 @@ class MemoryOld:
         """
         self.edge.record("append", "destination", [track.uri for track in tracks])
 
-    def audit(self, summary: SomethingOldSummary) -> None:
+    async def audit(self, summary: SomethingOldSummary) -> None:
         """Observe accepted completion audit.
 
         Args:
@@ -192,7 +196,7 @@ class ScriptedHistory:
 
     memory: MemoryOld
 
-    def run(
+    async def run(
         self, username: str | None, preview: bool, rebuild: bool, now: datetime
     ) -> ScrobbleHistorySummary:
         """Observe the original history stage.
@@ -209,14 +213,14 @@ class ScriptedHistory:
         return self.memory.history(now, preview)
 
 
-def _outcome(case: dict[str, object]) -> object:
+async def _outcome(case: dict[str, object]) -> object:
     edge = OldObservations(
         cast(str, case["scenario"]), cast(str | None, case["failure"])
     )
     outcome: dict[str, object] = {}
     try:
         memory = MemoryOld(edge)
-        result = SomethingOld(
+        result = await SomethingOld(
             memory, cast(HistoryRefresh, ScriptedHistory(memory)), "listener"
         ).run("destination", bool(case["preview"]))
         outcome["result"] = asdict(result)
@@ -227,7 +231,9 @@ def _outcome(case: dict[str, object]) -> object:
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_something_old_original_workflow(name: str, case: dict[str, object]) -> None:
+async def test_something_old_original_workflow(
+    name: str, case: dict[str, object]
+) -> None:
     """Compare the injected workflow with immutable original complete traces.
 
     Args:
@@ -235,4 +241,4 @@ def test_something_old_original_workflow(name: str, case: dict[str, object]) -> 
         case: Original inputs and result/effect prefix.
     """
     assert name
-    assert _outcome(case) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]

@@ -27,7 +27,7 @@ class Catalog:
     popularity: dict[str, int] = field(default_factory=dict)
     events: list[tuple[str, object]] = field(default_factory=list)
 
-    def saved(self, ids: list[str]) -> dict[str, bool]:
+    async def saved(self, ids: list[str]) -> dict[str, bool]:
         """Read scripted album memberships.
 
         Args:
@@ -39,7 +39,7 @@ class Catalog:
         self.events.append(("saved", ids))
         return dict(self.albums)
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read tracks for one previously unobserved release.
 
         Args:
@@ -51,7 +51,7 @@ class Catalog:
         self.events.append(("tracks", release.spotify_id))
         return self.releases.get(release.spotify_id, ())
 
-    def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
+    async def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
         """Read scripted likes at the requested context boundary.
 
         Args:
@@ -64,7 +64,7 @@ class Catalog:
         self.events.append(("top_likes" if top else "likes", ids))
         return dict(self.liked_statuses)
 
-    def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Observe artist top tracks after catalog assessment.
 
         Args:
@@ -76,7 +76,7 @@ class Catalog:
         self.events.append(("top", artist_id))
         return self.top
 
-    def popularities(self, ids: list[str]) -> dict[str, int]:
+    async def popularities(self, ids: list[str]) -> dict[str, int]:
         """Observe fallback popularity only when needed.
 
         Args:

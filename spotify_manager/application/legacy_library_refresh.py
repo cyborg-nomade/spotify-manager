@@ -40,7 +40,9 @@ class Scan:
     next_observed: bool = False
 
 
-def refresh(deps: AlbumRefresh, incremental: bool, echo: Echo) -> list[SimplifiedAlbum]:
+async def refresh(
+    deps: AlbumRefresh, incremental: bool, echo: Echo
+) -> list[SimplifiedAlbum]:
     """Retain original load scope and partial-mutation fallback.
 
     Args:
@@ -52,22 +54,22 @@ def refresh(deps: AlbumRefresh, incremental: bool, echo: Echo) -> list[Simplifie
         Published models or the original mutable fallback authority.
     """
     echo.echo("Updating total albums...")
-    stored = deps.load() if incremental else []
+    stored = (await deps.load()) if incremental else []
     with LegacyFailure(echo):
-        raw = gather(deps, len(stored), echo)
+        raw = await gather(deps, len(stored), echo)
         invalid_rows(raw, echo)
         albums = deps.parse(raw)
         if incremental:
             stored.extend(albums)
             albums = stored
         parsed = validate_albums(sorted(albums, key=sort_key))
-        deps.save(parsed)
+        await deps.save(parsed)
         echo.echo("Albums updated!")
         return parsed
     return stored if incremental else []
 
 
-def gather(deps: AlbumRefresh, offset: int, echo: Echo) -> list[object]:
+async def gather(deps: AlbumRefresh, offset: int, echo: Echo) -> list[object]:
     """Collect original pages, retaining the failed-next recovery omission.
 
     Args:
@@ -78,17 +80,17 @@ def gather(deps: AlbumRefresh, offset: int, echo: Echo) -> list[object]:
     Returns:
         Original shared first-page row list extended only by successful next reads.
     """
-    page = deps.saved(offset)
+    page = await deps.saved(offset)
     total = page["total"]
     rows = page["items"]
     offset = page["offset"]
     scan = Scan(page, round((total - offset) / deps.limit()), offset)
     while scan.page["next"]:
-        advance(scan, rows, deps, echo)
+        await advance(scan, rows, deps, echo)
     return rows
 
 
-def advance(
+async def advance(
     scan: Scan,
     rows: list[object],
     deps: AlbumRefresh,
@@ -111,7 +113,7 @@ def advance(
         scan.next_url = scan.page["next"]
         scan.next_observed = True
         scan.offset = scan.page["offset"]
-        scan.page = deps.next(scan.page)
+        scan.page = await deps.next(scan.page)
         rows.extend(scan.page["items"])
     if not attempt.failed:
         return
@@ -124,7 +126,7 @@ def advance(
         raise error
     echo.echo(scan.next_url)
     scan.index -= 1
-    scan.page = deps.recover(scan.offset)
+    scan.page = await deps.recover(scan.offset)
 
 
 def invalid_rows(rows: list[object], echo: Echo) -> None:
@@ -168,7 +170,7 @@ def validate_albums(albums: list[SimplifiedAlbum]) -> list[SimplifiedAlbum]:
     return result
 
 
-def playlist(deps: PlaylistClock, echo: Echo) -> str:
+async def playlist(deps: PlaylistClock, echo: Echo) -> str:
     """Create the original monthly playlist with independent clock observations.
 
     Args:
@@ -185,12 +187,12 @@ def playlist(deps: PlaylistClock, echo: Echo) -> str:
     )
     name = f"{year}.{month}"
     echo.echo(f"Playlist name: {name}")
-    result = deps.create(name)
+    result = await deps.create(name)
     echo.echo("Done!")
     return cast(dict[str, str], result)["id"]
 
 
-def add_monthly(
+async def add_monthly(
     deps: MonthlyPlaylist,
     control: list[ControlFileItem],
     albums: list[SimplifiedAlbum],
@@ -212,15 +214,15 @@ def add_monthly(
     echo.echo("Adding monthly albums to playlist and control file...")
     with LegacyFailure(echo):
         selected = monthly_slice(albums, index, deps.limits.count())
-        identifier = playlist(deps.clock, echo)
+        identifier = await playlist(deps.clock, echo)
         for album in selected:
-            append_album(deps, control, album, identifier, echo)
-        deps.files.save_control(control)
+            await append_album(deps, control, album, identifier, echo)
+        await deps.files.save_control(control)
         return True
     return False
 
 
-def append_album(
+async def append_album(
     deps: MonthlyPlaylist,
     control: list[ControlFileItem],
     album: SimplifiedAlbum,
@@ -236,13 +238,13 @@ def append_album(
         identifier: Original destination playlist identity.
         echo: Original visible presenter.
     """
-    ordered = tracks(deps.tracks, album, echo)
-    append_tracks(ordered, identifier, deps.writes, echo)
+    ordered = await tracks(deps.tracks, album, echo)
+    await append_tracks(ordered, identifier, deps.writes, echo)
     control.append(ControlFileItem(album=album, result=""))
     echo.echo(f"Added album {album.name} to control file")
 
 
-def tracks(
+async def tracks(
     deps: TrackRead, album: SimplifiedAlbum, echo: Echo
 ) -> list[SimplifiedTrack]:
     """Retain original track read, coercion, sort and validation order.
@@ -256,10 +258,10 @@ def tracks(
         Original ordered simplified tracks.
     """
     echo.echo(f"Getting ordered tracks for album {album.name} - {album.spotify_id}")
-    page = deps.read(album.spotify_id)
+    page = await deps.read(album.spotify_id)
     rows = page["items"]
     while page["next"]:
-        page = deps.next(page)
+        page = await deps.next(page)
         rows.extend(page["items"])
     parsed = deps.parse(rows)
     echo.echo("We have all tracks")
@@ -268,7 +270,7 @@ def tracks(
     return deps.validate(ordered)
 
 
-def append_tracks(
+async def append_tracks(
     ordered_tracks: list[SimplifiedTrack],
     identifier: str,
     writes: PlaylistWrites,
@@ -285,13 +287,15 @@ def append_tracks(
     echo.echo("Appending tracks to playlist...")
     uris = [track.uri for track in ordered_tracks]
     if len(ordered_tracks) <= 100:
-        writes.single(identifier, uris)
+        await writes.single(identifier, uris)
     else:
-        append_batches(uris, identifier, writes)
+        await append_batches(uris, identifier, writes)
     echo.echo("Done!")
 
 
-def append_batches(uris: list[str], identifier: str, writes: PlaylistWrites) -> None:
+async def append_batches(
+    uris: list[str], identifier: str, writes: PlaylistWrites
+) -> None:
     """Accept hundred-track batches in their original playback order.
 
     Args:
@@ -300,4 +304,4 @@ def append_batches(uris: list[str], identifier: str, writes: PlaylistWrites) -> 
         writes: Accepted playlist mutation owner.
     """
     for batch in playlist_batches(uris):
-        writes.batch(identifier, batch)
+        await writes.batch(identifier, batch)

@@ -46,7 +46,7 @@ class ObservedBlastSelection:
     random: blast.RandomIndexReader
     progress: blast.ProgressCallback | None
 
-    def run(self, count: int) -> blast.BlastFromPastBatch:
+    async def run(self, count: int) -> blast.BlastFromPastBatch:
         """Observe selection when execution requests its original open slots.
 
         Args:
@@ -83,7 +83,7 @@ class ObservedRadioSelection:
     random: radio.RandomTimestampReader
     progress: blast.ProgressCallback | None
 
-    def run(self) -> radio.DailyMindRadioBatch:
+    async def run(self) -> radio.DailyMindRadioBatch:
         """Observe anniversary selection when execution reaches that boundary.
 
         Returns:
@@ -97,7 +97,7 @@ class ObservedRadioSelection:
         )
 
 
-def dormant_track(
+async def dormant_track(
     workflow: DormantLikedTrack,
     observe: Callable[..., CatalogTrack | None],
     artist_id: str,
@@ -116,7 +116,7 @@ def dormant_track(
     return observe(resources.spotify, artist_id, resources.retry)
 
 
-def catalog(
+async def catalog(
     resources: DiscographyCatalog,
     observe: Callable[..., tuple[CatalogRelease, ...]],
     artist: str,
@@ -135,7 +135,7 @@ def catalog(
     return observe(source.spotify, artist, source.retry)
 
 
-def historical_artist(
+async def historical_artist(
     resources: DiscographyHistory,
     observe: Callable[..., HistoricalArtistSelection],
 ) -> HistoricalArtistSelection:
@@ -157,7 +157,7 @@ def historical_artist(
     )
 
 
-def resolve_artist(
+async def resolve_artist(
     resources: DiscographyArtistMapping,
     observe: Callable[..., QueueArtist],
     selection: HistoricalArtistSelection,
@@ -176,7 +176,7 @@ def resolve_artist(
     return observe(source.spotify, selection, source.choice, source.retry)
 
 
-def audit(
+async def audit(
     resources: LegacyRecommendationRun,
     observe: Callable[..., None],
     summary: found_art.FoundArtSummary,

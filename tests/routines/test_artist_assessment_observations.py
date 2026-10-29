@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import new_kids
 from tests.routines.test_new_kids import FakeSpotify
 from tests.routines.test_new_kids import ranked_release
@@ -69,7 +70,7 @@ def _spotify() -> FakeSpotify:
 
 
 @pytest.mark.parametrize("fallback", [False, True])
-def test_original_assessment_order_and_popularity_fallback(
+async def test_original_assessment_order_and_popularity_fallback(
     monkeypatch: pytest.MonkeyPatch, fallback: bool
 ) -> None:
     """Primary credits count once and fallback ties choose the greatest title.
@@ -81,7 +82,9 @@ def test_original_assessment_order_and_popularity_fallback(
     spotify = _spotify()
     if fallback:
         monkeypatch.setattr(
-            spotify, "artist_top_tracks", Mock(return_value={"tracks": []})
+            spotify,
+            "artist_top_tracks",
+            AsyncMock(side_effect=Mock(return_value={"tracks": []})),
         )
     requests = Requests()
     result = new_kids.assess_artist(
@@ -111,7 +114,9 @@ def test_original_assessment_order_and_popularity_fallback(
     assert requests.descriptions == expected
 
 
-def test_original_duplicate_catalog_reuses_tracks_and_first_marker_facts() -> None:
+async def test_original_duplicate_catalog_reuses_tracks_and_first_marker_facts() -> (
+    None
+):
     """Repeated release IDs stay in saved requests but track reads remain cached."""
     spotify = _spotify()
     requests = Requests()
@@ -126,7 +131,7 @@ def test_original_duplicate_catalog_reuses_tracks_and_first_marker_facts() -> No
     assert requests.descriptions.count("loading Album at offset 0") == 1
 
 
-def test_original_empty_catalog_still_observes_top_tracks() -> None:
+async def test_original_empty_catalog_still_observes_top_tracks() -> None:
     """Completion observes artist top tracks even when there are no catalog releases."""
     spotify = _spotify()
     requests = Requests()

@@ -3,9 +3,8 @@
 from dataclasses import dataclass
 from dataclasses import replace
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.slow_listening_values import SlowListeningError
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -26,7 +25,7 @@ class StudioCatalogAccess:
     client: Spotify
     retry: RetryCall
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Observe candidates then saved membership before selecting studio editions.
 
         Args:
@@ -41,8 +40,8 @@ class StudioCatalogAccess:
         from spotify_manager.routines.slow_listening import _load_candidates
         from spotify_manager.routines.slow_listening import _load_saved_statuses
 
-        releases = _load_candidates(self.client, artist_id, self.retry)
-        saved = _load_saved_statuses(self.client, releases, self.retry)
+        releases = await _load_candidates(self.client, artist_id, self.retry)
+        saved = await _load_saved_statuses(self.client, releases, self.retry)
         observed = []
         for release in releases:
             observed.append(
@@ -50,7 +49,7 @@ class StudioCatalogAccess:
             )
         return select_editions(observed)
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read ordered tracks with the original shared release-error translation.
 
         Args:
@@ -62,10 +61,12 @@ class StudioCatalogAccess:
         Raises:
             SlowListeningError: The original release-track reader fails.
         """
-        from spotify_manager.routines.new_wine import load_release_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
         try:
-            return load_release_tracks(
+            return await load_release_tracks(
                 self.client, release_candidate(release), self.retry
             )
         except new_wine.NewWineError as exc:

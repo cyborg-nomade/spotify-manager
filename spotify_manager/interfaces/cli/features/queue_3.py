@@ -1,7 +1,7 @@
 """Explicit queue 3 CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -11,11 +11,14 @@ from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import queue_3 as queue_3
 from spotify_manager.interfaces.operations import (
@@ -44,7 +47,7 @@ class Queue3CLI:
     display: ConsoleDisplay
     sleep: Wait
 
-    def _prompt_queue_3_release_transition(
+    async def _prompt_queue_3_release_transition(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -90,7 +93,7 @@ class Queue3CLI:
                 str(next_release.total_tracks),
             )
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Advance to this release?",
                 choices=["y", "q"],
                 default="y",
@@ -101,7 +104,7 @@ class Queue3CLI:
             if progress is not None:
                 progress.start()
 
-    def _prompt_queue_3_composer_playlist(
+    async def _prompt_queue_3_composer_playlist(
         self,
         console: Console,
         artist_name: str,
@@ -131,7 +134,7 @@ class Queue3CLI:
             for index, candidate in enumerate(candidates, start=1):
                 table.add_row(str(index), candidate.name, str(candidate.total_tracks))
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Use which composer playlist?",
                 choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
                 default="1",
@@ -171,14 +174,14 @@ class Queue3CLI:
             )
         console.print(import_table)
 
-    def _run_import_queue_3_previous_year(self, dry_run: bool) -> None:
+    async def _run_import_queue_3_previous_year(self, dry_run: bool) -> None:
         """Import last year's Great Discoveries without advancing Queue 3.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._import_queue_3_previous_year_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
         except queue_3.Queue3ConfigError as exc:
@@ -200,8 +203,8 @@ class Queue3CLI:
                         "Loading previous-year discoveries", total=1
                     )
                 )
-                summary = queue_3.import_previous_year_discoveries(
-                    self.runtime.review_client(),
+                summary = await queue_3.import_previous_year_discoveries(
+                    (await self.runtime.review_client()),
                     playlist_id,
                     dry_run=dry_run,
                     echo=ImportQueue3PreviousYearInteraction(self),
@@ -234,7 +237,7 @@ class Queue3CLI:
             description=status,
         )
 
-    def _run_flush_queue_3(self, dry_run: bool) -> None:
+    async def _run_flush_queue_3(self, dry_run: bool) -> None:
         """Advance the first ten Queue 3 artists through studio discographies.
 
         Args:
@@ -242,7 +245,7 @@ class Queue3CLI:
         """
         self._flush_queue_3_console = self.display.create_console()
         self._flush_queue_3_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
         except queue_3.Queue3ConfigError as exc:
@@ -264,8 +267,8 @@ class Queue3CLI:
                 self._flush_queue_3_task_id = self._flush_queue_3_progress.add_task(
                     description, total=None
                 )
-                summary = queue_3.flush_queue_3(
-                    self.runtime.review_client(),
+                summary = await queue_3.flush_queue_3(
+                    (await self.runtime.review_client()),
                     Queue3Options(playlist_id=playlist_id, dry_run=dry_run),
                     Queue3Callbacks(
                         transition_reader=FlushQueue3Interaction(self),
@@ -286,7 +289,7 @@ class Queue3CLI:
             self._report_flush_queue_3_queue3_failure(exc)
         except SpotifyException as exc:
             self._report_flush_queue_3_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_queue_3_interrupted_interrupted(exc)
         self._show_flush_queue(dry_run, summary)
 
@@ -319,13 +322,13 @@ class Queue3CLI:
             description=status,
         )
 
-    def _flush_queue_3_ask_queue_3_release_transition(
+    async def _flush_queue_3_ask_queue_3_release_transition(
         self,
         source: new_wine.PlaylistTrack,
         current: slow_listening.DiscographyRelease,
         following: slow_listening.DiscographyRelease,
     ) -> str:
-        return self._prompt_queue_3_release_transition(
+        return await self._prompt_queue_3_release_transition(
             self._flush_queue_3_console,
             source,
             current,
@@ -333,10 +336,10 @@ class Queue3CLI:
             self._flush_queue_3_progress_ref,
         )
 
-    def _flush_queue_3_ask_queue_3_composer_playlist(
+    async def _flush_queue_3_ask_queue_3_composer_playlist(
         self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
     ) -> str:
-        return self._prompt_queue_3_composer_playlist(
+        return await self._prompt_queue_3_composer_playlist(
             self._flush_queue_3_console,
             artist,
             candidates,
@@ -449,7 +452,7 @@ class Queue3CLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_queue_3_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._flush_queue_3_console.print(
             "Queue 3 flush paused. The active run was saved.", style="bold yellow"
@@ -555,7 +558,7 @@ class ImportQueue3PreviousYearInteraction:
 
     owner: Queue3CLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -582,6 +585,7 @@ class ImportQueue3PreviousYearInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._import_queue_3_previous_year_update_progress(
             completed, total, status
         )
@@ -597,7 +601,7 @@ class FlushQueue3Interaction:
 
     owner: Queue3CLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -624,9 +628,10 @@ class FlushQueue3Interaction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._flush_queue_3_update_progress(completed, total, status)
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: new_wine.PlaylistTrack,
         current: slow_listening.DiscographyRelease,
@@ -642,11 +647,11 @@ class FlushQueue3Interaction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_queue_3_ask_queue_3_release_transition(
+        return await self.owner._flush_queue_3_ask_queue_3_release_transition(
             source, current, following
         )
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
     ) -> str:
         """Use this command's fixed choose composer prompt.
@@ -658,6 +663,6 @@ class FlushQueue3Interaction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_queue_3_ask_queue_3_composer_playlist(
+        return await self.owner._flush_queue_3_ask_queue_3_composer_playlist(
             artist, candidates
         )

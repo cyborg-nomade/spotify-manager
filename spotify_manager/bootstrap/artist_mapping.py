@@ -1,8 +1,7 @@
 """Bind independent artist interaction to the original Spotify search seam."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.artist_mapping import ArtistMapping
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.artist_search import LegacyArtistSearch
 from spotify_manager.routines import release_check as legacy
 

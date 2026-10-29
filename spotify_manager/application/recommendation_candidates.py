@@ -20,14 +20,14 @@ from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 class NeighborhoodCache(Protocol):
     """Retain original cache parsing, previously added exclusions and checkpoints."""
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read the validated mutable cache.
 
         Returns:
             Original schema and entries.
         """
 
-    def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
+    async def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
         """Read one uncached Last.fm neighborhood.
 
         Args:
@@ -37,7 +37,7 @@ class NeighborhoodCache(Protocol):
             Similar tracks in original response order.
         """
 
-    def previous(self) -> set[TrackKey]:
+    async def previous(self) -> set[TrackKey]:
         """Read actually added track exclusions.
 
         Returns:
@@ -57,7 +57,7 @@ class NeighborhoodCache(Protocol):
             Valid observation, including empty tuples, or a cache miss.
         """
 
-    def remember(
+    async def remember(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -92,7 +92,7 @@ class CandidateGathering:
     calendar: ListeningCalendar
     progress: Messages
 
-    def run(
+    async def run(
         self,
         seeds: tuple[FoundArtSeed, ...],
         heard: set[TrackKey],
@@ -123,20 +123,22 @@ class CandidateGathering:
         active_week = week or listening_week_start(
             self.calendar.local_date(generated_at)
         )
-        cache = self.cache.load()
+        cache = await self.cache.load()
         entries = cache["entries"]
         if not isinstance(entries, dict):
             raise AssertionError("validated cache entries changed type")
-        candidates = RecommendationCandidates(heard | self.cache.previous())
+        candidates = RecommendationCandidates(heard | (await self.cache.previous()))
         for index, seed in enumerate(seeds, start=1):
             self.progress.echo(
                 f"Getting Last.fm neighbors for seed {index}/{len(seeds)}"
             )
-            similar = self._neighbors(cache, entries, seed, generated_at, active_week)
+            similar = await self._neighbors(
+                cache, entries, seed, generated_at, active_week
+            )
             candidates.observe(seed, similar)
         return candidates.ranked(active_week, pool_size)
 
-    def _neighbors(
+    async def _neighbors(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -147,6 +149,6 @@ class CandidateGathering:
         similar = self.cache.lookup(entries.get("\0".join(seed.key)), week)
         if similar is not None:
             return similar
-        similar = self.cache.neighbors(seed)
-        self.cache.remember(cache, entries, seed, similar, generated_at)
+        similar = await self.cache.neighbors(seed)
+        await self.cache.remember(cache, entries, seed, similar, generated_at)
         return similar

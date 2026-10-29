@@ -4,13 +4,12 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 
-from spotipy import Spotify
-
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveryInputs
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_membership import RetryCall
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.infrastructure.legacy.new_year_state import LegacyAnnualState
@@ -95,15 +94,17 @@ class AnnualResources:
         access = service.namespace("new_year", NewYearStateDefinition())
         return LegacyAnnualState(access)
 
-    def owned(self) -> tuple[OwnedPlaylist, ...]:
+    async def owned(self) -> tuple[OwnedPlaylist, ...]:
         """Observe original current owned playlists excluding the auxiliary destination.
 
         Returns:
             Original complete current owned facts.
         """
-        from spotify_manager.routines.queue_3 import load_owned_playlists
+        from spotify_manager.routines.queue_3 import (
+            async_load_owned_playlists as load_owned_playlists,
+        )
 
-        return load_owned_playlists(self.sp, self.retry, self.playlists["queue3"])
+        return await load_owned_playlists(self.sp, self.retry, self.playlists["queue3"])
 
     def clock(self) -> datetime:
         """Read the original effective calendar time before other boundaries.
@@ -121,7 +122,7 @@ class AnnualResources:
 
         check_cancel(self.cancel_check)
 
-    def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
+    async def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
         """Observe annual import inputs without running another application stage.
 
         Args:
@@ -133,7 +134,7 @@ class AnnualResources:
         from spotify_manager.bootstrap.queue_3 import annual_inputs
 
         playlist = self.playlists["queue3"]
-        inputs = annual_inputs(
+        inputs = await annual_inputs(
             self.sp,
             playlist,
             self.retry,

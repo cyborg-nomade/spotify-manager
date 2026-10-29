@@ -6,6 +6,7 @@ from datetime import date
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -40,7 +41,11 @@ def test_fill_palace_dry_run_uses_configured_playlist(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FillPalaceDryRunUsesConfiguredPlaylistScenario(
         album=album, received=received, track=track
     )
@@ -78,10 +83,16 @@ def test_fill_palace_can_only_persist_the_alphabetical_cursor(
 ) -> None:
     """The cursor-only mode should not require or touch the Palace playlist."""
     received: dict[str, object] = {}
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FillPalaceCanOnlyPersistTheAlphabeticalCursorScenario(received=received)
     monkeypatch.setattr(
-        main.palace_of_memory, "set_alphabetical_cursor", scenario.set_cursor
+        main.palace_of_memory,
+        "set_alphabetical_cursor",
+        AsyncMock(side_effect=scenario.set_cursor),
     )
     monkeypatch.setattr(
         main.palace_of_memory,

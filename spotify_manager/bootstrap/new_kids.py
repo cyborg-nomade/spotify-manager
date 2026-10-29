@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.discovery_completion import DiscoveryCompletion
 from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
@@ -19,7 +17,8 @@ from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import ReviewProgress
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import CatalogTrack

@@ -15,6 +15,7 @@ The plain API (no gate, no frontend) is still available unchanged as
 ``spotify_manager.api:app`` for local use and tests.
 """
 
+import asyncio
 from pathlib import Path
 from threading import Lock
 
@@ -27,11 +28,14 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.api import ClientDep
 from spotify_manager.api import app
+from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.web import environment
 from spotify_manager.bootstrap.web import managed_path
 from spotify_manager.core.state.runtime import get_state_service
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.routines import genre_reveal
 from spotify_manager.settings import Settings
 
@@ -45,7 +49,6 @@ GENRE_REVEAL_STATE_PATH = managed_path(
 GENRE_REVEAL_LOG_PATH = managed_path(
     "GENRE_REVEAL_LOG_PATH", genre_reveal.DEFAULT_LOG_PATH
 )
-_genre_reveal_state_lock = Lock()
 _genre_reveal_run_lock = Lock()
 
 
@@ -78,14 +81,11 @@ def genre_reveal_page() -> FileResponse:
     "/genre-reveal/state",
     response_model=genre_reveal.GenreRevealState,
 )
-def get_genre_reveal_state() -> genre_reveal.GenreRevealState:
+async def get_genre_reveal_state() -> genre_reveal.GenreRevealState:
     """Return persisted Every Noise route progress."""
     try:
-        with _genre_reveal_state_lock:
-            return genre_reveal.load_genre_reveal_state(
-                GENRE_REVEAL_STATE_PATH,
-                state_service=get_state_service(),
-            )
+        async with current_execution().genre_state_lock:
+            return await _load_genre_state()
     except genre_reveal.GenreRevealStateError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -94,13 +94,13 @@ def get_genre_reveal_state() -> genre_reveal.GenreRevealState:
     "/genre-reveal/state",
     response_model=genre_reveal.GenreRevealState,
 )
-def put_genre_reveal_state(
+async def put_genre_reveal_state(
     update: genre_reveal.GenreRevealStateUpdate,
 ) -> genre_reveal.GenreRevealState:
     """Atomically replace persisted Every Noise route progress."""
     try:
-        with _genre_reveal_state_lock:
-            return genre_reveal.save_genre_reveal_state(
+        async with current_execution().genre_state_lock:
+            return await genre_reveal.async_save_genre_reveal_state(
                 update,
                 GENRE_REVEAL_STATE_PATH,
                 state_service=get_state_service(),
@@ -113,13 +113,13 @@ def put_genre_reveal_state(
     "/genre-reveal/source",
     response_model=genre_reveal.GenreRevealSourcePreview,
 )
-def get_genre_reveal_source(
+async def get_genre_reveal_source(
     slug: str,
     name: str,
 ) -> genre_reveal.GenreRevealSourcePreview:
     """Resolve the primary Spotify playlist before the user starts a run."""
     try:
-        return genre_reveal.discover_genre_source(slug, name)
+        return await genre_reveal.async_discover_genre_source(slug, name)
     except genre_reveal.GenreRevealSourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -128,7 +128,7 @@ def get_genre_reveal_source(
     "/genre-reveal/run-next",
     response_model=genre_reveal.GenreRevealRunResult,
 )
-def run_next_genre_reveal(
+async def run_next_genre_reveal(
     request: genre_reveal.GenreRevealRunRequest,
     client: ClientDep,
 ) -> genre_reveal.GenreRevealRunResult:
@@ -140,12 +140,12 @@ def run_next_genre_reveal(
         )
 
     try:
-        _require_incomplete_genre(request)
+        await _require_incomplete_genre(request)
 
         destination_playlist_id = genre_reveal.parse_destination_playlist_id(
             Settings().genre_reveal_playlist
         )
-        result = genre_reveal.process_next_genre(
+        result = await genre_reveal.async_process_next_genre(
             client,
             request.slug,
             request.name,
@@ -153,8 +153,8 @@ def run_next_genre_reveal(
             log_path=GENRE_REVEAL_LOG_PATH,
         )
 
-        with _genre_reveal_state_lock:
-            genre_reveal.mark_genre_completed(
+        async with current_execution().genre_state_lock:
+            await genre_reveal.async_mark_genre_completed(
                 request.slug,
                 GENRE_REVEAL_STATE_PATH,
                 state_service=get_state_service(),
@@ -200,12 +200,24 @@ def serve(host: str = "0.0.0.0", port: int = 7860) -> None:  # noqa: S104
     uvicorn.run(app, host=host, port=port)
 
 
-def _require_incomplete_genre(request: genre_reveal.GenreRevealRunRequest) -> None:
-    with _genre_reveal_state_lock:
-        state = genre_reveal.load_genre_reveal_state(
-            GENRE_REVEAL_STATE_PATH, state_service=get_state_service()
-        )
+async def _require_incomplete_genre(
+    request: genre_reveal.GenreRevealRunRequest,
+) -> None:
+    async with current_execution().genre_state_lock:
+        state = await _load_genre_state()
         if request.slug in state.completed:
             raise HTTPException(
                 status_code=409, detail=f"{request.name} is already completed"
             )
+
+
+async def _load_genre_state() -> genre_reveal.GenreRevealState:
+    async with blocking_capacity():
+        file_operation = asyncio.create_task(
+            asyncio.to_thread(
+                genre_reveal.load_genre_reveal_state,
+                GENRE_REVEAL_STATE_PATH,
+                state_service=get_state_service(),
+            )
+        )
+        return await finish_blocking(file_operation)

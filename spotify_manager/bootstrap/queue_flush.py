@@ -2,8 +2,7 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_flush import QueueFlush
 from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.core.state.service import StateService

@@ -17,7 +17,9 @@ from tests.support.queue_planning import observations
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_queue_decisions_match_original(name: str, case: dict[str, object]) -> None:
+async def test_queue_decisions_match_original(
+    name: str, case: dict[str, object]
+) -> None:
     """Retain original decisions from already observed facts without catalog calls.
 
     Args:
@@ -26,7 +28,7 @@ def test_queue_decisions_match_original(name: str, case: dict[str, object]) -> N
     """
     assert name
     edge = observations(case)
-    tracks = edge.tracks()
+    tracks = await edge.tracks()
     liked: dict[str, bool] = {}
     for index, track in enumerate(tracks):
         liked[track.spotify_id] = index < edge.liked_top

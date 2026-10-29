@@ -25,7 +25,7 @@ class GenreProgress:
 class GenreProgressEffects(Protocol):
     """Observe authoritative progress and accept timestamped changes."""
 
-    def read(self) -> GenreProgress:
+    async def read(self) -> GenreProgress:
         """Read and validate the latest original progress.
 
         Returns:
@@ -39,7 +39,7 @@ class GenreProgressEffects(Protocol):
             Original current UTC timestamp.
         """
 
-    def save(self, state: GenreProgress) -> None:
+    async def save(self, state: GenreProgress) -> None:
         """Present and accept changed progress through the original state handle.
 
         Args:
@@ -57,7 +57,7 @@ class UpdateGenreProgress:
 
     effects: GenreProgressEffects
 
-    def run(self, completed: tuple[str, ...], hide_done: bool) -> GenreProgress:
+    async def run(self, completed: tuple[str, ...], hide_done: bool) -> GenreProgress:
         """Replace editable fields only when they differ from current progress.
 
         Args:
@@ -67,9 +67,9 @@ class UpdateGenreProgress:
         Returns:
             Original current metadata or the accepted timestamped replacement.
         """
-        previous = self.effects.read()
+        previous = await self.effects.read()
         if previous.completed == completed and previous.hide_done == hide_done:
             return previous
         state = GenreProgress(completed, hide_done, updated_at=self.effects.clock())
-        self.effects.save(state)
+        await self.effects.save(state)
         return state

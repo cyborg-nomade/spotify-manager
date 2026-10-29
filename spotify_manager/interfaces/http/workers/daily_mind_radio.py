@@ -6,9 +6,9 @@ from datetime import UTC
 from datetime import timedelta
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
@@ -50,11 +50,11 @@ class DailyMindRadioWorker:
     job: _BlastJob = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one Daily Mind Radio web job and retain its complete trace."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except blast_from_past.BlastFromPastCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -96,8 +96,8 @@ class DailyMindRadioWorker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> daily_mind_radio.DailyMindRadioSpotifySummary:
-        summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
+    async def _execute(self) -> daily_mind_radio.DailyMindRadioSpotifySummary:
+        summary = await daily_mind_radio.add_daily_mind_radio_to_spotify(
             self.spotify,
             self.playlist_id,
             progress_callback=self,

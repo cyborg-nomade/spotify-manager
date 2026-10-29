@@ -24,7 +24,7 @@ class ArtistFollowPresentation(Protocol):
 class CreditedArtistAccess(Protocol):
     """Fresh membership, remote follows, mirror publication, and audit effects."""
 
-    def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
+    async def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
         """Read ordered current membership without normalizing response length.
 
         Args:
@@ -34,14 +34,14 @@ class CreditedArtistAccess(Protocol):
             Ordered membership observations.
         """
 
-    def follow(self, artists: list[AlbumArtist]) -> None:
+    async def follow(self, artists: list[AlbumArtist]) -> None:
         """Follow the missing artists as one original-size request.
 
         Args:
             artists: Ordered artists whose observed membership is falsey.
         """
 
-    def record(self, artists: list[AlbumArtist]) -> set[str]:
+    async def record(self, artists: list[AlbumArtist]) -> set[str]:
         """Publish all checked artists to the local mirror and statistics.
 
         Args:
@@ -51,7 +51,7 @@ class CreditedArtistAccess(Protocol):
             IDs newly inserted into the local artist mirror.
         """
 
-    def audit(self, events: list[dict[str, object]]) -> None:
+    async def audit(self, events: list[dict[str, object]]) -> None:
         """Append completed artist events before persisting the checkpoint.
 
         Args:
@@ -129,26 +129,26 @@ def _events(
     return events, followed_count
 
 
-def _batch(
+async def _batch(
     dependencies: CreditedArtistDependencies,
     artists: list[AlbumArtist],
     state: RecoveryState,
     dry_run: bool,
 ) -> int:
-    statuses = dependencies.access.statuses(artists)
+    statuses = await dependencies.access.statuses(artists)
     missing = _missing(artists, statuses)
     if missing and not dry_run:
-        dependencies.access.follow(missing)
-    recorded = set() if dry_run else dependencies.access.record(artists)
+        await dependencies.access.follow(missing)
+    recorded = set() if dry_run else (await dependencies.access.record(artists))
     events, followed = _events(dependencies, artists, statuses, recorded, dry_run)
     state.checked_artist_ids.update(artist.spotify_id for artist in artists)
     if not dry_run:
-        dependencies.access.audit(events)
-        state.persist()
+        await dependencies.access.audit(events)
+        await state.persist()
     return followed
 
 
-def follow_credited_artists(
+async def follow_credited_artists(
     dependencies: CreditedArtistDependencies,
     artists: list[AlbumArtist],
     state: RecoveryState,
@@ -173,6 +173,6 @@ def follow_credited_artists(
     followed = 0
     for start in range(0, len(pending), 40):
         batch = pending[start : start + 40]
-        followed += _batch(dependencies, batch, state, dry_run)
+        followed += await _batch(dependencies, batch, state, dry_run)
         checked += len(batch)
     return checked, followed

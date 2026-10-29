@@ -9,10 +9,9 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.models.your_library import YourLibraryArtist
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import review_artists as legacy
 from tests.support.artist_review_run import artist
 from tests.support.artist_review_run import clone
@@ -140,7 +139,7 @@ class CatalogObservations:
         """
         self.record("save", str(path), cache)
 
-    def search(self, q: str, limit: int, offset: int, **kwargs: str) -> object:
+    async def search(self, q: str, limit: int, offset: int, **kwargs: str) -> object:
         """Supply original paged search data.
 
         Args:
@@ -157,7 +156,7 @@ class CatalogObservations:
         page = _page(self.profile, kind, limit, offset)
         return {kind + "s": page} if isinstance(page, dict) else page
 
-    def artist_albums(
+    async def artist_albums(
         self, identity: str, include_groups: str, limit: int, offset: int
     ) -> object:
         """Supply original raw complete discography pages.
@@ -174,7 +173,7 @@ class CatalogObservations:
         self.record("artist-albums", identity, include_groups, limit, offset)
         return _page(self.profile, "album", limit, offset)
 
-    def album_tracks(self, identity: str, limit: int, offset: int) -> object:
+    async def album_tracks(self, identity: str, limit: int, offset: int) -> object:
         """Supply original first-track data and narrowed failures.
 
         Args:
@@ -198,7 +197,7 @@ class CatalogObservations:
         primary = "other" if self.profile == "wrong-credit" else "a"
         return {"items": [_raw_track(identity + "-first", primary)]}
 
-    def _get(self, path: str, limit: int, offset: int) -> object:
+    async def _get(self, path: str, limit: int, offset: int) -> object:
         self.record("get", path, limit, offset)
         page_limit = 10 if self.profile == "member-total-only" else limit
         page = _page(self.profile, "members", page_limit, offset)
@@ -271,7 +270,7 @@ def _retry(
     return operation()
 
 
-def outcome(profile: str, kind: str, repeat: bool = False) -> dict[str, object]:
+async def outcome(profile: str, kind: str, repeat: bool = False) -> dict[str, object]:
     """Observe original catalog results, complete requests and every checkpoint.
 
     Args:
@@ -287,13 +286,13 @@ def outcome(profile: str, kind: str, repeat: bool = False) -> dict[str, object]:
     results: list[object] = []
     with patch.object(legacy, "save_cache", edge.save):
         for _attempt in range(2 if repeat else 1):
-            _observe(edge, kind, results)
+            (await _observe(edge, kind, results))
     return clone({"results": results, "trace": edge.trace, "cache": edge.cache})
 
 
-def _observe(edge: CatalogObservations, kind: str, results: list[object]) -> None:
+async def _observe(edge: CatalogObservations, kind: str, results: list[object]) -> None:
     try:
-        result = _invoke(edge, kind)
+        result = await _invoke(edge, kind)
         results.append({"value": result})
     except (
         RuntimeError,
@@ -305,20 +304,28 @@ def _observe(edge: CatalogObservations, kind: str, results: list[object]) -> Non
         results.append({"error": type(exc).__name__, "message": str(exc)})
 
 
-def _invoke(edge: CatalogObservations, kind: str) -> object:
+async def _invoke(edge: CatalogObservations, kind: str) -> object:
     retry = RecordedRequests(edge)
     spotify = cast(Spotify, edge)
     if kind == "members":
-        membership = legacy.playlist_membership(spotify, "one", retry)
+        membership = await legacy.async_playlist_membership(spotify, "one", retry)
         return {
             "primary_artist_ids": sorted(membership.primary_artist_ids),
             "track_ids": sorted(membership.track_ids),
             "track_uris_by_primary_artist": membership.track_uris_by_primary_artist,
         }
-    operation = _operation(kind)
-    result = operation(
-        spotify, artist("a"), edge.cache, Path("/original/cache.json"), retry
-    )
+    if kind == "tracks":
+        result = await legacy.async_ranked_artist_tracks(
+            spotify, artist("a"), edge.cache, Path("/original/cache.json"), retry
+        )
+    elif kind == "ranked":
+        result = await legacy.async_ranked_artist_releases(
+            spotify, artist("a"), edge.cache, Path("/original/cache.json"), retry
+        )
+    else:
+        result = await legacy.async_earliest_artist_releases(
+            spotify, artist("a"), edge.cache, Path("/original/cache.json"), retry
+        )
     return [asdict(item) for item in result]
 
 
@@ -329,19 +336,6 @@ def cases() -> list[dict[str, object]]:
         Original scenario inputs, results, reads and accepted checkpoints.
     """
     return cast(list[dict[str, object]], json.loads(FIXTURE.read_text()))
-
-
-def _operation(
-    kind: str,
-) -> Callable[
-    [Spotify, YourLibraryArtist, dict[str, dict[str, object]], Path, legacy.RetryCall],
-    list[legacy.TrackCandidate] | list[legacy.ReleaseCandidate],
-]:
-    if kind == "tracks":
-        return legacy.ranked_artist_tracks
-    if kind == "ranked":
-        return legacy.ranked_artist_releases
-    return legacy.earliest_artist_releases
 
 
 def _singles(rows: list[object]) -> list[object]:

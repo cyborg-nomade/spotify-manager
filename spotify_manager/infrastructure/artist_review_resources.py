@@ -1,12 +1,11 @@
 """Bind original artist-review files, catalog seams and synchronous Spotify retries."""
 
+import asyncio
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
-
-from spotipy import Spotify
 
 from spotify_manager.application.artist_review_catalog import CatalogCache
 from spotify_manager.application.artist_review_catalog import CatalogReads
@@ -20,14 +19,17 @@ from spotify_manager.application.artist_review_values import ArtistReviewState
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import Wait
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.domain.artist_review_values import TrackCandidate
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.legacy.artist_review_catalog import (
     LegacyCatalogCache,
 )
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 
@@ -59,21 +61,23 @@ class ReviewResources:
     state_service: StateService | None
     cache: dict[str, dict[str, object]] = field(default_factory=dict)
 
-    def state(self) -> ArtistReviewState:
+    async def state(self) -> ArtistReviewState:
         """Resolve, load and attach original progress persistence.
 
         Returns:
             Original mutable state with the original checkpoint publication order.
         """
+        from spotify_manager.routines.review_artists import (
+            _async_state_access as _async_state_access,
+        )
         from spotify_manager.routines.review_artists import _deserialize_state
-        from spotify_manager.routines.review_artists import _state_access
 
-        access = _state_access(self.paths, self.state_service)
-        state = _deserialize_state(access.load())
+        access = _async_state_access(self.paths, self.state_service)
+        state = _deserialize_state(await access.load())
         state.checkpoint = ReviewCheckpoint(access)
         return state
 
-    def initialize_cache(self, refresh: bool) -> None:
+    async def initialize_cache(self, refresh: bool) -> None:
         """Initialize metadata after original state resolution.
 
         Args:
@@ -81,9 +85,13 @@ class ReviewResources:
         """
         from spotify_manager.routines.review_artists import load_cache
 
-        self.cache = load_cache(self.paths.cache, refresh=refresh)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(load_cache, self.paths.cache, refresh=refresh)
+            )
+            self.cache = await finish_blocking(file_operation)
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -134,7 +142,7 @@ class ReviewCheckpoint:
 
     access: RoutineState
 
-    def save(self, state: ArtistReviewState) -> None:
+    async def save(self, state: ArtistReviewState) -> None:
         """Serialize and accept complete progress.
 
         Args:
@@ -142,7 +150,7 @@ class ReviewCheckpoint:
         """
         from spotify_manager.routines.review_artists import _serialize_state
 
-        self.access.save(_serialize_state(state))
+        await self.access.save(_serialize_state(state))
 
 
 @dataclass(frozen=True)
@@ -157,11 +165,15 @@ class ReviewMetadata:
     path: Path
     data: dict[str, dict[str, object]]
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Accept the current complete cache."""
         from spotify_manager.routines.review_artists import save_cache
 
-        save_cache(self.path, self.data)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(save_cache, self.path, self.data)
+            )
+            await finish_blocking(file_operation)
 
 
 @dataclass(frozen=True)
@@ -178,7 +190,7 @@ class SpotifyArtistReads:
     artist: YourLibraryArtist
     retry: RetryCall
 
-    def read_tracks(self) -> list[TrackCandidate]:
+    async def read_tracks(self) -> list[TrackCandidate]:
         """Read complete ranked track facts.
 
         Returns:
@@ -186,9 +198,9 @@ class SpotifyArtistReads:
         """
         from spotify_manager.routines.review_artists import _read_tracks
 
-        return _read_tracks(self.spotify, self.artist, self.retry)
+        return await _read_tracks(self.spotify, self.artist, self.retry)
 
-    def read_search(self, offset: int) -> ReleasePage:
+    async def read_search(self, offset: int) -> ReleasePage:
         """Read a ranked release page.
 
         Args:
@@ -199,9 +211,9 @@ class SpotifyArtistReads:
         """
         from spotify_manager.routines.review_artists import _read_ranked_page
 
-        return _read_ranked_page(self.spotify, self.artist, self.retry, offset)
+        return await _read_ranked_page(self.spotify, self.artist, self.retry, offset)
 
-    def read_discography(self, offset: int) -> RawReleasePage:
+    async def read_discography(self, offset: int) -> RawReleasePage:
         """Read an unbounded catalog scan page.
 
         Args:
@@ -212,9 +224,11 @@ class SpotifyArtistReads:
         """
         from spotify_manager.routines.review_artists import _read_discography_page
 
-        return _read_discography_page(self.spotify, self.artist, self.retry, offset)
+        return await _read_discography_page(
+            self.spotify, self.artist, self.retry, offset
+        )
 
-    def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
+    async def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
         """Read the first playable track with original 404 handling.
 
         Args:
@@ -225,7 +239,7 @@ class SpotifyArtistReads:
         """
         from spotify_manager.routines.review_artists import _read_first
 
-        return _read_first(self.spotify, self.retry, release)
+        return await _read_first(self.spotify, self.retry, release)
 
 
 @dataclass(frozen=True)
@@ -242,7 +256,7 @@ class SpotifyMembershipPages:
     playlist: str
     retry: RetryCall
 
-    def read_membership(self, offset: int) -> MembershipPage:
+    async def read_membership(self, offset: int) -> MembershipPage:
         """Read one queue page.
 
         Args:
@@ -253,7 +267,9 @@ class SpotifyMembershipPages:
         """
         from spotify_manager.routines.review_artists import _read_membership_page
 
-        return _read_membership_page(self.spotify, self.playlist, self.retry, offset)
+        return await _read_membership_page(
+            self.spotify, self.playlist, self.retry, offset
+        )
 
 
 @dataclass(frozen=True)
@@ -279,7 +295,7 @@ class ReviewSpotifyAccess:
         """
         return SpotifyMembershipPages(self.spotify, identity, self.retry)
 
-    def append(self, identity: str, uri: str, description: str) -> object:
+    async def append(self, identity: str, uri: str, description: str) -> object:
         """Accept one marker addition through the original retry boundary.
 
         Args:
@@ -290,14 +306,16 @@ class ReviewSpotifyAccess:
         Returns:
             Original accepted response.
         """
-        from spotify_manager.routines.review_artists import add_playlist_item
+        from spotify_manager.routines.review_artists import (
+            async_add_playlist_item as add_playlist_item,
+        )
 
         for attempt in self.retry.attempts(description):
-            with attempt:
-                response = add_playlist_item(self.spotify, identity, uri)
+            async with attempt:
+                response = await add_playlist_item(self.spotify, identity, uri)
         return response
 
-    def remove(self, identity: str, uris: list[str], description: str) -> object:
+    async def remove(self, identity: str, uris: list[str], description: str) -> object:
         """Accept one ordered removal batch through the original retry boundary.
 
         Args:
@@ -308,14 +326,16 @@ class ReviewSpotifyAccess:
         Returns:
             Original accepted response.
         """
-        from spotify_manager.routines.review_artists import remove_playlist_items
+        from spotify_manager.routines.review_artists import (
+            async_remove_playlist_items as remove_playlist_items,
+        )
 
         for attempt in self.retry.attempts(description):
-            with attempt:
-                response = remove_playlist_items(self.spotify, identity, uris)
+            async with attempt:
+                response = await remove_playlist_items(self.spotify, identity, uris)
         return response
 
-    def unfollow(self, uris: list[str], description: str) -> object:
+    async def unfollow(self, uris: list[str], description: str) -> object:
         """Accept an artist unfollow batch through the original retry boundary.
 
         Args:
@@ -325,11 +345,13 @@ class ReviewSpotifyAccess:
         Returns:
             Original accepted response.
         """
-        from spotify_manager.routines.review_artists import remove_library_artists
+        from spotify_manager.routines.review_artists import (
+            async_remove_library_artists as remove_library_artists,
+        )
 
         for attempt in self.retry.attempts(description):
-            with attempt:
-                response = remove_library_artists(self.spotify, uris)
+            async with attempt:
+                response = await remove_library_artists(self.spotify, uris)
         return response
 
 
@@ -343,7 +365,7 @@ class ReviewFiles:
 
     resources: ReviewResources
 
-    def artists(self) -> list[YourLibraryArtist]:
+    async def artists(self) -> list[YourLibraryArtist]:
         """Complete current followed-artist mirror.
 
         Returns:
@@ -351,9 +373,15 @@ class ReviewFiles:
         """
         from spotify_manager.routines.review_artists import load_models
 
-        return load_models(self.resources.paths.artists, YourLibraryArtist)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    load_models, self.resources.paths.artists, YourLibraryArtist
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def tracks(self) -> list[YourLibraryTrack]:
+    async def tracks(self) -> list[YourLibraryTrack]:
         """Complete current liked-track mirror.
 
         Returns:
@@ -361,23 +389,29 @@ class ReviewFiles:
         """
         from spotify_manager.routines.review_artists import load_models
 
-        return load_models(self.resources.paths.liked_tracks, YourLibraryTrack)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    load_models, self.resources.paths.liked_tracks, YourLibraryTrack
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def state(self) -> ArtistReviewState:
+    async def state(self) -> ArtistReviewState:
         """Load original progress and attach its named checkpoint store.
 
         Returns:
             Original boundary result.
         """
-        return self.resources.state()
+        return await self.resources.state()
 
-    def cache(self, refresh: bool) -> None:
+    async def cache(self, refresh: bool) -> None:
         """Initialize original metadata cache for subsequent catalog reads.
 
         Args:
             refresh: Original refresh.
         """
-        return self.resources.initialize_cache(refresh)
+        return await self.resources.initialize_cache(refresh)
 
     def run_id(self) -> str:
         """Create the original sortable invocation identity.
@@ -404,7 +438,7 @@ class ReviewFiles:
 
         return event(run_id, name, **details)
 
-    def append(self, events: list[dict[str, object]]) -> None:
+    async def append(self, events: list[dict[str, object]]) -> None:
         """Append original ordered audit records.
 
         Args:
@@ -412,9 +446,13 @@ class ReviewFiles:
         """
         from spotify_manager.routines.review_artists import append_events
 
-        return append_events(self.resources.paths.log, events)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(append_events, self.resources.paths.log, events)
+            )
+            return await finish_blocking(file_operation)
 
-    def save_artists(self, artists: list[YourLibraryArtist]) -> None:
+    async def save_artists(self, artists: list[YourLibraryArtist]) -> None:
         """Publish original remaining followed artists.
 
         Args:
@@ -422,9 +460,13 @@ class ReviewFiles:
         """
         from spotify_manager.routines.review_artists import save_artists
 
-        return save_artists(self.resources.paths.artists, artists)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(save_artists, self.resources.paths.artists, artists)
+            )
+            return await finish_blocking(file_operation)
 
-    def stats(self, total: int, removed: int) -> None:
+    async def stats(self, total: int, removed: int) -> None:
         """Publish original post-unfollow statistics.
 
         Args:
@@ -433,9 +475,16 @@ class ReviewFiles:
         """
         from spotify_manager.routines.review_artists import update_stats_after_unfollow
 
-        return update_stats_after_unfollow(
-            self.resources.paths.stats_history, total, removed
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    update_stats_after_unfollow,
+                    self.resources.paths.stats_history,
+                    total,
+                    removed,
+                )
+            )
+            return await finish_blocking(file_operation)
 
 
 @dataclass(frozen=True)
@@ -448,7 +497,7 @@ class ReviewAuditFile:
 
     path: Path
 
-    def append(self, events: list[dict[str, object]]) -> None:
+    async def append(self, events: list[dict[str, object]]) -> None:
         """Accept ordered complete records.
 
         Args:
@@ -456,4 +505,8 @@ class ReviewAuditFile:
         """
         from spotify_manager.routines.review_artists import append_events
 
-        append_events(self.path, events)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(append_events, self.path, events)
+            )
+            await finish_blocking(file_operation)

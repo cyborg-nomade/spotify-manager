@@ -9,7 +9,7 @@ from tests.support.queue_fill_application import application_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_independent_queue_fill_matches_original(
+async def test_independent_queue_fill_matches_original(
     name: str, case: dict[str, object]
 ) -> None:
     """Preserve mapping learning, preview writes and accepted-effect failure order.
@@ -20,10 +20,9 @@ def test_independent_queue_fill_matches_original(
     """
     assert name
     assert (
-        application_outcome(
+        await application_outcome(
             cast(str, case["scenario"]),
             cast(bool, case["preview"]),
             cast(str | None, case["failure"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

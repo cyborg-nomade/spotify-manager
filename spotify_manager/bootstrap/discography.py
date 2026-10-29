@@ -3,8 +3,6 @@
 from datetime import date
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.discography_catalog import DiscographyCatalog
 from spotify_manager.application.discography_execution import DiscographyExecution
 from spotify_manager.application.discography_history import DiscographyArtistMapping
@@ -14,6 +12,7 @@ from spotify_manager.application.discography_planning import DiscographyReads
 from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.discography_values import QueueName
 from spotify_manager.infrastructure.discography_observations import (

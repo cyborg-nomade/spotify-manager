@@ -3,8 +3,7 @@
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.something_old_values import (
     SomethingOldConfigError as SomethingOldConfigError,
 )
@@ -40,7 +39,7 @@ from spotify_manager.routines.something_old import (
 )
 
 
-def run_something_old(
+async def run_something_old(
     sp: Spotify,
     lastfm: LastFmReader,
     options: SomethingOldOptions,
@@ -64,4 +63,4 @@ def run_something_old(
     """
     resources = resources or SomethingOldResources()
     configured = something_old(sp, lastfm, options, callbacks, resources)
-    return configured.run(options.playlist_id, options.dry_run)
+    return await configured.run(options.playlist_id, options.dry_run)

@@ -27,7 +27,7 @@ class TraceChoices:
     trace: Trace
     answers: deque[str] = field(default_factory=deque)
 
-    def choose_release(
+    async def choose_release(
         self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...]
     ) -> str:
         """Observe the original release prompt.
@@ -41,7 +41,7 @@ class TraceChoices:
         """
         return self.trace.answer("choice", self.answers, source, candidates)
 
-    def choose_action(
+    async def choose_action(
         self, album: YourLibraryAlbum, evaluation: AlbumEvaluation
     ) -> str:
         """Observe the original album-review prompt.
@@ -55,7 +55,7 @@ class TraceChoices:
         """
         return self.trace.answer("prompt", self.answers, album, evaluation)
 
-    def complete(self, source: PlaylistTrack) -> None:
+    async def complete(self, source: PlaylistTrack) -> None:
         """Record the original completion notification.
 
         Args:
@@ -82,7 +82,7 @@ class TraceReleaseOrder:
 
     trace: Trace
 
-    def order_releases(
+    async def order_releases(
         self, date: str, releases: tuple[DiscographyRelease, ...]
     ) -> tuple[str, ...]:
         """Record the original same-date ordering result.
@@ -107,7 +107,7 @@ class TraceRandomIndexes:
 
     trace: Trace
 
-    def sample(self, population: int, count: int) -> RandomIndexSet:
+    async def sample(self, population: int, count: int) -> RandomIndexSet:
         """Record the original selected random indexes.
 
         Args:

@@ -1,23 +1,21 @@
 """Real New Wine CLI and HTTP choices through migrated application workflows."""
 
 from collections.abc import Iterator
-from functools import partial
-from threading import Thread
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.interfaces.test_slow_listening_slice import _stop
-from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_new_wine import FakeSpotify
 from tests.routines.test_new_wine import raw_release
@@ -52,7 +50,6 @@ def wine_http(
         HTTP client and simulated Spotify, with worker cleanup guaranteed.
     """
     spotify = _spotify()
-    threads: list[Thread] = []
     settings = Mock(
         return_value=SimpleNamespace(
             new_wine_from_old_bottles_playlist="new",
@@ -62,13 +59,13 @@ def wine_http(
     )
     monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
-    try:
-        yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield (http, spotify)
+        finally:
+            _stop()
 
 
 def _start(http: TestClient, *, preview: bool = False, endpoints: bool = False) -> str:

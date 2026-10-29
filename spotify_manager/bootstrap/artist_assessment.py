@@ -1,10 +1,9 @@
 """Compose the New Kids/Queue 2 artist-completion use case."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.artist_assessment import assess_artist
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.infrastructure.legacy.artist_assessment import (
@@ -12,7 +11,7 @@ from spotify_manager.infrastructure.legacy.artist_assessment import (
 )
 
 
-def observe_artist_assessment(
+async def observe_artist_assessment(
     client: Spotify,
     artist_id: str,
     catalog: tuple[RankedRelease, ...],
@@ -31,6 +30,6 @@ def observe_artist_assessment(
     Returns:
         Original completion assessment and representative marker choices.
     """
-    return assess_artist(
+    return await assess_artist(
         LegacyAssessmentCatalog(client, retry), artist_id, catalog, track_cache
     )

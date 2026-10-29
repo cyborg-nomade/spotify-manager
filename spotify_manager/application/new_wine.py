@@ -71,7 +71,7 @@ class NewWineDependencies:
     progress: ReviewProgress | None = None
 
 
-def flush_new_wine(
+async def flush_new_wine(
     options: NewWineOptions, dependencies: NewWineDependencies
 ) -> FlushSummary:
     """Advance every original marker once, then refill available cellar slots.
@@ -88,12 +88,12 @@ def flush_new_wine(
         NewWineConfigError: Endpoint mode has no endpoint choice reader.
         NewWineError: Live observations or operator selections are invalid.
     """
-    tracks = dependencies.access.playlist(options.destination)
+    tracks = await dependencies.access.playlist(options.destination)
     ids = {track.spotify_id for track in tracks}
-    sauvignon = dependencies.access.playlist(options.sauvignon)
+    sauvignon = await dependencies.access.playlist(options.sauvignon)
     sauvignon_ids = {track.spotify_id for track in sauvignon}
-    state = dependencies.access.load_state(options.dry_run)
-    run, resumed = _select_run(options, dependencies, state, tracks)
+    state = await dependencies.access.load_state(options.dry_run)
+    run, resumed = await _select_run(options, dependencies, state, tracks)
     run_id = str(run["run_id"])
     entries, progress = _records(run, state)
     endpoint_mode = bool(run.get("choose_album_endpoints", options.endpoint_mode))
@@ -124,12 +124,12 @@ def flush_new_wine(
         execution,
         dependencies.presentation,
     )
-    return NewWineRun(
+    return await NewWineRun(
         options, dependencies, execution, planner, state, run, run_id, entries, resumed
     ).execute()
 
 
-def _select_run(
+async def _select_run(
     options: NewWineOptions,
     dependencies: NewWineDependencies,
     state: dict[str, object],
@@ -141,7 +141,7 @@ def _select_run(
     run = new_run(options, tracks, dependencies.clock)
     if not options.dry_run:
         state["active_run"] = run
-        dependencies.access.save(state)
+        await dependencies.access.save(state)
     return run, False
 
 
@@ -253,21 +253,21 @@ class NewWineRun:
     results: list[FlushResult] = field(default_factory=list)
     paused: bool = False
 
-    def execute(self) -> FlushSummary:
+    async def execute(self) -> FlushSummary:
         """Process entries, then refill and mark completion at the original boundaries.
 
         Returns:
             Original summary of this invocation's outcomes.
         """
         for index, raw in enumerate(self.entries, start=1):
-            if not self._review(_entry(raw), index):
+            if not (await self._review(_entry(raw), index)):
                 self.paused = True
                 break
-        refill = self._refill()
-        self._finish()
+        refill = await self._refill()
+        await self._finish()
         return self._summary(refill)
 
-    def _review(self, entry: dict[str, object], index: int) -> bool:
+    async def _review(self, entry: dict[str, object], index: int) -> bool:
         if entry.get("status") in {"completed", "skipped"}:
             return True
         source = source_from_record(entry.get("source"))
@@ -275,36 +275,36 @@ class NewWineRun:
         raw = entry.get("plan")
         plan = cast(dict[str, object], raw) if isinstance(raw, dict) else None
         if plan is None:
-            decision = self.planner.plan(source, entry)
+            decision = await self.planner.plan(source, entry)
             if not isinstance(decision, dict):
-                return self._skip_or_pause(entry, decision)
+                return await self._skip_or_pause(entry, decision)
             plan = decision
             entry["plan"] = plan
-            self.execution.checkpoint()
-        result = self.execution.execute(source, entry, plan)
-        self._record(result)
+            await self.execution.checkpoint()
+        result = await self.execution.execute(source, entry, plan)
+        await self._record(result)
         self._progress(index, f"Completed {source.name}")
         return True
 
-    def _skip_or_pause(
+    async def _skip_or_pause(
         self, entry: dict[str, object], result: FlushResult | None
     ) -> bool:
         if result is None:
             return False
         entry["status"] = "skipped"
-        self._record(result)
-        self.execution.checkpoint()
+        await self._record(result)
+        await self.execution.checkpoint()
         return True
 
-    def _record(self, result: FlushResult) -> None:
+    async def _record(self, result: FlushResult) -> None:
         self.results.append(result)
-        self.dependencies.access.audit(self.run_id, result)
+        await self.dependencies.access.audit(self.run_id, result)
 
     def _progress(self, completed: int, label: str) -> None:
         if self.dependencies.progress is not None:
             self.dependencies.progress.progress(completed, len(self.entries), label)
 
-    def _refill(self) -> CellarRefillSummary | None:
+    async def _refill(self) -> CellarRefillSummary | None:
         cellar = self.run.get("wine_cellar_playlist_id")
         if not isinstance(cellar, str) or not cellar:
             cellar = self.options.cellar
@@ -327,14 +327,14 @@ class NewWineRun:
             self.dependencies.access.refill_limit,
             projected,
         )
-        return self.dependencies.cellar.run(options, self.state, self.run)
+        return await self.dependencies.cellar.run(options, self.state, self.run)
 
-    def _finish(self) -> None:
+    async def _finish(self) -> None:
         if self.options.dry_run or self.paused or not _finished(self.entries):
             return
         self.run["status"] = "completed"
         self.run["completed_at"] = self.dependencies.clock.now().isoformat()
-        self.dependencies.access.save(self.state)
+        await self.dependencies.access.save(self.state)
 
     def _summary(self, refill: CellarRefillSummary | None) -> FlushSummary:
         return FlushSummary(

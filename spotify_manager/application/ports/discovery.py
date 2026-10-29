@@ -11,7 +11,7 @@ from spotify_manager.models.lookups import AlbumEvaluation
 class DiscoveryAudit(Protocol):
     """Append original named discovery events, including preview observations."""
 
-    def event(self, name: str, **details: object) -> None:
+    async def event(self, name: str, **details: object) -> None:
         """Append one event at the application-selected boundary.
 
         Args:
@@ -36,7 +36,7 @@ class DiscoveryPlanningPresentation(Protocol):
 class DiscoveryLibrary(Protocol):
     """External effects required when a discovery release reaches its boundary."""
 
-    def saved(self, release: RankedRelease) -> bool:
+    async def saved(self, release: RankedRelease) -> bool:
         """Read tolerant live saved membership.
 
         Args:
@@ -46,21 +46,21 @@ class DiscoveryLibrary(Protocol):
             Whether the first returned status is truthy.
         """
 
-    def save_album(self, release: RankedRelease) -> None:
+    async def save_album(self, release: RankedRelease) -> None:
         """Save one release remotely.
 
         Args:
             release: Release accepted by the keep rule.
         """
 
-    def remove_album(self, release: RankedRelease) -> None:
+    async def remove_album(self, release: RankedRelease) -> None:
         """Unsave one release remotely.
 
         Args:
             release: Release rejected by the keep rule.
         """
 
-    def removed_audit(
+    async def removed_audit(
         self, release: RankedRelease, evaluation: AlbumEvaluation
     ) -> None:
         """Append recovery information after removal and before mirror changes.
@@ -70,7 +70,7 @@ class DiscoveryLibrary(Protocol):
             evaluation: Accepted live removal decision.
         """
 
-    def mirror(self, release: RankedRelease, should_save: bool) -> None:
+    async def mirror(self, release: RankedRelease, should_save: bool) -> None:
         """Reconcile the local mirror, including unchanged remote memberships.
 
         Args:
@@ -102,7 +102,7 @@ class DiscoveryLibraryPresentation(Protocol):
 class DiscoveryInteraction(Retry, Protocol):
     """Own the operator, notifications and request policy for one discovery run."""
 
-    def choose(
+    async def choose(
         self, artist: str, candidates: tuple[RankedRelease | OwnedPlaylist, ...]
     ) -> str:
         """Obtain the operator's release or composer-playlist decision.

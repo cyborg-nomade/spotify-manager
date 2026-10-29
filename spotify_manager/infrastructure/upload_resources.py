@@ -1,5 +1,6 @@
 """Named source and publication resources for library export uploads."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from huggingface_hub import HfApi
 
 from spotify_manager.application.upload_values import GeneratedPart
 from spotify_manager.application.upload_values import LibraryFilesUploadPlan
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.infrastructure.upload_hub import UploadFailure
 from spotify_manager.infrastructure.upload_hub import manifest
 
@@ -14,7 +17,7 @@ from spotify_manager.infrastructure.upload_hub import manifest
 class ExportPreparation:
     """Read and encode exports using the retained format implementations."""
 
-    def read(self, path: Path, key: str) -> tuple[bytes, int]:
+    async def read(self, path: Path, key: str) -> tuple[bytes, int]:
         """Read and shallowly validate selected bytes.
 
         Args:
@@ -28,7 +31,13 @@ class ExportPreparation:
             _load_and_validate_export,
         )
 
-        return _load_and_validate_export(path, expected_list_key=key)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _load_and_validate_export, path, expected_list_key=key
+                )
+            )
+            return await finish_blocking(file_operation)
 
     def parts(self, path: Path, content: bytes) -> tuple[GeneratedPart, ...]:
         """Encode deterministic history fallbacks without materializing files.
@@ -55,7 +64,7 @@ class HubUpload:
 
     client: HfApi
 
-    def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
+    async def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
         """Read complete remote file names.
 
         Args:
@@ -66,9 +75,11 @@ class HubUpload:
         """
         from spotify_manager.bootstrap.upload_library import _remote
 
-        return _remote(self.client, plan)
+        async with blocking_capacity():
+            request = asyncio.create_task(asyncio.to_thread(_remote, self.client, plan))
+            return await finish_blocking(request)
 
-    def materialize(self, plan: LibraryFilesUploadPlan) -> None:
+    async def materialize(self, plan: LibraryFilesUploadPlan) -> None:
         """Accept local fallbacks and remove obsolete local parts.
 
         Args:
@@ -78,7 +89,11 @@ class HubUpload:
             materialize_lastfm_parts,
         )
 
-        materialize_lastfm_parts(plan)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(materialize_lastfm_parts, plan)
+            )
+            await finish_blocking(file_operation)
 
     def manifest(self, plan: LibraryFilesUploadPlan, stale: set[str]) -> list[object]:
         """Encode ordered SDK operations.
@@ -92,7 +107,9 @@ class HubUpload:
         """
         return manifest(plan, stale)
 
-    def commit(self, plan: LibraryFilesUploadPlan, operations: list[object]) -> object:
+    async def commit(
+        self, plan: LibraryFilesUploadPlan, operations: list[object]
+    ) -> object:
         """Accept one remote commit.
 
         Args:
@@ -104,7 +121,11 @@ class HubUpload:
         """
         from spotify_manager.bootstrap.upload_library import _commit
 
-        return _commit(self.client, plan, operations)
+        async with blocking_capacity():
+            request = asyncio.create_task(
+                asyncio.to_thread(_commit, self.client, plan, operations)
+            )
+            return await finish_blocking(request)
 
     def failure(self, stage: str, repo: str) -> UploadFailure:
         """Open the original transport error translation scope.

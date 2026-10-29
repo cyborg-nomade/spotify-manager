@@ -39,24 +39,24 @@ class HistoryExport:
 class HistoryStorage(Protocol):
     """Observe and persist canonical history using its existing storage semantics."""
 
-    def hydrate(self) -> None:
+    async def hydrate(self) -> None:
         """Hydrate managed history before cancellation or local observation."""
 
-    def load(self) -> HistoryExport:
+    async def load(self) -> HistoryExport:
         """Read the validated export.
 
         Returns:
             Original records and recovery provenance.
         """
 
-    def legacy(self) -> tuple[HistoryRecord, ...]:
+    async def legacy(self) -> tuple[HistoryRecord, ...]:
         """Read the legacy delta.
 
         Returns:
             Validated records in their original order.
         """
 
-    def backup(self, export: HistoryExport, checked_at: datetime) -> Path:
+    async def backup(self, export: HistoryExport, checked_at: datetime) -> Path:
         """Back up the original export before replacement.
 
         Args:
@@ -82,14 +82,14 @@ class HistoryStorage(Protocol):
             checked_at: Successful-check timestamp.
         """
 
-    def publish(self, full_rebuild: bool) -> None:
+    async def publish(self, full_rebuild: bool) -> None:
         """Publish managed history, including unchanged successful checks.
 
         Args:
             full_rebuild: Select the original publication description.
         """
 
-    def audit(self, summary: ScrobbleHistorySummary) -> None:
+    async def audit(self, summary: ScrobbleHistorySummary) -> None:
         """Append the completed real refresh to the audit log.
 
         Args:
@@ -150,7 +150,7 @@ def _username(payload: dict[str, object], expected: str | None) -> str:
 class HistoryReader(Protocol):
     """Read the inclusive live range through a named external source."""
 
-    def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
+    async def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
         """Observe original raw live records lazily.
 
         Args:
@@ -180,7 +180,7 @@ class HistoryRefresh:
     check_cancel: Cancellation
     progress: Messages
 
-    def run(
+    async def run(
         self,
         expected_username: str | None,
         dry_run: bool,
@@ -204,19 +204,19 @@ class HistoryRefresh:
             ScrobbleHistoryCancelledError: Cancellation is requested.
             OSError: An injected effect fails; earlier effects remain accepted.
         """
-        self.storage.hydrate()
+        await self.storage.hydrate()
         self.check_cancel.check()
         checked_at = self.clock.now() if now is None else now.astimezone(UTC)
         self.progress.echo("Loading the canonical Last.fm history")
-        export = self.storage.load()
+        export = await self.storage.load()
         self.check_cancel.check()
         if export.recovered:
             self.progress.echo(
                 "Recovered Last.fm history from compressed fallback parts"
             )
         username = _username(export.payload, expected_username)
-        records, legacy_added = self._initial_records(export, full_rebuild)
-        live_added = self._fetch(records, checked_at, full_rebuild)
+        records, legacy_added = await self._initial_records(export, full_rebuild)
+        live_added = await self._fetch(records, checked_at, full_rebuild)
         records = sorted(records, key=_timestamp)
         if full_rebuild and not records and export.records:
             raise ScrobbleHistoryError(
@@ -224,7 +224,7 @@ class HistoryRefresh:
             )
         changed = full_rebuild or legacy_added > 0 or live_added > 0
         self.check_cancel.check()
-        backup = self._persist(
+        backup = await self._persist(
             export, records, checked_at, full_rebuild, changed and not dry_run
         )
         summary = ScrobbleHistorySummary(
@@ -239,21 +239,21 @@ class HistoryRefresh:
             backup,
         )
         if not dry_run:
-            self._finish(summary, full_rebuild, changed)
+            await self._finish(summary, full_rebuild, changed)
         return summary
 
-    def _initial_records(
+    async def _initial_records(
         self, export: HistoryExport, full_rebuild: bool
     ) -> tuple[list[HistoryRecord], int]:
         records = [] if full_rebuild else list(export.records)
         added = 0
         if not full_rebuild and not export.payload.get("full_rebuilt_at"):
-            added = _merge(records, self.storage.legacy())
+            added = _merge(records, (await self.storage.legacy()))
         if not records and not full_rebuild:
             raise ScrobbleHistoryError("The Last.fm scrobble history is empty.")
         return records, added
 
-    def _fetch(
+    async def _fetch(
         self, records: list[HistoryRecord], checked_at: datetime, full_rebuild: bool
     ) -> int:
         latest = max((_timestamp(record) for record in records), default=0)
@@ -265,11 +265,11 @@ class HistoryRefresh:
             if full_rebuild
             else "Fetching newer scrobbles from Last.fm"
         )
-        live = self.reader.fetch(start, end)
+        live = await self.reader.fetch(start, end)
         self.check_cancel.check()
         return _merge(records, live)
 
-    def _persist(
+    async def _persist(
         self,
         export: HistoryExport,
         records: list[HistoryRecord],
@@ -280,20 +280,20 @@ class HistoryRefresh:
         if not persist:
             return None
         self.progress.echo("Backing up and atomically saving Last.fm history")
-        backup = self.storage.backup(export, checked_at)
+        backup = await self.storage.backup(export, checked_at)
         payload = export.payload
         if full_rebuild:
             payload = dict(payload, full_rebuilt_at=checked_at.isoformat())
         self.storage.write(payload, records)
         return backup
 
-    def _finish(
+    async def _finish(
         self, summary: ScrobbleHistorySummary, full_rebuild: bool, changed: bool
     ) -> None:
         self.storage.mark(summary.checked_at)
-        self.storage.publish(full_rebuild)
+        await self.storage.publish(full_rebuild)
         if not changed:
             self.progress.echo(
                 "History already current; recorded successful check time"
             )
-        self.storage.audit(summary)
+        await self.storage.audit(summary)

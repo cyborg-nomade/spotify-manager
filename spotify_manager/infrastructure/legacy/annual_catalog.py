@@ -3,9 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from spotipy import Spotify
-
 from spotify_manager.application.new_year_membership import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.annual_history import YearEntry
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -29,7 +28,7 @@ class LegacyAnnualSpotify:
     sp: Spotify
     retry: RetryCall
 
-    def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
+    async def search(self, item: YearEntry) -> tuple[SpotifyTrackMatch, ...]:
         """Search the original artist and title.
 
         Args:
@@ -38,14 +37,16 @@ class LegacyAnnualSpotify:
         Returns:
             Qualified matches in encounter order.
         """
-        from spotify_manager.routines.blast_from_past import search_spotify_matches
+        from spotify_manager.routines.blast_from_past import (
+            async_search_spotify_matches as search_spotify_matches,
+        )
 
         play = Scrobble(
             artist=item["artist"], track=item["name"], album="", timestamp_ms=0
         )
-        return search_spotify_matches(self.sp, play, self.retry)
+        return await search_spotify_matches(self.sp, play, self.retry)
 
-    def album(self, artist: str, name: str) -> SpotifyAlbum | None:
+    async def album(self, artist: str, name: str) -> SpotifyAlbum | None:
         """Search the original release.
 
         Args:
@@ -55,11 +56,13 @@ class LegacyAnnualSpotify:
         Returns:
             Original accepted release or no match.
         """
-        from spotify_manager.routines.palace_of_memory import search_spotify_album
+        from spotify_manager.routines.palace_of_memory import (
+            async_search_spotify_album as search_spotify_album,
+        )
 
-        return search_spotify_album(self.sp, artist, name, self.retry)
+        return await search_spotify_album(self.sp, artist, name, self.retry)
 
-    def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Read the original first playable marker.
 
         Args:
@@ -68,11 +71,13 @@ class LegacyAnnualSpotify:
         Returns:
             Original playable first marker.
         """
-        from spotify_manager.routines.palace_of_memory import load_first_track
+        from spotify_manager.routines.palace_of_memory import (
+            async_load_first_track as load_first_track,
+        )
 
-        return load_first_track(self.sp, album, self.retry)
+        return await load_first_track(self.sp, album, self.retry)
 
-    def artist(self, name: str) -> SpotifyArtistCandidate | None:
+    async def artist(self, name: str) -> SpotifyArtistCandidate | None:
         """Read the exact original artist mapping.
 
         Args:
@@ -81,11 +86,13 @@ class LegacyAnnualSpotify:
         Returns:
             Original mapping or cancellation.
         """
-        from spotify_manager.routines.something_old import resolve_spotify_artist
+        from spotify_manager.routines.something_old import (
+            async_resolve_spotify_artist as resolve_spotify_artist,
+        )
 
-        return resolve_spotify_artist(self.sp, name, None, self.retry)
+        return await resolve_spotify_artist(self.sp, name, None, self.retry)
 
-    def primary(self, uri: str) -> object:
+    async def primary(self, uri: str) -> object:
         """Read the original first credit.
 
         Args:
@@ -96,9 +103,9 @@ class LegacyAnnualSpotify:
         """
         from spotify_manager.routines.new_year import _primary_artist
 
-        return _primary_artist(self.sp, self.retry, uri)
+        return await _primary_artist(self.sp, self.retry, uri)
 
-    def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, identity: str) -> tuple[PlaylistTrack, ...]:
         """Read complete current playlist markers.
 
         Args:
@@ -107,11 +114,15 @@ class LegacyAnnualSpotify:
         Returns:
             Ordered current playable markers.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        return load_playlist_tracks(self.sp, identity, self.retry)
+        return await load_playlist_tracks(self.sp, identity, self.retry)
 
-    def create(self, name: str, kind: Literal["tracks", "albums"], year: int) -> str:
+    async def create(
+        self, name: str, kind: Literal["tracks", "albums"], year: int
+    ) -> str:
         """Create the original private annual chart.
 
         Args:
@@ -124,9 +135,9 @@ class LegacyAnnualSpotify:
         """
         from spotify_manager.routines.new_year import _create_chart
 
-        return _create_chart(self.sp, self.retry, name, kind, year)
+        return await _create_chart(self.sp, self.retry, name, kind, year)
 
-    def replace(self, playlist: str, uris: list[str]) -> None:
+    async def replace(self, playlist: str, uris: list[str]) -> None:
         """Replace the original chart contents.
 
         Args:
@@ -135,9 +146,9 @@ class LegacyAnnualSpotify:
         """
         from spotify_manager.routines.new_year import _replace_chart
 
-        _replace_chart(self.sp, self.retry, playlist, uris)
+        await _replace_chart(self.sp, self.retry, playlist, uris)
 
-    def append(self, playlist: str, uris: list[str], top: bool) -> None:
+    async def append(self, playlist: str, uris: list[str], top: bool) -> None:
         """Append the original absent markers.
 
         Args:
@@ -147,9 +158,9 @@ class LegacyAnnualSpotify:
         """
         from spotify_manager.routines.new_year import _post_pending
 
-        _post_pending(self.sp, playlist, uris, top)
+        await _post_pending(self.sp, playlist, uris, top)
 
-    def move(self, playlist: str, position: int) -> None:
+    async def move(self, playlist: str, position: int) -> None:
         """Move one original marker to the front.
 
         Args:
@@ -158,7 +169,7 @@ class LegacyAnnualSpotify:
         """
         from spotify_manager.routines.new_year import _move_position
 
-        _move_position(self.sp, playlist, position)
+        await _move_position(self.sp, playlist, position)
 
 
 @dataclass(frozen=True)
@@ -171,10 +182,10 @@ class LegacyAnnualCatalog(LegacyAnnualSpotify):
 
     resources: AnnualResources
 
-    def owned(self) -> tuple[OwnedPlaylist, ...]:
+    async def owned(self) -> tuple[OwnedPlaylist, ...]:
         """Read owned playlists.
 
         Returns:
             Complete original ownership facts.
         """
-        return self.resources.owned()
+        return await self.resources.owned()

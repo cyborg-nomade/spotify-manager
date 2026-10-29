@@ -39,7 +39,9 @@ def _target(node: ast.AST, bindings: Bindings) -> str:
     return f"{owner}.{node.attr}" if owner else ""
 
 
-def _function_bindings(function: ast.FunctionDef, outer: Bindings) -> Bindings:
+def _function_bindings(
+    function: ast.FunctionDef | ast.AsyncFunctionDef, outer: Bindings
+) -> Bindings:
     bindings = dict(outer)
     for argument in ast.walk(function.args):
         if isinstance(argument, ast.arg):
@@ -63,12 +65,16 @@ def forwarding_functions(source: str, module: str) -> set[str]:
     outer = _import_bindings(tree.body)
     result: set[str] = set()
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and _forwards(node, outer):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _forwards(
+            node, outer
+        ):
             result.add(f"{module}.{node.name}")
     return result
 
 
-def _forwards(function: ast.FunctionDef, outer: Bindings) -> bool:
+def _forwards(
+    function: ast.FunctionDef | ast.AsyncFunctionDef, outer: Bindings
+) -> bool:
     bindings = _function_bindings(function, outer)
     for node in ast.walk(function):
         if not isinstance(node, ast.Call):

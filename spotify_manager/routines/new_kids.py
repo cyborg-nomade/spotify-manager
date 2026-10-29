@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application import composer_progression
 from spotify_manager.application import composer_routes
@@ -33,15 +34,15 @@ from spotify_manager.application.new_kids_values import Queue2Summary as Queue2S
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
-from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.domain import completion
-
-# UFI
 from spotify_manager.domain import discovery_history as history_policy
 from spotify_manager.domain import discovery_progression as discovery_policy
 from spotify_manager.domain import releases as release_policy
@@ -56,8 +57,22 @@ from spotify_manager.domain.discovery_progression import (
 )
 from spotify_manager.domain.discovery_progression import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.releases import release_identity
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.async_work import blocking_capacity
+
+# UFI
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.discovery import (
+    BlockingDiscoveryInteraction as LegacyDiscoveryInteraction,
+)
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingHistoryReader as LegacyHistoryReader,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
@@ -69,13 +84,18 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import scrobble_history
-from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
 from spotify_manager.routines.review_album_limits import (
     append_removed_album_log as append_removed_album_log,
 )
-from spotify_manager.routines.review_artists import add_playlist_item
-from spotify_manager.routines.review_artists import remove_library_artists
-from spotify_manager.routines.review_artists import remove_playlist_items
+from spotify_manager.routines.review_artists import (
+    async_add_playlist_item as add_playlist_item,
+)
+from spotify_manager.routines.review_artists import (
+    async_remove_library_artists as remove_library_artists,
+)
+from spotify_manager.routines.review_artists import (
+    async_remove_playlist_items as remove_playlist_items,
+)
 from spotify_manager.utils.sorting import album_sort_key
 from spotify_manager.utils.sorting import artist_sort_key
 
@@ -151,7 +171,7 @@ def _scrobble_track_identity(name: str) -> str:
     return history_policy.scrobble_track_identity(name)
 
 
-def load_annual_scrobble_index(
+async def async_load_annual_scrobble_index(
     path: Path = DEFAULT_SCROBBLES_PATH,
     *,
     year: int,
@@ -169,7 +189,7 @@ def load_annual_scrobble_index(
         NewKidsStateError: Loading or decoding the source export fails.
     """
     try:
-        scrobbles_by_date = blast_from_past.load_scrobbles_by_date(path)
+        scrobbles_by_date = await blast_from_past.async_load_scrobbles_by_date(path)
     except blast_from_past.LastFmExportError as exc:
         raise NewKidsStateError(
             f"Could not load the {year} Last.fm scrobble history: {exc}"
@@ -178,7 +198,7 @@ def load_annual_scrobble_index(
     return history_policy.annual_scrobble_index(scrobbles_by_date, year)
 
 
-def refresh_scrobbles_for_release_progress(
+async def async_refresh_scrobbles_for_release_progress(
     lastfm: scrobble_history.LastFmReader,
     username: str,
     *,
@@ -200,7 +220,7 @@ def refresh_scrobbles_for_release_progress(
         ScrobbleHistoryError: Existing history refresh or persistence fails.
     """
     canonical_path = scrobbles_path.resolve() == DEFAULT_SCROBBLES_PATH.resolve()
-    summary = scrobble_history.refresh_scrobble_history(
+    summary = await scrobble_history.async_refresh_scrobble_history(
         lastfm,
         expected_username=username,
         export_path=scrobbles_path,
@@ -337,7 +357,7 @@ def _composer_step(
     )
 
 
-def _resolve_composer_playlist(
+async def _resolve_composer_playlist(
     state: dict[str, object],
     artist_id: str,
     artist_name: str,
@@ -347,7 +367,7 @@ def _resolve_composer_playlist(
     choice_reader: ReleaseChoiceReader,
 ) -> tuple[composer_playlists.OwnedPlaylist | None, str | None]:
     """Resolve and remember one owned works playlist for a logical artist."""
-    return composer_routes.resolve_composer_route(
+    return await composer_routes.resolve_composer_route(
         state,
         artist_id,
         artist_name,
@@ -382,13 +402,13 @@ def _composer_plan(
     )
 
 
-def _saved_release_statuses(
+async def _saved_release_statuses(
     sp: Spotify, ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
     statuses: dict[str, bool] = {}
     for start in range(0, len(ids), CONTAINS_BATCH_SIZE):
         batch = ids[start : start + CONTAINS_BATCH_SIZE]
-        response = _saved_release_batch(retry_call, batch, sp)
+        response = await _saved_release_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Saved Albums")
     return statuses
 
@@ -401,7 +421,7 @@ def _accept_statuses(
     _record_statuses(statuses, batch, response)
 
 
-def load_top_track_data(
+async def async_load_top_track_data(
     sp: Spotify,
     artist_id: str,
     retry_call: RetryCall,
@@ -420,8 +440,8 @@ def load_top_track_data(
         NewKidsError: Spotify returns an invalid top-track collection.
     """
     for attempt in retry_call.attempts(f"loading top tracks for artist {artist_id}"):
-        with attempt:
-            response = sp.artist_top_tracks(artist_id)
+        async with attempt:
+            response = await sp.artist_top_tracks(artist_id)
     raw_tracks = response.get("tracks") if isinstance(response, dict) else None
     if not isinstance(raw_tracks, list):
         raise NewKidsError("Spotify returned invalid artist top tracks.")
@@ -483,7 +503,7 @@ def _catalog_track(
     )
 
 
-def load_ranked_catalog(
+async def async_load_ranked_catalog(
     sp: Spotify,
     artist_id: str,
     retry_call: RetryCall,
@@ -501,26 +521,26 @@ def load_ranked_catalog(
     Raises:
         NewKidsError: A catalog page, membership list or detail response is invalid.
     """
-    simplified = _artist_release_records(sp, artist_id, retry_call)
+    simplified = await _artist_release_records(sp, artist_id, retry_call)
     release_ids = list(simplified)
     if not release_ids:
         return ()
-    saved = _saved_release_statuses(sp, release_ids, retry_call)
-    top_ranks, _top_tracks = load_top_track_data(sp, artist_id, retry_call)
-    full_by_id = _release_details(sp, release_ids, retry_call)
+    saved = await _saved_release_statuses(sp, release_ids, retry_call)
+    top_ranks, _top_tracks = await async_load_top_track_data(sp, artist_id, retry_call)
+    full_by_id = await _release_details(sp, release_ids, retry_call)
     candidates = _catalog_candidates(
         artist_id, simplified, full_by_id, saved, top_ranks
     )
     return canonical_releases(candidates)
 
 
-def _artist_release_records(
+async def _artist_release_records(
     sp: Spotify, artist_id: str, retry_call: RetryCall
 ) -> dict[str, dict[str, object]]:
     simplified: dict[str, dict[str, object]] = {}
     offset = 0
     while True:
-        items, has_next = _artist_release_page(sp, artist_id, offset, retry_call)
+        items, has_next = await _artist_release_page(sp, artist_id, offset, retry_call)
         _collect_artist_releases(items, artist_id, simplified)
         offset += len(items)
         if not has_next:
@@ -529,14 +549,14 @@ def _artist_release_records(
             raise NewKidsError("Spotify returned an empty release page.")
 
 
-def _artist_release_page(
+async def _artist_release_page(
     sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> tuple[list[object], bool]:
     for attempt in retry_call.attempts(
         f"loading releases for artist {artist_id} at offset {offset}"
     ):
-        with attempt:
-            response = sp.artist_albums(
+        async with attempt:
+            response = await sp.artist_albums(
                 artist_id,
                 include_groups="album,single,compilation",
                 limit=ARTIST_RELEASE_PAGE_SIZE,
@@ -566,13 +586,13 @@ def _collect_artist_releases(
             releases[identifier] = raw
 
 
-def _release_details(
+async def _release_details(
     sp: Spotify, release_ids: list[str], retry_call: RetryCall
 ) -> dict[str, dict[str, object]]:
     full_by_id: dict[str, dict[str, object]] = {}
     for start in range(0, len(release_ids), ALBUM_BATCH_SIZE):
         batch = release_ids[start : start + ALBUM_BATCH_SIZE]
-        response = _release_details_batch(retry_call, batch, sp)
+        response = await _release_details_batch(retry_call, batch, sp)
         raw_albums = response.get("albums") if isinstance(response, dict) else None
         if not isinstance(raw_albums, list):
             raise NewKidsError("Spotify returned invalid album details.")
@@ -611,7 +631,7 @@ def _catalog_candidates(
     return tuple(candidates)
 
 
-def load_release_tracks(
+async def async_load_release_tracks(
     sp: Spotify,
     release: RankedRelease,
     retry_call: RetryCall,
@@ -632,7 +652,7 @@ def load_release_tracks(
     tracks: list[CatalogTrack] = []
     offset = 0
     while True:
-        items, has_next = _release_track_page(sp, release, offset, retry_call)
+        items, has_next = await _release_track_page(sp, release, offset, retry_call)
         _collect_release_tracks(items, tracks)
         offset += len(items)
         if not has_next:
@@ -641,12 +661,14 @@ def load_release_tracks(
             raise NewKidsError(f"Spotify returned an empty page for {release.name}.")
 
 
-def _release_track_page(
+async def _release_track_page(
     sp: Spotify, release: RankedRelease, offset: int, retry_call: RetryCall
 ) -> tuple[list[object], bool]:
     for attempt in retry_call.attempts(f"loading {release.name} at offset {offset}"):
-        with attempt:
-            response = sp.album_tracks(release.spotify_id, limit=50, offset=offset)
+        async with attempt:
+            response = await sp.album_tracks(
+                release.spotify_id, limit=50, offset=offset
+            )
     return _catalog_page(
         response, f"Spotify returned invalid tracks for {release.name}."
     )
@@ -712,7 +734,7 @@ def release_review_catalog(
     return history_policy.review_catalog(catalog, RELEASES_PER_ARTIST)
 
 
-def played_releases_from_history(
+async def async_played_releases_from_history(
     sp: Spotify,
     catalog: tuple[RankedRelease, ...],
     annual_scrobbles: AnnualScrobbleIndex,
@@ -739,7 +761,7 @@ def played_releases_from_history(
     """
     from spotify_manager.bootstrap.release_history import observe_played_releases
 
-    return observe_played_releases(
+    return await observe_played_releases(
         sp,
         catalog,
         annual_scrobbles,
@@ -836,15 +858,20 @@ def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "new_kids",
         NewKidsStateCodec(),
         StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
+
+
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
@@ -936,12 +963,18 @@ def _write_json_list(path: Path, values: list[object]) -> None:
     publish_managed_path(path, source="New Kids library reconciliation")
 
 
-def _sync_local_album(
+async def _sync_local_album(
     release: RankedRelease,
     should_save: bool,
     path: Path,
 ) -> bool:
-    raw = _read_json_list(path)
+    from spotify_manager.routines.recover_removed_albums import (
+        sync_stats_history_counts as _sync_stats_history_counts,
+    )
+
+    async with blocking_capacity():
+        file_operation_0 = asyncio.create_task(asyncio.to_thread(_read_json_list, path))
+        raw = await finish_blocking(file_operation_0)
     albums = [YourLibraryAlbum.model_validate(item) for item in raw]
     present = any(album.spotify_id == release.spotify_id for album in albums)
     if present == should_save:
@@ -957,13 +990,27 @@ def _sync_local_album(
         albums.sort(key=album_sort_key)
     else:
         albums = [album for album in albums if album.spotify_id != release.spotify_id]
-    _write_json_list(path, [album.model_dump(mode="json") for album in albums])
+    async with blocking_capacity():
+        file_operation_1 = asyncio.create_task(
+            asyncio.to_thread(
+                _write_json_list,
+                path,
+                [album.model_dump(mode="json") for album in albums],
+            )
+        )
+        await finish_blocking(file_operation_1)
     if path == DEFAULT_ALBUMS_PATH:
-        sync_stats_history_counts(total_albums=len(albums))
+        async with blocking_capacity():
+            file_operation_2 = asyncio.create_task(
+                asyncio.to_thread(_sync_stats_history_counts, total_albums=len(albums))
+            )
+            await finish_blocking(file_operation_2)
     return True
 
 
-def remove_local_artist(artist_id: str, path: Path = DEFAULT_ARTISTS_PATH) -> bool:
+async def async_remove_local_artist(
+    artist_id: str, path: Path = DEFAULT_ARTISTS_PATH
+) -> bool:
     """Remove an unfollowed artist from the mirror and update statistics.
 
     Args:
@@ -977,19 +1024,39 @@ def remove_local_artist(artist_id: str, path: Path = DEFAULT_ARTISTS_PATH) -> bo
         NewKidsStateError: Reading or replacing the local mirror fails.
         ValidationError: A stored artist record fails existing model validation.
     """
-    raw = _read_json_list(path)
+    from spotify_manager.routines.recover_removed_albums import (
+        sync_stats_history_counts as _sync_stats_history_counts,
+    )
+
+    async with blocking_capacity():
+        file_operation_0 = asyncio.create_task(asyncio.to_thread(_read_json_list, path))
+        raw = await finish_blocking(file_operation_0)
     artists = [YourLibraryArtist.model_validate(item) for item in raw]
     updated = [artist for artist in artists if artist.spotify_id != artist_id]
     if len(updated) == len(artists):
         return False
     updated.sort(key=artist_sort_key)
-    _write_json_list(path, [artist.model_dump(mode="json") for artist in updated])
+    async with blocking_capacity():
+        file_operation_1 = asyncio.create_task(
+            asyncio.to_thread(
+                _write_json_list,
+                path,
+                [artist.model_dump(mode="json") for artist in updated],
+            )
+        )
+        await finish_blocking(file_operation_1)
     if path == DEFAULT_ARTISTS_PATH:
-        sync_stats_history_counts(total_artists=len(updated))
+        async with blocking_capacity():
+            file_operation_2 = asyncio.create_task(
+                asyncio.to_thread(
+                    _sync_stats_history_counts, total_artists=len(updated)
+                )
+            )
+            await finish_blocking(file_operation_2)
     return True
 
 
-def _reconcile_release_library(
+async def _reconcile_release_library(
     sp: Spotify,
     release: RankedRelease,
     evaluation: AlbumEvaluation,
@@ -1006,29 +1073,35 @@ def _reconcile_release_library(
     service = library_reconciliation(
         sp, retry_call, albums_path, removed_albums_log_path, log_path, echo, dry_run
     )
-    return service.reconcile(release, evaluation)
+    return await service.reconcile(release, evaluation)
 
 
-def _release_saved(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> bool:
+async def _release_saved(
+    sp: Spotify, release: RankedRelease, retry_call: RetryCall
+) -> bool:
     for attempt in retry_call.attempts(f"checking whether {release.name} is saved"):
-        with attempt:
-            response = sp.current_user_saved_albums_contains([release.spotify_id])
+        async with attempt:
+            response = await sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
-def _save_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
+async def _save_release(
+    sp: Spotify, release: RankedRelease, retry_call: RetryCall
+) -> None:
     for attempt in retry_call.attempts(f"saving {release.name}"):
-        with attempt:
-            sp.current_user_saved_albums_add([release.spotify_id])
+        async with attempt:
+            await sp.current_user_saved_albums_add([release.spotify_id])
 
 
-def _remove_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
+async def _remove_release(
+    sp: Spotify, release: RankedRelease, retry_call: RetryCall
+) -> None:
     for attempt in retry_call.attempts(f"unsaving {release.name}"):
-        with attempt:
-            sp.current_user_saved_albums_delete([release.spotify_id])
+        async with attempt:
+            await sp.current_user_saved_albums_delete([release.spotify_id])
 
 
-def _catalog_track_popularities(
+async def _catalog_track_popularities(
     sp: Spotify,
     track_ids: list[str],
     retry_call: RetryCall,
@@ -1036,7 +1109,7 @@ def _catalog_track_popularities(
     popularities: dict[str, int] = {}
     for start in range(0, len(track_ids), TRACK_BATCH_SIZE):
         batch = track_ids[start : start + TRACK_BATCH_SIZE]
-        response = _track_popularity_batch(retry_call, batch, sp)
+        response = await _track_popularity_batch(retry_call, batch, sp)
         raw_tracks = response.get("tracks") if isinstance(response, dict) else None
         if not isinstance(raw_tracks, list):
             raise NewKidsError("Spotify returned invalid track details.")
@@ -1067,7 +1140,7 @@ def _promotion_reasons(
     )
 
 
-def assess_artist(
+async def async_assess_artist(
     sp: Spotify,
     artist_id: str,
     catalog: tuple[RankedRelease, ...],
@@ -1091,55 +1164,57 @@ def assess_artist(
     """
     from spotify_manager.bootstrap.artist_assessment import observe_artist_assessment
 
-    return observe_artist_assessment(sp, artist_id, catalog, retry_call, track_cache)
+    return await observe_artist_assessment(
+        sp, artist_id, catalog, retry_call, track_cache
+    )
 
 
-def _assessment_saved(
+async def _assessment_saved(
     sp: Spotify, release_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
     statuses: dict[str, bool] = {}
     for start in range(0, len(release_ids), CONTAINS_BATCH_SIZE):
         batch = release_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = _assessment_saved_batch(retry_call, batch, sp)
+        response = await _assessment_saved_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Saved Albums")
     return statuses
 
 
-def _assessment_liked(
+async def _assessment_liked(
     sp: Spotify, track_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
     statuses: dict[str, bool] = {}
     for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = _assessment_liked_batch(retry_call, batch, sp)
+        response = await _assessment_liked_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Liked Songs")
     return statuses
 
 
-def _assessment_top_liked(
+async def _assessment_top_liked(
     sp: Spotify, track_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
     statuses: dict[str, bool] = {}
     for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = _assessment_top_liked_batch(retry_call, batch, sp)
+        response = await _assessment_top_liked_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "top Liked Songs")
     return statuses
 
 
-def _playlist_artist_ids(
+async def _playlist_artist_ids(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
 ) -> tuple[set[str], set[str]]:
-    tracks = new_wine.load_playlist_tracks(sp, playlist_id, retry_call)
+    tracks = await new_wine.async_load_playlist_tracks(sp, playlist_id, retry_call)
     return (
         {track.primary_artist_id for track in tracks},
         {track.spotify_id for track in tracks},
     )
 
 
-def _great_discoveries_playlist(
+async def _great_discoveries_playlist(
     sp: Spotify,
     state: dict[str, Any],
     year: int,
@@ -1153,23 +1228,23 @@ def _great_discoveries_playlist(
     from spotify_manager.bootstrap.new_kids import great_discoveries
 
     service = great_discoveries(sp, retry_call, state_access, echo)
-    return service.resolve(state, year, seed_2026_playlist_id, dry_run)
+    return await service.resolve(state, year, seed_2026_playlist_id, dry_run)
 
 
-def _current_user_id(sp: Spotify, retry_call: RetryCall) -> str:
+async def _current_user_id(sp: Spotify, retry_call: RetryCall) -> str:
     for attempt in retry_call.attempts("loading the current Spotify profile"):
-        with attempt:
-            accepted_response = sp.current_user()
+        async with attempt:
+            accepted_response = await sp.current_user()
     profile = accepted_response
     return str(profile.get("id") or "") if isinstance(profile, dict) else ""
 
 
-def _create_great_playlist(
+async def _create_great_playlist(
     sp: Spotify, user_id: str, year: int, retry_call: RetryCall
 ) -> str:
     for attempt in retry_call.attempts(f"creating Great Discoveries {year}"):
-        with attempt:
-            created = sp.user_playlist_create(
+        async with attempt:
+            created = await sp.user_playlist_create(
                 user_id,
                 f"Great Discoveries {year}",
                 public=False,
@@ -1180,7 +1255,7 @@ def _create_great_playlist(
     return str(created.get("id") or "") if isinstance(created, dict) else ""
 
 
-def _move_queue_entries(
+async def _move_queue_entries(
     sp: Spotify,
     new_kids_playlist_id: str,
     queue_2_playlist_id: str,
@@ -1209,10 +1284,10 @@ def _move_queue_entries(
         log_path,
         echo,
     )
-    return service.move(current, state, queue)
+    return await service.move(current, state, queue)
 
 
-def _append_queue_track(
+async def _append_queue_track(
     sp: Spotify,
     playlist_id: str,
     source: new_wine.PlaylistTrack,
@@ -1220,11 +1295,11 @@ def _append_queue_track(
     retry_call: RetryCall,
 ) -> None:
     for attempt in retry_call.attempts(description):
-        with attempt:
-            add_playlist_item(sp, playlist_id, source.uri)
+        async with attempt:
+            await add_playlist_item(sp, playlist_id, source.uri)
 
 
-def _remove_queue_track(
+async def _remove_queue_track(
     sp: Spotify,
     playlist_id: str,
     source: new_wine.PlaylistTrack,
@@ -1232,8 +1307,8 @@ def _remove_queue_track(
     retry_call: RetryCall,
 ) -> None:
     for attempt in retry_call.attempts(description):
-        with attempt:
-            remove_playlist_items(sp, playlist_id, [source.uri])
+        async with attempt:
+            await remove_playlist_items(sp, playlist_id, [source.uri])
 
 
 def _logical_artist(
@@ -1278,7 +1353,7 @@ def _plan_result(
     )
 
 
-def _flush_review_playlist(
+async def _flush_review_playlist(
     sp: Spotify,
     options: DiscoveryOptions,
     callbacks: DiscoveryInteraction,
@@ -1304,10 +1379,10 @@ def _flush_review_playlist(
         _flush_review_playlist as invoke,
     )
 
-    return invoke(sp, options, callbacks, resources, mode)
+    return await invoke(sp, options, callbacks, resources, mode)
 
 
-def flush_new_kids(
+async def async_flush_new_kids(
     sp: Spotify,
     options: DiscoveryOptions,
     callbacks: DiscoveryInteraction,
@@ -1329,10 +1404,10 @@ def flush_new_kids(
     """
     from spotify_manager.interfaces.operations.new_kids import flush_new_kids as invoke
 
-    return invoke(sp, options, callbacks, resources)
+    return await invoke(sp, options, callbacks, resources)
 
 
-def flush_queue_2(
+async def async_flush_queue_2(
     sp: Spotify,
     options: DiscoveryOptions,
     callbacks: DiscoveryInteraction,
@@ -1354,7 +1429,7 @@ def flush_queue_2(
     """
     from spotify_manager.interfaces.operations.new_kids import flush_queue_2 as invoke
 
-    return invoke(sp, options, callbacks, resources)
+    return await invoke(sp, options, callbacks, resources)
 
 
 def _utc_now() -> datetime:
@@ -1376,14 +1451,14 @@ class UtcNowClock:
 _UTC_NOW_RESOURCE = UtcNowClock()
 
 
-def _checkpoint_review(
+async def _checkpoint_review(
     access: RoutineState, state: dict[str, object], dry_run: bool
 ) -> None:
     if not dry_run:
-        access.save(state)
+        await access.save(state)
 
 
-def _append_review_track(
+async def _append_review_track(
     sp: Spotify,
     playlist_id: str,
     track: CatalogTrack,
@@ -1391,11 +1466,11 @@ def _append_review_track(
     retry_call: RetryCall,
 ) -> None:
     for attempt in retry_call.attempts(description):
-        with attempt:
-            add_playlist_item(sp, playlist_id, track.uri)
+        async with attempt:
+            await add_playlist_item(sp, playlist_id, track.uri)
 
 
-def _remove_review_track(
+async def _remove_review_track(
     sp: Spotify,
     playlist_id: str,
     source: new_wine.PlaylistTrack,
@@ -1405,25 +1480,25 @@ def _remove_review_track(
     for attempt in retry_call.attempts(
         f"removing previous {label} track {source.name}"
     ):
-        with attempt:
-            remove_playlist_items(sp, playlist_id, [source.uri])
+        async with attempt:
+            await remove_playlist_items(sp, playlist_id, [source.uri])
 
 
-def _artist_followed(
+async def _artist_followed(
     sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
 ) -> bool:
     for attempt in retry_call.attempts(f"checking follow status for {artist_name}"):
-        with attempt:
-            followed = sp.current_user_following_artists([artist_id])
+        async with attempt:
+            followed = await sp.current_user_following_artists([artist_id])
     return bool(followed[0]) if isinstance(followed, list) and followed else False
 
 
-def _unfollow_artist(
+async def _unfollow_artist(
     sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
 ) -> None:
     for attempt in retry_call.attempts(f"unfollowing {artist_name}"):
-        with attempt:
-            remove_library_artists(sp, [f"spotify:artist:{artist_id}"])
+        async with attempt:
+            await remove_library_artists(sp, [f"spotify:artist:{artist_id}"])
 
 
 def _record_statuses(
@@ -1433,7 +1508,7 @@ def _record_statuses(
         statuses[identifier] = bool(status)
 
 
-def _refresh_history(
+async def _refresh_history(
     lastfm: scrobble_history.LastFmReader | None,
     username: str | None,
     label: str,
@@ -1449,62 +1524,62 @@ def _refresh_history(
         )
     if progress:
         progress.progress(0, 0, "Refreshing Last.fm release history")
-    refresh_scrobbles_for_release_progress(
+    await async_refresh_scrobbles_for_release_progress(
         lastfm, username, scrobbles_path=path, echo=echo
     )
 
 
-def _saved_release_batch(
+async def _saved_release_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"checking {len(batch)} Saved Albums"):
-        with attempt:
-            return sp.current_user_saved_albums_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_albums_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _release_details_batch(
+async def _release_details_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"loading popularity for {len(batch)} releases"):
-        with attempt:
-            return sp.albums(batch)
+        async with attempt:
+            return await sp.albums(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _track_popularity_batch(
+async def _track_popularity_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"loading popularity for {len(batch)} tracks"):
-        with attempt:
-            return sp.tracks(batch)
+        async with attempt:
+            return await sp.tracks(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _assessment_saved_batch(
+async def _assessment_saved_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"checking {len(batch)} Saved Albums"):
-        with attempt:
-            return sp.current_user_saved_albums_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_albums_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _assessment_liked_batch(
+async def _assessment_liked_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"checking {len(batch)} Liked Songs"):
-        with attempt:
-            return sp.current_user_saved_tracks_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_tracks_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
-def _assessment_top_liked_batch(
+async def _assessment_top_liked_batch(
     retry_call: RetryCall, batch: list[str], sp: Spotify
 ) -> object:
     for attempt in retry_call.attempts(f"checking {len(batch)} top Liked Songs"):
-        with attempt:
-            return sp.current_user_saved_tracks_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_tracks_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
 
 
@@ -1518,3 +1593,307 @@ def _collect_popularities(
         popularity = raw_track.get("popularity")
         if track_id and isinstance(popularity, int):
             popularities[track_id] = popularity
+
+
+def load_annual_scrobble_index(
+    path: Path = DEFAULT_SCROBBLES_PATH, *, year: int
+) -> AnnualScrobbleIndex:
+    """Index distinct release tracks scrobbled in one Berlin calendar year.
+
+    Args:
+        path: Existing Last.fm export path.
+        year: Active local calendar year.
+
+    Returns:
+        Nonempty normalized titles grouped by artist/release identity.
+
+    Raises:
+        NewKidsStateError: Loading or decoding the source export fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_load_annual_scrobble_index(path, year=year))
+
+
+def refresh_scrobbles_for_release_progress(
+    lastfm: scrobble_history.LastFmReader | LegacyHistoryReader,
+    username: str,
+    *,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    echo: Echo = STANDARD_OUTPUT,
+) -> scrobble_history.ScrobbleHistorySummary:
+    """Refresh shared history before deriving annual release progress.
+
+    Args:
+        lastfm: Caller-owned Last.fm history reader.
+        username: Expected account name for the existing refresh workflow.
+        scrobbles_path: Export path selecting canonical or explicit backup/log paths.
+        echo: Existing refresh progress and completion output sink.
+
+    Returns:
+        Original history refresh summary after its completion message.
+
+    Raises:
+        ScrobbleHistoryError: Existing history refresh or persistence fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import PythonHistoryReader
+
+    return run_python(
+        async_refresh_scrobbles_for_release_progress(
+            PythonHistoryReader(lastfm),
+            username,
+            scrobbles_path=scrobbles_path,
+            echo=echo,
+        )
+    )
+
+
+def load_top_track_data(
+    sp: LegacySpotify, artist_id: str, retry_call: RetryCall | LegacyRetry
+) -> tuple[dict[str, int], tuple[CatalogTrack, ...]]:
+    """Load primary-artist Spotify top tracks and their release ranks.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Artist required as primary track and album credit.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        First eligible raw rank per album and original-order eligible tracks.
+
+    Raises:
+        NewKidsError: Spotify returns an invalid top-track collection.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_top_track_data(
+            legacy_spotify(sp), artist_id, PythonRetry(retry_call)
+        )
+    )
+
+
+def load_ranked_catalog(
+    sp: LegacySpotify, artist_id: str, retry_call: RetryCall | LegacyRetry
+) -> tuple[RankedRelease, ...]:
+    """Load canonical releases using popularity and top-track fallback.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Required primary artist credit.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        Canonical editions in original discovery review order.
+
+    Raises:
+        NewKidsError: A catalog page, membership list or detail response is invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_ranked_catalog(
+            legacy_spotify(sp), artist_id, PythonRetry(retry_call)
+        )
+    )
+
+
+def load_release_tracks(
+    sp: LegacySpotify, release: RankedRelease, retry_call: RetryCall | LegacyRetry
+) -> tuple[CatalogTrack, ...]:
+    """Load an ordered release track list with primary artist credits.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        release: Selected discovery release, including its retry display name.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        Playable tracks sorted by disc/track, retaining guests and position ties.
+
+    Raises:
+        NewKidsError: A track page is invalid or empty while claiming continuation.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_release_tracks(legacy_spotify(sp), release, PythonRetry(retry_call))
+    )
+
+
+def played_releases_from_history(
+    sp: LegacySpotify,
+    catalog: tuple[RankedRelease, ...],
+    annual_scrobbles: AnnualScrobbleIndex,
+    retry_call: RetryCall | LegacyRetry,
+    track_cache: dict[str, tuple[CatalogTrack, ...]],
+    liked_cache: dict[str, bool],
+) -> tuple[RankedRelease, ...]:
+    """Return catalog releases completed according to current-year Last.fm data.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        catalog: Original ranked catalog observations.
+        annual_scrobbles: Current-year normalized listening evidence.
+        retry_call: Existing retry/cancellation callback.
+        track_cache: Shared run-owned catalog observations, updated in place.
+        liked_cache: Shared run-owned memberships, updated in place.
+
+    Returns:
+        Completed entries in catalog order, retaining duplicates.
+
+    Raises:
+        NewKidsError: Spotify returns malformed release observations.
+        new_wine.NewWineError: Spotify returns malformed liked statuses.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_played_releases_from_history(
+            legacy_spotify(sp),
+            catalog,
+            annual_scrobbles,
+            PythonRetry(retry_call),
+            track_cache,
+            liked_cache,
+        )
+    )
+
+
+def remove_local_artist(artist_id: str, path: Path = DEFAULT_ARTISTS_PATH) -> bool:
+    """Remove an unfollowed artist from the mirror and update statistics.
+
+    Args:
+        artist_id: Identifier of the artist successfully unfollowed remotely.
+        path: Existing canonical or explicit artist mirror path.
+
+    Returns:
+        Whether a matching artist was removed from the mirror.
+
+    Raises:
+        NewKidsStateError: Reading or replacing the local mirror fails.
+        ValidationError: A stored artist record fails existing model validation.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_remove_local_artist(artist_id, path))
+
+
+def assess_artist(
+    sp: LegacySpotify,
+    artist_id: str,
+    catalog: tuple[RankedRelease, ...],
+    retry_call: RetryCall | LegacyRetry,
+    track_cache: dict[str, tuple[CatalogTrack, ...]],
+) -> ArtistAssessment:
+    """Evaluate all four promotion criteria against live Spotify state.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Primary artist being assessed.
+        catalog: Original ranked release observations.
+        retry_call: Existing retry and cancellation callback.
+        track_cache: Shared run-scoped track observations, updated in place.
+
+    Returns:
+        Original live assessment, promotion reasons and marker choices.
+
+    Raises:
+        NewKidsError: A catalog or membership response is malformed.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_assess_artist(
+            legacy_spotify(sp), artist_id, catalog, PythonRetry(retry_call), track_cache
+        )
+    )
+
+
+def flush_new_kids(
+    sp: LegacySpotify,
+    options: DiscoveryOptions,
+    callbacks: DiscoveryInteraction | LegacyDiscoveryInteraction,
+    resources: DiscoveryResources | None = None,
+) -> FlushSummary:
+    """Advance every snapshotted artist once, then refill New Kids to ten.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions and notifications.
+        resources: History, checkpoints, mirrors and audit files.
+
+    Returns:
+        The original review summary and ordered accepted effects.
+
+    Raises:
+        NewKidsError: Observations, decisions or checkpoints are invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.discovery import (
+        PythonDiscoveryInteraction,
+    )
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_discovery_resources,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_new_kids(
+            legacy_spotify(sp),
+            options,
+            PythonDiscoveryInteraction(callbacks),
+            python_discovery_resources(resources) if resources is not None else None,
+        )
+    )
+
+
+def flush_queue_2(
+    sp: LegacySpotify,
+    options: DiscoveryOptions,
+    callbacks: DiscoveryInteraction | LegacyDiscoveryInteraction,
+    resources: DiscoveryResources | None = None,
+) -> Queue2Summary:
+    """Fill New Kids, then advance the first ten remaining Queue 2 artists.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions and notifications.
+        resources: History, checkpoints, mirrors and audit files.
+
+    Returns:
+        The original review summary and ordered accepted effects.
+
+    Raises:
+        NewKidsError: Observations, decisions or checkpoints are invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.discovery import (
+        PythonDiscoveryInteraction,
+    )
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_discovery_resources,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_queue_2(
+            legacy_spotify(sp),
+            options,
+            PythonDiscoveryInteraction(callbacks),
+            python_discovery_resources(resources) if resources is not None else None,
+        )
+    )

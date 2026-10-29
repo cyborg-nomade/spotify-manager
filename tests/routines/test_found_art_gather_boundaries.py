@@ -81,7 +81,7 @@ class GatherSteps:
         self._step("lookup")
         return () if self.cached else None
 
-    def similar_tracks(
+    async def similar_tracks(
         self, artist: str, track: str, *, limit: int = 50
     ) -> tuple[LastFmSimilarTrack, ...]:
         """Read one neighborhood on cache miss.
@@ -97,7 +97,7 @@ class GatherSteps:
         self._step("fetch")
         return (LastFmSimilarTrack("Candidate", "Song", 1.0),)
 
-    def recent_tracks(
+    async def recent_tracks(
         self, *, from_timestamp: int, to_timestamp: int, limit: int = 200
     ) -> tuple[LastFmRecentTrack, ...]:
         """Reject unrelated history observations during gathering.
@@ -131,7 +131,7 @@ def _install(steps: GatherSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(data, "save_cache", steps.save)
 
 
-def _gather(
+async def _gather(
     steps: GatherSteps, log: Path | None = Path("audit")
 ) -> tuple[found_art.FoundArtCandidate, ...]:
     return found_art.gather_candidates(
@@ -145,7 +145,7 @@ def _gather(
 
 
 @pytest.mark.parametrize("failure", ["load", "previous", "lookup", "fetch", "save"])
-def test_candidate_observation_failure_stops_before_later_seeds(
+async def test_candidate_observation_failure_stops_before_later_seeds(
     failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Do not read another neighborhood or project results after a failed checkpoint.
@@ -157,12 +157,12 @@ def test_candidate_observation_failure_stops_before_later_seeds(
     steps = GatherSteps(failure)
     _install(steps, monkeypatch)
     with pytest.raises(OSError, match=failure):
-        _gather(steps)
+        (await _gather(steps))
     expected = ["load", "previous", "lookup", "fetch", "save"]
     assert steps.events == expected[: expected.index(failure) + 1]
 
 
-def test_each_fetched_neighborhood_is_saved_before_the_next_seed(
+async def test_each_fetched_neighborhood_is_saved_before_the_next_seed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Retain per-seed cache checkpoints and cumulative support scoring.
@@ -172,7 +172,7 @@ def test_each_fetched_neighborhood_is_saved_before_the_next_seed(
     """
     steps = GatherSteps()
     _install(steps, monkeypatch)
-    result = _gather(steps)
+    result = await _gather(steps)
     assert steps.events == [
         "load",
         "previous",
@@ -187,7 +187,7 @@ def test_each_fetched_neighborhood_is_saved_before_the_next_seed(
     assert result[0].supporting_seeds == ("Seed - One", "Seed - Two")
 
 
-def test_empty_current_week_cache_skips_fetch_and_checkpoint(
+async def test_empty_current_week_cache_skips_fetch_and_checkpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A valid empty neighborhood remains cached rather than triggering another read.
@@ -197,5 +197,5 @@ def test_empty_current_week_cache_skips_fetch_and_checkpoint(
     """
     steps = GatherSteps(cached=True)
     _install(steps, monkeypatch)
-    assert _gather(steps, None) == ()
+    assert (await _gather(steps, None)) == ()
     assert steps.events == ["load", "lookup", "lookup"]

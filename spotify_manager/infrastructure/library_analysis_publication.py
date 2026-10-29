@@ -1,17 +1,22 @@
 """Analysis undo and recovery storage using explicit named operations."""
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_publication import Resources
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import ResourceSyncSummary
 from spotify_manager.infrastructure import library_analysis_backups as backups
+from spotify_manager.infrastructure.analysis_file_ports import (
+    BlockingAnalysisFiles as AnalysisFiles,
+)
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.library_records import current_stats_history_key
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.stats import StatsReport
 
 
@@ -25,7 +30,7 @@ class AnalysisBackups:
 
     files: AnalysisFiles
 
-    def analysis_backup(
+    async def analysis_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -47,11 +52,22 @@ class AnalysisBackups:
         Returns:
             Original accepted backup directory.
         """
-        return backups.create_backup_manifest(
-            paths, run_id, previous, current, report, summaries, self.files
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    backups.create_backup_manifest,
+                    paths,
+                    run_id,
+                    previous,
+                    current,
+                    report,
+                    summaries,
+                    self.files,
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def mirror_backup(
+    async def mirror_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -71,11 +87,21 @@ class AnalysisBackups:
         Returns:
             Original accepted backup directory.
         """
-        return backups.create_live_mirror_backup_manifest(
-            paths, run_id, previous, current, summaries, self.files
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    backups.create_live_mirror_backup_manifest,
+                    paths,
+                    run_id,
+                    previous,
+                    current,
+                    summaries,
+                    self.files,
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def resource_backup(
+    async def resource_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -99,11 +125,23 @@ class AnalysisBackups:
         Returns:
             Original accepted backup directory.
         """
-        return backups.create_resource_backup(
-            paths, run_id, resource, target, previous, current, summary, self.files
-        )
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    backups.create_resource_backup,
+                    paths,
+                    run_id,
+                    resource,
+                    target,
+                    previous,
+                    current,
+                    summary,
+                    self.files,
+                )
+            )
+            return await finish_blocking(file_operation)
 
-    def history(
+    async def history(
         self, paths: LibraryAnalysisPaths, backup_dir: Path
     ) -> dict[str, object]:
         """Read backed-up history for repeatable publication.
@@ -118,7 +156,13 @@ class AnalysisBackups:
         Raises:
             LibrarySyncError: Original manifest or backed-up history is not an object.
         """
-        return backups.pre_analysis_stats_history(paths, backup_dir, self.files)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    backups.pre_analysis_stats_history, paths, backup_dir, self.files
+                )
+            )
+            return await finish_blocking(file_operation)
 
     def summaries(self, raw: object) -> tuple[ResourceSyncSummary, ...]:
         """Use the original permissive constructor at the unvalidated manifest boundary.

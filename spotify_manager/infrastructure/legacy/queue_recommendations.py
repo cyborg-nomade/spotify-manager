@@ -1,5 +1,6 @@
 """Bind Queue recommendations to caller-owned original Last.fm and file seams."""
 
+import asyncio
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from spotify_manager.domain.queue_candidates import LastFmSimilarArtist
 from spotify_manager.domain.queue_values import ArtistSeed
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -31,7 +34,7 @@ class LegacyQueueNeighborhoods:
     timestamp_override: datetime | None
     callback: legacy.ProgressCallback | None
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read the original validated cache.
 
         Returns:
@@ -39,17 +42,27 @@ class LegacyQueueNeighborhoods:
         """
         from spotify_manager.routines.the_queue import _load_cache
 
-        return _load_cache(self.cache_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_load_cache, self.cache_path)
+            )
+            return await finish_blocking(file_operation)
 
-    def previous(self) -> set[str]:
+    async def previous(self) -> set[str]:
         """Read original actually added artist exclusions.
 
         Returns:
             Original normalized artist identities.
         """
-        from spotify_manager.routines.the_queue import previously_added_artist_keys
+        from spotify_manager.routines.the_queue import (
+            previously_added_artist_keys as _previously_added_artist_keys,
+        )
 
-        return previously_added_artist_keys(self.log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_previously_added_artist_keys, self.log_path)
+            )
+            return await finish_blocking(file_operation)
 
     def lookup(self, raw: object, week: date) -> tuple[LastFmSimilarArtist, ...] | None:
         """Decode the original current-week cache record.
@@ -65,7 +78,7 @@ class LegacyQueueNeighborhoods:
 
         return _cached_similar_artists(raw, week)
 
-    def remember(
+    async def remember(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -89,9 +102,13 @@ class LegacyQueueNeighborhoods:
             "fetched_at": generated_at.isoformat(),
             "artists": [asdict(candidate) for candidate in similar],
         }
-        _save_cache(cache, self.cache_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_save_cache, cache, self.cache_path)
+            )
+            await finish_blocking(file_operation)
 
-    def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
+    async def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
         """Read one original artist neighborhood.
 
         Args:
@@ -100,7 +117,7 @@ class LegacyQueueNeighborhoods:
         Returns:
             Original ordered neighbor observations.
         """
-        return self.reader.similar_artists(
+        return await self.reader.similar_artists(
             seed.artist, limit=legacy.SIMILAR_ARTIST_LIMIT
         )
 

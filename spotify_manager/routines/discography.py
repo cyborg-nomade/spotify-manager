@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.discography_planning import (
     ReleaseSelector as ReleaseSelector,
@@ -29,8 +29,9 @@ from spotify_manager.application.discography_values import (
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import RandomIndexes
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.bootstrap import discography as composition
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
@@ -56,6 +57,19 @@ from spotify_manager.domain.discography_values import QueueArtist as QueueArtist
 from spotify_manager.domain.discography_values import QueueName as QueueName
 from spotify_manager.infrastructure import discography_files
 from spotify_manager.infrastructure import discography_records
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.python_compat.discography import (
+    BlockingDiscographySelection as LegacyDiscographySelection,
+)
+from spotify_manager.infrastructure.python_compat.golden import (
+    BlockingGoldenArtistChoice as LegacyGoldenArtistChoice,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingRandomIndexes as LegacyRandomIndexes,
+)
 from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.routines import blast_from_past
@@ -190,15 +204,20 @@ def save_state(
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "discography",
         DiscographyStateCodec(),
         StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
+
+
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
 
 
 def save_next_queue(
@@ -243,7 +262,7 @@ def rank_historical_artists(
     return discography_history.ranked_artists(scrobbles)
 
 
-def select_historical_artist(
+async def async_select_historical_artist(
     *,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
@@ -261,12 +280,12 @@ def select_historical_artist(
     Returns:
         Original complete compatible result.
     """
-    return composition.history_stage(
+    return await composition.history_stage(
         path, today, random_index_reader, progress_callback
     ).run()
 
 
-def resolve_historical_artist(
+async def async_resolve_historical_artist(
     spotify: Spotify,
     selection: HistoricalArtistSelection,
     choice_reader: HistoricalArtistChoiceReader | None,
@@ -286,12 +305,12 @@ def resolve_historical_artist(
     Raises:
         DiscographyError: Original mapping fails or is cancelled.
     """
-    return composition.historical_mapping(spotify, choice_reader, retry_call).resolve(
-        selection
-    )
+    return await composition.historical_mapping(
+        spotify, choice_reader, retry_call
+    ).resolve(selection)
 
 
-def _load_artist_queues(
+async def _load_artist_queues(
     spotify: Spotify,
     playlist_ids: dict[QueueName, str],
     retry_call: RetryCall,
@@ -301,7 +320,7 @@ def _load_artist_queues(
     dict[str, tuple[ArtistMarkers, ...]],
 ]:
     """Load ordered, primary-artist queues and every matching marker URI."""
-    return composition.queue_stage(
+    return await composition.queue_stage(
         spotify, playlist_ids, retry_call, queue_3_playlist_id
     ).run()
 
@@ -321,7 +340,7 @@ def _preferred_release(editions: list[CatalogRelease]) -> CatalogRelease:
     return discography_catalog.preferred_release(editions)
 
 
-def load_release_catalog(
+async def async_load_release_catalog(
     spotify: Spotify,
     artist_id: str,
     retry_call: RetryCall,
@@ -336,7 +355,7 @@ def load_release_catalog(
     Returns:
         Original complete compatible result.
     """
-    return composition.catalog_stage(spotify, retry_call).run(artist_id)
+    return await composition.catalog_stage(spotify, retry_call).run(artist_id)
 
 
 def parse_release_indexes(value: str, total: int) -> tuple[int, ...]:
@@ -364,7 +383,7 @@ def format_release_indexes(indexes: tuple[int, ...]) -> str:
     return discography_batches.format_indexes(indexes)
 
 
-def build_discography_plan(
+async def async_build_discography_plan(
     spotify: Spotify,
     playlist_ids: dict[QueueName, str],
     release_selector: ReleaseSelector,
@@ -402,7 +421,7 @@ def build_discography_plan(
         build_discography_plan as operation,
     )
 
-    return operation(
+    return await operation(
         spotify,
         playlist_ids,
         release_selector,
@@ -427,7 +446,7 @@ def _append_log(
     discography_files.append_log(selection, next_queue, path, datetime.now(UTC))
 
 
-def apply_discography_plan(
+async def async_apply_discography_plan(
     spotify: Spotify,
     plan: DiscographyPlan,
     *,
@@ -455,7 +474,7 @@ def apply_discography_plan(
         apply_discography_plan as operation,
     )
 
-    return operation(
+    return await operation(
         spotify,
         plan,
         retry_call=retry_call,
@@ -466,14 +485,14 @@ def apply_discography_plan(
     )
 
 
-def _release_page(
+async def _release_page(
     spotify: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> object:
     for attempt in retry_call.attempts(
         f"loading discography releases for {artist_id} at offset {offset}"
     ):
-        with attempt:
-            response = spotify.artist_albums(
+        async with attempt:
+            response = await spotify.artist_albums(
                 artist_id,
                 include_groups="album,single,compilation",
                 limit=RELEASE_PAGE_LIMIT,
@@ -482,18 +501,18 @@ def _release_page(
     return response
 
 
-def _saved_batch(
+async def _saved_batch(
     spotify: Spotify, album_ids: list[str], retry_call: RetryCall
 ) -> object:
     for attempt in retry_call.attempts(
         f"checking {len(album_ids)} saved discography releases"
     ):
-        with attempt:
-            response = spotify.current_user_saved_albums_contains(album_ids)
+        async with attempt:
+            response = await spotify.current_user_saved_albums_contains(album_ids)
     return response
 
 
-def _remove_batch(
+async def _remove_batch(
     spotify: Spotify,
     retry: RetryCall,
     selection: ArtistSelection,
@@ -503,8 +522,212 @@ def _remove_batch(
     for attempt in retry.attempts(
         f"removing {selection.name} from {QUEUE_LABELS[marker_group.queue]}"
     ):
-        with attempt:
-            spotify._delete(
+        async with attempt:
+            await spotify._delete(
                 f"playlists/{marker_group.playlist_id}/items",
                 payload={"items": [{"uri": uri} for uri in batch]},
             )
+
+
+def select_historical_artist(
+    *,
+    path: Path = DEFAULT_SCROBBLES_PATH,
+    today: date | None = None,
+    random_index_reader: RandomIndexReader | LegacyRandomIndexes = RANDOM_INDEXES,
+    progress_callback: ProgressCallback | None = None,
+) -> HistoricalArtistSelection:
+    """Apply Palace of Memory's date/seconds rule to Last.fm artists.
+
+    Args:
+        path: Original path boundary.
+        today: Original today boundary.
+        random_index_reader: Original random index reader boundary.
+        progress_callback: Original progress callback boundary.
+
+    Returns:
+        Original complete compatible result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonRandomIndexes
+
+    return run_python(
+        async_select_historical_artist(
+            path=path,
+            today=today,
+            random_index_reader=PythonRandomIndexes(random_index_reader),
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def resolve_historical_artist(
+    spotify: LegacySpotify,
+    selection: HistoricalArtistSelection,
+    choice_reader: HistoricalArtistChoiceReader | None | LegacyGoldenArtistChoice,
+    retry_call: RetryCall | LegacyRetry,
+) -> QueueArtist:
+    """Resolve the original historical artist through exact Spotify mapping.
+
+    Args:
+        spotify: Original caller-owned SDK client.
+        selection: Original complete historical choice.
+        choice_reader: Original optional mapping interaction.
+        retry_call: Original caller retry boundary.
+
+    Returns:
+        Original resolved Memory Lane candidate.
+
+    Raises:
+        DiscographyError: Original mapping fails or is cancelled.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.golden import (
+        PythonGoldenArtistChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_resolve_historical_artist(
+            legacy_spotify(spotify),
+            selection,
+            PythonGoldenArtistChoice(choice_reader)
+            if choice_reader is not None
+            else None,
+            PythonRetry(retry_call),
+        )
+    )
+
+
+def load_release_catalog(
+    spotify: LegacySpotify, artist_id: str, retry_call: RetryCall | LegacyRetry
+) -> tuple[CatalogRelease, ...]:
+    """Load canonical albums and EPs, including optional non-studio releases.
+
+    Args:
+        spotify: Original spotify boundary.
+        artist_id: Original artist id boundary.
+        retry_call: Original retry call boundary.
+
+    Returns:
+        Original complete compatible result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_release_catalog(
+            legacy_spotify(spotify), artist_id, PythonRetry(retry_call)
+        )
+    )
+
+
+def build_discography_plan(
+    spotify: LegacySpotify,
+    playlist_ids: dict[QueueName, str],
+    release_selector: ReleaseSelector | LegacyDiscographySelection,
+    *,
+    queue_3_playlist_id: str | None = None,
+    historical_artist_choice_reader: HistoricalArtistChoiceReader
+    | None
+    | LegacyGoldenArtistChoice = None,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    today: date | None = None,
+    random_index_reader: RandomIndexReader | LegacyRandomIndexes = RANDOM_INDEXES,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    progress_callback: ProgressCallback | None = None,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+) -> DiscographyPlan:
+    """Build the next round-week batch without changing Spotify or state.
+
+    Args:
+        spotify: Original spotify boundary.
+        playlist_ids: Original playlist ids boundary.
+        release_selector: Original release selector boundary.
+        queue_3_playlist_id: Original queue 3 playlist id boundary.
+        historical_artist_choice_reader: Original historical mapping interaction.
+        scrobbles_path: Original scrobbles path boundary.
+        today: Original today boundary.
+        random_index_reader: Original random index reader boundary.
+        retry_call: Original retry call boundary.
+        progress_callback: Original progress callback boundary.
+        state_path: Original state path boundary.
+        state_service: Original state service boundary.
+
+    Returns:
+        Original complete compatible result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.discography import (
+        PythonDiscographySelection,
+    )
+    from spotify_manager.infrastructure.python_compat.golden import (
+        PythonGoldenArtistChoice,
+    )
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.python_compat.runtime import PythonRandomIndexes
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_build_discography_plan(
+            legacy_spotify(spotify),
+            playlist_ids,
+            PythonDiscographySelection(release_selector),
+            queue_3_playlist_id=queue_3_playlist_id,
+            historical_artist_choice_reader=PythonGoldenArtistChoice(
+                historical_artist_choice_reader
+            )
+            if historical_artist_choice_reader is not None
+            else None,
+            scrobbles_path=scrobbles_path,
+            today=today,
+            random_index_reader=PythonRandomIndexes(random_index_reader),
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            progress_callback=progress_callback,
+            state_path=state_path,
+            state_service=state_service,
+        )
+    )
+
+
+def apply_discography_plan(
+    spotify: LegacySpotify,
+    plan: DiscographyPlan,
+    *,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    progress_callback: ProgressCallback | None = None,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+    log_path: Path = DEFAULT_LOG_PATH,
+) -> DiscographyRunSummary:
+    """Remove confirmed markers, audit each artist, then advance final priority.
+
+    Args:
+        spotify: Original spotify boundary.
+        plan: Original plan boundary.
+        retry_call: Original retry call boundary.
+        progress_callback: Original progress callback boundary.
+        state_path: Original state path boundary.
+        state_service: Original state service boundary.
+        log_path: Original log path boundary.
+
+    Returns:
+        Original complete compatible result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_apply_discography_plan(
+            legacy_spotify(spotify),
+            plan,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            progress_callback=progress_callback,
+            state_path=state_path,
+            state_service=state_service,
+            log_path=log_path,
+        )
+    )

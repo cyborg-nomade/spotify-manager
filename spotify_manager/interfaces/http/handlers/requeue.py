@@ -1,8 +1,8 @@
 """Validate and present requeue HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import (
@@ -10,7 +10,9 @@ from spotify_manager.interfaces.operations import (
 )
 
 
-def cmd_flush_requeue_for_a_dream(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_flush_requeue_for_a_dream(
+    client: Spotify, dry_run: bool
+) -> BlastJobResult:
     """Start a reconnectable Requeue for a Dream transition.
 
     Args:
@@ -30,7 +32,9 @@ def cmd_flush_requeue_for_a_dream(client: Spotify, dry_run: bool) -> BlastJobRes
         )
     except requeue_for_a_dream.RequeueForADreamConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_requeue_for_a_dream_job(client, playlist_id, dry_run=dry_run)
+    return await jobs.start_requeue_for_a_dream_job(
+        client, playlist_id, dry_run=dry_run
+    )
 
 
 def cmd_active_requeue_for_a_dream_jobs() -> list[BlastJobResult]:

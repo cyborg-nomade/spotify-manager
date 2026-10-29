@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -37,11 +36,11 @@ class NewYearWorker:
     context: PlaylistContext
     job: _BlastJob = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Run the annual workflow through the shared routine and job registry."""
         self._start()
         try:
-            self._execute()
+            await self._execute()
         except (
             scrobble_history.ScrobbleHistoryCancelledError,
             blast_from_past.BlastFromPastCancelledError,
@@ -69,12 +68,12 @@ class NewYearWorker:
             self.job.result.status = "running"
             self.job.result.started_at = self.context.clock.now(UTC).isoformat()
 
-    def _execute(self) -> None:
+    async def _execute(self) -> None:
         configuration = self.context.settings.load()
         key, username = found_art.validate_lastfm_configuration(
             configuration.lastfm_api_key, configuration.lastfm_username
         )
-        result = new_year.run_new_year(
+        result = await new_year.run_new_year(
             self.spotify,
             lastfm_client(LastFmCredentials(key, username), self),
             configuration,

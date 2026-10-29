@@ -10,7 +10,7 @@ from spotify_manager.domain.dormant_artists import most_popular
 class DormantCatalog(Protocol):
     """Read original artist tracks, live likes and fallback popularity."""
 
-    def top(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def top(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read the original eligible top tracks.
 
         Args:
@@ -20,7 +20,7 @@ class DormantCatalog(Protocol):
             Original ordered top tracks.
         """
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Read original live liked statuses.
 
         Args:
@@ -30,7 +30,7 @@ class DormantCatalog(Protocol):
             Liked membership keyed by original identity.
         """
 
-    def tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read the original complete primary-credit catalog.
 
         Args:
@@ -40,7 +40,9 @@ class DormantCatalog(Protocol):
             Original ordered complete catalog markers.
         """
 
-    def populate(self, tracks: tuple[CatalogTrack, ...]) -> tuple[CatalogTrack, ...]:
+    async def populate(
+        self, tracks: tuple[CatalogTrack, ...]
+    ) -> tuple[CatalogTrack, ...]:
         """Read original fallback popularity facts.
 
         Args:
@@ -71,7 +73,7 @@ class DormantLikedTrack:
 
     catalog: DormantCatalog
 
-    def run(self, artist_id: str) -> CatalogTrack | None:
+    async def run(self, artist_id: str) -> CatalogTrack | None:
         """Select the original preferred live-liked marker.
 
         Returns:
@@ -98,12 +100,12 @@ class DormantLikedTrack:
         Raises:
             BlastFromPastArtistsError: An original liked/detail response is invalid.
         """
-        top = self.catalog.top(artist_id)
-        liked_top = _liked(top, self.catalog.liked(top))
+        top = await self.catalog.top(artist_id)
+        liked_top = _liked(top, (await self.catalog.liked(top)))
         if liked_top:
             return most_popular(liked_top, True)
-        catalog = self.catalog.tracks(artist_id)
-        liked_catalog = _liked(catalog, self.catalog.liked(catalog))
+        catalog = await self.catalog.tracks(artist_id)
+        liked_catalog = _liked(catalog, (await self.catalog.liked(catalog)))
         if not liked_catalog:
             return None
-        return most_popular(self.catalog.populate(liked_catalog), False)
+        return most_popular((await self.catalog.populate(liked_catalog)), False)

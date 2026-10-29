@@ -18,7 +18,7 @@ from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
 class DiscoveryCatalog(AssessmentCatalog, ReleaseHistoryCatalog, Protocol):
     """Supply original discovery, membership and owned-playlist observations."""
 
-    def ranked(self, artist_id: str) -> tuple[RankedRelease, ...]:
+    async def ranked(self, artist_id: str) -> tuple[RankedRelease, ...]:
         """Observe ranked catalog candidates for one artist.
 
         Args:
@@ -28,7 +28,7 @@ class DiscoveryCatalog(AssessmentCatalog, ReleaseHistoryCatalog, Protocol):
             Original canonical release observations in discovery order.
         """
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe ordered works-playlist markers.
 
         Args:
@@ -63,7 +63,7 @@ class DiscoveryObservations:
     liked: dict[str, bool] = field(default_factory=dict)
     works: dict[str, tuple[PlaylistTrack, ...]] = field(default_factory=dict)
 
-    def catalog(self, artist_id: str) -> tuple[RankedRelease, ...]:
+    async def catalog(self, artist_id: str) -> tuple[RankedRelease, ...]:
         """Observe an artist catalog once per invocation.
 
         Args:
@@ -73,10 +73,10 @@ class DiscoveryObservations:
             Cached or newly accepted ranked releases.
         """
         if artist_id not in self.catalogs:
-            self.catalogs[artist_id] = self.access.ranked(artist_id)
+            self.catalogs[artist_id] = await self.access.ranked(artist_id)
         return self.catalogs[artist_id]
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Observe one release's tracks once per invocation.
 
         Args:
@@ -86,10 +86,10 @@ class DiscoveryObservations:
             Cached or newly accepted tracks, including empty observations.
         """
         if release.spotify_id not in self.release_tracks:
-            self.release_tracks[release.spotify_id] = self.access.tracks(release)
+            self.release_tracks[release.spotify_id] = await self.access.tracks(release)
         return self.release_tracks[release.spotify_id]
 
-    def composer_tracks(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def composer_tracks(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe a works playlist once per invocation.
 
         Args:
@@ -99,18 +99,18 @@ class DiscoveryObservations:
             Cached or newly accepted original marker sequence.
         """
         if playlist_id not in self.works:
-            self.works[playlist_id] = self.access.playlist(playlist_id)
+            self.works[playlist_id] = await self.access.playlist(playlist_id)
         return self.works[playlist_id]
 
-    def memberships(self, ids: list[str]) -> None:
+    async def memberships(self, ids: list[str]) -> None:
         """Populate missing live memberships at the original request boundary.
 
         Args:
             ids: Original ordered requests, retaining duplicates.
         """
-        self.access.likes(ids, self.liked)
+        await self.access.likes(ids, self.liked)
 
-    def assessment(
+    async def assessment(
         self, artist_id: str, catalog: tuple[RankedRelease, ...]
     ) -> ArtistAssessment:
         """Observe completion criteria using the shared accepted catalog-track cache.
@@ -122,9 +122,11 @@ class DiscoveryObservations:
         Returns:
             Original live completion assessment.
         """
-        return assess_artist(self.access, artist_id, catalog, self.release_tracks)
+        return await assess_artist(self.access, artist_id, catalog, self.release_tracks)
 
-    def played(self, catalog: tuple[RankedRelease, ...]) -> tuple[RankedRelease, ...]:
+    async def played(
+        self, catalog: tuple[RankedRelease, ...]
+    ) -> tuple[RankedRelease, ...]:
         """Check current-year completion using the original shared caches.
 
         Args:
@@ -133,7 +135,7 @@ class DiscoveryObservations:
         Returns:
             Completed release entries in original order, retaining duplicates.
         """
-        return played_releases(
+        return await played_releases(
             self.access,
             catalog,
             self.history,

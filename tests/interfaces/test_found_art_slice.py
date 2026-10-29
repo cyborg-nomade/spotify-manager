@@ -6,20 +6,19 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from datetime import tzinfo
-from functools import partial
 from pathlib import Path
-from threading import Thread
 from types import SimpleNamespace
 from typing import Self
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.interfaces.http import jobs as http_jobs
@@ -27,11 +26,11 @@ from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.interfaces.test_discovery_slice import _wait
 from tests.interfaces.test_slow_listening_slice import _stop
-from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_blast_from_past import FakeSpotify
 from tests.routines.test_found_art import FakeLastFm
 from tests.routines.test_found_art import spotify_track
+from tests.support.runtime_resources import provided_lastfm
 
 
 class RecommendationClock(datetime):
@@ -121,25 +120,26 @@ def found_art_environment(
         Real public environment with worker cleanup.
     """
     spotify, lastfm = _spotify(), _lastfm()
-    threads: list[Thread] = []
     monkeypatch.setattr(found_art, "datetime", RecommendationClock)
     monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
-    try:
-        yield FoundArtEnvironment(
-            _http_client(monkeypatch, cast(Spotify, spotify)),
-            spotify,
-            lastfm,
-            found_art.DEFAULT_CACHE_PATH,
-            found_art.DEFAULT_LOG_PATH,
-        )
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield FoundArtEnvironment(
+                http,
+                spotify,
+                lastfm,
+                found_art.DEFAULT_CACHE_PATH,
+                found_art.DEFAULT_LOG_PATH,
+            )
+        finally:
+            _stop()
 
 
 def _audit(environment: FoundArtEnvironment) -> dict[str, object]:

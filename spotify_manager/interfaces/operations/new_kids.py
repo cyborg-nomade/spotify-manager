@@ -4,8 +4,6 @@ import json as json
 from dataclasses import replace
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.composer_routes import (
     ReleaseChoiceReader as ReleaseChoiceReader,
 )
@@ -21,6 +19,7 @@ from spotify_manager.application.new_kids_values import (
 from spotify_manager.application.new_kids_values import NewKidsError as NewKidsError
 from spotify_manager.application.new_kids_values import Queue2Summary as Queue2Summary
 from spotify_manager.application.ports.listening import RetryCall as RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_2 import (
     prepare_queue_review as prepare_queue_review,
 )
@@ -70,7 +69,7 @@ from spotify_manager.routines.new_kids import parse_playlist_id as parse_playlis
 from spotify_manager.routines.new_kids import validate_state as validate_state
 
 
-def _flush_review_playlist(
+async def _flush_review_playlist(
     sp: Spotify,
     options: DiscoveryOptions,
     interaction: DiscoveryInteraction,
@@ -95,11 +94,11 @@ def _flush_review_playlist(
     resources = resources or DiscoveryResources()
     mode = mode or DiscoveryReviewMode()
 
-    inputs = review_inputs(sp, options, interaction, resources)
+    inputs = await review_inputs(sp, options, interaction, resources)
     lifecycle = review_run(
         sp, inputs, options, resources, mode, interaction, _UTC_NOW_RESOURCE
     )
-    snapshot = lifecycle.prepare(mode.initial_tracks, mode.live_tracks)
+    snapshot = await lifecycle.prepare(mode.initial_tracks, mode.live_tracks)
     caches = ReviewCaches()
     planner = review_planner(sp, inputs, options, interaction, resources, caches)
     execution = review_execution(
@@ -122,11 +121,13 @@ def _flush_review_playlist(
         interaction,
         interaction,
     )
-    reviewed, paused = reviewer.review(snapshot.entries, snapshot.run.get("run_id"))
-    return lifecycle.finish(snapshot, reviewed, paused)
+    reviewed, paused = await reviewer.review(
+        snapshot.entries, snapshot.run.get("run_id")
+    )
+    return await lifecycle.finish(snapshot, reviewed, paused)
 
 
-def flush_new_kids(
+async def flush_new_kids(
     sp: Spotify,
     options: DiscoveryOptions,
     interaction: DiscoveryInteraction,
@@ -147,10 +148,10 @@ def flush_new_kids(
         NewKidsError: Observations, decisions or checkpoints are invalid.
     """
     resources = resources or DiscoveryResources()
-    return _flush_review_playlist(sp, options, interaction, resources)
+    return await _flush_review_playlist(sp, options, interaction, resources)
 
 
-def flush_queue_2(
+async def flush_queue_2(
     sp: Spotify,
     options: DiscoveryOptions,
     interaction: DiscoveryInteraction,
@@ -170,13 +171,16 @@ def flush_queue_2(
     Raises:
         NewKidsError: Observations, decisions or checkpoints are invalid.
     """
+    from spotify_manager.routines.new_kids import (
+        _async_state_access as _async_state_access,
+    )
+
     resources = resources or DiscoveryResources(log_path=DEFAULT_QUEUE_2_LOG_PATH)
     from spotify_manager.infrastructure.discovery_history import (
         refresh_release_history as _refresh_history,
     )
-    from spotify_manager.routines.new_kids import _state_access
 
-    _refresh_history(
+    await _refresh_history(
         resources.lastfm,
         resources.lastfm_username,
         "Queue 2",
@@ -185,8 +189,8 @@ def flush_queue_2(
         interaction,
     )
     retry = interaction
-    state_access = _state_access(resources.state_path, resources.state_service)
-    persisted_state = state_access.load()
+    state_access = _async_state_access(resources.state_path, resources.state_service)
+    persisted_state = await state_access.load()
     state = (
         json.loads(json.dumps(persisted_state)) if options.dry_run else persisted_state
     )
@@ -200,8 +204,8 @@ def flush_queue_2(
         resources.log_path,
         interaction,
     )
-    snapshot = prepare_queue_review(transfer, state, legacy.QUEUE_2_DAILY_LIMIT)
-    review = _flush_review_playlist(
+    snapshot = await prepare_queue_review(transfer, state, legacy.QUEUE_2_DAILY_LIMIT)
+    review = await _flush_review_playlist(
         sp,
         replace(options, new_kids_playlist_id=options.queue_2_playlist_id),
         interaction,

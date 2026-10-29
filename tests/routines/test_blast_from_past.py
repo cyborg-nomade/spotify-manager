@@ -68,7 +68,7 @@ class FakeSpotify:
         self.liked_calls: list[list[str]] = []
         self.posts: list[tuple[str, dict[str, object]]] = []
 
-    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+    async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
         assert path == "playlists/blast/items"
         items = [
             {"item": track} for track in self.playlist_tracks[offset : offset + limit]
@@ -81,7 +81,7 @@ class FakeSpotify:
             ),
         }
 
-    def search(
+    async def search(
         self,
         q: str,
         limit: int,
@@ -94,16 +94,16 @@ class FakeSpotify:
         self.search_calls.append(q)
         return {"tracks": {"items": self.search_results.get(q, [])}}
 
-    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+    async def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
         self.liked_calls.append(ids)
         return [spotify_id in self.liked_ids for spotify_id in ids]
 
-    def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
+    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
         self.posts.append((path, payload))
         return {"snapshot_id": "snapshot"}
 
 
-def test_playlist_state_includes_edition_tolerant_track_keys() -> None:
+async def test_playlist_state_includes_edition_tolerant_track_keys() -> None:
     sp = FakeSpotify()
     sp.playlist_tracks = [
         spotify_track(
@@ -122,11 +122,11 @@ def test_playlist_state_includes_edition_tolerant_track_keys() -> None:
     assert state.track_keys == frozenset({("beyonce", "song")})
 
 
-def test_playlist_state_stops_at_explicit_last_page_despite_stale_total() -> None:
+async def test_playlist_state_stops_at_explicit_last_page_despite_stale_total() -> None:
     calls = 0
 
     class StaleTotalSpotify(FakeSpotify):
-        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+        async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
             nonlocal calls
             calls += 1
             return {
@@ -153,9 +153,9 @@ def test_playlist_state_stops_at_explicit_last_page_despite_stale_total() -> Non
     assert state.total_items == 1
 
 
-def test_playlist_state_rejects_a_repeated_next_page() -> None:
+async def test_playlist_state_rejects_a_repeated_next_page() -> None:
     class RepeatedPageSpotify(FakeSpotify):
-        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+        async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
             return {
                 "items": [
                     {
@@ -175,23 +175,29 @@ def test_playlist_state_rejects_a_repeated_next_page() -> None:
         blast_from_past.SpotifyTrackResolutionError,
         match="repeated a playlist page",
     ):
-        blast_from_past.load_playlist_state(
-            RepeatedPageSpotify(),  # type: ignore[arg-type]
-            "blast",
+        (
+            blast_from_past.load_playlist_state(
+                RepeatedPageSpotify(),  # type: ignore[arg-type]
+                "blast",
+            )
         )
 
 
-def test_playlist_state_honors_cancellation_before_spotify_call() -> None:
+async def test_playlist_state_honors_cancellation_before_spotify_call() -> None:
     """Playlist state honors cancellation before spotify call."""
     with pytest.raises(blast_from_past.BlastFromPastCancelledError):
-        blast_from_past.load_playlist_state(
-            UnexpectedSpotify(),  # type: ignore[arg-type]
-            "blast",
-            cancel_check=CancellationFlag(True),
+        (
+            blast_from_past.load_playlist_state(
+                UnexpectedSpotify(),  # type: ignore[arg-type]
+                "blast",
+                cancel_check=CancellationFlag(True),
+            )
         )
 
 
-def test_load_scrobbles_uses_berlin_dates_and_newest_first(tmp_path: Path) -> None:
+async def test_load_scrobbles_uses_berlin_dates_and_newest_first(
+    tmp_path: Path,
+) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         json.dumps(
@@ -224,7 +230,7 @@ def test_load_scrobbles_uses_berlin_dates_and_newest_first(tmp_path: Path) -> No
     assert by_date[date(2007, 11, 27)][1].album == ""
 
 
-def test_load_scrobbles_falls_back_to_adjacent_gzip(tmp_path: Path) -> None:
+async def test_load_scrobbles_falls_back_to_adjacent_gzip(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         "version https://git-lfs.github.com/spec/v1\n",
@@ -248,7 +254,7 @@ def test_load_scrobbles_falls_back_to_adjacent_gzip(tmp_path: Path) -> None:
     assert by_date[date(2007, 11, 27)][0].track == "Compressed track"
 
 
-def test_load_scrobbles_reassembles_compressed_parts(tmp_path: Path) -> None:
+async def test_load_scrobbles_reassembles_compressed_parts(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         "version https://git-lfs.github.com/spec/v1\n",
@@ -274,7 +280,7 @@ def test_load_scrobbles_reassembles_compressed_parts(tmp_path: Path) -> None:
     assert by_date[date(2007, 11, 27)][0].track == "Split compressed track"
 
 
-def test_load_scrobbles_reassembles_encoded_parts(tmp_path: Path) -> None:
+async def test_load_scrobbles_reassembles_encoded_parts(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         "version https://git-lfs.github.com/spec/v1\n",
@@ -465,7 +471,7 @@ def test_fetch_random_indexes_rejects_invalid_and_normalizes_naive_timestamp(
     )
 
 
-def test_fetch_random_timestamp_uses_minimal_random_org_request(
+async def test_fetch_random_timestamp_uses_minimal_random_org_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     generated_at = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
@@ -477,7 +483,7 @@ def test_fetch_random_timestamp_uses_minimal_random_org_request(
 
     monkeypatch.setattr(blast_from_past, "fetch_random_indexes", fetch)
 
-    assert blast_from_past.fetch_random_timestamp() is generated_at
+    assert (blast_from_past.fetch_random_timestamp()) is generated_at
     assert calls == [(2, 1)]
 
 
@@ -552,7 +558,7 @@ def test_select_scrobble_can_count_from_bottom() -> None:
     assert selection.scrobble.track == "Track 46"
 
 
-def test_select_batch_uses_one_timestamp_for_unique_date_indexes(
+async def test_select_batch_uses_one_timestamp_for_unique_date_indexes(
     tmp_path: Path,
 ) -> None:
     """Select batch uses one timestamp for unique date indexes.
@@ -706,7 +712,7 @@ def test_preferred_spotify_match_puts_liked_status_first() -> None:
     assert selected.liked is True
 
 
-def test_spotify_routine_prefers_liked_match_and_adds_it(
+async def test_spotify_routine_prefers_liked_match_and_adds_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sp = FakeSpotify()
@@ -797,7 +803,7 @@ def test_spotify_routine_prefers_liked_match_and_adds_it(
     ]
 
 
-def test_maximum_playlist_length_only_selects_open_slots(
+async def test_maximum_playlist_length_only_selects_open_slots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sp = FakeSpotify()
@@ -837,7 +843,7 @@ def test_maximum_playlist_length_only_selects_open_slots(
     assert summary.requested_count == 2
 
 
-def test_dry_run_resolves_tracks_without_updating_playlist(
+async def test_dry_run_resolves_tracks_without_updating_playlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sp = FakeSpotify()
@@ -882,7 +888,7 @@ def test_dry_run_resolves_tracks_without_updating_playlist(
     assert sp.posts == []
 
 
-def test_full_maximum_playlist_skips_random_org_and_search() -> None:
+async def test_full_maximum_playlist_skips_random_org_and_search() -> None:
     sp = FakeSpotify()
     sp.playlist_tracks = [spotify_track("one", "Track", "Artist", "Album")]
 
@@ -943,5 +949,5 @@ class RandomHeaderResponse:
 class UnexpectedSpotify(FakeSpotify):
     """Retain the original unexpected spotify boundary fixture."""
 
-    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+    async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
         pytest.fail("Spotify should not be called after cancellation")

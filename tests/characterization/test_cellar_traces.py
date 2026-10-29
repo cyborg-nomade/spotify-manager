@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.runtime import reset_state_service
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
@@ -93,10 +93,10 @@ def _scenario(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     return Scenario(operation, partial(_remote, spotify))
 
 
-def _run_cellar(
+async def _run_cellar(
     spotify: Spotify, root: Path, trace: Trace, dry_run: bool
 ) -> new_wine.FlushSummary:
-    return new_wine.flush_new_wine(
+    return await new_wine.async_flush_new_wine(
         spotify,
         NewWineOptions("new", "sauv", "cellar", True, False, dry_run),
         NewWineCallbacks(
@@ -115,7 +115,7 @@ def _run_cellar(
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_cellar_normal_trace(
+async def test_cellar_normal_trace(
     dry_run: bool,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -130,14 +130,14 @@ def test_cellar_normal_trace(
         assert_trace: Pre-migration recording comparator.
     """
     trace = Trace(tmp_path)
-    capture(trace, _scenario(monkeypatch, tmp_path, trace), tmp_path, dry_run)
+    await capture(trace, _scenario(monkeypatch, tmp_path, trace), tmp_path, dry_run)
     assert not any(event["phase"] == "error" for event in trace.events)
     assert_trace(f"cellar-{'dry' if dry_run else 'normal'}", trace.events)
 
 
 @pytest.mark.parametrize("operation,occurrence", BOUNDARIES)
 @pytest.mark.parametrize("phase", ["before", "after"])
-def test_cellar_interruption_trace(
+async def test_cellar_interruption_trace(
     operation: str,
     occurrence: int,
     phase: Phase,
@@ -157,9 +157,9 @@ def test_cellar_interruption_trace(
     """
     trace = Trace(tmp_path, Fault(operation, phase, occurrence))
     scenario = _scenario(monkeypatch, tmp_path, trace)
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert trace.fired
     reset_state_service()
     trace.record("process", "restart")
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert_trace(f"cellar-{operation}-{occurrence}-{phase}", trace.events)

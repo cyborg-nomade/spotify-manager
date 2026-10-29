@@ -69,7 +69,7 @@ class FakeSpotify:
         self.album_track_calls: list[str] = []
         self.fail_next_delete = False
 
-    def _get(self, path: str, *, limit: int, offset: int):
+    async def _get(self, path: str, *, limit: int, offset: int):
         playlist_id = path.split("/")[1]
         tracks = self.playlists[playlist_id]
         page = tracks[offset : offset + limit]
@@ -79,7 +79,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(tracks) else None,
         }
 
-    def _post(self, path: str, *, payload: dict[str, object]):
+    async def _post(self, path: str, *, payload: dict[str, object]):
         playlist_id = path.split("/")[1]
         uri = str(payload["uris"][0])  # type: ignore[index]
         track_id = uri.split("spotify:track:")[-1]
@@ -93,7 +93,7 @@ class FakeSpotify:
         self.mutations.append(("add", track_id))
         return {}
 
-    def _delete(self, path: str, *, payload: dict[str, object]):
+    async def _delete(self, path: str, *, payload: dict[str, object]):
         if self.fail_next_delete:
             self.fail_next_delete = False
             raise RuntimeError("interrupted after add")
@@ -106,7 +106,7 @@ class FakeSpotify:
         self.mutations.append(("remove", track_id))
         return {}
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id: str,
         *,
@@ -123,10 +123,10 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(releases) else None,
         }
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         self.album_track_calls.append(album_id)
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
@@ -152,7 +152,7 @@ def default_order(
     return tuple(release.spotify_id for release in releases)
 
 
-def test_flush_advances_only_first_two_playlist_entries(tmp_path: Path) -> None:
+async def test_flush_advances_only_first_two_playlist_entries(tmp_path: Path) -> None:
     """Flush advances only first two playlist entries.
 
     Args:
@@ -214,7 +214,7 @@ def test_flush_advances_only_first_two_playlist_entries(tmp_path: Path) -> None:
     ]
 
 
-def test_last_album_track_moves_to_next_studio_ep(tmp_path: Path) -> None:
+async def test_last_album_track_moves_to_next_studio_ep(tmp_path: Path) -> None:
     """Last album track moves to next studio ep.
 
     Args:
@@ -283,7 +283,7 @@ def test_last_album_track_moves_to_next_studio_ep(tmp_path: Path) -> None:
     assert spotify.album_track_calls == ["album", "ep"]
 
 
-def test_saved_deluxe_edition_wins_over_unsaved_plain_edition(
+async def test_saved_deluxe_edition_wins_over_unsaved_plain_edition(
     tmp_path: Path,
 ) -> None:
     """Saved deluxe edition wins over unsaved plain edition.
@@ -335,7 +335,7 @@ def test_saved_deluxe_edition_wins_over_unsaved_plain_edition(
     assert spotify.album_track_calls == ["deluxe"]
 
 
-def test_plain_edition_wins_when_no_edition_is_saved() -> None:
+async def test_plain_edition_wins_when_no_edition_is_saved() -> None:
     """Plain edition wins when no edition is saved."""
     spotify = FakeSpotify()
     plain = raw_release("plain", "Shared Album", artist_id="artist")
@@ -356,7 +356,7 @@ def test_plain_edition_wins_when_no_edition_is_saved() -> None:
     assert [release.spotify_id for release in releases] == ["plain"]
 
 
-def test_equal_date_releases_use_and_save_prompted_order(tmp_path: Path) -> None:
+async def test_equal_date_releases_use_and_save_prompted_order(tmp_path: Path) -> None:
     """Equal date releases use and save prompted order.
 
     Args:
@@ -402,7 +402,7 @@ def test_equal_date_releases_use_and_save_prompted_order(tmp_path: Path) -> None
     assert state["release_orders"]["artist:2021-01-01"] == ["third", "second"]
 
 
-def test_advancing_within_album_does_not_prompt_for_future_releases(
+async def test_advancing_within_album_does_not_prompt_for_future_releases(
     tmp_path: Path,
 ) -> None:
     """Advancing within album does not prompt for future releases.
@@ -450,7 +450,7 @@ def test_advancing_within_album_does_not_prompt_for_future_releases(
     assert spotify.album_track_calls == ["current"]
 
 
-def test_skipped_candidate_moves_to_following_track(tmp_path: Path) -> None:
+async def test_skipped_candidate_moves_to_following_track(tmp_path: Path) -> None:
     """Skipped candidate moves to following track.
 
     Args:
@@ -505,7 +505,9 @@ def test_skipped_candidate_moves_to_following_track(tmp_path: Path) -> None:
     assert state["active_run"]["status"] == "completed"
 
 
-def test_skipped_candidates_are_remembered_when_run_pauses(tmp_path: Path) -> None:
+async def test_skipped_candidates_are_remembered_when_run_pauses(
+    tmp_path: Path,
+) -> None:
     """Skipped candidates are remembered when run pauses.
 
     Args:
@@ -567,7 +569,9 @@ def test_skipped_candidates_are_remembered_when_run_pauses(tmp_path: Path) -> No
     assert [track["id"] for track in spotify.playlists["slow"]] == ["t3"]
 
 
-def test_final_track_removes_artist_and_requests_replacement(tmp_path: Path) -> None:
+async def test_final_track_removes_artist_and_requests_replacement(
+    tmp_path: Path,
+) -> None:
     """Final track removes artist and requests replacement.
 
     Args:
@@ -595,7 +599,7 @@ def test_final_track_removes_artist_and_requests_replacement(tmp_path: Path) -> 
     assert spotify.mutations == [("remove", "last-track")]
 
 
-def test_interrupted_replacement_prompt_is_requested_again(
+async def test_interrupted_replacement_prompt_is_requested_again(
     tmp_path: Path,
 ) -> None:
     """Interrupted replacement prompt is requested again.
@@ -612,12 +616,14 @@ def test_interrupted_replacement_prompt_is_requested_again(
     prompts: list[str] = []
 
     with pytest.raises(KeyboardInterrupt):
-        slow_listening.flush_slow_listening(
-            spotify,
-            "slow",
-            DefaultOrderResource(),
-            completion_notifier=CompletionNotice(prompts, interrupt_first=True),
-            **paths(tmp_path),
+        (
+            slow_listening.flush_slow_listening(
+                spotify,
+                "slow",
+                DefaultOrderResource(),
+                completion_notifier=CompletionNotice(prompts, interrupt_first=True),
+                **paths(tmp_path),
+            )
         )
 
     assert spotify.playlists["slow"] == []
@@ -636,7 +642,7 @@ def test_interrupted_replacement_prompt_is_requested_again(
     assert spotify.mutations == [("remove", "last-track")]
 
 
-def test_dry_run_logs_but_does_not_mutate_or_prompt(tmp_path: Path) -> None:
+async def test_dry_run_logs_but_does_not_mutate_or_prompt(tmp_path: Path) -> None:
     """Dry run logs but does not mutate or prompt.
 
     Args:
@@ -668,7 +674,7 @@ def test_dry_run_logs_but_does_not_mutate_or_prompt(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "log.jsonl").read_text())["dry_run"] is True
 
 
-def test_interrupted_add_resumes_without_duplicate_replacement(
+async def test_interrupted_add_resumes_without_duplicate_replacement(
     tmp_path: Path,
 ) -> None:
     """Interrupted add resumes without duplicate replacement.
@@ -688,12 +694,14 @@ def test_interrupted_add_resumes_without_duplicate_replacement(
     spotify.fail_next_delete = True
 
     with pytest.raises(RuntimeError, match="interrupted after add"):
-        slow_listening.flush_slow_listening(
-            spotify,
-            "slow",
-            DefaultOrderResource(),
-            completion_notifier=CompletionNotice(),
-            **paths(tmp_path),
+        (
+            slow_listening.flush_slow_listening(
+                spotify,
+                "slow",
+                DefaultOrderResource(),
+                completion_notifier=CompletionNotice(),
+                **paths(tmp_path),
+            )
         )
 
     assert [track["id"] for track in spotify.playlists["slow"]] == ["t1", "t2"]
@@ -730,7 +738,7 @@ def test_studio_album_named_live_through_this_is_not_filtered() -> None:
 class DefaultOrderResource:
     """Own the original fixed fixture observation."""
 
-    def order_releases(
+    async def order_releases(
         self,
         _release_date: str,
         releases: tuple[slow_listening.DiscographyRelease, ...],
@@ -758,7 +766,7 @@ class ReverseOrder:
 
     prompts: list[tuple[str, ...]]
 
-    def order_releases(
+    async def order_releases(
         self, date: str, releases: tuple[slow_listening.DiscographyRelease, ...]
     ) -> tuple[str, ...]:
         """Return the original reversed release order.
@@ -788,7 +796,7 @@ class TrackAnswers:
     answers: Iterator[str] | None = None
     skip_second: bool = False
 
-    def choose_track(
+    async def choose_track(
         self,
         source: slow_listening.PlaylistTrack,
         target: slow_listening.ReleaseTrack,
@@ -824,7 +832,7 @@ class CompletionNotice:
     prompts: list[str] | None = None
     interrupt_first: bool = False
 
-    def complete(self, source: slow_listening.PlaylistTrack) -> None:
+    async def complete(self, source: slow_listening.PlaylistTrack) -> None:
         """Retain the original notification after an accepted playlist removal.
 
         Args:

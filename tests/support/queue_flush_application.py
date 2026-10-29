@@ -13,6 +13,7 @@ from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueSpotifyError
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from spotify_manager.infrastructure.queue_records import catalog_track
 from spotify_manager.infrastructure.queue_records import flush_result
 from spotify_manager.infrastructure.queue_records import playlist_track
@@ -39,7 +40,7 @@ class MemoryQueueFlush:
         Returns:
             In-memory state reader and accepted checkpoint writer.
         """
-        return self.observations
+        return AsyncRoutineState(self.observations)
 
     def default_state(self) -> dict[str, object]:
         """Create original empty preview state without durable reads.
@@ -57,7 +58,7 @@ class MemoryQueueFlush:
         """
         return "queue"
 
-    def queue(self) -> tuple[PlaylistTrack, ...]:
+    async def queue(self) -> tuple[PlaylistTrack, ...]:
         """Observe original live Queue even when resuming.
 
         Returns:
@@ -77,7 +78,7 @@ class MemoryQueueFlush:
         """
         return new_flush_run("queue", tracks, 10, self.observations)
 
-    def queue_2(self) -> set[str]:
+    async def queue_2(self) -> set[str]:
         """Observe original promotion membership before unlucky membership.
 
         Returns:
@@ -88,7 +89,7 @@ class MemoryQueueFlush:
             track.primary_artist_id for track in self.observations.playlists["queue2"]
         }
 
-    def unlucky(self) -> set[str]:
+    async def unlucky(self) -> set[str]:
         """Observe original unlucky membership after promotion membership.
 
         Returns:
@@ -121,7 +122,7 @@ class MemoryQueueFlush:
         """
         return catalog_track(raw)
 
-    def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
+    async def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
         """Observe live planning before the accepted original checkpoint.
 
         Args:
@@ -134,7 +135,7 @@ class MemoryQueueFlush:
         self.observations.record("plan", source.spotify_id, uris)
         return self.observations.plan_record(uris)
 
-    def append(
+    async def append(
         self, destination: str, source: PlaylistTrack, target: CatalogTrack
     ) -> None:
         """Accept the original destination marker before possible failure.
@@ -155,7 +156,7 @@ class MemoryQueueFlush:
         self.observations.playlists[destination].append(marker)
         self.observations.record("append", destination, target.uri)
 
-    def following(self, source: PlaylistTrack) -> bool:
+    async def following(self, source: PlaylistTrack) -> bool:
         """Observe and validate original follow status even during preview.
 
         Args:
@@ -167,14 +168,14 @@ class MemoryQueueFlush:
         Raises:
             QueueSpotifyError: The original configured response is invalid.
         """
-        statuses = self.observations.current_user_following_artists(
+        statuses = await self.observations.current_user_following_artists(
             [source.primary_artist_id]
         )
         if not statuses:
             raise QueueSpotifyError("Spotify returned invalid artist follow status.")
         return statuses[0]
 
-    def unfollow(self, source: PlaylistTrack) -> None:
+    async def unfollow(self, source: PlaylistTrack) -> None:
         """Accept the original artist URI removal.
 
         Args:
@@ -184,7 +185,7 @@ class MemoryQueueFlush:
             "unfollow", [f"spotify:artist:{source.primary_artist_id}"]
         )
 
-    def remove_local(self, source: PlaylistTrack) -> None:
+    async def remove_local(self, source: PlaylistTrack) -> None:
         """Observe local mirror removal after accepted unfollow.
 
         Args:
@@ -192,7 +193,7 @@ class MemoryQueueFlush:
         """
         self.observations.record("remove-local", source.primary_artist_id)
 
-    def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
+    async def remove(self, source: PlaylistTrack, uris: list[str]) -> None:
         """Accept original source removal before possible failure.
 
         Args:
@@ -222,7 +223,7 @@ class MemoryQueueFlush:
         """
         return flush_result(source, plan, preview)
 
-    def audit(
+    async def audit(
         self, run: dict[str, object], source: PlaylistTrack, result: FlushResult
     ) -> None:
         """Accept the original audit before completion checkpointing.
@@ -295,7 +296,9 @@ def _message(
     )
 
 
-def application_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def application_outcome(
+    scenario: str, preview: bool, failure: str | None
+) -> object:
     """Replay original scenarios through independent application boundaries.
 
     Args:
@@ -310,7 +313,7 @@ def application_outcome(scenario: str, preview: bool, failure: str | None) -> ob
     edge.setup()
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = asdict(queue_workflow(edge).run(preview))
+        outcome["result"] = asdict(await queue_workflow(edge).run(preview))
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)

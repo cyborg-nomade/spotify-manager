@@ -35,7 +35,7 @@ class MemoryArtist:
         if self.fail == name:
             raise RuntimeError(name)
 
-    def resolve(self, album: YourLibraryAlbum) -> AlbumArtist | None:
+    async def resolve(self, album: YourLibraryAlbum) -> AlbumArtist | None:
         """Return the configured identity.
 
         Args:
@@ -47,7 +47,7 @@ class MemoryArtist:
         self._effect("resolve")
         return self.identity
 
-    def followed(self, artist: AlbumArtist) -> bool:
+    async def followed(self, artist: AlbumArtist) -> bool:
         """Observe current membership.
 
         Args:
@@ -59,7 +59,7 @@ class MemoryArtist:
         self._effect("status")
         return self.current
 
-    def follow(self, artist: AlbumArtist) -> None:
+    async def follow(self, artist: AlbumArtist) -> None:
         """Accept a remote follow.
 
         Args:
@@ -68,7 +68,7 @@ class MemoryArtist:
         self._effect("follow")
         self.current = True
 
-    def record(self, artist: AlbumArtist) -> ArtistPersistenceResult:
+    async def record(self, artist: AlbumArtist) -> ArtistPersistenceResult:
         """Accept local mirror and statistics publication.
 
         Args:
@@ -90,7 +90,7 @@ class MemoryArtist:
         (ARTIST, False, set(), "followed", ["resolve", "status", "follow", "record"]),
     ],
 )
-def test_album_artist_outcomes(
+async def test_album_artist_outcomes(
     identity: AlbumArtist | None,
     current: bool,
     checked: set[str],
@@ -108,20 +108,24 @@ def test_album_artist_outcomes(
     """
     fixture = MemoryArtist(identity, current)
     completed = set(checked)
-    outcome = follow_album_artist(fixture, ALBUM, completed)
+    outcome = await follow_album_artist(fixture, ALBUM, completed)
     assert outcome.action == action
     assert fixture.effects == effects
     assert completed == ({"artist"} if identity else set())
 
 
-def test_failed_publication_keeps_accepted_follow_but_not_completed_check() -> None:
+async def test_failed_publication_keeps_accepted_follow_but_not_completed_check() -> (
+    None
+):
     """A failure after the follow retains the old retry/restart boundary."""
     fixture = MemoryArtist(fail="record")
     checked: set[str] = set()
     with pytest.raises(RuntimeError, match="record"):
-        follow_album_artist(fixture, ALBUM, checked)
+        (await follow_album_artist(fixture, ALBUM, checked))
     assert fixture.current
     assert checked == set()
     fixture.fail = None
-    assert follow_album_artist(fixture, ALBUM, checked).action == "already-followed"
+    assert (
+        await follow_album_artist(fixture, ALBUM, checked)
+    ).action == "already-followed"
     assert fixture.effects.count("record") == 1

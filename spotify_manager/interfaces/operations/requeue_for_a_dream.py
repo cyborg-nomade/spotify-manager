@@ -2,9 +2,8 @@
 
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue import flush_requeue as flush_requeue
 from spotify_manager.application.requeue_result import (
     RequeueForADreamConfigError as RequeueForADreamConfigError,
@@ -31,7 +30,7 @@ from spotify_manager.routines.requeue_for_a_dream import (
 )
 
 
-def flush_requeue_for_a_dream(
+async def flush_requeue_for_a_dream(
     spotify: Spotify,
     playlist_id: str,
     *,
@@ -69,4 +68,4 @@ def flush_requeue_for_a_dream(
         log_path,
         _CLOCK_RESOURCE,
     )
-    return flush_requeue(dependencies, playlist_id, dry_run=dry_run)
+    return await flush_requeue(dependencies, playlist_id, dry_run=dry_run)

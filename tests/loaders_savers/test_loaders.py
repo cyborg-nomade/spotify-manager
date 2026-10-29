@@ -96,24 +96,24 @@ def redirect_json_paths(monkeypatch, tmp_path: Path) -> dict[str, Path]:
     return paths
 
 
-def test_album_track_cache_handles_missing_invalid_and_valid_json(
+async def test_album_track_cache_handles_missing_invalid_and_valid_json(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     cache_path = tmp_path / "nested" / "cache.json"
     monkeypatch.setattr(loaders_savers, "ALBUM_TRACKS_CACHE_PATH", cache_path)
 
-    assert loaders_savers.load_album_tracks_cache() == {}
+    assert (loaders_savers.load_album_tracks_cache()) == {}
     cache_path.parent.mkdir(parents=True)
     cache_path.write_text("not json")
-    assert loaders_savers.load_album_tracks_cache() == {}
+    assert (loaders_savers.load_album_tracks_cache()) == {}
 
-    loaders_savers.save_album_tracks_cache({"album": [{"id": "track"}]})
+    (loaders_savers.save_album_tracks_cache({"album": [{"id": "track"}]}))
 
-    assert loaders_savers.load_album_tracks_cache() == {"album": [{"id": "track"}]}
+    assert (loaders_savers.load_album_tracks_cache()) == {"album": [{"id": "track"}]}
 
 
-def test_all_library_json_loaders(monkeypatch, tmp_path: Path) -> None:
+async def test_all_library_json_loaders(monkeypatch, tmp_path: Path) -> None:
     paths = redirect_json_paths(monkeypatch, tmp_path)
     album = simplified_album()
     saved_album = library_album()
@@ -134,16 +134,16 @@ def test_all_library_json_loaders(monkeypatch, tmp_path: Path) -> None:
     for name, payload in payloads.items():
         paths[name].write_text(json.dumps(payload))
 
-    assert loaders_savers.load_control_file()[0].album == album
-    assert loaders_savers.load_total_albums_file() == [album]
-    assert loaders_savers.load_total_albums_new_file() == [saved_album]
-    assert loaders_savers.load_your_library_file().tracks == [track]
-    assert loaders_savers.load_comparison_file() == {"add": [], "remove": []}
-    assert loaders_savers.load_total_artists_file() == [artist]
-    assert loaders_savers.load_stats_history_file() == {"2026.08.11": report}
+    assert (loaders_savers.load_control_file())[0].album == album
+    assert (loaders_savers.load_total_albums_file()) == [album]
+    assert (loaders_savers.load_total_albums_new_file()) == [saved_album]
+    assert (loaders_savers.load_your_library_file()).tracks == [track]
+    assert (loaders_savers.load_comparison_file()) == {"add": [], "remove": []}
+    assert (loaders_savers.load_total_artists_file()) == [artist]
+    assert (loaders_savers.load_stats_history_file()) == {"2026.08.11": report}
 
 
-def test_all_library_json_savers(monkeypatch, tmp_path: Path) -> None:
+async def test_all_library_json_savers(monkeypatch, tmp_path: Path) -> None:
     paths = redirect_json_paths(monkeypatch, tmp_path)
     album = simplified_album()
     saved_album = library_album()
@@ -161,13 +161,13 @@ def test_all_library_json_savers(monkeypatch, tmp_path: Path) -> None:
     )
     report = stats_report()
 
-    loaders_savers.save_total_albums_file([album])
-    loaders_savers.save_total_albums_new_file([saved_album])
-    loaders_savers.save_total_artists_file([artist])
-    loaders_savers.save_control_file([control])
-    loaders_savers.save_stats_file(stats)
-    loaders_savers.save_stats_history({"2026.08.11": report})
-    loaders_savers.save_comparison_file({"add": ["album"], "remove": []})
+    (loaders_savers.save_total_albums_file([album]))
+    (loaders_savers.save_total_albums_new_file([saved_album]))
+    (loaders_savers.save_total_artists_file([artist]))
+    (loaders_savers.save_control_file([control]))
+    (loaders_savers.save_stats_file(stats))
+    (loaders_savers.save_stats_history({"2026.08.11": report}))
+    (loaders_savers.save_comparison_file({"add": ["album"], "remove": []}))
 
     assert json.loads(paths["TOTAL_ALBUMS_PATH"].read_text()) == [album.model_dump()]
     assert json.loads(paths["TOTAL_ALBUMS_NEW_PATH"].read_text()) == [

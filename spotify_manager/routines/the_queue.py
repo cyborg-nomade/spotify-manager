@@ -11,11 +11,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.application.queue_artist_mapping import (
     QueueArtistChoice as ArtistChoiceReader,
 )
@@ -33,10 +35,7 @@ from spotify_manager.application.queue_values import (
     QueueSpotifyError as QueueSpotifyError,
 )
 from spotify_manager.application.queue_values import QueueStateError as QueueStateError
-
-# UFI
 from spotify_manager.client.lastfm import LastFmSimilarArtist
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
@@ -46,7 +45,16 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+
+# UFI
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingNeighborReader as LegacyNeighborReader,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
 from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
@@ -57,7 +65,9 @@ from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import release_check
-from spotify_manager.routines.review_album_limits import record_followed_artist
+from spotify_manager.routines.review_album_limits import (
+    async_record_followed_artist as record_followed_artist,
+)
 from spotify_manager.routines.review_artists import (
     add_playlist_item as add_playlist_item,
 )
@@ -102,9 +112,16 @@ CHOICE_SEARCH_PREFIX = release_check.CHOICE_SEARCH_PREFIX
 class LastFmReader(found_art.LastFmReader, Protocol):
     """Last.fm methods used by artist recommendations and history refresh."""
 
-    username: str
+    @property
+    def username(self) -> str:
+        """Read the configured Last.fm account name.
 
-    def similar_artists(
+        Returns:
+            Original case-preserving account name.
+        """
+        ...
+
+    async def similar_artists(
         self,
         artist: str,
         *,
@@ -262,15 +279,20 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "queue",
         TheQueueStateCodec(),
         StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
+
+
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
@@ -417,7 +439,7 @@ def previously_added_artist_keys(path: Path = DEFAULT_LOG_PATH) -> set[str]:
         raise QueueStateError(f"Queue log is invalid: {path}") from exc
 
 
-def gather_artist_recommendations(
+async def async_gather_artist_recommendations(
     lastfm: LastFmReader,
     seeds: tuple[ArtistSeed, ...],
     heard_keys: set[str],
@@ -452,7 +474,7 @@ def gather_artist_recommendations(
         gather_artist_recommendations as operation,
     )
 
-    return operation(
+    return await operation(
         lastfm,
         seeds,
         heard_keys,
@@ -484,21 +506,20 @@ def _mapping_choice_reader(
     return QueueMappingChoice(reader, recommendation)
 
 
-def _playlist_artist_ids(
+async def _playlist_artist_ids(
     sp: Spotify,
     playlist_ids: Iterable[str],
     retry_call: RetryCall,
 ) -> set[str]:
     represented: set[str] = set()
     for playlist_id in playlist_ids:
-        represented.update(
-            track.primary_artist_id
-            for track in new_wine.load_playlist_tracks(sp, playlist_id, retry_call)
-        )
+        tracks = await new_wine.async_load_playlist_tracks(sp, playlist_id, retry_call)
+        for track in tracks:
+            represented.add(track.primary_artist_id)
     return represented
 
 
-def _liked_statuses(
+async def _liked_statuses(
     sp: Spotify,
     tracks: Iterable[new_kids.CatalogTrack],
     retry_call: RetryCall,
@@ -509,8 +530,8 @@ def _liked_statuses(
     for attempt in retry_call.attempts(
         f"checking {len(materialized)} top tracks in Liked Songs"
     ):
-        with attempt:
-            response = sp.current_user_saved_tracks_contains(
+        async with attempt:
+            response = await sp.current_user_saved_tracks_contains(
                 [track.spotify_id for track in materialized]
             )
     if not isinstance(response, list) or len(response) != len(materialized):
@@ -521,11 +542,11 @@ def _liked_statuses(
     return statuses
 
 
-def _persist_followed_artist(
+async def _persist_followed_artist(
     candidate: release_check.SpotifyArtistCandidate,
     echo: Echo,
 ) -> None:
-    persisted = record_followed_artist(
+    persisted = await record_followed_artist(
         AlbumArtist(spotify_id=candidate.spotify_id, name=candidate.name)
     )
     if persisted.total_artists_updated:
@@ -534,14 +555,14 @@ def _persist_followed_artist(
         echo.echo("Updated stats_history.json.")
 
 
-def _fill_following(
+async def _fill_following(
     sp: Spotify,
     spotify_artist: release_check.SpotifyArtistCandidate,
     retry: RetryCall,
 ) -> bool:
     for attempt in retry.attempts(f"checking follow status for {spotify_artist.name}"):
-        with attempt:
-            followed_response = sp.current_user_following_artists(
+        async with attempt:
+            followed_response = await sp.current_user_following_artists(
                 [spotify_artist.spotify_id]
             )
     if not isinstance(followed_response, list) or not followed_response:
@@ -549,17 +570,17 @@ def _fill_following(
     return bool(followed_response[0])
 
 
-def _fill_follow(
+async def _fill_follow(
     sp: Spotify,
     spotify_artist: release_check.SpotifyArtistCandidate,
     retry: RetryCall,
 ) -> None:
     for attempt in retry.attempts(f"following {spotify_artist.name}"):
-        with attempt:
-            sp.user_follow_artists([spotify_artist.spotify_id])
+        async with attempt:
+            await sp.user_follow_artists([spotify_artist.spotify_id])
 
 
-def fill_queue_from_lastfm(
+async def async_fill_queue_from_lastfm(
     sp: Spotify,
     lastfm: LastFmReader,
     options: QueueFillOptions,
@@ -569,23 +590,23 @@ def fill_queue_from_lastfm(
     """Add unheard Last.fm artist recommendations to The Queue.
 
     Args:
-    sp: Caller-owned client.
-    lastfm: Caller-owned client.
-    options: Destinations and execution mode.
-    callbacks: Operator decisions, notifications and retry ownership.
-    resources: Persistent files and checkpoint authority.
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-    The original typed summary and accepted effects.
+        The original typed summary and accepted effects.
 
     Raises:
-    RuntimeError: Observations, selections or persistence cannot complete.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.operations.the_queue import (
         fill_queue_from_lastfm as operation,
     )
 
-    return operation(sp, lastfm, options, callbacks, resources)
+    return await operation(sp, lastfm, options, callbacks, resources)
 
 
 def _playlist_track_from_record(raw: object) -> new_wine.PlaylistTrack:
@@ -628,7 +649,7 @@ class FlushClockClock:
 _FLUSH_CLOCK_RESOURCE = FlushClockClock()
 
 
-def _promotion_track(
+async def _promotion_track(
     sp: Spotify,
     artist_id: str,
     catalog: tuple[new_kids.RankedRelease, ...],
@@ -638,12 +659,12 @@ def _promotion_track(
     from spotify_manager.application.queue_flush_planning import promotion_marker
     from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
 
-    return promotion_marker(
+    return await promotion_marker(
         LegacyQueuePlanning(sp, retry_call), artist_id, catalog, track_cache
     )
 
 
-def _plan_flush_entry(
+async def _plan_flush_entry(
     sp: Spotify,
     source: new_wine.PlaylistTrack,
     source_uris: list[str],
@@ -651,7 +672,7 @@ def _plan_flush_entry(
 ) -> dict[str, object]:
     from spotify_manager.interfaces.operations.queue_planning import plan_queue_entry
 
-    return plan_queue_entry(sp, source, source_uris, retry_call)
+    return await plan_queue_entry(sp, source, source_uris, retry_call)
 
 
 def _flush_result(
@@ -664,7 +685,7 @@ def _flush_result(
     return flush_result(source, plan, dry_run)
 
 
-def _flush_following(
+async def _flush_following(
     sp: Spotify,
     source: new_wine.PlaylistTrack,
     retry: RetryCall,
@@ -672,14 +693,16 @@ def _flush_following(
     for attempt in retry.attempts(
         f"checking follow status for {source.primary_artist_name}"
     ):
-        with attempt:
-            followed = sp.current_user_following_artists([source.primary_artist_id])
+        async with attempt:
+            followed = await sp.current_user_following_artists(
+                [source.primary_artist_id]
+            )
     if not isinstance(followed, list) or not followed:
         raise QueueSpotifyError("Spotify returned invalid artist follow status.")
     return bool(followed[0])
 
 
-def flush_queue(
+async def async_flush_queue(
     sp: Spotify,
     playlists: QueuePlaylists,
     *,
@@ -715,7 +738,7 @@ def flush_queue(
     """
     from spotify_manager.interfaces.operations.the_queue import flush_queue as operation
 
-    return operation(
+    return await operation(
         sp,
         playlists,
         dry_run=dry_run,
@@ -726,4 +749,151 @@ def flush_queue(
         state_service=state_service,
         log_path=log_path,
         artists_path=artists_path,
+    )
+
+
+def gather_artist_recommendations(
+    lastfm: LastFmReader | LegacyNeighborReader,
+    seeds: tuple[ArtistSeed, ...],
+    heard_keys: set[str],
+    *,
+    cache_path: Path = DEFAULT_CACHE_PATH,
+    log_path: Path = DEFAULT_LOG_PATH,
+    week_start: date | None = None,
+    candidate_pool_size: int = MIN_CANDIDATE_POOL,
+    now: datetime | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[ArtistRecommendation, ...]:
+    """Aggregate Last.fm artist neighborhoods into a weekly ordering.
+
+    Args:
+        lastfm: Caller-owned original Last.fm client.
+        seeds: Original ordered weighted seed artists.
+        heard_keys: Original heard artist identities.
+        cache_path: Original neighborhood cache location.
+        log_path: Original prior-addition audit location.
+        week_start: Optional original effective listening week.
+        candidate_pool_size: Original pool slice limit.
+        now: Optional original timestamp.
+        progress_callback: Optional original progress presenter.
+
+    Returns:
+        Original weekly ordering after accepted neighborhood checkpoints.
+
+    Raises:
+        QueueStateError: Original cache or audit data is unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonNeighborReader,
+    )
+
+    return run_python(
+        async_gather_artist_recommendations(
+            PythonNeighborReader(lastfm),
+            seeds,
+            heard_keys,
+            cache_path=cache_path,
+            log_path=log_path,
+            week_start=week_start,
+            candidate_pool_size=candidate_pool_size,
+            now=now,
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def fill_queue_from_lastfm(
+    sp: LegacySpotify,
+    lastfm: LastFmReader | LegacyNeighborReader,
+    options: QueueFillOptions,
+    callbacks: QueueFillCallbacks,
+    resources: QueueFillResources | None = None,
+) -> FillSummary:
+    """Add unheard Last.fm artist recommendations to The Queue.
+
+    Args:
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
+
+    Returns:
+        The original typed summary and accepted effects.
+
+    Raises:
+        RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonNeighborReader,
+    )
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_queue_fill_callbacks,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_fill_queue_from_lastfm(
+            legacy_spotify(sp),
+            PythonNeighborReader(lastfm),
+            options,
+            python_queue_fill_callbacks(callbacks),
+            resources,
+        )
+    )
+
+
+def flush_queue(
+    sp: LegacySpotify,
+    playlists: QueuePlaylists,
+    *,
+    dry_run: bool = False,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+    log_path: Path = DEFAULT_LOG_PATH,
+    artists_path: Path = DEFAULT_ARTISTS_PATH,
+) -> FlushSummary:
+    """Advance the first ten Queue artists through their unliked top tracks.
+
+    Args:
+        sp: Original caller-owned Spotify client.
+        playlists: Original configured destination identities.
+        dry_run: Original preview behavior.
+        echo: Original text presenter.
+        progress_callback: Original optional stage presenter.
+        retry_call: Original optional retry boundary.
+        state_path: Original state location.
+        state_service: Original optional shared state authority.
+        log_path: Original audit location.
+        artists_path: Original artist mirror location.
+
+    Returns:
+        Original ordered outcomes after accepted effects and checkpoints.
+
+    Raises:
+        QueueStateError: Original stored sources, plans or counts are invalid.
+        QueueSpotifyError: Original follow-status response is invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_queue(
+            legacy_spotify(sp),
+            playlists,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            state_path=state_path,
+            state_service=state_service,
+            log_path=log_path,
+            artists_path=artists_path,
+        )
     )

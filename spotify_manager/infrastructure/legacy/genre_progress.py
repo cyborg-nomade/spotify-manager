@@ -6,7 +6,7 @@ from datetime import UTC
 from datetime import datetime
 
 from spotify_manager.application.genre_progress import GenreProgress
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.routines import genre_reveal as legacy
 
 
@@ -21,13 +21,13 @@ class LegacyGenreProgress:
     state: RoutineState
     result: legacy.GenreRevealState = field(init=False)
 
-    def read(self) -> GenreProgress:
+    async def read(self) -> GenreProgress:
         """Validate the latest original progress before comparing editable fields.
 
         Returns:
             Typed original ordered identities, setting and server metadata.
         """
-        self.result = legacy.GenreRevealState.model_validate(self.state.load())
+        self.result = legacy.GenreRevealState.model_validate(await self.state.load())
         return GenreProgress(
             tuple(self.result.completed),
             self.result.hide_done,
@@ -43,7 +43,7 @@ class LegacyGenreProgress:
         """
         return legacy.datetime.now(UTC)
 
-    def save(self, state: GenreProgress) -> None:
+    async def save(self, state: GenreProgress) -> None:
         """Construct original presented state before accepting its serialized write.
 
         Args:
@@ -54,4 +54,4 @@ class LegacyGenreProgress:
             hide_done=state.hide_done,
             updated_at=state.updated_at,
         )
-        self.state.save(self.result.model_dump(mode="json"))
+        await self.state.save(self.result.model_dump(mode="json"))

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager import loaders_savers
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.library_data.runtime import reset_library_data_service
 from spotify_manager.core.state.runtime import reset_state_service
 from spotify_manager.routines import recover_removed_albums as recovery
@@ -92,7 +92,7 @@ def _scenario(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     spotify = FakeSpotify()
     _watch_recovery(patch, trace, spotify)
     operation = partial(
-        recovery.recover_removed_albums,
+        recovery.async_recover_removed_albums,
         cast(Spotify, spotify),
         echo=trace,
         removal_log_path=root / "removed.jsonl",
@@ -103,7 +103,7 @@ def _scenario(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
-def test_recovery_complete_trace(
+async def test_recovery_complete_trace(
     dry_run: bool,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -118,7 +118,7 @@ def test_recovery_complete_trace(
         assert_trace: Independent pre-migration recording comparator.
     """
     trace = Trace(tmp_path)
-    capture(trace, _scenario(monkeypatch, tmp_path, trace), tmp_path, dry_run)
+    await capture(trace, _scenario(monkeypatch, tmp_path, trace), tmp_path, dry_run)
     assert not any(
         event["operation"] == "run" and event["phase"] == "error"
         for event in trace.events
@@ -128,7 +128,7 @@ def test_recovery_complete_trace(
 
 @pytest.mark.parametrize("operation,occurrence", BOUNDARIES)
 @pytest.mark.parametrize("phase", ["before", "after"])
-def test_recovery_restart_trace(
+async def test_recovery_restart_trace(
     operation: str,
     occurrence: int,
     phase: Phase,
@@ -148,10 +148,10 @@ def test_recovery_restart_trace(
     """
     trace = Trace(tmp_path, Fault(operation, phase, occurrence))
     scenario = _scenario(monkeypatch, tmp_path, trace)
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert trace.fired
     reset_state_service()
     reset_library_data_service()
     trace.record("process", "restart")
-    capture(trace, scenario, tmp_path, False)
+    await capture(trace, scenario, tmp_path, False)
     assert_trace(f"recovery-{operation}-{occurrence}-{phase}", trace.events)

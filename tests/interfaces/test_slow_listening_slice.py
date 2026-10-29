@@ -1,22 +1,20 @@
 """Exercise real Slow Listening HTTP choices through the migrated use case."""
 
-from collections.abc import Callable
 from collections.abc import Iterator
-from functools import partial
-from threading import Thread
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_slow_listening import FakeSpotify
@@ -36,26 +34,10 @@ def _spotify() -> FakeSpotify:
     return spotify
 
 
-def _thread(
-    threads: list[Thread],
-    *,
-    target: Callable[..., None],
-    args: tuple[object, ...],
-    name: str,
-    daemon: bool,
-) -> Thread:
-    worker = Thread(target=target, args=args, name=name, daemon=daemon)
-    threads.append(worker)
-    return worker
-
-
-def _stop(threads: list[Thread]) -> None:
+def _stop() -> None:
     for job in api._blast_jobs.values():
         job.cancel_event.set()
         job.choice_event.set()
-    for thread in threads:
-        thread.join(timeout=3)
-        assert not thread.is_alive()
 
 
 @pytest.fixture
@@ -71,17 +53,16 @@ def slow_http(
         HTTP client and mutable fake Spotify server, with worker cleanup guaranteed.
     """
     spotify = _spotify()
-    threads: list[Thread] = []
     settings = Mock(return_value=SimpleNamespace(slow_listening_playlist="slow"))
     monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
-    try:
-        yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield (http, spotify)
+        finally:
+            _stop()
 
 
 def _start(http: TestClient, dry_run: bool = False) -> str:

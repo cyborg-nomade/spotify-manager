@@ -1,7 +1,7 @@
 """Explicit slow listening CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -11,11 +11,15 @@ from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
+from spotify_manager.interfaces.cli.terminal import terminal_input
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -40,7 +44,7 @@ class SlowListeningCLI:
     display: ConsoleDisplay
     sleep: Wait
 
-    def _prompt_slow_listening_release_order(
+    async def _prompt_slow_listening_release_order(
         self,
         console: Console,
         release_date: str,
@@ -61,14 +65,14 @@ class SlowListeningCLI:
         if progress is not None:
             progress.stop()
         try:
-            return self._read_slow_listening_release_order(
+            return await self._read_slow_listening_release_order(
                 console, release_date, candidates, progress
             )
         finally:
             if progress is not None:
                 progress.start()
 
-    def _prompt_slow_listening_action(
+    async def _prompt_slow_listening_action(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -91,7 +95,7 @@ class SlowListeningCLI:
         if progress is not None:
             progress.stop()
         try:
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 (
                     f"Next after {source.primary_artist_name} - {source.name}: "
                     f"{target.name} ({target_release.name}"
@@ -110,7 +114,7 @@ class SlowListeningCLI:
             if progress is not None:
                 progress.start()
 
-    def _acknowledge_slow_listening_completion(
+    async def _acknowledge_slow_listening_completion(
         self,
         console: Console,
         source: new_wine.PlaylistTrack,
@@ -130,14 +134,15 @@ class SlowListeningCLI:
                 f"{source.primary_artist_name} has completed Slow Listening.",
                 style="bold cyan",
             )
-            console.input(
-                "Add a new artist to the playlist, then press Enter to continue. "
+            await terminal_input(
+                console,
+                "Add a new artist to the playlist, then press Enter to continue. ",
             )
         finally:
             if progress is not None:
                 progress.start()
 
-    def _run_flush_slow_listening(self, dry_run: bool) -> None:
+    async def _run_flush_slow_listening(self, dry_run: bool) -> None:
         """Advance the first two Slow Listening tracks through studio releases.
 
         Args:
@@ -145,7 +150,7 @@ class SlowListeningCLI:
         """
         self._flush_slow_listening_console = self.display.create_console()
         self._flush_slow_listening_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = slow_listening.parse_playlist_id(
                 configuration.slow_listening_playlist
@@ -175,8 +180,8 @@ class SlowListeningCLI:
                         description, total=None
                     )
                 )
-                summary = slow_listening.flush_slow_listening(
-                    self.runtime.review_client(),
+                summary = await slow_listening.flush_slow_listening(
+                    (await self.runtime.review_client()),
                     playlist_id,
                     order_reader=FlushSlowListeningInteraction(self),
                     completion_notifier=FlushSlowListeningInteraction(self),
@@ -196,7 +201,7 @@ class SlowListeningCLI:
             self._report_flush_slow_listening_slow_listening_failure(exc)
         except SpotifyException as exc:
             self._report_flush_slow_listening_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_slow_listening_interrupted_interrupted(exc)
         self._show_flush_slow_listening(summary)
 
@@ -229,34 +234,32 @@ class SlowListeningCLI:
             description=status,
         )
 
-    def _flush_slow_listening_ask_slow_listening_release_order(
+    async def _flush_slow_listening_ask_slow_listening_release_order(
         self,
         release_date: str,
         candidates: tuple[slow_listening.DiscographyRelease, ...],
     ) -> tuple[str, ...]:
-        return self._prompt_slow_listening_release_order(
+        return await self._prompt_slow_listening_release_order(
             self._flush_slow_listening_console,
             release_date,
             candidates,
             self._flush_slow_listening_progress_ref,
         )
 
-    def _flush_slow_listening_acknowledge_slow_listening_completion(
-        self, source: new_wine.PlaylistTrack
-    ) -> None:
-        return self._acknowledge_slow_listening_completion(
+    async def _acknowledge_completion(self, source: new_wine.PlaylistTrack) -> None:
+        return await self._acknowledge_slow_listening_completion(
             self._flush_slow_listening_console,
             source,
             self._flush_slow_listening_progress_ref,
         )
 
-    def _flush_slow_listening_ask_slow_listening_action(
+    async def _flush_slow_listening_ask_slow_listening_action(
         self,
         source: new_wine.PlaylistTrack,
         target: new_wine.ReleaseTrack,
         target_release: slow_listening.DiscographyRelease,
     ) -> str:
-        return self._prompt_slow_listening_action(
+        return await self._prompt_slow_listening_action(
             self._flush_slow_listening_console,
             source,
             target,
@@ -333,7 +336,7 @@ class SlowListeningCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_slow_listening_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._flush_slow_listening_console.print(
             "Slow Listening flush paused. The active run was saved.",
@@ -389,7 +392,7 @@ class SlowListeningCLI:
                 "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
-    def _read_slow_listening_release_order(
+    async def _read_slow_listening_release_order(
         self,
         console: Console,
         release_date: str,
@@ -426,10 +429,12 @@ class SlowListeningCLI:
         console.print(table)
         default = ",".join(str(index) for index in range(1, len(candidates) + 1))
         while True:
-            response = self.display.prompt.ask(
-                "Order as comma-separated release numbers / [q]uit",
-                default=default,
-                console=console,
+            response = (
+                await TerminalPrompt(self.display.prompt).ask(
+                    "Order as comma-separated release numbers / [q]uit",
+                    default=default,
+                    console=console,
+                )
             ).strip()
             if response.casefold() == "q":
                 raise slow_listening.SlowListeningCancelledError(
@@ -457,7 +462,7 @@ class FlushSlowListeningInteraction:
 
     owner: SlowListeningCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -484,9 +489,10 @@ class FlushSlowListeningInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._flush_slow_listening_update_progress(completed, total, status)
 
-    def order_releases(
+    async def order_releases(
         self,
         release_date: str,
         candidates: tuple[slow_listening.DiscographyRelease, ...],
@@ -500,11 +506,11 @@ class FlushSlowListeningInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_slow_listening_ask_slow_listening_release_order(
+        return await self.owner._flush_slow_listening_ask_slow_listening_release_order(
             release_date, candidates
         )
 
-    def complete(self, source: new_wine.PlaylistTrack) -> None:
+    async def complete(self, source: new_wine.PlaylistTrack) -> None:
         """Use this command's fixed complete prompt.
 
         Args:
@@ -513,11 +519,9 @@ class FlushSlowListeningInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_slow_listening_acknowledge_slow_listening_completion(
-            source
-        )
+        return await self.owner._acknowledge_completion(source)
 
-    def choose_track(
+    async def choose_track(
         self,
         source: new_wine.PlaylistTrack,
         target: new_wine.ReleaseTrack,
@@ -533,6 +537,6 @@ class FlushSlowListeningInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._flush_slow_listening_ask_slow_listening_action(
+        return await self.owner._flush_slow_listening_ask_slow_listening_action(
             source, target, target_release
         )

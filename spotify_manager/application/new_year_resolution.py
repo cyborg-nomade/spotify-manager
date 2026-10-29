@@ -18,7 +18,7 @@ class AnnualResolution:
 
     catalog: AnnualLookup
 
-    def track(self, item: YearEntry) -> str:
+    async def track(self, item: YearEntry) -> str:
         """Select the original first exact or first qualified track marker.
 
         Args:
@@ -30,14 +30,14 @@ class AnnualResolution:
         Raises:
             NewYearError: The original search has no match.
         """
-        candidate = selected_track(self.catalog.search(item))
+        candidate = selected_track(await self.catalog.search(item))
         if candidate is None:
             raise NewYearError(
                 f"No Spotify track match: {item['artist']} — {item['name']}"
             )
         return candidate.uri
 
-    def album_marker(self, item: YearEntry) -> str:
+    async def album_marker(self, item: YearEntry) -> str:
         """Resolve the original release before reading its complete first marker.
 
         Args:
@@ -49,14 +49,14 @@ class AnnualResolution:
         Raises:
             NewYearError: The original album lookup has no match.
         """
-        album = self.catalog.album(item["artist"], item["name"])
+        album = await self.catalog.album(item["artist"], item["name"])
         if album is None:
             raise NewYearError(
                 f"No Spotify album match: {item['artist']} — {item['name']}"
             )
-        return self.catalog.first(album).uri
+        return (await self.catalog.first(album)).uri
 
-    def artist_identity(self, item: YearEntry) -> str:
+    async def artist_identity(self, item: YearEntry) -> str:
         """Resolve the original exact primary identity without introducing interaction.
 
         Args:
@@ -68,7 +68,7 @@ class AnnualResolution:
         Raises:
             NewYearError: The original mapping is cancelled or has no match.
         """
-        artist = self.catalog.artist(item["artist"])
+        artist = await self.catalog.artist(item["artist"])
         if artist is None:
             raise NewYearError(f"No Spotify artist match: {item['artist']}")
         return artist.spotify_id

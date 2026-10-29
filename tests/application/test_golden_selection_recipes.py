@@ -37,7 +37,7 @@ class MarkerReads:
     liked_ids: set[str]
     trace: list[str] = field(default_factory=list)
 
-    def matches(
+    async def matches(
         self, artist: GoldenOldieArtist, title: LastFmTrackStat
     ) -> tuple[SpotifyTrackMatch, ...]:
         """Read matches for the next original ranked title.
@@ -53,7 +53,7 @@ class MarkerReads:
         self.trace.append(title.track)
         return self.groups[index]
 
-    def liked(
+    async def liked(
         self, artist: GoldenOldieArtist, groups: list[tuple[SpotifyTrackMatch, ...]]
     ) -> set[str]:
         """Observe membership only after every original title read.
@@ -97,7 +97,7 @@ class ReleaseReads:
         assert artist.artist and releases
         return self.choice
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read only the accepted release.
 
         Args:
@@ -109,7 +109,7 @@ class ReleaseReads:
         assert release == RELEASE
         return self.values
 
-    def choose_album(
+    async def choose_album(
         self, artist: GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -124,11 +124,11 @@ class ReleaseReads:
         return self.choose(artist, releases)
 
 
-def _selection(case: dict[str, object]) -> object:
+async def _selection(case: dict[str, object]) -> object:
     edge = CatalogResponse(case["payload"], cast(str, case["choice"]))
     if case["kind"] == "artist":
         choose = None if edge.choice == "absent" else edge
-        result = selection.resolve_artist(
+        result = await selection.resolve_artist(
             "Artist", golden_records.artist_search(edge.response, "Artist"), choose
         )
         return asdict(result) if result is not None else None
@@ -138,24 +138,26 @@ def _selection(case: dict[str, object]) -> object:
     return [asdict(track) for track in tracks]
 
 
-def _outcome(case: dict[str, object]) -> object:
+async def _outcome(case: dict[str, object]) -> object:
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _selection(case)
+        outcome["result"] = await _selection(case)
     except SomethingOldSpotifyError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     return json.loads(json.dumps(outcome))
 
 
 @pytest.mark.parametrize("case", cases())
-def test_original_golden_mapping_and_popular_recipes(case: dict[str, object]) -> None:
+async def test_original_golden_mapping_and_popular_recipes(
+    case: dict[str, object],
+) -> None:
     """Retain immutable original raw parsing, exact matching and cap outcomes.
 
     Args:
         case: Original raw boundary inputs and observed result.
     """
-    assert original_outcome(case) == case["outcome"]
-    assert _outcome(case) == case["outcome"]
+    assert (await original_outcome(case)) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]
 
 
 def _artist(titles: tuple[LastFmTrackStat, ...] = ()) -> GoldenOldieArtist:
@@ -176,7 +178,7 @@ def _match(identity: str, album_similarity: float | None = None) -> SpotifyTrack
     )
 
 
-def test_lastfm_recipe_reads_all_titles_before_liked_and_deduplicates() -> None:
+async def test_lastfm_recipe_reads_all_titles_before_liked_and_deduplicates() -> None:
     """Prefer liked versions, skip unsafe titles and retain first distinct markers."""
     titles = (
         LastFmTrackStat("first", 30, 200),
@@ -193,7 +195,7 @@ def test_lastfm_recipe_reads_all_titles_before_liked_and_deduplicates() -> None:
         ),
         {"liked"},
     )
-    result = selection.select_lastfm(_artist(titles), edge)
+    result = await selection.select_lastfm(_artist(titles), edge)
     assert edge.trace == ["first", "duplicate", "unsafe", "empty", "liked"]
     assert len(result) == 1
     assert result[0].spotify_id == "liked"
@@ -202,7 +204,7 @@ def test_lastfm_recipe_reads_all_titles_before_liked_and_deduplicates() -> None:
 
 
 @pytest.mark.parametrize("titles", [(), (LastFmTrackStat("missing", 50, 200),)])
-def test_lastfm_recipe_reads_liked_before_empty_selection_error(
+async def test_lastfm_recipe_reads_liked_before_empty_selection_error(
     titles: tuple[LastFmTrackStat, ...],
 ) -> None:
     """Retain the original liked read even when no title can produce a marker.
@@ -212,7 +214,7 @@ def test_lastfm_recipe_reads_liked_before_empty_selection_error(
     """
     edge = MarkerReads(tuple(() for _title in titles), set())
     with pytest.raises(SomethingOldSpotifyError, match="matched Spotify safely"):
-        selection.select_lastfm(_artist(titles), edge)
+        (await selection.select_lastfm(_artist(titles), edge))
     assert edge.trace[-1] == "liked"
 
 
@@ -226,7 +228,7 @@ def test_lastfm_recipe_reads_liked_before_empty_selection_error(
         ("empty", True, "no playable"),
     ],
 )
-def test_album_recipe_preserves_choice_and_complete_tracklist(
+async def test_album_recipe_preserves_choice_and_complete_tracklist(
     choice: str,
     available: bool,
     error: str | None,
@@ -245,9 +247,11 @@ def test_album_recipe_preserves_choice_and_complete_tracklist(
     releases = (RELEASE,) if available else ()
     if error is not None:
         with pytest.raises(SomethingOldSpotifyError, match=error):
-            selection.select_album(_artist(), ARTIST, releases, edge, edge)
+            (await selection.select_album(_artist(), ARTIST, releases, edge, edge))
         return
-    release, selected = selection.select_album(_artist(), ARTIST, releases, edge, edge)
+    release, selected = await selection.select_album(
+        _artist(), ARTIST, releases, edge, edge
+    )
     if choice == "quit":
         assert release is None and selected == ()
         return

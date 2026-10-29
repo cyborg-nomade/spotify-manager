@@ -5,6 +5,7 @@ from dataclasses import field
 
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.infrastructure.lastfm_async import AsyncLastFmClient
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class LastFmCredentials:
 
 def lastfm_client(
     credentials: LastFmCredentials, events: Messages | None = None
-) -> LastFmClient:
+) -> AsyncLastFmClient:
     """Construct one client with the original cache and retry defaults.
 
     Args:
@@ -35,6 +36,10 @@ def lastfm_client(
     Raises:
         LastFmError: The original client rejects its configuration.
     """
-    return LastFmClient(
-        credentials.api_key, credentials.username, event_callback=events
+    return AsyncLastFmClient(
+        LastFmClient(
+            credentials.api_key,
+            credentials.username,
+            event_callback=events,
+        )
     )

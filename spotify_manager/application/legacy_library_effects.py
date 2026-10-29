@@ -54,7 +54,7 @@ class Page(TypedDict):
 class LegacyFiles(Protocol):
     """Supply original mutable authorities and accepted publications."""
 
-    def albums(self) -> list[SimplifiedAlbum]:
+    async def albums(self) -> list[SimplifiedAlbum]:
         """Legacy total-album read.
 
         Returns:
@@ -62,7 +62,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def control(self) -> list[ControlFileItem]:
+    async def control(self) -> list[ControlFileItem]:
         """Original control read.
 
         Returns:
@@ -70,7 +70,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def export(self) -> YourLibraryFile:
+    async def export(self) -> YourLibraryFile:
         """Original export read.
 
         Returns:
@@ -78,7 +78,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def comparison(self) -> Comparison:
+    async def comparison(self) -> Comparison:
         """Original unchecked comparison read.
 
         Returns:
@@ -86,7 +86,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
         """Original album publication.
 
         Args:
@@ -94,7 +94,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def save_control(self, control: list[ControlFileItem]) -> None:
+    async def save_control(self, control: list[ControlFileItem]) -> None:
         """Original control publication.
 
         Args:
@@ -102,7 +102,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def save_stats(self, stats: StatsFileItem) -> None:
+    async def save_stats(self, stats: StatsFileItem) -> None:
         """Original statistics publication.
 
         Args:
@@ -110,7 +110,7 @@ class LegacyFiles(Protocol):
         """
         ...
 
-    def save_comparison(self, comparison: Comparison) -> None:
+    async def save_comparison(self, comparison: Comparison) -> None:
         """Original comparison publication.
 
         Args:
@@ -122,7 +122,7 @@ class LegacyFiles(Protocol):
 class ConversionCatalog(Protocol):
     """Bind legacy singleton membership and restoration effects."""
 
-    def contains(self, identifier: str) -> object:
+    async def contains(self, identifier: str) -> object:
         """Original saved-album singleton query.
 
         Args:
@@ -133,7 +133,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def enrich(self, identifier: str) -> SimplifiedAlbum:
+    async def enrich(self, identifier: str) -> SimplifiedAlbum:
         """Original album-model conversion.
 
         Args:
@@ -144,7 +144,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def artist_saved(self, artist: YourLibraryArtist) -> bool:
+    async def artist_saved(self, artist: YourLibraryArtist) -> bool:
         """Original artist membership.
 
         Args:
@@ -155,7 +155,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def track_saved(self, track: YourLibraryTrack) -> bool:
+    async def track_saved(self, track: YourLibraryTrack) -> bool:
         """Original track membership.
 
         Args:
@@ -166,7 +166,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def follow(self, artist: YourLibraryArtist) -> None:
+    async def follow(self, artist: YourLibraryArtist) -> None:
         """Original artist save.
 
         Args:
@@ -174,7 +174,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def like(self, track: YourLibraryTrack) -> None:
+    async def like(self, track: YourLibraryTrack) -> None:
         """Original track save.
 
         Args:
@@ -182,7 +182,7 @@ class ConversionCatalog(Protocol):
         """
         ...
 
-    def add_contains(self, identifier: str) -> object:
+    async def add_contains(self, identifier: str) -> object:
         """Original addition membership seam.
 
         Args:
@@ -197,7 +197,7 @@ class ConversionCatalog(Protocol):
 class ControlMembership(Protocol):
     """Read singleton saved-album membership for control decisions."""
 
-    def contains(self, identifier: str) -> object:
+    async def contains(self, identifier: str) -> object:
         """Read membership.
 
         Args:
@@ -212,7 +212,7 @@ class ControlMembership(Protocol):
 class ComparisonMembership(ControlMembership, Protocol):
     """Read original removal and addition membership observations."""
 
-    def add_contains(self, identifier: str) -> object:
+    async def add_contains(self, identifier: str) -> object:
         """Read addition membership.
 
         Args:
@@ -239,7 +239,7 @@ class MonthlyLimits(Protocol):
 class PlaylistWrites(Protocol):
     """Accept ordered playlist additions through the original request seams."""
 
-    def single(self, identifier: str, uris: list[str]) -> None:
+    async def single(self, identifier: str, uris: list[str]) -> None:
         """Accept a small addition, including an empty list.
 
         Args:
@@ -248,7 +248,7 @@ class PlaylistWrites(Protocol):
         """
         ...
 
-    def batch(self, identifier: str, uris: list[str]) -> None:
+    async def batch(self, identifier: str, uris: list[str]) -> None:
         """Accept one hundred-track batch.
 
         Args:
@@ -293,7 +293,7 @@ class MonthlyActions:
 class ComparisonMetadata(Protocol):
     """Read comparison display metadata for one identity."""
 
-    def enrich(self, identifier: str) -> ComparisonAlbum:
+    async def enrich(self, identifier: str) -> ComparisonAlbum:
         """Read and present metadata.
 
         Args:
@@ -308,7 +308,7 @@ class ComparisonMetadata(Protocol):
 class AlbumRefresh(Protocol):
     """Bind original raw paging, conversion and publication."""
 
-    def saved(self, offset: int) -> Page:
+    async def saved(self, offset: int) -> Page:
         """Original initial saved-album page.
 
         Args:
@@ -319,7 +319,7 @@ class AlbumRefresh(Protocol):
         """
         ...
 
-    def recover(self, offset: int) -> Page:
+    async def recover(self, offset: int) -> Page:
         """Original failed-next fallback read.
 
         Args:
@@ -330,7 +330,7 @@ class AlbumRefresh(Protocol):
         """
         ...
 
-    def next(self, page: Page) -> Page:
+    async def next(self, page: Page) -> Page:
         """Original next page.
 
         Args:
@@ -352,7 +352,7 @@ class AlbumRefresh(Protocol):
         """
         ...
 
-    def load(self) -> list[SimplifiedAlbum]:
+    async def load(self) -> list[SimplifiedAlbum]:
         """Original incremental authority.
 
         Returns:
@@ -360,7 +360,7 @@ class AlbumRefresh(Protocol):
         """
         ...
 
-    def save(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save(self, albums: list[SimplifiedAlbum]) -> None:
         """Original accepted album publication.
 
         Args:
@@ -388,7 +388,7 @@ class PlaylistClock(Protocol):
         """
         ...
 
-    def create(self, name: str) -> object:
+    async def create(self, name: str) -> object:
         """Original named playlist request.
 
         Args:
@@ -436,7 +436,7 @@ class FailureScope(Protocol):
 class TrackRead(Protocol):
     """Bind original raw track paging, coercion, sorting and validation."""
 
-    def read(self, identifier: str) -> Page:
+    async def read(self, identifier: str) -> Page:
         """Original first album-track page.
 
         Args:
@@ -447,7 +447,7 @@ class TrackRead(Protocol):
         """
         ...
 
-    def next(self, page: Page) -> Page:
+    async def next(self, page: Page) -> Page:
         """Original next track page.
 
         Args:

@@ -6,7 +6,7 @@ from typing import Protocol
 class ArtistMembership(Protocol):
     """Read validated membership for one artist's known candidate IDs."""
 
-    def albums(self, ids: list[str]) -> tuple[bool, ...]:
+    async def albums(self, ids: list[str]) -> tuple[bool, ...]:
         """Read saved-album membership at the original freshness boundary.
 
         Args:
@@ -16,7 +16,7 @@ class ArtistMembership(Protocol):
             Validated statuses in input order.
         """
 
-    def tracks(self, ids: list[str]) -> tuple[bool, ...]:
+    async def tracks(self, ids: list[str]) -> tuple[bool, ...]:
         """Read liked-track membership at the original freshness boundary.
 
         Args:
@@ -27,7 +27,7 @@ class ArtistMembership(Protocol):
         """
 
 
-def library_affinity(
+async def library_affinity(
     membership: ArtistMembership,
     album_ids: tuple[str, ...],
     track_ids: tuple[str, ...],
@@ -50,14 +50,18 @@ def library_affinity(
         Liked count (omitted when albums suffice), observed saved-album count,
         and qualification. Full accepted batches count even past a threshold.
     """
-    albums, qualifies = _count_albums(album_ids, membership, batch_size, minimum_albums)
+    albums, qualifies = await _count_albums(
+        album_ids, membership, batch_size, minimum_albums
+    )
     if qualifies:
         return None, albums, True
-    tracks, qualifies = _count_tracks(track_ids, membership, batch_size, minimum_tracks)
+    tracks, qualifies = await _count_tracks(
+        track_ids, membership, batch_size, minimum_tracks
+    )
     return tracks, albums, qualifies
 
 
-def _count_albums(
+async def _count_albums(
     ids: tuple[str, ...],
     membership: ArtistMembership,
     batch_size: int,
@@ -65,13 +69,13 @@ def _count_albums(
 ) -> tuple[int, bool]:
     count = 0
     for start in range(0, len(ids), batch_size):
-        count += sum(membership.albums(list(ids[start : start + batch_size])))
+        count += sum(await membership.albums(list(ids[start : start + batch_size])))
         if count >= threshold:
             return count, True
     return count, False
 
 
-def _count_tracks(
+async def _count_tracks(
     ids: tuple[str, ...],
     membership: ArtistMembership,
     batch_size: int,
@@ -79,7 +83,7 @@ def _count_tracks(
 ) -> tuple[int, bool]:
     count = 0
     for start in range(0, len(ids), batch_size):
-        count += sum(membership.tracks(list(ids[start : start + batch_size])))
+        count += sum(await membership.tracks(list(ids[start : start + batch_size])))
         if count >= threshold:
             return count, True
     return count, False

@@ -1,9 +1,11 @@
 """Keep existing scripted fixture oracles across compact production inputs."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
+from inspect import isawaitable
 
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
@@ -38,10 +40,25 @@ class FeatureInvocation[T]:
         positional_fields: Original positional fields carried in the input records.
     """
 
-    operation: Callable[..., T]
+    operation: Callable[..., T | Awaitable[T]]
     positional_fields: tuple[str, ...]
 
-    def __call__(self, *inputs: object, **overrides: object) -> T:
+    async def __call__(self, *inputs: object, **overrides: object) -> T:
+        """Await a framework-supplied oracle while retaining its original arguments.
+
+        Args:
+            inputs: Original compact production request records.
+            overrides: Original optional resources.
+
+        Returns:
+            Original synthetic outcome, including its existing failures.
+        """
+        result = self._invoke(*inputs, **overrides)
+        if isawaitable(result):
+            return await result
+        return result
+
+    def _invoke(self, *inputs: object, **overrides: object) -> T | Awaitable[T]:
         """Translate compact inputs for an unchanged scripted fixture.
 
         Args:
@@ -71,7 +88,9 @@ class FeatureInvocation[T]:
             positional.append(values.pop(name))
         return self.operation(*positional, **values)
 
-    def _discovery(self, inputs: tuple[object, ...], overrides: dict[str, object]) -> T:
+    def _discovery(
+        self, inputs: tuple[object, ...], overrides: dict[str, object]
+    ) -> T | Awaitable[T]:
         values = _fixture_values(inputs[1])
         interaction = inputs[2]
         values.update(

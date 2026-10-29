@@ -2,13 +2,12 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.slow_listening import SlowListeningDependencies
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_values import CompletionNotifier
@@ -25,7 +24,7 @@ from spotify_manager.interfaces.presenters.slow_listening import SlowListeningPr
 class AutomaticAdvance:
     """Accept the existing default track advance without prompting."""
 
-    def choose_track(
+    async def choose_track(
         self, source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
     ) -> str:
         """Return the default action when no operator interaction was supplied.

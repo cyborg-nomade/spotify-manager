@@ -4,12 +4,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import Messages
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
 from spotify_manager.application.queue_3_planner import Queue3Planner
@@ -138,7 +137,7 @@ class AnnualInputs:
     importer: AnnualDiscoveryImport
 
 
-def annual_inputs(
+async def annual_inputs(
     client: Spotify,
     playlist_id: str,
     retry: RetryCall,
@@ -166,14 +165,18 @@ def annual_inputs(
     Raises:
         Queue3Error: Playlist or namespace observations fail.
     """
-    from spotify_manager.routines.queue_3 import _state_access
-    from spotify_manager.routines.queue_3 import load_owned_playlists
+    from spotify_manager.routines.queue_3 import (
+        _async_state_access as _async_state_access,
+    )
+    from spotify_manager.routines.queue_3 import (
+        async_load_owned_playlists as load_owned_playlists,
+    )
 
-    owned = load_owned_playlists(client, retry, playlist_id)
+    owned = await load_owned_playlists(client, retry, playlist_id)
     access = LegacyAnnualImport(client, retry, log_path)
-    current = list(access.read(playlist_id))
-    state_access = _state_access(state_path, state_service)
-    persisted = state_access.load()
+    current = list(await access.read(playlist_id))
+    state_access = _async_state_access(state_path, state_service)
+    persisted = await state_access.load()
     state = json.loads(json.dumps(persisted)) if dry_run else persisted
     importer = annual_import(client, retry, log_path, state_access, echo)
     return AnnualInputs(owned, access, current, state_access, state, importer)

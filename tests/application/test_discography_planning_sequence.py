@@ -39,12 +39,12 @@ def planner(edge: PlanReads) -> DiscographyPlanning:
     return DiscographyPlanning(reads)
 
 
-def _run(edge: PlanReads) -> DiscographyPlan:
-    return planner(edge).run()
+async def _run(edge: PlanReads) -> DiscographyPlan:
+    return await planner(edge).run()
 
 
 @pytest.mark.parametrize("case", cases())
-def test_discography_complete_injected_plan_matches_original(
+async def test_discography_complete_injected_plan_matches_original(
     case: dict[str, object],
 ) -> None:
     """Preserve lazy fallback, caches, choices, packing and failure prefixes.
@@ -57,13 +57,13 @@ def test_discography_complete_injected_plan_matches_original(
         cast(QueueName, case["start"]),
         cast(str | None, case["failure"]),
     )
-    assert plan_outcome(edge, _run) == case["outcome"]
+    assert (await plan_outcome(edge, _run)) == case["outcome"]
     original = PlanReads(edge.profile, edge.start, edge.failure)
-    assert plan_outcome(original, original_plan) == case["outcome"]
+    assert (await plan_outcome(original, original_plan)) == case["outcome"]
 
 
 @pytest.mark.parametrize("profile", ["normal", "empty", "decline"])
-def test_discography_caches_empty_and_complete_interactive_authority(
+async def test_discography_caches_empty_and_complete_interactive_authority(
     profile: str,
 ) -> None:
     """Retain complete and empty cache hits without repeating catalog or choice reads.
@@ -74,8 +74,8 @@ def test_discography_caches_empty_and_complete_interactive_authority(
     edge = PlanReads(profile, "newfoundland")
     use_case = planner(edge)
     candidate = QueueArtist("a", "Alpha", "newfoundland")
-    first = use_case._choose(candidate)
+    first = await use_case._choose(candidate)
     trace = list(edge.trace)
-    assert use_case._choose(candidate) == first
+    assert (await use_case._choose(candidate)) == first
     assert edge.trace == trace
-    assert use_case._catalog(candidate) == edge.catalog(candidate)
+    assert (await use_case._catalog(candidate)) == edge.catalog(candidate)

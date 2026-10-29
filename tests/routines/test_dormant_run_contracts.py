@@ -6,12 +6,13 @@ from dataclasses import field
 from datetime import date
 from functools import partialmethod
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.dormant_tracks import DormantLikedTrack
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import blast_from_past_artists as legacy
@@ -149,14 +150,24 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, effects: Observations) -> None:
-    monkeypatch.setattr(legacy, "dormant_artists", effects.candidates)
-    monkeypatch.setattr(blast, "load_playlist_state", effects.read)
-    monkeypatch.setattr(legacy, "_spotify_artist", effects.mapping)
+    monkeypatch.setattr(
+        legacy, "async_dormant_artists", AsyncMock(side_effect=effects.candidates)
+    )
+    monkeypatch.setattr(
+        blast, "async_load_playlist_state", AsyncMock(side_effect=effects.read)
+    )
+    monkeypatch.setattr(
+        legacy, "_spotify_artist", AsyncMock(side_effect=effects.mapping)
+    )
     monkeypatch.setattr(DormantLikedTrack, "run", partialmethod(_track, effects))
-    monkeypatch.setattr(blast, "add_spotify_matches", effects.append)
+    monkeypatch.setattr(
+        blast, "async_add_spotify_matches", AsyncMock(side_effect=effects.append)
+    )
 
 
-def _run(effects: Observations, preview: bool = False) -> legacy.DormantArtistSummary:
+async def _run(
+    effects: Observations, preview: bool = False
+) -> legacy.DormantArtistSummary:
     return legacy.add_dormant_artists_to_blast_from_past(
         cast(Spotify, object()),
         "destination",
@@ -182,7 +193,7 @@ EVENTS = [
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_original_dormant_failure_prefix(
+async def test_original_dormant_failure_prefix(
     monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
     """Protect cancellation, interaction and accepted-write failure ordering.
@@ -194,7 +205,7 @@ def test_original_dormant_failure_prefix(
     effects = Observations(failure)
     _bind(monkeypatch, effects)
     with pytest.raises(RuntimeError, match=failure):
-        _run(effects)
+        (await _run(effects))
     assert effects.events == EVENTS[: EVENTS.index(failure) + 1]
     assert effects.accepted == (
         ["spotify:track:track"]
@@ -204,7 +215,7 @@ def test_original_dormant_failure_prefix(
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_original_dormant_preview(
+async def test_original_dormant_preview(
     monkeypatch: pytest.MonkeyPatch, preview: bool
 ) -> None:
     """Protect original added labels in previews while suppressing remote appends.
@@ -215,14 +226,14 @@ def test_original_dormant_preview(
     """
     effects = Observations()
     _bind(monkeypatch, effects)
-    summary = _run(effects, preview)
+    summary = await _run(effects, preview)
     assert summary.added == 1
     assert summary.playlist_length_after == int(not preview)
     assert effects.events == (EVENTS[:6] + EVENTS[7:] if preview else EVENTS)
     assert summary.history_years == (2022, 2023, 2024, 2025)
 
 
-def _track(
+async def _track(
     resources: DormantLikedTrack,
     effects: Observations,
     artist: str,

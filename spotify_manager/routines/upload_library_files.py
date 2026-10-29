@@ -59,7 +59,7 @@ def _build_lastfm_parts(path: Path, content: bytes) -> tuple[GeneratedPart, ...]
     return upload_files.build_parts(path, content, LASTFM_PART_SIZE)
 
 
-def prepare_library_files_upload(
+async def async_prepare_library_files_upload(
     *,
     include_your_library: bool = True,
     include_lastfm: bool = True,
@@ -83,7 +83,7 @@ def prepare_library_files_upload(
         prepare_library_files_upload as operation,
     )
 
-    return operation(
+    return await operation(
         include_your_library=include_your_library,
         include_lastfm=include_lastfm,
         repo_id=repo_id,
@@ -101,7 +101,7 @@ def materialize_lastfm_parts(plan: LibraryFilesUploadPlan) -> None:
     upload_files.materialize(plan)
 
 
-def upload_library_files(
+async def async_upload_library_files(
     plan: LibraryFilesUploadPlan,
     *,
     api: HfApi | None = None,
@@ -119,8 +119,58 @@ def upload_library_files(
         upload_library_files as operation,
     )
 
-    return operation(plan, api=api)
+    return await operation(plan, api=api)
 
 
 def _part_suffix(index: int) -> str:
     return part_suffix(index)
+
+
+def prepare_library_files_upload(
+    *,
+    include_your_library: bool = True,
+    include_lastfm: bool = True,
+    repo_id: str = DEFAULT_REPO_ID,
+    revision: str = DEFAULT_REVISION,
+    files_dir: Path = FILES_DIR,
+) -> LibraryFilesUploadPlan:
+    """Validate selected exports and prepare deterministic Last.fm parts.
+
+    Args:
+        include_your_library: Select the original Spotify export.
+        include_lastfm: Select Last.fm export and compressed fallback parts.
+        repo_id: Original target Space repository identity.
+        revision: Original target repository revision.
+        files_dir: Original local managed export directory.
+
+    Returns:
+        Original prepare library files upload result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_prepare_library_files_upload(
+            include_your_library=include_your_library,
+            include_lastfm=include_lastfm,
+            repo_id=repo_id,
+            revision=revision,
+            files_dir=files_dir,
+        )
+    )
+
+
+def upload_library_files(
+    plan: LibraryFilesUploadPlan, *, api: HfApi | None = None
+) -> LibraryFilesUploadResult:
+    """Upload the plan to the configured HF Space in one commit.
+
+    Args:
+        plan: Original prepared source and generated-part manifest.
+        api: Original optional caller-owned Hugging Face client.
+
+    Returns:
+        Original upload library files result.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(async_upload_library_files(plan, api=api))

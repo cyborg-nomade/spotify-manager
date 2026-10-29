@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from spotify_manager.application.ports.runtime import Clock
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_state import new_run
 from spotify_manager.application.queue_3_values import AnnualImportResult
@@ -53,7 +53,7 @@ class Queue3Run:
     dry_run: bool
     limit: int = 10
 
-    def start(self, queue: Queue3LiveQueue) -> Queue3Snapshot:
+    async def start(self, queue: Queue3LiveQueue) -> Queue3Snapshot:
         """Resume a matching active run or snapshot and checkpoint current markers.
 
         Args:
@@ -74,17 +74,19 @@ class Queue3Run:
             and active.get("status") == "active"
             and active.get("playlist_id") == queue.playlist_id
         )
-        record = cast(dict[str, object], active) if resumed else self._new(queue)
+        record = (
+            cast(dict[str, object], active) if resumed else (await self._new(queue))
+        )
         return _snapshot(record, self.state, resumed)
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Checkpoint the complete namespace only for real execution.
 
         Raises:
             OSError: The original namespace store rejects the checkpoint.
         """
         if not self.dry_run:
-            self.access.save(self.state)
+            await self.access.save(self.state)
 
     def timestamp(self) -> str:
         """Read the original route or completion timestamp.
@@ -94,7 +96,7 @@ class Queue3Run:
         """
         return self.clock.now().isoformat()
 
-    def acknowledge(
+    async def acknowledge(
         self,
         entry: dict[str, object],
         action: str,
@@ -119,9 +121,9 @@ class Queue3Run:
         if action == "composer_advance" and target is not None:
             self._advance_route(routes.get(artist_id), target)
         entry["status"] = "skipped" if action == "skip" else "completed"
-        self.save()
+        await self.save()
 
-    def finish(self, snapshot: Queue3Snapshot, paused: bool) -> None:
+    async def finish(self, snapshot: Queue3Snapshot, paused: bool) -> None:
         """Checkpoint overall completion only when every real entry is acknowledged.
 
         Args:
@@ -135,15 +137,15 @@ class Queue3Run:
             return
         snapshot.record["status"] = "completed"
         snapshot.record["completed_at"] = self.timestamp()
-        self.save()
+        await self.save()
 
-    def _new(self, queue: Queue3LiveQueue) -> dict[str, object]:
+    async def _new(self, queue: Queue3LiveQueue) -> dict[str, object]:
         record = new_run(
             queue.playlist_id, queue.tracks, self.state, self.clock, self.limit
         )
         if not self.dry_run:
             self.state["active_run"] = record
-            self.save()
+            await self.save()
         return record
 
     def _advance_route(self, route: object, target: ReleaseTrack) -> None:

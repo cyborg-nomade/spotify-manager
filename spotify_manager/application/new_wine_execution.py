@@ -100,7 +100,7 @@ class WineExecution:
     presentation: NewWinePresentation
     clock: Clock
 
-    def execute(
+    async def execute(
         self, source: PlaylistTrack, entry: dict[str, object], plan: dict[str, object]
     ) -> FlushResult:
         """Apply one saved plan and checkpoint completion before returning its result.
@@ -114,54 +114,54 @@ class WineExecution:
             Original public result ready for audit.
         """
         transition = _transition(source, entry, plan)
-        self._missing_evaluation(transition)
+        await self._missing_evaluation(transition)
         if transition.action == "sauvignon":
-            self._save_qualified(transition)
-        self._primary(transition)
-        self._continuation(transition)
-        self._remove_source(source)
-        self._save_progress(transition)
+            await self._save_qualified(transition)
+        await self._primary(transition)
+        await self._continuation(transition)
+        await self._remove_source(source)
+        await self._save_progress(transition)
         return result_from_plan(
             source, plan, dry_run=self.dry_run, album_unsaved=transition.album_unsaved
         )
 
-    def checkpoint(self) -> None:
+    async def checkpoint(self) -> None:
         """Save the namespace at the original boundary during real execution."""
         if not self.dry_run:
-            self.access.save(self.state)
+            await self.access.save(self.state)
 
-    def _missing_evaluation(self, transition: WineTransition) -> None:
+    async def _missing_evaluation(self, transition: WineTransition) -> None:
         if (
             transition.action != "sauvignon"
             or transition.plan.get("evaluation") is not None
         ):
             return
-        tracks = self.observations.tracks(transition.release)
+        tracks = await self.observations.tracks(transition.release)
         count = transition.plan.get("canonical_track_count")
         if isinstance(count, int):
             tracks = tracks[:count]
-        self.observations.memberships(tracks)
+        await self.observations.memberships(tracks)
         record_evaluation(
             transition.plan,
             evaluate_release(transition.release, tracks, self.observations.liked),
         )
         transition.entry["plan"] = transition.plan
-        self.checkpoint()
+        await self.checkpoint()
 
-    def _save_qualified(self, transition: WineTransition) -> None:
+    async def _save_qualified(self, transition: WineTransition) -> None:
         release = transition.release
         evaluation = AlbumEvaluation.model_validate(transition.plan["evaluation"])
         if evaluation.decision != "keep":
             self.presentation.not_kept(release, evaluation)
             return
-        saved = self.access.saved(release)
+        saved = await self.access.saved(release)
         if not self.dry_run and not saved:
-            self.access.save_album(release)
+            await self.access.save_album(release)
         if not self.dry_run:
-            self.access.mirror_album(release)
+            await self.access.mirror_album(release)
         self.presentation.kept(release, evaluation, saved, self.dry_run)
 
-    def _primary(self, transition: WineTransition) -> None:
+    async def _primary(self, transition: WineTransition) -> None:
         if (
             not self.dry_run
             and transition.source.spotify_id not in self.destination_ids
@@ -169,55 +169,55 @@ class WineExecution:
             self.presentation.resumed(transition.source)
             return
         if transition.action == "advance" and transition.target is not None:
-            self._advance(transition.target)
+            await self._advance(transition.target)
             return
         if (
             transition.action == "sauvignon"
             and transition.target is not None
             and transition.target.spotify_id not in self.sauvignon_ids
         ):
-            self._sauvignon(transition.target, transition.release)
+            await self._sauvignon(transition.target, transition.release)
             return
         if transition.action == "drop" and bool(transition.plan.get("should_unsave")):
-            self._unsave(transition)
+            await self._unsave(transition)
 
-    def _advance(self, target: ReleaseTrack) -> None:
+    async def _advance(self, target: ReleaseTrack) -> None:
         if target.spotify_id in self.destination_ids:
             return
         if not self.dry_run:
-            self.access.append(self.destination, target)
+            await self.access.append(self.destination, target)
         self.destination_ids.add(target.spotify_id)
         self.presentation.advanced(target, self.dry_run)
 
-    def _sauvignon(self, target: ReleaseTrack, release: ReleaseCandidate) -> None:
+    async def _sauvignon(self, target: ReleaseTrack, release: ReleaseCandidate) -> None:
         if not self.dry_run:
-            self.access.append(self.sauvignon, target)
+            await self.access.append(self.sauvignon, target)
         self.sauvignon_ids.add(target.spotify_id)
         self.presentation.sauvignon(release, self.dry_run)
 
-    def _unsave(self, transition: WineTransition) -> None:
+    async def _unsave(self, transition: WineTransition) -> None:
         evaluation = AlbumEvaluation.model_validate(transition.plan["evaluation"])
-        saved = self.access.saved(transition.release, removing=True)
+        saved = await self.access.saved(transition.release, removing=True)
         if self.dry_run:
             transition.album_unsaved = saved
         elif not transition.album_unsaved and saved:
-            self._remove_album(transition, evaluation)
+            await self._remove_album(transition, evaluation)
         self.presentation.removed_album(
             transition.release, evaluation, saved, self.dry_run
         )
 
-    def _remove_album(
+    async def _remove_album(
         self, transition: WineTransition, evaluation: AlbumEvaluation
     ) -> None:
-        self.access.unsave_album(transition.release)
-        self.access.remove_mirror_album(transition.release)
+        await self.access.unsave_album(transition.release)
+        await self.access.remove_mirror_album(transition.release)
         reason = f"new_wine_{transition.plan.get('drop_reason') or 'drop'}"
-        self.access.removed_audit(transition.release, evaluation, reason)
+        await self.access.removed_audit(transition.release, evaluation, reason)
         transition.album_unsaved = True
         transition.plan["album_unsaved"] = True
-        self.access.save(self.state)
+        await self.access.save(self.state)
 
-    def _continuation(self, transition: WineTransition) -> None:
+    async def _continuation(self, transition: WineTransition) -> None:
         release, target = (
             transition.continuation_release,
             transition.continuation_target,
@@ -232,17 +232,17 @@ class WineExecution:
         if target.spotify_id in self.destination_ids:
             return
         if not self.dry_run:
-            self.access.append(self.destination, target)
+            await self.access.append(self.destination, target)
         self.destination_ids.add(target.spotify_id)
         self.presentation.continuation(release, target, self.dry_run)
 
-    def _remove_source(self, source: PlaylistTrack) -> None:
+    async def _remove_source(self, source: PlaylistTrack) -> None:
         if not self.dry_run and source.spotify_id in self.destination_ids:
-            self.access.remove(self.destination, source)
+            await self.access.remove(self.destination, source)
         self.destination_ids.discard(source.spotify_id)
         self.presentation.removed(source, self.dry_run)
 
-    def _save_progress(self, transition: WineTransition) -> None:
+    async def _save_progress(self, transition: WineTransition) -> None:
         if self.dry_run:
             return
         self.progress.pop(transition.source.spotify_id, None)
@@ -258,7 +258,7 @@ class WineExecution:
             )
             self._track_progress(transition.release, transition.target, streak)
         transition.entry["status"] = "completed"
-        self.access.save(self.state)
+        await self.access.save(self.state)
 
     def _track_progress(
         self, release: ReleaseCandidate, target: ReleaseTrack, streak: object

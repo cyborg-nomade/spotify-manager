@@ -1,6 +1,7 @@
 """Operational error rendering for Last.fm-backed CLI routines."""
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -27,7 +28,7 @@ def _settings() -> SimpleNamespace:
 @pytest.fixture
 def configured_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
 
 
 @pytest.mark.parametrize("failure_stage", ["configuration", "refresh"])
@@ -50,13 +51,15 @@ def test_scrobble_history_command_reports_failures(
         monkeypatch.setattr(
             main.scrobble_history,
             "refresh_scrobble_history",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                main.scrobble_history.ScrobbleHistoryError("history failed")
+            AsyncMock(
+                side_effect=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    main.scrobble_history.ScrobbleHistoryError("history failed")
+                )
             ),
         )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.update_scrobble_history_command(dry_run=True)
+        (main.update_scrobble_history_command(dry_run=True))
 
     assert exc.value.exit_code == 1
     output = capsys.readouterr().out.casefold()
@@ -86,7 +89,7 @@ def test_something_old_command_reports_operational_failures(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.something_old_command(dry_run=True)
+        (main.something_old_command(dry_run=True))
 
     assert exc.value.exit_code == 1
     assert capsys.readouterr().out
@@ -106,7 +109,7 @@ def test_something_old_command_reports_bad_configuration(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.something_old_command(dry_run=True)
+        (main.something_old_command(dry_run=True))
 
     assert exc.value.exit_code == 1
 
@@ -139,7 +142,7 @@ def test_release_check_command_reports_each_stop_condition(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.check_new_releases_command(dry_run=dry_run)
+        (main.check_new_releases_command(dry_run=dry_run))
 
     assert exc.value.exit_code == exit_code
     assert capsys.readouterr().out
@@ -159,18 +162,20 @@ def test_release_check_command_reports_bad_configuration(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.check_new_releases_command(dry_run=True)
+        (main.check_new_releases_command(dry_run=True))
 
     assert exc.value.exit_code == 1
 
 
 def test_found_art_command_validates_exclusive_size_options() -> None:
     with pytest.raises(main.typer.BadParameter):
-        main.found_art_command(
-            count=1,
-            max_playlist_length=2,
-            seed_count=1,
-            dry_run=True,
+        (
+            main.found_art_command(
+                count=1,
+                max_playlist_length=2,
+                seed_count=1,
+                dry_run=True,
+            )
         )
 
 
@@ -190,15 +195,17 @@ def test_found_art_command_reports_operational_failures(
     monkeypatch.setattr(
         main.found_art,
         "run_found_art",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+        AsyncMock(side_effect=lambda *_args, **_kwargs: (_ for _ in ()).throw(error)),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.found_art_command(
-            count=None,
-            max_playlist_length=None,
-            seed_count=10,
-            dry_run=True,
+        (
+            main.found_art_command(
+                count=None,
+                max_playlist_length=None,
+                seed_count=10,
+                dry_run=True,
+            )
         )
 
     assert exc.value.exit_code == 1
@@ -218,11 +225,13 @@ def test_found_art_command_reports_bad_configuration(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.found_art_command(
-            count=None,
-            max_playlist_length=None,
-            seed_count=10,
-            dry_run=True,
+        (
+            main.found_art_command(
+                count=None,
+                max_playlist_length=None,
+                seed_count=10,
+                dry_run=True,
+            )
         )
 
     assert exc.value.exit_code == 1

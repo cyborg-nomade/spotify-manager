@@ -4,20 +4,20 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from spotify_manager.application.new_kids_values import NewKidsError
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 
 
 class DiscoveryPlaylistCreation(Protocol):
     """Observe profile identity and create the original private yearly playlist."""
 
-    def current_user(self) -> str:
+    async def current_user(self) -> str:
         """Read the original current-profile identifier.
 
         Returns:
             Tolerantly parsed identifier, or an empty string for an invalid profile.
         """
 
-    def create(self, user_id: str, year: int) -> str:
+    async def create(self, user_id: str, year: int) -> str:
         """Create the original named private playlist.
 
         Args:
@@ -61,7 +61,7 @@ class GreatDiscoveries:
     state_access: RoutineState
     presentation: DiscoveryCreationPresentation
 
-    def resolve(
+    async def resolve(
         self, state: dict[str, object], year: int, seed_2026: str, dry_run: bool
     ) -> str | None:
         """Resolve the destination with the original 2026 and preview rules.
@@ -88,22 +88,22 @@ class GreatDiscoveries:
         if year == 2026:
             if not dry_run:
                 playlists[str(year)] = seed_2026
-                self.state_access.save(state)
+                await self.state_access.save(state)
             return seed_2026
         if dry_run:
             self.presentation.preview_creation(year)
             return None
-        playlist_id = self._create(year)
+        playlist_id = await self._create(year)
         playlists[str(year)] = playlist_id
-        self.state_access.save(state)
+        await self.state_access.save(state)
         self.presentation.created(year)
         return playlist_id
 
-    def _create(self, year: int) -> str:
-        user_id = self.access.current_user()
+    async def _create(self, year: int) -> str:
+        user_id = await self.access.current_user()
         if not user_id:
             raise NewKidsError("Spotify returned an invalid current-user profile.")
-        playlist_id = self.access.create(user_id, year)
+        playlist_id = await self.access.create(user_id, year)
         if not playlist_id:
             raise NewKidsError("Spotify did not return the created playlist id.")
         return playlist_id

@@ -1,7 +1,6 @@
 """Replay original removal batches, completion failures and confirmed-plan retries."""
 
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +12,7 @@ from spotify_manager.application.discography_values import DiscographyRunSummary
 from spotify_manager.domain.discography_values import ArtistMarkers
 from spotify_manager.domain.discography_values import ArtistSelection
 from spotify_manager.domain.discography_values import QueueName
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from tests.support.discography_apply import ApplyEffects
 from tests.support.discography_apply import apply_outcome
 from tests.support.discography_apply import plan
@@ -27,23 +27,25 @@ LABELS = {
 }
 
 
-def _remove(
+async def _remove(
     edge: ApplyEffects,
     selection: ArtistSelection,
     group: ArtistMarkers,
     batch: list[str],
 ) -> None:
-    operation = partial(
-        edge._delete,
-        f"playlists/{group.playlist_id}/items",
-        {"items": [{"uri": uri} for uri in batch]},
-    )
-    edge.retry(operation, f"removing {selection.name} from {LABELS[group.queue]}")
+    for attempt in edge.attempts(
+        f"removing {selection.name} from {LABELS[group.queue]}"
+    ):
+        async with attempt:
+            await edge._delete(
+                f"playlists/{group.playlist_id}/items",
+                {"items": [{"uri": uri} for uri in batch]},
+            )
 
 
 def _state(edge: ApplyEffects) -> DiscographyStateAccess:
     edge.state(Path("state"), None)
-    return edge
+    return AsyncRoutineState(edge)
 
 
 def _audit(
@@ -62,7 +64,7 @@ class ObservedWrites:
 
     edge: ApplyEffects
 
-    def remove(
+    async def remove(
         self, selection: ArtistSelection, group: ArtistMarkers, batch: list[str]
     ) -> None:
         """Accept the original removal and its retry observation.
@@ -72,9 +74,9 @@ class ObservedWrites:
             group: Original source markers.
             batch: Original unique removal URIs.
         """
-        _remove(self.edge, selection, group, batch)
+        await _remove(self.edge, selection, group, batch)
 
-    def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
+    async def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
         """Accept the original completion audit.
 
         Args:
@@ -96,13 +98,13 @@ class ObservedWrites:
         self.edge.progress(message)
 
 
-def _run(edge: ApplyEffects, empty: bool) -> DiscographyRunSummary:
+async def _run(edge: ApplyEffects, empty: bool) -> DiscographyRunSummary:
     effects = ObservedWrites(edge)
-    return DiscographyExecution(effects).run(plan(empty))
+    return await DiscographyExecution(effects).run(plan(empty))
 
 
 @pytest.mark.parametrize("case", cases("discography_apply.json"))
-def test_discography_apply_retains_original_accepted_effects(
+async def test_discography_apply_retains_original_accepted_effects(
     case: dict[str, object],
 ) -> None:
     """Compare complete outcomes, accepted effects and replayed confirmed plans.
@@ -112,5 +114,5 @@ def test_discography_apply_retains_original_accepted_effects(
     """
     failure = cast(str | None, case["failure"])
     empty, resume = bool(case["empty"]), bool(case["resume"])
-    assert apply_outcome(failure, empty, resume, _run) == case["outcome"]
-    assert apply_outcome(failure, empty, resume) == case["outcome"]
+    assert (await apply_outcome(failure, empty, resume, _run)) == case["outcome"]
+    assert (await apply_outcome(failure, empty, resume)) == case["outcome"]

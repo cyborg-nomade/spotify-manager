@@ -9,11 +9,12 @@ from functools import partial
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.historical_resolution import HistoricalResolution
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import historical_playlists as composition
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalMatches,
@@ -205,18 +206,26 @@ class HistoricalSteps:
 
 def _install(steps: HistoricalSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(blast, "check_cancel", steps.cancel)
-    monkeypatch.setattr(blast, "load_playlist_state", steps.playlist)
+    monkeypatch.setattr(
+        blast, "async_load_playlist_state", AsyncMock(side_effect=steps.playlist)
+    )
     monkeypatch.setattr(composition, "blast_selection", partial(_blast, steps))
     monkeypatch.setattr(composition, "anniversary_selection", partial(_radio, steps))
     monkeypatch.setattr(blast_execution, "blast_selection", partial(_blast, steps))
     monkeypatch.setattr(
         radio_execution, "anniversary_selection", partial(_radio, steps)
     )
-    monkeypatch.setattr(HistoricalResolution, "run", partialmethod(_resolve, steps))
-    monkeypatch.setattr(blast, "add_spotify_matches", steps.append)
+    monkeypatch.setattr(
+        HistoricalResolution,
+        "run",
+        partialmethod(_resolve, steps),
+    )
+    monkeypatch.setattr(
+        blast, "async_add_spotify_matches", AsyncMock(side_effect=steps.append)
+    )
 
 
-def _invoke(
+async def _invoke(
     kind: str, steps: HistoricalSteps, preview: bool
 ) -> blast.BlastFromPastSpotifySummary | radio.DailyMindRadioSpotifySummary:
     spotify = cast(Spotify, object())
@@ -243,7 +252,7 @@ def _events(kind: str) -> list[str]:
 
 @pytest.mark.parametrize("kind", ["blast", "radio"])
 @pytest.mark.parametrize("failure", ["playlist", "select", "resolve", "append"])
-def test_failure_keeps_original_observation_order(
+async def test_failure_keeps_original_observation_order(
     kind: str, failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Stop at failed observations or mutation without executing later steps.
@@ -256,7 +265,7 @@ def test_failure_keeps_original_observation_order(
     steps = HistoricalSteps(failure)
     _install(steps, monkeypatch)
     with pytest.raises(OSError, match=failure):
-        _invoke(kind, steps, False)
+        (await _invoke(kind, steps, False))
     expected = _events(kind)
     assert steps.events == expected[: expected.index(failure) + 1]
 
@@ -265,7 +274,7 @@ def test_failure_keeps_original_observation_order(
 @pytest.mark.parametrize(
     "preview,pending", [(True, True), (False, False), (False, True)]
 )
-def test_append_and_projected_length_follow_original_preview_rules(
+async def test_append_and_projected_length_follow_original_preview_rules(
     kind: str, preview: bool, pending: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Keep resolved added actions in previews while projecting actual playlist size.
@@ -278,7 +287,7 @@ def test_append_and_projected_length_follow_original_preview_rules(
     """
     steps = HistoricalSteps(pending=pending)
     _install(steps, monkeypatch)
-    result = _invoke(kind, steps, preview)
+    result = await _invoke(kind, steps, preview)
     appended = pending and not preview
     assert result.playlist_length_after == 3 + int(appended)
     assert result.added == int(pending)
@@ -286,7 +295,7 @@ def test_append_and_projected_length_follow_original_preview_rules(
     assert ("Adding 1 tracks to Spotify" in steps.messages) is appended
 
 
-def test_empty_radio_selection_skips_every_spotify_observation(
+async def test_empty_radio_selection_skips_every_spotify_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An empty radio batch still checks cancellation after selection.
@@ -296,14 +305,14 @@ def test_empty_radio_selection_skips_every_spotify_observation(
     """
     steps = HistoricalSteps(empty=True)
     _install(steps, monkeypatch)
-    result = _invoke("radio", steps, False)
+    result = await _invoke("radio", steps, False)
     assert steps.events == ["cancel", "select", "cancel"]
     assert (
         result.playlist_length_before is None and result.playlist_length_after is None
     )
 
 
-def test_full_blast_destination_skips_history_selection(
+async def test_full_blast_destination_skips_history_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Capacity is observed before historical files or randomness are requested.
@@ -340,7 +349,7 @@ def _radio(
     return ObservedRadioSelection(steps.select_radio, path, today, random, progress)
 
 
-def _resolve(
+async def _resolve(
     resources: HistoricalResolution,
     steps: HistoricalSteps,
     selections: tuple[blast.ScrobbleSelection, ...],

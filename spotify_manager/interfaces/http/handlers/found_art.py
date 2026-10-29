@@ -1,14 +1,14 @@
 """Validate and present found art HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
-def cmd_found_art(client: Spotify, count: int) -> BlastJobResult:
+async def cmd_found_art(client: Spotify, count: int) -> BlastJobResult:
     """Start a background Found Art recommendation update.
 
     Args:
@@ -31,7 +31,7 @@ def cmd_found_art(client: Spotify, count: int) -> BlastJobResult:
         )
     except found_art.FoundArtConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_found_art_job(client, playlist_id, api_key, username, count)
+    return await jobs.start_found_art_job(client, playlist_id, api_key, username, count)
 
 
 def cmd_active_found_art_jobs() -> list[BlastJobResult]:

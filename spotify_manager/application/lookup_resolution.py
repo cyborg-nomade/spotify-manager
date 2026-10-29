@@ -10,7 +10,7 @@ from spotify_manager.domain.lookup_values import ResolvedTrack
 from spotify_manager.domain.lookup_values import SpotifyLookupResponseError
 
 
-def artist(
+async def artist(
     deps: ArtistLookup, name: str | None, identifier: str | None
 ) -> tuple[str, str]:
     """Retain original direct-ID precedence before exact name selection.
@@ -31,17 +31,17 @@ def artist(
     if not name and not identifier:
         raise ValueError("provide name or artist_id")
     if identifier:
-        identity = deps.direct(identifier)
+        identity = await deps.direct(identifier)
         if identity is None:
             raise SpotifyLookupResponseError(
                 f"Spotify returned invalid artist data for {identifier!r}."
             )
         return identity
     assert name is not None
-    return selection.artist(deps.search(name), name)
+    return selection.artist((await deps.search(name)), name)
 
 
-def album(
+async def album(
     deps: AlbumLookup, name: str | None, identifier: str | None, artist: str | None
 ) -> tuple[str, str, str | None]:
     """Retain original ID precedence and delayed final metadata validation.
@@ -63,9 +63,9 @@ def album(
     if not name and not identifier:
         raise ValueError("provide name or album_id")
     if identifier:
-        return validated_album(deps.direct(identifier))
+        return validated_album(await deps.direct(identifier))
     assert name is not None
-    candidates = deps.search(name, artist)
+    candidates = await deps.search(name, artist)
     return validated_album(selection.live_album(candidates, name, artist))
 
 
@@ -87,7 +87,9 @@ def validated_album(candidate: LiveAlbumCandidate) -> tuple[str, str, str | None
     return candidate.spotify_id, name, candidate.primary_artist or None
 
 
-def track(deps: TrackLookup, name: str | None, identifier: str | None) -> ResolvedTrack:
+async def track(
+    deps: TrackLookup, name: str | None, identifier: str | None
+) -> ResolvedTrack:
     """Retain original direct-ID precedence before primary-artist disambiguation.
 
     Args:
@@ -105,12 +107,12 @@ def track(deps: TrackLookup, name: str | None, identifier: str | None) -> Resolv
     if not name and not identifier:
         raise ValueError("provide name or track_id")
     if identifier:
-        return deps.direct(identifier)
+        return await deps.direct(identifier)
     assert name is not None
-    return selection.track(deps.search(name), name)
+    return selection.track((await deps.search(name)), name)
 
 
-def liked_statuses(
+async def liked_statuses(
     ids: list[str], contains: LookupMembership, batch_size: int
 ) -> dict[str, bool]:
     """Retain original duplicate requests and last-observed identity statuses.
@@ -129,7 +131,7 @@ def liked_statuses(
     liked = {}
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
-        response = contains.contains(batch)
+        response = await contains.contains(batch)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SpotifyLookupResponseError(
                 "Spotify returned invalid Liked Songs statuses."

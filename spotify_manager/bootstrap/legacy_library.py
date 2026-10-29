@@ -1,11 +1,17 @@
 """Construct concrete resources for legacy maintenance use cases."""
 
-from spotipy import Spotify
+from dataclasses import dataclass
 
 from spotify_manager.application.legacy_library_effects import MonthlyActions
 from spotify_manager.application.legacy_library_effects import MonthlyPlaylist
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap.execution import ExecutionRuntime
+from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.infrastructure.legacy_library_resources import LegacyLibraryFiles
 from spotify_manager.infrastructure.legacy_library_resources import LegacyMonthlyLimits
+from spotify_manager.infrastructure.legacy_library_resources import (
+    NativeComparisonMetadata,
+)
 from spotify_manager.infrastructure.legacy_library_resources import SpotifyAlbumRefresh
 from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyControlMembership,
@@ -112,3 +118,31 @@ def track_read(spotify: Spotify) -> SpotifyTrackRead:
         Named track resource.
     """
     return SpotifyTrackRead(spotify)
+
+
+@dataclass(frozen=True)
+class ComparisonClients:
+    """Own native per-identity client acquisition for legacy comparisons.
+
+    Args:
+        runtime: Invocation owning all pools and credential refresh resources.
+    """
+
+    runtime: ExecutionRuntime
+
+    async def client(self) -> Spotify:
+        """Acquire the original independent credential-selection scope.
+
+        Returns:
+            Native client closed by this invocation's owner.
+        """
+        return await self.runtime.fresh_client()
+
+
+def comparison_metadata() -> NativeComparisonMetadata:
+    """Construct comparison reads without executing any network observations.
+
+    Returns:
+        Explicit per-identity native metadata resource.
+    """
+    return NativeComparisonMetadata(ComparisonClients(current_execution()))

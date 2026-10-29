@@ -1,7 +1,6 @@
 """Compose original Queue planning reads with inner decisions and marker selection."""
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.infrastructure.legacy.artist_assessment import (
@@ -11,7 +10,7 @@ from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlan
 from spotify_manager.routines import the_queue as legacy
 
 
-def plan_queue_entry(
+async def plan_queue_entry(
     spotify: Spotify,
     source: PlaylistTrack,
     uris: list[str],
@@ -29,6 +28,6 @@ def plan_queue_entry(
         Original compatible plan record before accepted checkpointing.
     """
     access = LegacyQueuePlanning(spotify, retry)
-    return QueuePlanning(
+    return await QueuePlanning(
         access, LegacyAssessmentCatalog(spotify, retry), legacy.TOP_TRACK_LIMIT
     ).record(source, uris)

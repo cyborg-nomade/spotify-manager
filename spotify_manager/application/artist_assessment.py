@@ -14,7 +14,7 @@ from spotify_manager.domain.discovery_assessment import representative_track
 class AssessmentCatalog(Protocol):
     """Provide the original catalog, membership and popularity observations."""
 
-    def saved(self, ids: list[str]) -> dict[str, bool]:
+    async def saved(self, ids: list[str]) -> dict[str, bool]:
         """Read saved releases using the existing batching policy.
 
         Args:
@@ -24,7 +24,7 @@ class AssessmentCatalog(Protocol):
             Accepted statuses keyed by ID.
         """
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read ordered tracks for one parsed release.
 
         Args:
@@ -34,7 +34,7 @@ class AssessmentCatalog(Protocol):
             Original playable tracks with primary credits.
         """
 
-    def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
+    async def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
         """Read live likes with the original context-specific retry descriptions.
 
         Args:
@@ -45,7 +45,7 @@ class AssessmentCatalog(Protocol):
             Accepted memberships keyed by ID.
         """
 
-    def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read the artist's eligible Spotify top tracks.
 
         Args:
@@ -55,7 +55,7 @@ class AssessmentCatalog(Protocol):
             Top tracks in the original response order.
         """
 
-    def popularities(self, ids: list[str]) -> dict[str, int]:
+    async def popularities(self, ids: list[str]) -> dict[str, int]:
         """Read fallback track popularity only when top tracks supply no liked marker.
 
         Args:
@@ -66,7 +66,7 @@ class AssessmentCatalog(Protocol):
         """
 
 
-def assess_artist(
+async def assess_artist(
     access: AssessmentCatalog,
     artist_id: str,
     catalog: tuple[RankedRelease, ...],
@@ -83,15 +83,15 @@ def assess_artist(
     Returns:
         Original completion assessment and marker choices.
     """
-    saved = access.saved([release.spotify_id for release in catalog])
-    tracks = _primary_tracks(access, artist_id, catalog, track_cache)
-    liked = access.liked(list(tracks))
+    saved = await access.saved([release.spotify_id for release in catalog])
+    tracks = await _primary_tracks(access, artist_id, catalog, track_cache)
+    liked = await access.liked(list(tracks))
     liked_tracks = _liked_tracks(tracks, liked)
     reasons = qualification_reasons(
         catalog, saved, liked_tracks=len(liked_tracks), total_tracks=len(tracks)
     )
     representative = representative_track(artist_id, catalog, track_cache)
-    top = _top_liked(access, artist_id, liked_tracks)
+    top = await _top_liked(access, artist_id, liked_tracks)
     return ArtistAssessment(
         liked_tracks=len(liked_tracks),
         saved_releases=sum(saved.values()),
@@ -105,7 +105,7 @@ def assess_artist(
     )
 
 
-def _primary_tracks(
+async def _primary_tracks(
     access: AssessmentCatalog,
     artist_id: str,
     catalog: tuple[RankedRelease, ...],
@@ -115,7 +115,7 @@ def _primary_tracks(
     for release in catalog:
         tracks = cache.get(release.spotify_id)
         if tracks is None:
-            tracks = access.tracks(release)
+            tracks = await access.tracks(release)
             cache[release.spotify_id] = tracks
         _collect_primary(unique, tracks, artist_id)
     return unique
@@ -139,13 +139,15 @@ def _liked_tracks(
     return result
 
 
-def _top_liked(
+async def _top_liked(
     access: AssessmentCatalog, artist_id: str, liked_tracks: list[CatalogTrack]
 ) -> CatalogTrack | None:
-    tracks = access.top_tracks(artist_id)
-    liked = access.liked([track.spotify_id for track in tracks], top=True)
+    tracks = await access.top_tracks(artist_id)
+    liked = await access.liked([track.spotify_id for track in tracks], top=True)
     selected = first_liked(tracks, liked)
     if selected is not None or not liked_tracks:
         return selected
-    popularities = access.popularities([track.spotify_id for track in liked_tracks])
+    popularities = await access.popularities(
+        [track.spotify_id for track in liked_tracks]
+    )
     return popular_liked_track(liked_tracks, popularities)

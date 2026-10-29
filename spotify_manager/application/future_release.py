@@ -12,7 +12,7 @@ from spotify_manager.domain.release_check_values import ReleaseTrack
 class ReleaseTracks(Protocol):
     """Observe complete future-release track lists through a named catalog."""
 
-    def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def read(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Read original release tracks in response order.
 
         Args:
@@ -33,7 +33,7 @@ class FutureRecordMatching:
 
     catalog: ReleaseTracks
 
-    def run(
+    async def run(
         self,
         track: ReleaseTrack,
         records: tuple[ReleaseCandidate, ...],
@@ -49,10 +49,10 @@ class FutureRecordMatching:
         Returns:
             Original first match or no containing record.
         """
-        return matching_future_record(self.catalog, track, records, cache)
+        return await matching_future_record(self.catalog, track, records, cache)
 
 
-def matching_future_record(
+async def matching_future_record(
     catalog: ReleaseTracks,
     single_track: ReleaseTrack,
     future_releases: tuple[ReleaseCandidate, ...],
@@ -77,7 +77,7 @@ def matching_future_record(
     for release in future_releases:
         tracks = cached.get(release.spotify_id)
         if tracks is None:
-            tracks = catalog.read(release)
+            tracks = await catalog.read(release)
             cached[release.spotify_id] = tracks
         if contains_single(single_track.spotify_id, expected_name, tracks):
             return release

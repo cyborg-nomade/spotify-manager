@@ -44,7 +44,7 @@ class RecommendationStages:
 class RecommendationRunEffects(Protocol):
     """Original history, recommendation, destination and accepted-audit boundaries."""
 
-    def refresh(
+    async def refresh(
         self, generated_at: datetime, dry_run: bool
     ) -> tuple[list[Scrobble], int]:
         """Refresh canonical history using the original preview semantics.
@@ -57,21 +57,21 @@ class RecommendationRunEffects(Protocol):
             Ordered canonical plays and the live-added count.
         """
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Observe the destination after history refresh.
 
         Returns:
             Original size and membership.
         """
 
-    def append(self, pending: list[SpotifyTrackMatch]) -> None:
+    async def append(self, pending: list[SpotifyTrackMatch]) -> None:
         """Accept the original ordered remote additions.
 
         Args:
             pending: Original matches in selection order.
         """
 
-    def audit(self, summary: FoundArtSummary) -> None:
+    async def audit(self, summary: FoundArtSummary) -> None:
         """Append the original audit after accepted effects, including previews.
 
         Args:
@@ -139,7 +139,7 @@ class RecommendationRun:
     minimum_pool: int = 100
     pool_multiplier: int = 10
 
-    def run(
+    async def run(
         self,
         playlist_id: str,
         count: int | None,
@@ -167,15 +167,15 @@ class RecommendationRun:
         _validate(count, maximum, seed_count)
         generated_at = self.clock.now()
         week = listening_week_start(self.calendar.local_date(generated_at))
-        scrobbles, live_added = self.effects.refresh(generated_at, dry_run)
+        scrobbles, live_added = await self.effects.refresh(generated_at, dry_run)
         history = aggregate_track_history(scrobbles)
         self.progress.echo("Loading the Found Art Spotify playlist")
-        playlist = self.effects.read()
+        playlist = await self.effects.read()
         requested = _requested(count, maximum, playlist.total_items, self.default_count)
-        batch = self._select(
+        batch = await self._select(
             history, playlist, requested, seed_count, week, generated_at, dry_run
         )
-        added = self._append(batch.pending, dry_run)
+        added = await self._append(batch.pending, dry_run)
         summary = FoundArtSummary(
             generated_at,
             week,
@@ -192,10 +192,10 @@ class RecommendationRun:
             batch.seeds,
             batch.results,
         )
-        self.effects.audit(summary)
+        await self.effects.audit(summary)
         return summary
 
-    def _select(
+    async def _select(
         self,
         history: tuple[TrackHistory, ...],
         playlist: PlaylistState,
@@ -210,17 +210,19 @@ class RecommendationRun:
         seeds = self.stages.seeds.run(history, seed_count, week)
         heard = {track.key for track in history}
         pool_size = max(self.minimum_pool, requested * self.pool_multiplier)
-        candidates = self.stages.candidates.run(
+        candidates = await self.stages.candidates.run(
             seeds, heard, week, pool_size, generated_at
         )
-        results, pending = self.stages.resolution.run(
+        results, pending = await self.stages.resolution.run(
             candidates, playlist, requested, dry_run
         )
         return RecommendationBatch(seeds, candidates, results, pending)
 
-    def _append(self, pending: tuple[SpotifyTrackMatch, ...], dry_run: bool) -> int:
+    async def _append(
+        self, pending: tuple[SpotifyTrackMatch, ...], dry_run: bool
+    ) -> int:
         if not pending or dry_run:
             return 0
         self.progress.echo(f"Adding {len(pending)} tracks to Found Art")
-        self.effects.append(list(pending))
+        await self.effects.append(list(pending))
         return len(pending)

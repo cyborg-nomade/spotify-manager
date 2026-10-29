@@ -2,6 +2,7 @@
 
 import hashlib
 from collections import deque
+from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -13,11 +14,13 @@ from datetime import datetime
 from datetime import tzinfo
 from enum import Enum
 from functools import partial
+from inspect import iscoroutinefunction
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Literal
 from typing import Self
 from typing import TypedDict
+from typing import cast
 
 import pytest
 from huggingface_hub import CommitOperationAdd
@@ -336,6 +339,10 @@ class Trace:
         Returns:
             A callable preserving the function's parameters and return type.
         """
+        if iscoroutinefunction(function):
+            return cast(
+                Callable[P, R], partial(_observe_async, self, operation, function)
+            )
         return partial(_observe, self, operation, function)
 
     def watch(
@@ -393,6 +400,19 @@ class Trace:
             return
         self.record("run", "result", result)
 
+    async def invoke_async(self, operation: Awaitable[object]) -> None:
+        """Record the accepted outcome of an explicitly called async scenario.
+
+        Args:
+            operation: Already named scenario call whose effects are being observed.
+        """
+        try:
+            result = await operation
+        except RECORDED_ERRORS as error:
+            _record_error(self, "run", error)
+            return
+        self.record("run", "result", result)
+
 
 class Responses:
     """Consume scripted read responses and retain request arguments.
@@ -433,3 +453,43 @@ class Responses:
         if isinstance(response, Exception):
             raise response
         return response
+
+
+async def _observe_async[**P, R](
+    trace: Trace,
+    operation: str,
+    function: Callable[P, Awaitable[R]],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> R:
+    """Record acceptance separately from invocation and injected failures.
+
+    Args:
+        trace: Recorder owning the observations and one-shot fault.
+        operation: Effect name and occurrence-counter key.
+        function: Existing fake or persistence operation.
+        args: Original positional arguments.
+        kwargs: Original keyword arguments.
+
+    Returns:
+        The unmodified result of the observed operation.
+
+    Raises:
+        EffectInterruptedError: The selected boundary is interrupted.
+        LibrarySyncError: Library analysis fails.
+        LibraryFilesUploadError: Mirror publication fails.
+        OSError: Persistence or transport fails.
+        SpotifyException: The Spotify operation fails.
+    """
+    occurrence = trace.counts.get(operation, 0) + 1
+    trace.counts[operation] = occurrence
+    trace.record(operation, "call", {"args": args, "kwargs": kwargs})
+    trace.inject(operation, "before", occurrence)
+    try:
+        result = await function(*args, **kwargs)
+    except RECORDED_ERRORS as error:
+        _record_error(trace, operation, error)
+        raise
+    trace.record(operation, "accepted", result)
+    trace.inject(operation, "after", occurrence)
+    return result

@@ -16,7 +16,7 @@ from spotify_manager.domain.discography_values import QueueName
 class DiscographyPlaylists(Protocol):
     """Read ordered playable markers through the original playlist adapter."""
 
-    def read(self, playlist: str) -> tuple[PlaylistTrack, ...]:
+    async def read(self, playlist: str) -> tuple[PlaylistTrack, ...]:
         """Read complete current playlist observations.
 
         Args:
@@ -41,7 +41,7 @@ class DiscographyQueues:
     playlists: dict[QueueName, str]
     extra: str | None
 
-    def run(
+    async def run(
         self,
     ) -> tuple[
         dict[QueueName, tuple[QueueArtist, ...]],
@@ -56,11 +56,11 @@ class DiscographyQueues:
         markers: dict[str, list[ArtistMarkers]] = defaultdict(list)
         for queue in QUEUE_ORDER:
             playlist = self.playlists[queue]
-            tracks = self.source.read(playlist)
+            tracks = await self.source.read(playlist)
             queues[queue] = queue_artists(tracks, queue)
             _retain(markers, marker_groups(tracks, queue, playlist))
         if self.extra is not None:
-            tracks = self.source.read(self.extra)
+            tracks = await self.source.read(self.extra)
             _retain(markers, marker_groups(tracks, "queue_3", self.extra))
         result = {identity: tuple(groups) for identity, groups in markers.items()}
         return queues, result

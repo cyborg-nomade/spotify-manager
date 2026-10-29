@@ -25,7 +25,7 @@ def test_discography_raw_records_keep_original_tolerance(
 
 
 @pytest.mark.parametrize("case", cases("discography_catalog.json"))
-def test_discography_catalog_keeps_original_read_and_canonical_order(
+async def test_discography_catalog_keeps_original_read_and_canonical_order(
     case: dict[str, object],
 ) -> None:
     """Preserve raw offsets, complete saved batches and preferred edition chronology.
@@ -33,11 +33,11 @@ def test_discography_catalog_keeps_original_read_and_canonical_order(
     Args:
         case: Original immutable page and saved-response profile.
     """
-    assert catalog_outcome(cast(str, case["profile"])) == case["outcome"]
+    assert (await catalog_outcome(cast(str, case["profile"]))) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", cases("discography_queues.json"))
-def test_discography_queue_gathering_keeps_original_order(
+async def test_discography_queue_gathering_keeps_original_order(
     case: dict[str, object],
 ) -> None:
     """Preserve first display names, unique URI order and optional empty playlist IDs.
@@ -46,8 +46,7 @@ def test_discography_queue_gathering_keeps_original_order(
         case: Original immutable auxiliary source and failure input.
     """
     assert (
-        queue_outcome(
+        await queue_outcome(
             cast(str | None, case["extra"]), cast(str | None, case["failure"])
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

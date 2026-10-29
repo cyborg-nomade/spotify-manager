@@ -1,7 +1,7 @@
 """Audit removed albums for credited artists and future releases."""
 
+import asyncio
 import json
-import time
 from collections.abc import Iterable
 from datetime import UTC
 from datetime import date
@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.library_statistics import (
     period_report as select_period_report,
@@ -19,6 +19,8 @@ from spotify_manager.application.ports.runtime import CountProgress
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.application.recovery_values import RecoveryState as RecoveryState
 from spotify_manager.application.recovery_values import (
     RecoverySummary as RecoverySummary,
@@ -26,19 +28,24 @@ from spotify_manager.application.recovery_values import (
 from spotify_manager.application.recovery_values import (
     RemovedAlbumRecord as RemovedAlbumRecord,
 )
-
-# UFI
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import library as library_policy
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
 from spotify_manager.infrastructure.library_records import current_stats_history_key
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+from spotify_manager.infrastructure.python_compat.runtime import (
+    BlockingWait as LegacyWait,
+)
 from spotify_manager.infrastructure.routine_state_codecs import (
     RecoverRemovedAlbumsStateCodec,
 )
@@ -46,6 +53,9 @@ from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.infrastructure.spotify.retry import SpotifyTransientServerError
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+
+# UFI
 from spotify_manager.loaders_savers import load_stats_history_file
 from spotify_manager.loaders_savers import (
     load_total_albums_new_file as load_total_albums_new_file,
@@ -226,15 +236,20 @@ def _save_log_state(_state: dict[str, object], _log_path: Path) -> None:
 
 
 def _state_access(
-    recovery_log_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    recovery_log_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test log."""
     return routine_state_from(
         "recover_removed_albums",
         RecoverRemovedAlbumsStateCodec(),
         StateLocation(recovery_log_path, RECOVERY_LOG_PATH, state_service),
     )
+
+
+def _async_state_access(
+    recovery_log_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(recovery_log_path, state_service))
 
 
 def append_recovery_events(
@@ -361,7 +376,7 @@ def sync_stats_history_counts(
     return True
 
 
-def add_artists_to_local_files(
+async def async_add_artists_to_local_files(
     artists: list[AlbumArtist],
     total_artists: list[YourLibraryArtist],
     known_artist_ids: set[str],
@@ -391,27 +406,37 @@ def add_artists_to_local_files(
 
     if added_ids:
         total_artists.sort(key=artist_sort_key)
-        save_total_artists_file(total_artists)
-        sync_stats_history_counts(total_artists=len(total_artists))
+        async with blocking_capacity():
+            artists_write = asyncio.create_task(
+                asyncio.to_thread(save_total_artists_file, total_artists)
+            )
+            await finish_blocking(artists_write)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    sync_stats_history_counts, total_artists=len(total_artists)
+                )
+            )
+            await finish_blocking(file_operation)
     return added_ids
 
 
-def _artist_statuses(
+async def _artist_statuses(
     sp: Spotify,
     artist_batch: list[AlbumArtist],
     retry_call: Retry,
 ) -> list[bool]:
     artist_ids = [artist.spotify_id for artist in artist_batch]
     for attempt in retry_call.attempts(f"checking {len(artist_ids)} credited artists"):
-        with attempt:
-            response = sp.current_user_following_artists(artist_ids)
+        async with attempt:
+            response = await sp.current_user_following_artists(artist_ids)
     return cast(
         list[bool],
         response,
     )
 
 
-def _follow_missing_artists(
+async def _follow_missing_artists(
     sp: Spotify,
     missing_artists: list[AlbumArtist],
     retry_call: Retry,
@@ -419,11 +444,13 @@ def _follow_missing_artists(
     for attempt in retry_call.attempts(
         f"following {len(missing_artists)} credited artists"
     ):
-        with attempt:
-            sp.user_follow_artists([artist.spotify_id for artist in missing_artists])
+        async with attempt:
+            await sp.user_follow_artists(
+                [artist.spotify_id for artist in missing_artists]
+            )
 
 
-def ensure_artists_followed(
+async def async_ensure_artists_followed(
     sp: Spotify,
     artists: list[AlbumArtist],
     state: RecoveryState,
@@ -455,7 +482,7 @@ def ensure_artists_followed(
     """
     from spotify_manager.bootstrap.album_recovery import run_artist_recovery
 
-    return run_artist_recovery(
+    return await run_artist_recovery(
         sp,
         artists,
         state,
@@ -469,7 +496,7 @@ def ensure_artists_followed(
     )
 
 
-def add_album_to_local_files(
+async def async_add_album_to_local_files(
     album: dict[str, object],
     record: RemovedAlbumRecord,
     total_albums: list[YourLibraryAlbum],
@@ -500,8 +527,16 @@ def add_album_to_local_files(
     )
     known_album_ids.add(record.spotify_id)
     total_albums.sort(key=album_sort_key)
-    save_total_albums_new_file(total_albums)
-    sync_stats_history_counts(total_albums=len(total_albums))
+    async with blocking_capacity():
+        albums_write = asyncio.create_task(
+            asyncio.to_thread(save_total_albums_new_file, total_albums)
+        )
+        await finish_blocking(albums_write)
+    async with blocking_capacity():
+        file_operation = asyncio.create_task(
+            asyncio.to_thread(sync_stats_history_counts, total_albums=len(total_albums))
+        )
+        await finish_blocking(file_operation)
     return True
 
 
@@ -528,7 +563,7 @@ def _today(today: date | None) -> date:
     return today or date.today()
 
 
-def _fetch_album_metadata(
+async def _fetch_album_metadata(
     sp: Spotify,
     album_ids: list[str],
     retry_call: Retry,
@@ -536,37 +571,37 @@ def _fetch_album_metadata(
     for attempt in retry_call.attempts(
         f"fetching metadata for {len(album_ids)} removed albums"
     ):
-        with attempt:
-            response = sp.albums(album_ids)
+        async with attempt:
+            response = await sp.albums(album_ids)
     raw_albums = cast(dict[str, object], response).get("albums", [])
     if not isinstance(raw_albums, list):
         raise RuntimeError("Spotify returned an invalid albums response.")
     return raw_albums
 
 
-def _saved_album(
+async def _saved_album(
     sp: Spotify,
     record: RemovedAlbumRecord,
     retry_call: Retry,
 ) -> bool:
     for attempt in retry_call.attempts(f"checking future release {record.album}"):
-        with attempt:
-            response = sp.current_user_saved_albums_contains([record.spotify_id])
+        async with attempt:
+            response = await sp.current_user_saved_albums_contains([record.spotify_id])
     statuses = cast(list[object], response)
     return bool(statuses[0]) if statuses else False
 
 
-def _restore_album(
+async def _restore_album(
     sp: Spotify,
     record: RemovedAlbumRecord,
     retry_call: Retry,
 ) -> None:
     for attempt in retry_call.attempts(f"restoring future release {record.album}"):
-        with attempt:
-            sp.current_user_saved_albums_add([record.spotify_id])
+        async with attempt:
+            await sp.current_user_saved_albums_add([record.spotify_id])
 
 
-def recover_removed_albums(
+async def async_recover_removed_albums(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
@@ -575,7 +610,7 @@ def recover_removed_albums(
     dry_run: bool = False,
     limit: int | None = None,
     today: date | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -608,7 +643,7 @@ def recover_removed_albums(
         recover_removed_albums as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         echo,
         progress_callback,
@@ -632,3 +667,158 @@ __all__ = [
     "recover_removed_albums",
     "release_is_in_future",
 ]
+
+
+def add_artists_to_local_files(
+    artists: list[AlbumArtist],
+    total_artists: list[YourLibraryArtist],
+    known_artist_ids: set[str],
+) -> set[str]:
+    """Persist newly discovered followed artists in one API-sized batch.
+
+    Args:
+        artists: Ordered observed artist identities.
+        total_artists: Mutable local artist mirror snapshot.
+        known_artist_ids: Mutable identifiers already present in the local mirror.
+
+    Returns:
+        Identifiers newly inserted into the artist mirror.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_add_artists_to_local_files(artists, total_artists, known_artist_ids)
+    )
+
+
+def ensure_artists_followed(
+    sp: LegacySpotify,
+    artists: list[AlbumArtist],
+    state: RecoveryState,
+    total_artists: list[YourLibraryArtist],
+    known_artist_ids: set[str],
+    retry_call: Retry | LegacyRetry,
+    echo: Echo,
+    recovery_log_path: Path,
+    dry_run: bool,
+) -> tuple[int, int]:
+    """Recover credited artist follows through the shared application service.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artists: Original ordered album credits.
+        state: Mutable completed-work state.
+        total_artists: Mutable artist mirror snapshot.
+        known_artist_ids: IDs already in that mirror.
+        retry_call: Original retry callback.
+        echo: Original output callback.
+        recovery_log_path: Original recovery audit destination.
+        dry_run: Preview without remote or durable writes.
+
+    Returns:
+        Original completed-check and new-follow counts.
+
+    Raises:
+        RuntimeError: Membership is incomplete or an effect fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_ensure_artists_followed(
+            legacy_spotify(sp),
+            artists,
+            state,
+            total_artists,
+            known_artist_ids,
+            PythonRetry(retry_call),
+            echo,
+            recovery_log_path,
+            dry_run,
+        )
+    )
+
+
+def add_album_to_local_files(
+    album: dict[str, object],
+    record: RemovedAlbumRecord,
+    total_albums: list[YourLibraryAlbum],
+    known_album_ids: set[str],
+) -> bool:
+    """Restore one future release to albums_total_new.json when absent.
+
+    Args:
+        album: Original validated library item.
+        record: Original removal-log identity and fallback labels.
+        total_albums: Mutable local album mirror snapshot.
+        known_album_ids: Mutable identifiers already present in the local album mirror.
+
+    Returns:
+        Whether this album was inserted into the local mirror.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+
+    return run_python(
+        async_add_album_to_local_files(album, record, total_albums, known_album_ids)
+    )
+
+
+def recover_removed_albums(
+    sp: LegacySpotify,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    removal_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    recovery_log_path: Path = RECOVERY_LOG_PATH,
+    dry_run: bool = False,
+    limit: int | None = None,
+    today: date | None = None,
+    sleep: Sleep | LegacyWait = asyncio,
+    transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
+    transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
+    state_service: StateService | None = None,
+) -> RecoverySummary:
+    """Recover artists and future albums through explicit application dependencies.
+
+    Args:
+        sp: Caller-owned synchronous client.
+        echo: Existing output sink.
+        progress_callback: Optional completion and cancellation callback.
+        removal_log_path: Original removal history.
+        recovery_log_path: Recovery audit destination.
+        dry_run: Preview without remote or durable writes.
+        limit: Original pending-record slice limit.
+        today: Optional fixed comparison date.
+        sleep: Existing retry wait callback.
+        transient_retry_delay_seconds: Existing retry delay.
+        transient_max_attempts: Existing retry limit.
+        state_service: Optional shared-state service.
+
+    Returns:
+        Original immutable recovery summary.
+
+    Raises:
+        SpotifyRateLimitError: Spotify reports a rate limit.
+        SpotifyTransientServerError: The existing retry policy is exhausted.
+        RuntimeError: A response is malformed or a caller interrupts execution.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.runtime import PythonWait
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_recover_removed_albums(
+            legacy_spotify(sp),
+            echo,
+            progress_callback,
+            removal_log_path,
+            recovery_log_path,
+            dry_run,
+            limit,
+            today,
+            PythonWait(sleep),
+            transient_retry_delay_seconds,
+            transient_max_attempts,
+            state_service,
+        )
+    )

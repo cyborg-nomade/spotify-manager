@@ -56,7 +56,7 @@ class LegacyHistoricalInputs:
         """
         return radio.ANNIVERSARY_INTERVAL_YEARS
 
-    def history(self) -> dict[date, list[Scrobble]]:
+    async def history(self) -> dict[date, list[Scrobble]]:
         """Load complete dated buckets through the original concrete file reader.
 
         Returns:
@@ -65,9 +65,11 @@ class LegacyHistoricalInputs:
         Raises:
             LastFmExportError: The original export cannot be read.
         """
-        from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+        from spotify_manager.routines.blast_from_past import (
+            async_load_scrobbles_by_date as load_scrobbles_by_date,
+        )
 
-        return load_scrobbles_by_date(self.path)
+        return await load_scrobbles_by_date(self.path)
 
     def cutoff(self) -> date:
         """Observe the original Friday cutoff after reading history.
@@ -87,7 +89,7 @@ class LegacyHistoricalInputs:
         """
         return self.date_override or radio.datetime.now(blast.SCROBBLE_TIMEZONE).date()
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Invoke the caller's external index reader once.
 
         Args:
@@ -97,12 +99,12 @@ class LegacyHistoricalInputs:
         Returns:
             Original unmodified random response.
         """
-        return self.index_reader.sample(population, count)
+        return await self.index_reader.sample(population, count)
 
-    def timestamp(self) -> datetime:
+    async def timestamp(self) -> datetime:
         """Read one external timestamp for the complete anniversary selection.
 
         Returns:
             Original shared external selection timestamp.
         """
-        return self.timestamp_reader.now()
+        return await self.timestamp_reader.now()

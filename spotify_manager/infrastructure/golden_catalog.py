@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
@@ -27,7 +26,7 @@ class GoldenCatalog:
     spotify: Spotify
     retry: RetryCall
 
-    def matches(
+    async def matches(
         self, artist: GoldenOldieArtist, title: LastFmTrackStat
     ) -> tuple[SpotifyTrackMatch, ...]:
         """Read qualified title matches.
@@ -41,9 +40,9 @@ class GoldenCatalog:
         """
         from spotify_manager.routines.something_old import _read_lastfm_matches
 
-        return _read_lastfm_matches(self.spotify, artist, self.retry, title)
+        return await _read_lastfm_matches(self.spotify, artist, self.retry, title)
 
-    def liked(
+    async def liked(
         self, artist: GoldenOldieArtist, groups: list[tuple[SpotifyTrackMatch, ...]]
     ) -> set[str]:
         """Read membership for all gathered matches.
@@ -57,9 +56,9 @@ class GoldenCatalog:
         """
         from spotify_manager.routines.something_old import _read_lastfm_liked
 
-        return _read_lastfm_liked(self.spotify, artist, self.retry, groups)
+        return await _read_lastfm_liked(self.spotify, artist, self.retry, groups)
 
-    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read complete tracks for an accepted release.
 
         Args:
@@ -70,4 +69,4 @@ class GoldenCatalog:
         """
         from spotify_manager.routines.something_old import _read_studio_tracks
 
-        return _read_studio_tracks(self.spotify, self.retry, release)
+        return await _read_studio_tracks(self.spotify, self.retry, release)

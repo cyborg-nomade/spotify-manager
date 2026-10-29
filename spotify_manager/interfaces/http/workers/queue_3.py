@@ -1,7 +1,7 @@
 """Explicit callbacks and wire presentation for Queue3Worker."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -9,10 +9,10 @@ from datetime import timedelta
 from typing import cast
 
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -70,11 +70,11 @@ class Queue3Worker:
     operation_name: str = field(init=False)
     events: SpotifyEvents = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Execute one Queue 3 operation as a reconnectable web job."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except _Queue3JobCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
@@ -117,7 +117,7 @@ class Queue3Worker:
             self.job.result.total = total
             self.job.result.detail = progress_status
 
-    def wait_for_choice(self, detail: str) -> str:
+    async def wait_for_choice(self, detail: str) -> str:
         """Publish a waiting phase and consume the next accepted choice.
 
         Args:
@@ -134,9 +134,9 @@ class Queue3Worker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(self.job.choice_event, self)
+        return await await_submission(self.job.choice_event, self)
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: new_wine.PlaylistTrack,
         current: slow_listening.DiscographyRelease,
@@ -160,11 +160,11 @@ class Queue3Worker:
                 current_release=_queue_3_release_option(current),
                 next_release=_queue_3_release_option(following),
             )
-        return self.wait_for_choice(
+        return await self.wait_for_choice(
             f"Confirm the next release for {source.primary_artist_name}"
         )
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
     ) -> str:
         """Present the original composer playlist options.
@@ -182,18 +182,18 @@ class Queue3Worker:
                 artist=artist,
                 playlists=self._queue3_composer_playlist_options(candidates),
             )
-        return self.wait_for_choice(f"Choose the composer playlist for {artist}")
+        return await self.wait_for_choice(f"Choose the composer playlist for {artist}")
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
             seconds: Original routine-supplied seconds.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise _Queue3JobCancelledError
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -223,10 +223,10 @@ class Queue3Worker:
         self.events = SpotifyEvents(self.spotify)
         self.events.subscribe(self)
 
-    def _execute(self) -> queue_3.AnnualImportSummary | queue_3.FlushSummary:
+    async def _execute(self) -> queue_3.AnnualImportSummary | queue_3.FlushSummary:
         summary: queue_3.AnnualImportSummary | queue_3.FlushSummary
         if self.annual_only:
-            summary = queue_3.import_previous_year_discoveries(
+            summary = await queue_3.import_previous_year_discoveries(
                 self.spotify,
                 self.options.playlist_id,
                 dry_run=self.options.dry_run,
@@ -235,7 +235,7 @@ class Queue3Worker:
                 retry_call=self,
             )
         else:
-            summary = queue_3.flush_queue_3(
+            summary = await queue_3.flush_queue_3(
                 self.spotify,
                 self.options,
                 Queue3Callbacks(

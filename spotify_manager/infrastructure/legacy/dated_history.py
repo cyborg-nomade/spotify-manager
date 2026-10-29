@@ -23,15 +23,17 @@ class LegacyDatedHistory:
     date_override: date | None
     index_reader: RandomIndexes
 
-    def history(self) -> dict[date, list[Scrobble]]:
+    async def history(self) -> dict[date, list[Scrobble]]:
         """Read complete dated history through the original concrete file helper.
 
         Returns:
             Complete dated scrobble buckets in original encounter order.
         """
-        from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+        from spotify_manager.routines.blast_from_past import (
+            async_load_scrobbles_by_date as load_scrobbles_by_date,
+        )
 
-        return load_scrobbles_by_date(self.path)
+        return await load_scrobbles_by_date(self.path)
 
     def cutoff(self) -> date:
         """Observe the original effective cutoff after loading history.
@@ -43,7 +45,7 @@ class LegacyDatedHistory:
 
         return palace_cutoff(self.date_override)
 
-    def random(self, population: int, count: int) -> RandomIndexSet:
+    async def random(self, population: int, count: int) -> RandomIndexSet:
         """Read original unique indexes and their shared timestamp.
 
         Args:
@@ -53,4 +55,4 @@ class LegacyDatedHistory:
         Returns:
             Original unmodified random response.
         """
-        return self.index_reader.sample(population, count)
+        return await self.index_reader.sample(population, count)

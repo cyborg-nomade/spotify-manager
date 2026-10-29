@@ -51,7 +51,7 @@ class Effects:
         if event == self.failure:
             raise RuntimeError(event)
 
-    def candidates(self, today: date) -> tuple[DormantArtist, ...]:
+    async def candidates(self, today: date) -> tuple[DormantArtist, ...]:
         """Observe original history candidates.
 
         Args:
@@ -64,7 +64,7 @@ class Effects:
         assert today == _clock()
         return self.artists
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Observe original represented membership.
 
         Returns:
@@ -73,7 +73,7 @@ class Effects:
         self._record("read")
         return self.playlist
 
-    def mapping(
+    async def mapping(
         self, artist: DormantArtist, rank: int
     ) -> SpotifyArtistCandidate | None:
         """Return configured original mapping evidence.
@@ -88,7 +88,7 @@ class Effects:
         self._record(f"mapping:{rank}")
         return self.mapped.get(artist.key, MAPPING)
 
-    def run(self, artist_id: str) -> CatalogTrack | None:
+    async def run(self, artist_id: str) -> CatalogTrack | None:
         """Return configured original live-liked marker.
 
         Args:
@@ -100,7 +100,7 @@ class Effects:
         self._record("track")
         return self.tracks.get(artist_id, TRACK)
 
-    def append(self, tracks: list[CatalogTrack]) -> None:
+    async def append(self, tracks: list[CatalogTrack]) -> None:
         """Record acceptance before an injected ambiguous failure.
 
         Args:
@@ -160,7 +160,7 @@ EVENTS = [
 
 
 @pytest.mark.parametrize("failure", EVENTS)
-def test_dormant_accepted_failure_prefix(failure: str) -> None:
+async def test_dormant_accepted_failure_prefix(failure: str) -> None:
     """Retain original accepted writes and exact failure prefixes.
 
     Args:
@@ -168,7 +168,7 @@ def test_dormant_accepted_failure_prefix(failure: str) -> None:
     """
     effects = Effects(failure=failure)
     with pytest.raises(RuntimeError, match=failure):
-        _workflow(effects).run(1, False)
+        (await _workflow(effects).run(1, False))
     assert effects.events == EVENTS[: EVENTS.index(failure) + 1]
     assert effects.accepted == (
         [TRACK.uri] if EVENTS.index(failure) >= EVENTS.index("append") else []
@@ -176,28 +176,28 @@ def test_dormant_accepted_failure_prefix(failure: str) -> None:
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_dormant_completion_and_selection_limit(preview: bool) -> None:
+async def test_dormant_completion_and_selection_limit(preview: bool) -> None:
     """Preserve original added preview labels and stop before another cancellation.
 
     Args:
         preview: Original preview mode.
     """
     effects = Effects(artists=(ARTIST, DormantArtist("second", "Second", 4)))
-    summary = _workflow(effects).run(1, preview)
+    summary = await _workflow(effects).run(1, preview)
     assert summary.added == 1
     assert summary.playlist_length_after == int(not preview)
     assert summary.history_years == (2022, 2023, 2024, 2025)
     assert effects.events == (EVENTS[:6] + EVENTS[7:] if preview else EVENTS)
 
 
-def test_dormant_unmapped_and_unliked_results() -> None:
+async def test_dormant_unmapped_and_unliked_results() -> None:
     """Retain original skip output before recording each skipped candidate."""
     first = DormantArtist("first", "First", 4)
     second = DormantArtist("second", "Second", 4)
     effects = Effects(
         artists=(first, second), mapped={"first": None}, tracks={"artist": None}
     )
-    summary = _workflow(effects).run(1, False)
+    summary = await _workflow(effects).run(1, False)
     assert [result.action for result in summary.results] == [
         "no mapping",
         "no liked track",
@@ -208,7 +208,7 @@ def test_dormant_unmapped_and_unliked_results() -> None:
 
 
 @pytest.mark.parametrize("represented,duplicate", [(True, False), (False, True)])
-def test_dormant_represented_artist_and_duplicate_track(
+async def test_dormant_represented_artist_and_duplicate_track(
     represented: bool, duplicate: bool
 ) -> None:
     """Suppress represented artists before mapping and resolved duplicate markers.
@@ -223,25 +223,25 @@ def test_dormant_represented_artist_and_duplicate_track(
         primary_artist_keys=frozenset({"artist"}) if represented else frozenset(),
     )
     effects = Effects(playlist=playlist)
-    summary = _workflow(effects).run(1, False)
+    summary = await _workflow(effects).run(1, False)
     assert summary.results == () and summary.added == 0
     assert summary.represented_count == int(represented)
     assert ("mapping:1" in effects.events) is not represented
 
 
-def test_dormant_pending_duplicates_are_suppressed() -> None:
+async def test_dormant_pending_duplicates_are_suppressed() -> None:
     """Suppress a second artist mapped to the same pending marker without a result."""
     effects = Effects(artists=(ARTIST, DormantArtist("second", "Second", 4)))
-    summary = _workflow(effects).run(2, False)
+    summary = await _workflow(effects).run(2, False)
     assert summary.added == 1
     assert effects.accepted == [TRACK.uri]
 
 
-def test_dormant_validation_precedes_observations() -> None:
+async def test_dormant_validation_precedes_observations() -> None:
     """Reject original invalid count before clock and external reads."""
     effects = Effects()
     with pytest.raises(ValueError, match="at least 1"):
-        _workflow(effects).run(0, False)
+        (await _workflow(effects).run(0, False))
     assert effects.events == []
 
 
@@ -262,7 +262,7 @@ class LikedObservations:
     liked_ids: set[str] = field(default_factory=set)
     events: list[str] = field(default_factory=list)
 
-    def top(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def top(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read original top observations.
 
         Returns:
@@ -271,7 +271,7 @@ class LikedObservations:
         self.events.append("top")
         return self.top_tracks
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Observe original live liked membership.
 
         Args:
@@ -285,7 +285,7 @@ class LikedObservations:
             track.spotify_id: track.spotify_id in self.liked_ids for track in tracks
         }
 
-    def tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read original fallback catalog observations.
 
         Returns:
@@ -294,7 +294,9 @@ class LikedObservations:
         self.events.append("catalog")
         return self.catalog_tracks
 
-    def populate(self, tracks: tuple[CatalogTrack, ...]) -> tuple[CatalogTrack, ...]:
+    async def populate(
+        self, tracks: tuple[CatalogTrack, ...]
+    ) -> tuple[CatalogTrack, ...]:
         """Read original popularity only for observed liked tracks.
 
         Args:
@@ -312,15 +314,17 @@ def _liked_workflow(observations: LikedObservations) -> DormantLikedTrack:
     return DormantLikedTrack(observations)
 
 
-def test_dormant_liked_top_prevents_catalog_fallback() -> None:
+async def test_dormant_liked_top_prevents_catalog_fallback() -> None:
     """Keep top-track success before any catalog/popularity observation."""
     observations = LikedObservations(liked_ids={"track"})
-    assert _liked_workflow(observations).run("artist") == TRACK
+    assert (await _liked_workflow(observations).run("artist")) == TRACK
     assert observations.events == ["top", "liked"]
 
 
 @pytest.mark.parametrize("populated", [(), (TRACK,)])
-def test_dormant_liked_catalog_popularity(populated: tuple[CatalogTrack, ...]) -> None:
+async def test_dormant_liked_catalog_popularity(
+    populated: tuple[CatalogTrack, ...],
+) -> None:
     """Observe original popularity after liked filtering, including empty details.
 
     Args:
@@ -329,14 +333,16 @@ def test_dormant_liked_catalog_popularity(populated: tuple[CatalogTrack, ...]) -
     observations = LikedObservations(
         top_tracks=(), liked_ids={"track"}, populated=populated
     )
-    assert _liked_workflow(observations).run("artist") == (TRACK if populated else None)
+    assert (await _liked_workflow(observations).run("artist")) == (
+        TRACK if populated else None
+    )
     assert observations.events == ["top", "liked", "catalog", "liked", "populate"]
 
 
-def test_dormant_no_liked_catalog_prevents_popularity_read() -> None:
+async def test_dormant_no_liked_catalog_prevents_popularity_read() -> None:
     """Skip popularity when live liked statuses exclude every catalog track."""
     observations = LikedObservations()
-    assert _liked_workflow(observations).run("artist") is None
+    assert (await _liked_workflow(observations).run("artist")) is None
     assert observations.events == ["top", "liked", "catalog", "liked"]
 
 

@@ -4,16 +4,15 @@ from dataclasses import dataclass
 from typing import Protocol
 from typing import cast
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.composers import OwnedPlaylist
 
 
 class PlaylistPages(Protocol):
     """Read account playlist pages with explicit raw offsets."""
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one original transport page.
 
         Args:
@@ -37,7 +36,7 @@ class SpotifyPlaylistPages:
     spotify: Spotify
     retry: Retry
 
-    def read(self, offset: int) -> object:
+    async def read(self, offset: int) -> object:
         """Read one account playlist page.
 
         Args:
@@ -48,7 +47,7 @@ class SpotifyPlaylistPages:
         """
         from spotify_manager.routines.composer_playlists import _playlist_page
 
-        return _playlist_page(self.spotify, self.retry, offset)
+        return await _playlist_page(self.spotify, self.retry, offset)
 
 
 class ComposerPlaylistError(RuntimeError):
@@ -86,11 +85,11 @@ def _has_more(response: dict[str, object], offset: int) -> bool:
     return bool(response.get("next")) or (isinstance(total, int) and offset < total)
 
 
-def _collect(pages: PlaylistPages) -> list[object]:
+async def _collect(pages: PlaylistPages) -> list[object]:
     playlists: list[object] = []
     offset = 0
     while True:
-        response = _page(pages.read(offset))
+        response = _page(await pages.read(offset))
         items = cast(list[object], response["items"])
         playlists.extend(items)
         offset += len(items)
@@ -117,7 +116,7 @@ def _owner_id(playlists: list[object], anchors: frozenset[str]) -> str:
     )
 
 
-def observe_owned_playlists(
+async def observe_owned_playlists(
     pages: PlaylistPages,
     anchors: frozenset[str],
 ) -> tuple[OwnedPlaylist, ...]:
@@ -133,7 +132,7 @@ def observe_owned_playlists(
     Raises:
         ComposerPlaylistError: Pages are malformed or no owner can be established.
     """
-    playlists = _collect(pages)
+    playlists = await _collect(pages)
     owner_id = _owner_id(playlists, anchors)
     owned = []
     for raw in playlists:

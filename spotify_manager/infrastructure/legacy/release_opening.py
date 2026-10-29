@@ -1,14 +1,17 @@
 """Bind release startup to original canonical history, state and audit seams."""
 
+import asyncio
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.release_opening import ReleaseState
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.release_check_values import RankedArtist
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.routines import release_check as legacy
 
 
@@ -42,16 +45,18 @@ class LegacyReleaseOpening:
     progress: legacy.ProgressCallback | None
     state_access: RoutineState = field(init=False)
 
-    def load(self) -> ReleaseState:
+    async def load(self) -> ReleaseState:
         """Acquire and load original state after clock and local-date resolution.
 
         Returns:
             Original normalized payload, including unknown fields.
         """
-        from spotify_manager.routines.release_check import _state_access
+        from spotify_manager.routines.release_check import (
+            _async_state_access as _async_state_access,
+        )
 
-        self.state_access = _state_access(self.state_path, self.state_service)
-        return self.state_access.load()
+        self.state_access = _async_state_access(self.state_path, self.state_service)
+        return await self.state_access.load()
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
         """Retain the original ranking compatibility seam.
@@ -79,7 +84,7 @@ class LegacyReleaseOpening:
 
         return _active_artists(active)
 
-    def persist(self, state: ReleaseState) -> None:
+    async def persist(self, state: ReleaseState) -> None:
         """Accept the original complete checkpoint and original freshness timestamp.
 
         Args:
@@ -87,9 +92,9 @@ class LegacyReleaseOpening:
         """
         from spotify_manager.routines.release_check import _persist_state
 
-        _persist_state(self.state_access, state)
+        await _persist_state(self.state_access, state)
 
-    def audit(self, run_id: str, event: str, **details: object) -> None:
+    async def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original release event bytes after their checkpoint.
 
         Args:
@@ -97,6 +102,12 @@ class LegacyReleaseOpening:
             event: Original event name.
             details: Original event fields in insertion order.
         """
-        from spotify_manager.routines.release_check import append_event
+        from spotify_manager.routines.release_check import append_event as _append_event
 
-        append_event(self.log_path, run_id, event, **details)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_event, self.log_path, run_id, event, **details
+                )
+            )
+            await finish_blocking(file_operation)

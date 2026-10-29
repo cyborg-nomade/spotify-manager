@@ -1,7 +1,7 @@
 """Explicit requeue CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -39,14 +39,14 @@ class RequeueCLI:
     create_table: type[Table]
     sleep: Wait
 
-    def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
+    async def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
         """Advance the first Requeue for a Dream artist by one release.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._flush_requeue_for_a_dream_console = self.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = requeue_for_a_dream.parse_playlist_id(
                 configuration.reqeueue_for_a_dream_playlist
@@ -57,8 +57,8 @@ class RequeueCLI:
             with self._flush_requeue_for_a_dream_console.status(
                 "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
             ) as status:
-                summary = requeue_for_a_dream.flush_requeue_for_a_dream(
-                    self.runtime.review_client(),
+                summary = await requeue_for_a_dream.flush_requeue_for_a_dream(
+                    (await self.runtime.review_client()),
                     playlist_id,
                     dry_run=dry_run,
                     echo=FlushRequeueForADreamInteraction(self),
@@ -180,7 +180,7 @@ class FlushRequeueForADreamInteraction:
 
     owner: RequeueCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:

@@ -56,7 +56,7 @@ class DiscoveryCompletion:
     great_seed: str
     memberships: dict[str, tuple[set[str], set[str]]] = field(default_factory=dict)
 
-    def finish(self, artist: ReviewArtist, plan: dict[str, object]) -> None:
+    async def finish(self, artist: ReviewArtist, plan: dict[str, object]) -> None:
         """Route a saved completion assessment and unfollow when required.
 
         Args:
@@ -70,14 +70,14 @@ class DiscoveryCompletion:
         assessment = assessment_from_record(plan.get("assessment"))
         composer = track_from_record(plan.get("composer_destination_track"))
         if assessment.top_liked_track is not None and assessment.qualifies:
-            self._promote(artist, assessment, composer)
+            await self._promote(artist, assessment, composer)
             return
         if assessment.top_liked_track is not None:
             target = composer or assessment.top_liked_track
-            self._destination(artist, target, self.unlucky, "Unlucky Ones")
-        self._unfollow(artist)
+            await self._destination(artist, target, self.unlucky, "Unlucky Ones")
+        await self._unfollow(artist)
 
-    def _promote(
+    async def _promote(
         self,
         artist: ReviewArtist,
         assessment: ArtistAssessment,
@@ -89,11 +89,13 @@ class DiscoveryCompletion:
                 f"{artist.name} qualifies for promotion, but "
                 "Spotify returned no primary-artist representative track."
             )
-        great = self.great.resolve(self.state, self.year, self.great_seed, self.dry_run)
-        self._destination(artist, target, great, f"Great Discoveries {self.year}")
-        self._destination(artist, target, self.newfoundland, "Newfoundland")
+        great = await self.great.resolve(
+            self.state, self.year, self.great_seed, self.dry_run
+        )
+        await self._destination(artist, target, great, f"Great Discoveries {self.year}")
+        await self._destination(artist, target, self.newfoundland, "Newfoundland")
 
-    def _destination(
+    async def _destination(
         self,
         artist: ReviewArtist,
         target: CatalogTrack,
@@ -104,20 +106,22 @@ class DiscoveryCompletion:
             self.presentation.future_artist_added(artist.name, label, target.name)
             return
         if playlist not in self.memberships:
-            self.memberships[playlist] = self.access.membership(playlist)
+            self.memberships[playlist] = await self.access.membership(playlist)
         artist_ids, track_ids = self.memberships[playlist]
         if artist.identifier in artist_ids:
             return
         if not self.dry_run:
-            self.access.append(playlist, target, f"adding {artist.name} to {label}")
+            await self.access.append(
+                playlist, target, f"adding {artist.name} to {label}"
+            )
         artist_ids.add(artist.identifier)
         track_ids.add(target.spotify_id)
         self.presentation.artist_added(artist.name, label, self.dry_run)
 
-    def _unfollow(self, artist: ReviewArtist) -> None:
-        if not self.access.followed(artist.identifier, artist.name):
+    async def _unfollow(self, artist: ReviewArtist) -> None:
+        if not (await self.access.followed(artist.identifier, artist.name)):
             return
         if not self.dry_run:
-            self.access.unfollow(artist.identifier, artist.name)
-            self.access.remove_local_artist(artist.identifier)
+            await self.access.unfollow(artist.identifier, artist.name)
+            await self.access.remove_local_artist(artist.identifier)
         self.presentation.artist_unfollowed(artist.name, self.dry_run)

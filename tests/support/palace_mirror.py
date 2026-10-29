@@ -10,8 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import cast
 from unittest.mock import patch
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import analyse_library
 from spotify_manager.routines import palace_of_memory as legacy
 from tests.routines.test_palace_of_memory import saved_album
@@ -48,7 +47,7 @@ class MirrorReads:
     profile: str
     trace: list[list[object]] = field(default_factory=list)
 
-    def current_user_saved_albums(self, limit: int, offset: int) -> object:
+    async def current_user_saved_albums(self, limit: int, offset: int) -> object:
         """Read original scripted live saved facts.
 
         Args:
@@ -147,14 +146,14 @@ def _artifacts(root: Path) -> dict[str, str]:
     return result
 
 
-def _run(edge: MirrorReads, root: Path) -> object:
+async def _run(edge: MirrorReads, root: Path) -> object:
     path = _prepare(root, edge.profile)
     with ExitStack() as stack:
         stack.enter_context(patch.object(legacy, "datetime", FixedClock))
         stack.enter_context(
             patch.object(analyse_library, "publish_managed_path", edge.publish)
         )
-        albums, refresh = legacy.refresh_saved_albums(
+        albums, refresh = await legacy.async_refresh_saved_albums(
             cast(Spotify, edge),
             path=path,
             backups_dir=root / "backups",
@@ -167,7 +166,7 @@ def _run(edge: MirrorReads, root: Path) -> object:
     }
 
 
-def original_outcome(profile: str) -> object:
+async def original_outcome(profile: str) -> object:
     """Observe original complete live preflight before extracting its coordinator.
 
     Args:
@@ -181,7 +180,7 @@ def original_outcome(profile: str) -> object:
     with TemporaryDirectory() as location:
         root = Path(location)
         try:
-            outcome["result"] = _run(edge, root)
+            outcome["result"] = await _run(edge, root)
         except RuntimeError as exc:
             outcome.update(error=type(exc).__name__, message=str(exc))
         outcome["trace"] = edge.trace

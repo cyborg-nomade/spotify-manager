@@ -5,11 +5,10 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.album_recommendations import AlbumGathering
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.sauvignon_run import SauvignonRun
 from spotify_manager.application.sauvignon_run import SauvignonStages
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice

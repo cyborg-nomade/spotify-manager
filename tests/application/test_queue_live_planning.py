@@ -7,7 +7,7 @@ from tests.support.queue_planning_application import application_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_independent_queue_planning_matches_original(
+async def test_independent_queue_planning_matches_original(
     name: str, case: dict[str, object]
 ) -> None:
     """Retain original plan fields, promotion cache reuse and catalog read order.
@@ -17,4 +17,4 @@ def test_independent_queue_planning_matches_original(
         case: Original configured facts and observed plan/read trace.
     """
     assert name
-    assert application_outcome(case) == case["outcome"]
+    assert (await application_outcome(case)) == case["outcome"]

@@ -34,7 +34,7 @@ class ExecutionMemory:
         if name == self.failure:
             raise OSError(name)
 
-    def append(
+    async def append(
         self, playlist: str, tracks: list[PlaylistTrack], description: str
     ) -> None:
         """Accept marker additions after their failure boundary.
@@ -47,7 +47,7 @@ class ExecutionMemory:
         self._record("append", (playlist, tracks, description))
         self.remote.update(track.spotify_id for track in tracks)
 
-    def remove(self, playlist: str, uris: list[str], description: str) -> None:
+    async def remove(self, playlist: str, uris: list[str], description: str) -> None:
         """Accept marker removals after their failure boundary.
 
         Args:
@@ -58,7 +58,9 @@ class ExecutionMemory:
         self._record("remove", (playlist, uris, description))
         self.remote.difference_update(uri.rsplit(":", 1)[-1] for uri in uris)
 
-    def reconcile(self, release: RankedRelease, evaluation: AlbumEvaluation) -> str:
+    async def reconcile(
+        self, release: RankedRelease, evaluation: AlbumEvaluation
+    ) -> str:
         """Observe library reconciliation before playlist presence checks.
 
         Args:
@@ -130,7 +132,7 @@ class CoordinationMemory(ExecutionMemory):
     clock_reads: int = 0
     checkpoints: list[dict[str, object]] = field(default_factory=list)
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Reject loading state that bootstrap already prepared.
 
         Raises:
@@ -138,7 +140,9 @@ class CoordinationMemory(ExecutionMemory):
         """
         raise AssertionError("State is already prepared")
 
-    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
+    async def save(
+        self, value: dict[str, object], *, message: str | None = None
+    ) -> None:
         """Accept a checkpoint after its failure boundary.
 
         Args:
@@ -159,7 +163,7 @@ class CoordinationMemory(ExecutionMemory):
         self.clock_reads += 1
         return value
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Observe the original logical-artist catalog request.
 
         Args:
@@ -171,7 +175,7 @@ class CoordinationMemory(ExecutionMemory):
         self._record("catalog", artist_id)
         return self.catalogs.get(artist_id, ())
 
-    def read(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def read(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe a works-playlist request.
 
         Args:
@@ -183,7 +187,9 @@ class CoordinationMemory(ExecutionMemory):
         self._record("works", playlist_id)
         return self.works.get(playlist_id, ())
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Observe the selected edition's track request.
 
         Args:
@@ -195,7 +201,7 @@ class CoordinationMemory(ExecutionMemory):
         self._record("tracks", release.spotify_id)
         return self.tracks.get(release.spotify_id, ())
 
-    def memberships(
+    async def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
     ) -> dict[str, bool]:
         """Observe the original live evaluation boundary.
@@ -229,7 +235,7 @@ class CoordinationMemory(ExecutionMemory):
         self._record("choice", (source, current, following))
         return self.response
 
-    def choose_composer(
+    async def choose_composer(
         self, artist: str, candidates: tuple[OwnedPlaylist, ...]
     ) -> str:
         """Observe ambiguous works-playlist selection.
@@ -244,7 +250,7 @@ class CoordinationMemory(ExecutionMemory):
         self._record("composer_choice", (artist, candidates))
         return self.composer_response
 
-    def audit(self, event: str, details: dict[str, object]) -> None:
+    async def audit(self, event: str, details: dict[str, object]) -> None:
         """Observe the original structured transition audit.
 
         Args:
@@ -282,7 +288,7 @@ class CoordinationMemory(ExecutionMemory):
         """
         self._record("stale", artist)
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: PlaylistTrack,
         current: DiscographyRelease,

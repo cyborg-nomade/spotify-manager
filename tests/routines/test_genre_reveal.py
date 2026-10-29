@@ -32,7 +32,7 @@ class FakeSpotify:
         self.puts: list[tuple[str, object]] = []
         self.posts: list[tuple[str, object]] = []
 
-    def _get(
+    async def _get(
         self,
         path: str,
         *,
@@ -47,10 +47,10 @@ class FakeSpotify:
             "next": None,
         }
 
-    def _put(self, path: str, *, args: object) -> None:
+    async def _put(self, path: str, *, args: object) -> None:
         self.puts.append((path, args))
 
-    def _post(self, path: str, *, payload: object) -> None:
+    async def _post(self, path: str, *, payload: object) -> None:
         self.posts.append((path, payload))
 
 
@@ -73,7 +73,7 @@ class FixturePages:
 
     short: bool = False
 
-    def read(self, url: str) -> str:
+    async def read(self, url: str) -> str:
         """Read the original fixture page for the requested URL.
 
         Args:
@@ -87,7 +87,7 @@ class FixturePages:
         return page_reader(url)
 
 
-def test_missing_state_file_returns_empty_progress(tmp_path: Path) -> None:
+async def test_missing_state_file_returns_empty_progress(tmp_path: Path) -> None:
     state = genre_reveal.load_genre_reveal_state(tmp_path / "missing.json")
 
     assert state.completed == []
@@ -95,7 +95,7 @@ def test_missing_state_file_returns_empty_progress(tmp_path: Path) -> None:
     assert state.updated_at is None
 
 
-def test_state_round_trip_is_timestamped_and_deduplicated(tmp_path: Path) -> None:
+async def test_state_round_trip_is_timestamped_and_deduplicated(tmp_path: Path) -> None:
     path = tmp_path / "genre-state.json"
     update = genre_reveal.GenreRevealStateUpdate(
         completed=["ambient", "jazz", "ambient"],
@@ -112,7 +112,7 @@ def test_state_round_trip_is_timestamped_and_deduplicated(tmp_path: Path) -> Non
     assert json.loads(path.read_text(encoding="utf-8"))["version"] == 1
 
 
-def test_state_replacement_keeps_a_restorable_backup(tmp_path: Path) -> None:
+async def test_state_replacement_keeps_a_restorable_backup(tmp_path: Path) -> None:
     path = tmp_path / "genre-state.json"
     first = genre_reveal.save_genre_reveal_state(
         genre_reveal.GenreRevealStateUpdate(completed=["ambient"]),
@@ -135,7 +135,7 @@ def test_state_replacement_keeps_a_restorable_backup(tmp_path: Path) -> None:
     )
 
 
-def test_identical_state_does_not_replace_or_back_up(tmp_path: Path) -> None:
+async def test_identical_state_does_not_replace_or_back_up(tmp_path: Path) -> None:
     path = tmp_path / "genre-state.json"
     update = genre_reveal.GenreRevealStateUpdate(completed=["ambient"])
     first = genre_reveal.save_genre_reveal_state(update, path)
@@ -152,7 +152,7 @@ def test_invalid_completed_slug_is_rejected(slug: str) -> None:
         genre_reveal.GenreRevealStateUpdate(completed=[slug])
 
 
-def test_invalid_persisted_state_has_clear_error(tmp_path: Path) -> None:
+async def test_invalid_persisted_state_has_clear_error(tmp_path: Path) -> None:
     path = tmp_path / "genre-state.json"
     path.write_text('{"completed": ["two words"]}', encoding="utf-8")
 
@@ -160,10 +160,10 @@ def test_invalid_persisted_state_has_clear_error(tmp_path: Path) -> None:
         genre_reveal.GenreRevealStateError,
         match="Genre-reveal state is invalid",
     ):
-        genre_reveal.load_genre_reveal_state(path)
+        (genre_reveal.load_genre_reveal_state(path))
 
 
-def test_preserved_route_can_select_first_incomplete_genre() -> None:
+async def test_preserved_route_can_select_first_incomplete_genre() -> None:
     route = genre_reveal.load_genre_route()
     state = genre_reveal.GenreRevealState(completed=["kerkkoor"])
 
@@ -179,7 +179,7 @@ def test_preserved_route_can_select_first_incomplete_genre() -> None:
     )
 
 
-def test_discovers_primary_playlist_instead_of_intro_or_pulse() -> None:
+async def test_discovers_primary_playlist_instead_of_intro_or_pulse() -> None:
     """Discovers primary playlist instead of intro or pulse."""
     preview = genre_reveal.discover_genre_source(
         "kerkkoor",
@@ -192,20 +192,22 @@ def test_discovers_primary_playlist_instead_of_intro_or_pulse() -> None:
     assert preview.every_noise_url.endswith("engenremap-kerkkoor.html")
 
 
-def test_source_requires_ten_public_embed_tracks() -> None:
+async def test_source_requires_ten_public_embed_tracks() -> None:
     """Source requires ten public embed tracks."""
     with pytest.raises(
         genre_reveal.GenreRevealSourceError,
         match="did not expose the first 10 tracks",
     ):
-        genre_reveal.load_genre_playlist_source(
-            "kerkkoor",
-            "kerkkoor",
-            FixturePages(short=True),
+        (
+            genre_reveal.load_genre_playlist_source(
+                "kerkkoor",
+                "kerkkoor",
+                FixturePages(short=True),
+            )
         )
 
 
-def test_process_saves_source_adds_only_missing_tracks_and_logs(
+async def test_process_saves_source_adds_only_missing_tracks_and_logs(
     tmp_path: Path,
 ) -> None:
     """Process saves source adds only missing tracks and logs.

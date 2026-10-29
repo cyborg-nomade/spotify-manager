@@ -2,6 +2,7 @@
 
 import copy
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -12,13 +13,13 @@ from functools import partialmethod
 from pathlib import Path
 from typing import Self
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
-
-from spotipy import Spotify
 
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.retry_attempts import RetryAttempts
 from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.service import StateNamespace
@@ -281,7 +282,7 @@ class AnnualObservations:
         self.state = copy.deepcopy(state)
         self.fail("accepted-save")
 
-    def owned(
+    async def owned(
         self, sp: Spotify, retry: legacy.RetryCall, excluded: str
     ) -> tuple[OwnedPlaylist, ...]:
         """Read current original owned playlists.
@@ -329,7 +330,7 @@ class AnnualObservations:
             None,
         )
 
-    def playlist(
+    async def playlist(
         self, sp: Spotify, identity: str, retry: legacy.RetryCall
     ) -> tuple[PlaylistTrack, ...]:
         """Read original accepted live ordered markers.
@@ -348,7 +349,7 @@ class AnnualObservations:
             for uri in self.contents.get(identity, [])
         )
 
-    def search(
+    async def search(
         self, sp: Spotify, play: Scrobble, retry: legacy.RetryCall
     ) -> tuple[SpotifyTrackMatch, ...]:
         """Supply original approximate/exact Spotify matches in observed order.
@@ -372,7 +373,7 @@ class AnnualObservations:
             _match(uri, play, exact),
         )
 
-    def album(
+    async def album(
         self, sp: Spotify, artist: str, name: str, retry: legacy.RetryCall
     ) -> SpotifyAlbum | None:
         """Supply original exact album mapping or no match.
@@ -391,7 +392,7 @@ class AnnualObservations:
             return None
         return SpotifyAlbum(name, name, artist, name, False, 1.0)
 
-    def first(
+    async def first(
         self, sp: Spotify, album: SpotifyAlbum, retry: legacy.RetryCall
     ) -> SpotifyFirstTrack:
         """Supply original first marker for a resolved release.
@@ -407,7 +408,7 @@ class AnnualObservations:
         self.record("first", album.spotify_id)
         return SpotifyFirstTrack(album.spotify_id, f"first-{album.spotify_id}", "First")
 
-    def artist(
+    async def artist(
         self, sp: Spotify, name: str, choice: object, retry: legacy.RetryCall
     ) -> SpotifyArtistCandidate | None:
         """Supply original exact artist mapping or cancellation.
@@ -427,7 +428,7 @@ class AnnualObservations:
         identity = "artist-a" if name == "Alpha" else "artist-b"
         return SpotifyArtistCandidate(identity, name, identity, None, None, 1)
 
-    def track(self, uri: str) -> dict[str, object]:
+    async def track(self, uri: str) -> dict[str, object]:
         """Supply original first-credit facts for prospective Memory Lane markers.
 
         Args:
@@ -440,7 +441,7 @@ class AnnualObservations:
         identity = "wrong" if self.profile == "wrong-primary" else _primary(uri)
         return {"artists": [{"id": identity}]}
 
-    def current_user(self) -> dict[str, str]:
+    async def current_user(self) -> dict[str, str]:
         """Read original owner before chart creation.
 
         Returns:
@@ -449,7 +450,7 @@ class AnnualObservations:
         self.record("owner")
         return {"id": "owner"}
 
-    def user_playlist_create(
+    async def user_playlist_create(
         self, user: str, name: str, *, public: bool, description: str
     ) -> dict[str, str]:
         """Accept original chart creation before optional lost-response failure.
@@ -469,7 +470,7 @@ class AnnualObservations:
         self.fail("accepted-create")
         return {"id": identity}
 
-    def _post(self, path: str, payload: dict[str, object]) -> None:
+    async def _post(self, path: str, payload: dict[str, object]) -> None:
         """Accept original missing-marker insertion.
 
         Args:
@@ -482,7 +483,7 @@ class AnnualObservations:
         current[position:position] = cast(list[str], payload["uris"])
         self.fail("accepted-post")
 
-    def _put(self, path: str, payload: dict[str, object]) -> None:
+    async def _put(self, path: str, payload: dict[str, object]) -> None:
         """Accept original chart replacement or marker reordering.
 
         Args:
@@ -621,7 +622,7 @@ def _match(uri: str, play: Scrobble, similarity: float) -> SpotifyTrackMatch:
     )
 
 
-def original_run(
+async def original_run(
     edge: AnnualObservations, preview: bool, year: int | None
 ) -> dict[str, object]:
     """Run original annual orchestration through complete observed boundary seams.
@@ -638,23 +639,35 @@ def original_run(
         (legacy, "datetime", FixedClock),
         (blast_from_past, "parse_playlist_id", edge.parse),
         (queue_3, "parse_playlist_id", edge.parse),
-        (queue_3, "load_owned_playlists", edge.owned),
+        (queue_3, "async_load_owned_playlists", AsyncMock(side_effect=edge.owned)),
         (
             AnnualDiscoveries,
             "run",
             partialmethod(annual_discoveries, edge.discoveries),
         ),
         (HistoryRefresh, "run", partialmethod(annual_history, edge.history)),
-        (new_wine, "load_playlist_tracks", edge.playlist),
-        (blast_from_past, "search_spotify_matches", edge.search),
-        (palace_of_memory, "search_spotify_album", edge.album),
-        (palace_of_memory, "load_first_track", edge.first),
-        (something_old, "resolve_spotify_artist", edge.artist),
+        (new_wine, "async_load_playlist_tracks", AsyncMock(side_effect=edge.playlist)),
+        (
+            blast_from_past,
+            "async_search_spotify_matches",
+            AsyncMock(side_effect=edge.search),
+        ),
+        (
+            palace_of_memory,
+            "async_search_spotify_album",
+            AsyncMock(side_effect=edge.album),
+        ),
+        (palace_of_memory, "async_load_first_track", AsyncMock(side_effect=edge.first)),
+        (
+            something_old,
+            "async_resolve_spotify_artist",
+            AsyncMock(side_effect=edge.artist),
+        ),
     )
     with ExitStack() as stack:
         for module, name, callback in bindings:
             stack.enter_context(patch.object(module, name, callback))
-        return legacy.run_new_year(
+        return await legacy.async_run_new_year(
             cast(Spotify, edge),
             cast(scrobble_history.LastFmReader, edge),
             configuration(),
@@ -667,7 +680,7 @@ def original_run(
         )
 
 
-def outcome(
+async def outcome(
     profile: str,
     preview: bool,
     failure: str | None,
@@ -675,7 +688,7 @@ def outcome(
     automatic_retry: bool = False,
     year: int | None = 2025,
     run: Callable[
-        [AnnualObservations, bool, int | None], dict[str, object]
+        [AnnualObservations, bool, int | None], Awaitable[dict[str, object]]
     ] = original_run,
 ) -> object:
     """Capture original complete outcomes, durable checkpoints and live mutations.
@@ -695,12 +708,12 @@ def outcome(
     edge = AnnualObservations(profile, failure, automatic_retry)
     result: dict[str, object] = {}
     try:
-        result["result"] = run(edge, preview, year)
+        result["result"] = await run(edge, preview, year)
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     if resume:
         edge.failure = None
-        result["resumed"] = run(edge, preview, year)
+        result["resumed"] = await run(edge, preview, year)
     result.update(trace=edge.trace, state=edge.state, contents=edge.contents)
     return json.loads(json.dumps(result))
 
@@ -726,7 +739,7 @@ class AnnualAttemptPolicy:
     def accepted(self) -> None:
         """Accept the original response without another observation."""
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Permit only the original optional first RuntimeError retry.
 
         Args:

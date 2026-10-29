@@ -129,7 +129,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page_items) < len(items) else None,
         }
 
-    def current_user_saved_albums(self, limit: int, offset: int) -> dict:
+    async def current_user_saved_albums(self, limit: int, offset: int) -> dict:
         assert limit <= 50
         self.album_calls.append(offset)
         if self.album_errors:
@@ -147,7 +147,7 @@ class FakeSpotify:
             offset,
         )
 
-    def current_user_saved_tracks(self, limit: int, offset: int) -> dict:
+    async def current_user_saved_tracks(self, limit: int, offset: int) -> dict:
         assert limit <= 10
         self.track_calls.append(offset)
         if self.track_rate_limit_offset == offset:
@@ -164,7 +164,7 @@ class FakeSpotify:
             offset,
         )
 
-    def current_user_followed_artists(
+    async def current_user_followed_artists(
         self,
         limit: int,
         after: str | None,
@@ -192,7 +192,7 @@ class FakeSpotify:
             }
         }
 
-    def current_user_following_artists(self, artist_ids: list[str]) -> list[bool]:
+    async def current_user_following_artists(self, artist_ids: list[str]) -> list[bool]:
         assert len(artist_ids) <= analyse_library.ARTIST_VERIFICATION_BATCH_LIMIT
         self.artist_contains_calls.append(list(artist_ids))
         if self.artist_contains_errors:
@@ -202,7 +202,7 @@ class FakeSpotify:
         return [artist_id in followed_ids for artist_id in artist_ids]
 
 
-def test_export_analysis_only_reads_your_library_and_writes_async_files(
+async def test_export_analysis_only_reads_your_library_and_writes_async_files(
     tmp_path: Path,
 ) -> None:
     """Export analysis only reads your library and writes async files.
@@ -241,7 +241,7 @@ def test_export_analysis_only_reads_your_library_and_writes_async_files(
     assert (Path(summary.backup_dir) / "manifest.json").exists()
 
 
-def test_export_analysis_can_be_cancelled_and_resumed(tmp_path: Path) -> None:
+async def test_export_analysis_can_be_cancelled_and_resumed(tmp_path: Path) -> None:
     """Export analysis can be cancelled and resumed.
 
     Args:
@@ -257,9 +257,11 @@ def test_export_analysis_can_be_cancelled_and_resumed(tmp_path: Path) -> None:
     )
 
     with pytest.raises(analyse_library.LibraryAnalysisCancelledError):
-        analyse_library.analyse_library_async_routine(
-            paths=paths,
-            cancel_check=CancellationFlag(True),
+        (
+            analyse_library.analyse_library_async_routine(
+                paths=paths,
+                cancel_check=CancellationFlag(True),
+            )
         )
 
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
@@ -267,7 +269,7 @@ def test_export_analysis_can_be_cancelled_and_resumed(tmp_path: Path) -> None:
     assert json.loads(paths.checkpoint.read_text())["status"] == "running"
 
 
-def test_live_analysis_reconciles_additions_without_restarting_on_new_total(
+async def test_live_analysis_reconciles_additions_without_restarting_on_new_total(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "sync")
@@ -302,7 +304,7 @@ def test_live_analysis_reconciles_additions_without_restarting_on_new_total(
     assert {item.source for item in summary.resources} == {"live_api"}
 
 
-def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
+async def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -342,7 +344,7 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
     assert ids(paths.liked_tracks_total) == ["old-track"]
 
 
-def test_live_mirror_incremental_resources_merge_additions_without_removing(
+async def test_live_mirror_incremental_resources_merge_additions_without_removing(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -405,7 +407,7 @@ def test_live_mirror_incremental_resources_merge_additions_without_removing(
     assert any(item["event"] == "incremental_tracks_seeded" for item in events)
 
 
-def test_independent_album_mirror_refresh_does_not_touch_other_files(
+async def test_independent_album_mirror_refresh_does_not_touch_other_files(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -436,7 +438,7 @@ def test_independent_album_mirror_refresh_does_not_touch_other_files(
     assert (paths.checkpoint.parent / "albums" / "checkpoint.json").exists()
 
 
-def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
+async def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -472,7 +474,7 @@ def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
     assert (backup / "artists.before.json").exists()
 
 
-def test_independent_full_artist_refresh_removes_unfollowed_artists(
+async def test_independent_full_artist_refresh_removes_unfollowed_artists(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -481,13 +483,15 @@ def test_independent_full_artist_refresh_removes_unfollowed_artists(
     paths.artists_total.write_text(json.dumps([artist("old-artist").model_dump()]))
     spotify = FakeSpotify(artists=[artist("one"), artist("two")])
 
-    analyse_library.refresh_live_library_resource_routine(
-        spotify,
-        "artists",
-        paths=paths,
-        full_rebuild=True,
-        retry_base_seconds=0,
-        retry_max_seconds=0,
+    (
+        analyse_library.refresh_live_library_resource_routine(
+            spotify,
+            "artists",
+            paths=paths,
+            full_rebuild=True,
+            retry_base_seconds=0,
+            retry_max_seconds=0,
+        )
     )
 
     assert ids(paths.albums_total) == ["keep-album"]
@@ -498,7 +502,7 @@ def test_independent_full_artist_refresh_removes_unfollowed_artists(
     assert len(spotify.artist_calls) == 3
 
 
-def test_full_artist_refresh_falls_back_after_one_502_and_removes_unfollowed(
+async def test_full_artist_refresh_falls_back_after_one_502_and_removes_unfollowed(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -534,7 +538,9 @@ def test_full_artist_refresh_falls_back_after_one_502_and_removes_unfollowed(
     assert summary.resources[0].source == "live_verified_fallback"
 
 
-def test_artist_fallback_stops_after_bounded_contains_retries(tmp_path: Path) -> None:
+async def test_artist_fallback_stops_after_bounded_contains_retries(
+    tmp_path: Path,
+) -> None:
     """Artist fallback stops after bounded contains retries.
 
     Args:
@@ -549,20 +555,22 @@ def test_artist_fallback_stops_after_bounded_contains_retries(tmp_path: Path) ->
     )
 
     with pytest.raises(analyse_library.LibrarySyncError, match="3 attempts"):
-        analyse_library.refresh_live_library_resource_routine(
-            spotify,
-            "artists",
-            paths=paths,
-            full_rebuild=True,
-            retry_wait=RetryDecision(True),
-            retry_base_seconds=0,
-            retry_max_seconds=0,
+        (
+            analyse_library.refresh_live_library_resource_routine(
+                spotify,
+                "artists",
+                paths=paths,
+                full_rebuild=True,
+                retry_wait=RetryDecision(True),
+                retry_base_seconds=0,
+                retry_max_seconds=0,
+            )
         )
 
     assert len(spotify.artist_contains_calls) == 3
 
 
-def test_full_artist_refresh_bounds_cursor_pagination_before_verification(
+async def test_full_artist_refresh_bounds_cursor_pagination_before_verification(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
@@ -573,13 +581,15 @@ def test_full_artist_refresh_bounds_cursor_pagination_before_verification(
     paths.artists_total.write_text(json.dumps([item.model_dump() for item in artists]))
     spotify = FakeSpotify(artists=artists)
 
-    analyse_library.refresh_live_library_resource_routine(
-        spotify,
-        "artists",
-        paths=paths,
-        full_rebuild=True,
-        retry_base_seconds=0,
-        retry_max_seconds=0,
+    (
+        analyse_library.refresh_live_library_resource_routine(
+            spotify,
+            "artists",
+            paths=paths,
+            full_rebuild=True,
+            retry_base_seconds=0,
+            retry_max_seconds=0,
+        )
     )
 
     assert len(spotify.artist_calls) == analyse_library.ARTIST_DIRECT_MAX_PAGES
@@ -587,7 +597,7 @@ def test_full_artist_refresh_bounds_cursor_pagination_before_verification(
     assert set(ids(paths.artists_total)) == {item.spotify_id for item in artists}
 
 
-def test_live_analysis_retries_only_server_errors_with_exponential_delays(
+async def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     tmp_path: Path,
 ) -> None:
     """Live analysis retries only server errors with exponential delays.
@@ -599,10 +609,12 @@ def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     spotify = FakeSpotify(album_errors=[500, 503])
     notices: list[analyse_library.RetryNotice] = []
 
-    analyse_library.analyse_library_sync_routine(
-        spotify,
-        paths=paths,
-        retry_wait=RetryDecision(True, notices),
+    (
+        analyse_library.analyse_library_sync_routine(
+            spotify,
+            paths=paths,
+            retry_wait=RetryDecision(True, notices),
+        )
     )
 
     assert [notice.http_status for notice in notices] == [500, 503]
@@ -612,7 +624,7 @@ def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     assert [item["delay_seconds"] for item in retries] == [10, 20]
 
 
-def test_live_analysis_retries_connection_resets_with_exponential_delays(
+async def test_live_analysis_retries_connection_resets_with_exponential_delays(
     tmp_path: Path,
 ) -> None:
     """Live analysis retries connection resets with exponential delays.
@@ -626,10 +638,12 @@ def test_live_analysis_retries_connection_resets_with_exponential_delays(
     notices: list[analyse_library.RetryNotice] = []
     spotify.current_user_saved_albums = pages.read  # type: ignore[method-assign]
 
-    analyse_library.analyse_library_sync_routine(
-        spotify,
-        paths=paths,
-        retry_wait=RetryDecision(True, notices),
+    (
+        analyse_library.analyse_library_sync_routine(
+            spotify,
+            paths=paths,
+            retry_wait=RetryDecision(True, notices),
+        )
     )
 
     assert pages.calls > 1
@@ -646,7 +660,9 @@ def test_retry_delay_stays_capped_for_many_failures() -> None:
     assert analyse_library.retry_delay(120, 1800, 1_000_000) == 1800
 
 
-def test_live_analysis_can_quit_cleanly_during_server_retry(tmp_path: Path) -> None:
+async def test_live_analysis_can_quit_cleanly_during_server_retry(
+    tmp_path: Path,
+) -> None:
     """Live analysis can quit cleanly during server retry.
 
     Args:
@@ -656,10 +672,12 @@ def test_live_analysis_can_quit_cleanly_during_server_retry(tmp_path: Path) -> N
     spotify = FakeSpotify(album_errors=[502])
 
     with pytest.raises(analyse_library.LibraryAnalysisCancelledError):
-        analyse_library.analyse_library_sync_routine(
-            spotify,
-            paths=paths,
-            retry_wait=RetryDecision(False),
+        (
+            analyse_library.analyse_library_sync_routine(
+                spotify,
+                paths=paths,
+                retry_wait=RetryDecision(False),
+            )
         )
 
     checkpoint = json.loads(paths.checkpoint.read_text())
@@ -670,7 +688,7 @@ def test_live_analysis_can_quit_cleanly_during_server_retry(tmp_path: Path) -> N
     assert events[-1]["event"] == "run_paused"
 
 
-def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
+async def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "sync")
@@ -678,11 +696,13 @@ def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
     first = FakeSpotify(tracks=tracks, track_rate_limit_offset=10)
 
     with pytest.raises(analyse_library.SpotifyRateLimitError) as exc_info:
-        analyse_library.analyse_library_sync_routine(
-            first,
-            paths=paths,
-            retry_base_seconds=0,
-            retry_max_seconds=0,
+        (
+            analyse_library.analyse_library_sync_routine(
+                first,
+                paths=paths,
+                retry_base_seconds=0,
+                retry_max_seconds=0,
+            )
         )
 
     assert exc_info.value.retry_after_seconds == 90
@@ -691,11 +711,13 @@ def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
     assert checkpoint["resources"]["tracks"]["offset"] == 10
 
     second = FakeSpotify(tracks=tracks)
-    analyse_library.analyse_library_sync_routine(
-        second,
-        paths=paths,
-        retry_base_seconds=0,
-        retry_max_seconds=0,
+    (
+        analyse_library.analyse_library_sync_routine(
+            second,
+            paths=paths,
+            retry_base_seconds=0,
+            retry_max_seconds=0,
+        )
     )
 
     assert second.album_calls == []
@@ -703,7 +725,7 @@ def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
     assert set(ids(paths.liked_tracks_total)) == {f"t{index:02}" for index in range(12)}
 
 
-def test_restore_searches_both_output_families(tmp_path: Path) -> None:
+async def test_restore_searches_both_output_families(tmp_path: Path) -> None:
     paths = paths_for(tmp_path, "async")
     paths.your_library.write_text(
         YourLibraryFile(
@@ -734,7 +756,7 @@ class FlakyAlbumPages:
     spotify: FakeSpotify
     calls: int = 0
 
-    def read(self, limit: int, offset: int) -> dict[str, object]:
+    async def read(self, limit: int, offset: int) -> dict[str, object]:
         """Read the original page after one transport reset.
 
         Args:
@@ -753,4 +775,4 @@ class FlakyAlbumPages:
                 "Connection aborted.",
                 ConnectionResetError(104, "Connection reset by peer"),
             )
-        return FakeSpotify.current_user_saved_albums(self.spotify, limit, offset)
+        return await FakeSpotify.current_user_saved_albums(self.spotify, limit, offset)

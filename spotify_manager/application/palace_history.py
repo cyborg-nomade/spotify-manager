@@ -31,7 +31,7 @@ class PalaceHistory:
     progress: Messages
     first: date
 
-    def run(
+    async def run(
         self, count: int
     ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
         """Gather original rankings before requesting ordered unique date indexes.
@@ -48,7 +48,7 @@ class PalaceHistory:
             IndexError: The original custom reader returns an out-of-range index.
         """
         self.progress.echo("Loading Last.fm album history")
-        history = self._history()
+        history = await self._history()
         cutoff = self.source.cutoff()
         rankings = dated_rankings(history, self.first, cutoff)
         if count > len(rankings):
@@ -57,18 +57,18 @@ class PalaceHistory:
                 f"through {cutoff.isoformat()}."
             )
         self.progress.echo("Requesting five unique date indexes from Random.org")
-        indexes = self._random(len(rankings), count)
+        indexes = await self._random(len(rankings), count)
         selected = selected_albums(rankings, indexes.indexes, indexes.generated_at)
         return indexes.generated_at, cutoff, len(rankings), selected
 
-    def _history(self) -> dict[date, list[Scrobble]]:
+    async def _history(self) -> dict[date, list[Scrobble]]:
         try:
-            return self.source.history()
+            return await self.source.history()
         except LastFmExportError as exc:
             raise PalaceOfMemoryDataError(str(exc)) from exc
 
-    def _random(self, population: int, count: int) -> RandomIndexSet:
+    async def _random(self, population: int, count: int) -> RandomIndexSet:
         try:
-            return self.source.random(population, count)
+            return await self.source.random(population, count)
         except (ValueError, RandomOrgError) as exc:
             raise PalaceOfMemoryError(str(exc)) from exc

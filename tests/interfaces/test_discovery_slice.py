@@ -2,30 +2,29 @@
 
 import json
 from collections.abc import Iterator
-from functools import partial
-from threading import Thread
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import clients
 from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import new_kids
 from tests.interfaces.test_slow_listening_slice import _stop
-from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_new_kids import FakeSpotify
 from tests.routines.test_new_kids import raw_release
 from tests.routines.test_new_kids import raw_track
 from tests.routines.test_scrobble_history import FakeLastFm
+from tests.support.runtime_resources import provided_lastfm
 
 
 def _spotify() -> FakeSpotify:
@@ -65,22 +64,23 @@ def discovery_http(
         Real HTTP client and mutable Spotify simulation, with worker cleanup.
     """
     spotify = _spotify()
-    threads: list[Thread] = []
     history = [{"artist": "Unrelated", "track": "Old", "album": "Old", "date": 1000}]
     new_kids.DEFAULT_SCROBBLES_PATH.write_text(
         json.dumps({"username": "test-user", "scrobbles": history})
     )
     monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=FakeLastFm(())))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=FakeLastFm(())))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
-    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
-    try:
-        yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
-    finally:
-        _stop(threads)
+    with _http_client(monkeypatch, cast(Spotify, spotify)) as http:
+        try:
+            yield (http, spotify)
+        finally:
+            _stop()
 
 
 def _queue_review(spotify: FakeSpotify) -> None:

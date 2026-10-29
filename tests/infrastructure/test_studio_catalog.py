@@ -1,13 +1,15 @@
 """Shared studio track failures retain each routine's original error translation."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue_result import RequeueForADreamError
 from spotify_manager.application.slow_listening_values import SlowListeningError
 from spotify_manager.domain.catalog import DiscographyRelease
@@ -32,7 +34,9 @@ def _failed_tracks(
     raise new_wine.NewWineError("tracks unavailable")
 
 
-def _reader(consumer: str) -> Callable[[DiscographyRelease], tuple[ReleaseTrack, ...]]:
+def _reader(
+    consumer: str,
+) -> Callable[[DiscographyRelease], Awaitable[tuple[ReleaseTrack, ...]]]:
     client = cast(Spotify, object())
     if consumer == "shared":
         return StudioCatalogAccess(client, NoRetry()).tracks
@@ -49,7 +53,7 @@ def _reader(consumer: str) -> Callable[[DiscographyRelease], tuple[ReleaseTrack,
         ("requeue", RequeueForADreamError),
     ],
 )
-def test_shared_track_error_retains_message_and_cause_chain(
+async def test_shared_track_error_retains_message_and_cause_chain(
     monkeypatch: pytest.MonkeyPatch,
     consumer: str,
     error_type: type[Exception],
@@ -61,9 +65,11 @@ def test_shared_track_error_retains_message_and_cause_chain(
         consumer: Original shared catalog consumer.
         error_type: Expected outer routine error type.
     """
-    monkeypatch.setattr(new_wine, "load_release_tracks", _failed_tracks)
+    monkeypatch.setattr(
+        new_wine, "async_load_release_tracks", AsyncMock(side_effect=_failed_tracks)
+    )
     with pytest.raises(error_type, match="tracks unavailable") as error:
-        _reader(consumer)(studio_release("album", "Album"))
+        await _reader(consumer)(studio_release("album", "Album"))
     cause = error.value.__cause__
     if consumer == "requeue":
         assert isinstance(cause, SlowListeningError)

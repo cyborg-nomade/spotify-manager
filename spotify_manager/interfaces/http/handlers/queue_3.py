@@ -1,8 +1,8 @@
 """Validate and present queue 3 HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.discovery import Queue3ChoiceRequest
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
@@ -10,7 +10,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import queue_3 as queue_3
 
 
-def cmd_flush_queue_3(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_flush_queue_3(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start an interactive Queue 3 flush with reconnectable web state.
 
     Args:
@@ -28,10 +28,12 @@ def cmd_flush_queue_3(client: Spotify, dry_run: bool) -> BlastJobResult:
         playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
     except queue_3.Queue3ConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_queue_3_job(client, playlist_id, dry_run=dry_run)
+    return await jobs.start_queue_3_job(client, playlist_id, dry_run=dry_run)
 
 
-def cmd_import_queue_3_previous_year(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_import_queue_3_previous_year(
+    client: Spotify, dry_run: bool
+) -> BlastJobResult:
     """Start the annual Queue 3 import without advancing existing artists.
 
     Args:
@@ -49,7 +51,7 @@ def cmd_import_queue_3_previous_year(client: Spotify, dry_run: bool) -> BlastJob
         playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
     except queue_3.Queue3ConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_queue_3_job(
+    return await jobs.start_queue_3_job(
         client, playlist_id, dry_run=dry_run, annual_only=True
     )
 

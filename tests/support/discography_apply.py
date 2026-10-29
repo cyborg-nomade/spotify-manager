@@ -1,9 +1,10 @@
 """Freeze original Discography removal, audit and final checkpoint ordering."""
 
 import json
+from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from contextlib import ExitStack
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -12,9 +13,8 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import discography as legacy
@@ -116,7 +116,7 @@ class ApplyEffects:
         if self.failure in {action, f"{action}:{count}"}:
             raise RuntimeError(f"{self.failure} failed")
 
-    def _delete(self, path: str, payload: dict[str, object]) -> None:
+    async def _delete(self, path: str, payload: dict[str, object]) -> None:
         """Accept original SDK removal batches.
 
         Args:
@@ -186,17 +186,17 @@ class ApplyEffects:
         self.record("state-load")
         return {"version": 1, "next_queue": self.priority, "retained": "value"}
 
-    def save(self, state: dict[str, object]) -> None:
+    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
         """Accept original single final checkpoint.
 
         Args:
-            state: Original complete mutated state.
+            value: Original complete mutated value.
         """
-        self.record("state-save", dict(state))
-        self.priority = cast(str, state["next_queue"])
+        self.record("state-save", dict(value))
+        self.priority = cast(str, value["next_queue"])
         self.fail("accepted-state-save")
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Observe the original retry boundary before a direct operation.
 
         Args:
@@ -217,7 +217,9 @@ class ApplyEffects:
         self.progress(message)
 
 
-def original_apply(edge: ApplyEffects, empty: bool) -> legacy.DiscographyRunSummary:
+async def original_apply(
+    edge: ApplyEffects, empty: bool
+) -> legacy.DiscographyRunSummary:
     """Run the original public apply coordinator.
 
     Args:
@@ -230,7 +232,7 @@ def original_apply(edge: ApplyEffects, empty: bool) -> legacy.DiscographyRunSumm
     with ExitStack() as stack:
         stack.enter_context(patch.object(legacy, "_append_log", edge.audit))
         stack.enter_context(patch.object(legacy, "_state_access", edge.state))
-        return legacy.apply_discography_plan(
+        return await legacy.async_apply_discography_plan(
             cast(Spotify, edge),
             plan(empty),
             retry_call=edge,
@@ -240,11 +242,13 @@ def original_apply(edge: ApplyEffects, empty: bool) -> legacy.DiscographyRunSumm
         )
 
 
-def apply_outcome(
+async def apply_outcome(
     failure: str | None,
     empty: bool,
     resume: bool,
-    run: Callable[[ApplyEffects, bool], legacy.DiscographyRunSummary] = original_apply,
+    run: Callable[
+        [ApplyEffects, bool], Awaitable[legacy.DiscographyRunSummary]
+    ] = original_apply,
 ) -> object:
     """Capture original accepted effects and optional replay of the confirmed plan.
 
@@ -260,11 +264,11 @@ def apply_outcome(
     edge = ApplyEffects(failure)
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = asdict(run(edge, empty))
+        outcome["result"] = asdict(await run(edge, empty))
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     if resume:
         edge.failure = None
-        outcome["resumed"] = asdict(run(edge, empty))
+        outcome["resumed"] = asdict(await run(edge, empty))
     outcome.update(trace=edge.trace, removed=edge.removed, priority=edge.priority)
     return json.loads(json.dumps(outcome))

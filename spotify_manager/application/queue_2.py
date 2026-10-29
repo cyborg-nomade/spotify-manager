@@ -34,7 +34,7 @@ class Queue2Snapshot:
     kids_length_after: int
 
 
-def prepare_queue_review(
+async def prepare_queue_review(
     transfer: DiscoveryQueueTransfer, state: dict[str, object], daily_limit: int
 ) -> Queue2Snapshot:
     """Read both playlists before checking the original Queue 2 prefill conditions.
@@ -50,18 +50,18 @@ def prepare_queue_review(
     Raises:
         NewKidsStateError: A real New Kids run blocks a fresh Queue 2 invocation.
     """
-    current = list(transfer.access.playlist(transfer.destination))
+    current = list(await transfer.access.playlist(transfer.destination))
     kids_before = len(current)
-    queued = list(transfer.access.playlist(transfer.source))
+    queued = list(await transfer.access.playlist(transfer.source))
     queue_before = len(queued)
-    current, prefill, remaining = _prefill(transfer, state, current, queued)
+    current, prefill, remaining = await _prefill(transfer, state, current, queued)
     selected = _daily_selection(remaining, state, daily_limit)
     return Queue2Snapshot(
         selected, remaining, prefill, queue_before, kids_before, len(current)
     )
 
 
-def _prefill(
+async def _prefill(
     transfer: DiscoveryQueueTransfer,
     state: dict[str, object],
     current: list[PlaylistTrack],
@@ -79,7 +79,7 @@ def _prefill(
         raise NewKidsStateError(
             "The saved New Kids run must be resumed before Queue 2 can start."
         )
-    return transfer.move(current, state, queued)
+    return await transfer.move(current, state, queued)
 
 
 def _daily_selection(

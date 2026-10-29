@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Literal
 from typing import cast
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import BlockingRoutineState
 from spotify_manager.application.slow_listening import new_run
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.application.slow_listening_values import (
@@ -41,18 +43,30 @@ from spotify_manager.application.slow_listening_values import (
 from spotify_manager.application.slow_listening_values import (
     TrackActionReader as TrackActionReader,
 )
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
-
-# UFI
 from spotify_manager.domain import releases as release_policy
 from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.infrastructure import studio_records
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
+
+# UFI
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
+from spotify_manager.infrastructure.python_compat.slow_listening import (
+    BlockingListeningCompletion as LegacyListeningCompletion,
+)
+from spotify_manager.infrastructure.python_compat.slow_listening import (
+    BlockingReleaseOrder as LegacyReleaseOrder,
+)
+from spotify_manager.infrastructure.python_compat.slow_listening import (
+    BlockingTrackAction as LegacyTrackAction,
+)
 from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.routines import new_wine
 
@@ -150,7 +164,7 @@ def _release_date_key(value: str) -> tuple[int, int, int, str]:
     return release_policy.studio_date_key(value)
 
 
-def _load_saved_statuses(
+async def _load_saved_statuses(
     sp: Spotify,
     releases: list[DiscographyRelease],
     retry_call: RetryCall,
@@ -160,7 +174,7 @@ def _load_saved_statuses(
     ids = [release.spotify_id for release in releases]
     for start in range(0, len(ids), SAVED_ALBUM_BATCH_SIZE):
         batch = ids[start : start + SAVED_ALBUM_BATCH_SIZE]
-        response = _read_saved_batch(retry_call, batch, sp)
+        response = await _read_saved_batch(retry_call, batch, sp)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SlowListeningError("Spotify returned invalid saved-album statuses.")
         for spotify_id, saved in zip(batch, response, strict=True):
@@ -173,14 +187,14 @@ def _tie_key(artist_id: str, chronology_date: str) -> str:
     return f"{artist_id}:{chronology_date}"
 
 
-def _artist_release_page(
+async def _artist_release_page(
     sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> dict[str, object]:
     for attempt in retry_call.attempts(
         f"loading Slow Listening releases for {artist_id} at offset {offset}"
     ):
-        with attempt:
-            response = sp.artist_albums(
+        async with attempt:
+            response = await sp.artist_albums(
                 artist_id,
                 include_groups="album,single",
                 limit=ARTIST_RELEASE_PAGE_LIMIT,
@@ -200,13 +214,13 @@ def _collect_candidates(
             candidates[candidate.spotify_id] = candidate
 
 
-def _load_candidates(
+async def _load_candidates(
     sp: Spotify, artist_id: str, retry_call: RetryCall
 ) -> list[DiscographyRelease]:
     candidates: dict[str, DiscographyRelease] = {}
     offset = 0
     while True:
-        response = _artist_release_page(sp, artist_id, offset, retry_call)
+        response = await _artist_release_page(sp, artist_id, offset, retry_call)
         raw_items = cast(list[object], response["items"])
         _collect_candidates(raw_items, artist_id, candidates)
         offset += len(raw_items)
@@ -216,7 +230,7 @@ def _load_candidates(
             raise SlowListeningError("Spotify returned an empty artist release page.")
 
 
-def load_discography(
+async def async_load_discography(
     sp: Spotify, artist_id: str, retry_call: RetryCall
 ) -> tuple[DiscographyRelease, ...]:
     """Gather catalog facts and delegate edition selection to the pure policy.
@@ -234,29 +248,29 @@ def load_discography(
     """
     from spotify_manager.infrastructure.legacy.studio_catalog import StudioCatalogAccess
 
-    return StudioCatalogAccess(sp, retry_call).discography(artist_id)
+    return await StudioCatalogAccess(sp, retry_call).discography(artist_id)
 
 
-def _ordered_date_group(
+async def _ordered_date_group(
     artist_id: str,
     releases: tuple[DiscographyRelease, ...],
     order_reader: ReleaseOrderReader,
     release_orders: dict[str, object],
     checkpoint: Checkpoint,
 ) -> tuple[DiscographyRelease, ...]:
-    return ReleaseOrdering(order_reader, release_orders, checkpoint).ordered(
+    return await ReleaseOrdering(order_reader, release_orders, checkpoint).ordered(
         artist_id, releases
     )
 
 
-def _next_release(
+async def _next_release(
     current_release: DiscographyRelease,
     discography: tuple[DiscographyRelease, ...],
     order_reader: ReleaseOrderReader,
     release_orders: dict[str, object],
     checkpoint: Checkpoint,
 ) -> DiscographyRelease | None:
-    return ReleaseOrdering(order_reader, release_orders, checkpoint).following(
+    return await ReleaseOrdering(order_reader, release_orders, checkpoint).following(
         current_release, discography
     )
 
@@ -268,7 +282,7 @@ def _as_release_candidate(
     return release_candidate(release)
 
 
-def load_release_tracks(
+async def async_load_release_tracks(
     sp: Spotify,
     release: DiscographyRelease,
     retry_call: RetryCall,
@@ -288,7 +302,7 @@ def load_release_tracks(
     """
     from spotify_manager.infrastructure.legacy.studio_catalog import StudioCatalogAccess
 
-    return StudioCatalogAccess(sp, retry_call).tracks(release)
+    return await StudioCatalogAccess(sp, retry_call).tracks(release)
 
 
 def _default_state() -> dict[str, object]:
@@ -377,15 +391,20 @@ def save_state(
 
 
 def _state_access(
-    state_path: Path,
-    state_service: StateService | None,
-) -> RoutineState:
+    state_path: Path, state_service: StateService | None
+) -> BlockingRoutineState:
     """Resolve shared production state or an explicit legacy test path."""
     return routine_state_from(
         "slow_listening",
         SlowListeningStateCodec(),
         StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
+
+
+def _async_state_access(
+    state_path: Path, state_service: StateService | None
+) -> AsyncRoutineState:
+    return AsyncRoutineState(_state_access(state_path, state_service))
 
 
 def append_log(
@@ -430,7 +449,7 @@ def _track_index(
     return track_index(tracks, source)
 
 
-def _add_playlist_track(
+async def _add_playlist_track(
     sp: Spotify,
     playlist_id: str,
     track: new_wine.ReleaseTrack,
@@ -438,11 +457,11 @@ def _add_playlist_track(
 ) -> None:
     """Add a replacement before removing its source."""
     for attempt in retry_call.attempts(f"adding {track.name} to Slow Listening"):
-        with attempt:
-            _post_track(sp, playlist_id, track)
+        async with attempt:
+            await _post_track(sp, playlist_id, track)
 
 
-def _remove_playlist_track(
+async def _remove_playlist_track(
     sp: Spotify,
     playlist_id: str,
     source: new_wine.PlaylistTrack,
@@ -450,11 +469,11 @@ def _remove_playlist_track(
 ) -> None:
     """Remove the processed source after its replacement is secure."""
     for attempt in retry_call.attempts(f"removing {source.name} from Slow Listening"):
-        with attempt:
-            _delete_track(sp, playlist_id, source)
+        async with attempt:
+            await _delete_track(sp, playlist_id, source)
 
 
-def flush_slow_listening(
+async def async_flush_slow_listening(
     sp: Spotify,
     playlist_id: str,
     order_reader: ReleaseOrderReader,
@@ -495,7 +514,7 @@ def flush_slow_listening(
         flush_slow_listening as operation,
     )
 
-    return operation(
+    return await operation(
         sp,
         playlist_id,
         order_reader,
@@ -530,22 +549,148 @@ class ClockClock:
 _CLOCK_RESOURCE = ClockClock()
 
 
-def _post_track(sp: Spotify, playlist_id: str, track: new_wine.ReleaseTrack) -> object:
-    return sp._post(f"playlists/{playlist_id}/items", payload={"uris": [track.uri]})
+async def _post_track(
+    sp: Spotify, playlist_id: str, track: new_wine.ReleaseTrack
+) -> object:
+    return await sp._post(
+        f"playlists/{playlist_id}/items", payload={"uris": [track.uri]}
+    )
 
 
-def _delete_track(
+async def _delete_track(
     sp: Spotify, playlist_id: str, source: new_wine.PlaylistTrack
 ) -> object:
-    return sp._delete(
+    return await sp._delete(
         f"playlists/{playlist_id}/items", payload={"items": [{"uri": source.uri}]}
     )
 
 
-def _read_saved_batch(retry_call: RetryCall, batch: list[str], sp: Spotify) -> object:
+async def _read_saved_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
     for attempt in retry_call.attempts(
         f"checking {len(batch)} saved Slow Listening releases"
     ):
-        with attempt:
-            return sp.current_user_saved_albums_contains(batch)
+        async with attempt:
+            return await sp.current_user_saved_albums_contains(batch)
     raise AssertionError("Retry scopes must include an attempt")
+
+
+def load_discography(
+    sp: LegacySpotify, artist_id: str, retry_call: RetryCall | LegacyRetry
+) -> tuple[DiscographyRelease, ...]:
+    """Gather catalog facts and delegate edition selection to the pure policy.
+
+    Args:
+        sp: Existing synchronous client.
+        artist_id: Artist whose primary-credit releases are eligible.
+        retry_call: Original retry policy, preserving descriptions and read order.
+
+    Returns:
+        Selected studio editions in the existing chronological order.
+
+    Raises:
+        SlowListeningError: Catalog or membership responses are malformed.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_discography(legacy_spotify(sp), artist_id, PythonRetry(retry_call))
+    )
+
+
+def load_release_tracks(
+    sp: LegacySpotify, release: DiscographyRelease, retry_call: RetryCall | LegacyRetry
+) -> tuple[new_wine.ReleaseTrack, ...]:
+    """Load one selected edition in Spotify disc and track order.
+
+    Args:
+        sp: Caller-owned synchronous client.
+        release: Selected studio edition.
+        retry_call: Existing retry and cancellation callback.
+
+    Returns:
+        Playable tracks in their original order.
+
+    Raises:
+        SlowListeningError: Shared release-track parsing fails.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_release_tracks(legacy_spotify(sp), release, PythonRetry(retry_call))
+    )
+
+
+def flush_slow_listening(
+    sp: LegacySpotify,
+    playlist_id: str,
+    order_reader: ReleaseOrderReader | LegacyReleaseOrder,
+    completion_notifier: CompletionNotifier | LegacyListeningCompletion,
+    *,
+    action_reader: TrackActionReader | None | LegacyTrackAction = None,
+    dry_run: bool = False,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+    log_path: Path = DEFAULT_LOG_PATH,
+) -> FlushSummary:
+    """Advance the first two Slow Listening entries through explicit integrations.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        playlist_id: Configured Slow Listening playlist.
+        order_reader: Operator's equal-date release ordering callback.
+        completion_notifier: Completion acknowledgement callback.
+        action_reader: Optional per-track advance, skip or quit callback.
+        dry_run: Preview without playlist or checkpoint writes; audits are retained.
+        echo: Existing message sink.
+        progress_callback: Optional progress/cancellation callback.
+        retry_call: Optional original retry policy.
+        state_path: Original durable namespace location.
+        state_service: Optional explicit shared-state service.
+        log_path: Original audit destination.
+
+    Returns:
+        Unchanged summary including pause, resume and result fields.
+
+    Raises:
+        SlowListeningError: Observations, choices or durable state are invalid.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.python_compat.slow_listening import (
+        PythonListeningCompletion,
+    )
+    from spotify_manager.infrastructure.python_compat.slow_listening import (
+        PythonReleaseOrder,
+    )
+    from spotify_manager.infrastructure.python_compat.slow_listening import (
+        PythonTrackAction,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_slow_listening(
+            legacy_spotify(sp),
+            playlist_id,
+            PythonReleaseOrder(order_reader),
+            PythonListeningCompletion(completion_notifier),
+            action_reader=PythonTrackAction(action_reader)
+            if action_reader is not None
+            else None,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            state_path=state_path,
+            state_service=state_service,
+            log_path=log_path,
+        )
+    )

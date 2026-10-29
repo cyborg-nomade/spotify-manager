@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 
@@ -21,7 +20,7 @@ class LegacyAssessmentCatalog:
     client: Spotify
     retry: RetryCall
 
-    def saved(self, ids: list[str]) -> dict[str, bool]:
+    async def saved(self, ids: list[str]) -> dict[str, bool]:
         """Observe saved release membership.
 
         Args:
@@ -32,9 +31,9 @@ class LegacyAssessmentCatalog:
         """
         from spotify_manager.routines.new_kids import _assessment_saved
 
-        return _assessment_saved(self.client, ids, self.retry)
+        return await _assessment_saved(self.client, ids, self.retry)
 
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
+    async def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
         """Read a selected release's original ordered tracks.
 
         Args:
@@ -43,11 +42,13 @@ class LegacyAssessmentCatalog:
         Returns:
             Parsed playable tracks with primary credits.
         """
-        from spotify_manager.routines.new_kids import load_release_tracks
+        from spotify_manager.routines.new_kids import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
-        return load_release_tracks(self.client, release, self.retry)
+        return await load_release_tracks(self.client, release, self.retry)
 
-    def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
+    async def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
         """Observe likes through the original context-specific SDK call site.
 
         Args:
@@ -61,9 +62,9 @@ class LegacyAssessmentCatalog:
         from spotify_manager.routines.new_kids import _assessment_top_liked
 
         reader = _assessment_top_liked if top else _assessment_liked
-        return reader(self.client, ids, self.retry)
+        return await reader(self.client, ids, self.retry)
 
-    def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read eligible artist top tracks.
 
         Args:
@@ -72,12 +73,14 @@ class LegacyAssessmentCatalog:
         Returns:
             Original primary-credit-filtered top-track sequence.
         """
-        from spotify_manager.routines.new_kids import load_top_track_data
+        from spotify_manager.routines.new_kids import (
+            async_load_top_track_data as load_top_track_data,
+        )
 
-        _ranks, tracks = load_top_track_data(self.client, artist_id, self.retry)
+        _ranks, tracks = await load_top_track_data(self.client, artist_id, self.retry)
         return tracks
 
-    def popularities(self, ids: list[str]) -> dict[str, int]:
+    async def popularities(self, ids: list[str]) -> dict[str, int]:
         """Read popularity using the original fallback batching.
 
         Args:
@@ -88,4 +91,4 @@ class LegacyAssessmentCatalog:
         """
         from spotify_manager.routines.new_kids import _catalog_track_popularities
 
-        return _catalog_track_popularities(self.client, ids, self.retry)
+        return await _catalog_track_popularities(self.client, ids, self.retry)

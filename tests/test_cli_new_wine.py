@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -82,7 +83,9 @@ def test_new_wine_album_endpoint_prompt_accepts_finish(monkeypatch) -> None:
     assert "[f]inish" in prompts[0]
 
 
-def test_new_wine_canonical_endpoint_prompt_defaults_to_continue(monkeypatch) -> None:
+def test_new_wine_canonical_endpoint_prompt_defaults_to_continue(
+    monkeypatch,
+) -> None:
     """The optional endpoint prompt should map its conservative default."""
     release = main.new_wine.ReleaseCandidate(
         spotify_id="release",
@@ -176,7 +179,9 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
             wine_cellar_playlist="spotify:playlist:cellar",
         ),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
     monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(flush))
 
     result = CliRunner().invoke(
@@ -223,10 +228,14 @@ def test_flush_new_wine_renders_detailed_results_and_refill(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushNewWineRendersDetailedResultsAndRefillScenario()
     monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(scenario))
-    main.flush_new_wine_command(dry_run=False, no_discovery=True)
+    (main.flush_new_wine_command(dry_run=False, no_discovery=True))
     output = capsys.readouterr().out
     assert "chosen" in output
     assert "Wine Cellar (no-discovery)" in output
@@ -272,7 +281,9 @@ def test_flush_new_wine_reports_operational_failures(
             wine_cellar_playlist="cellar",
         ),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
 
     def fail(*_args, **_kwargs):
         raise error
@@ -280,7 +291,7 @@ def test_flush_new_wine_reports_operational_failures(
     monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(fail))
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+        (main.flush_new_wine_command(dry_run=False, no_discovery=False))
 
     assert exc.value.exit_code == exit_code
     assert message.casefold() in capsys.readouterr().out.casefold()
@@ -301,7 +312,7 @@ def test_flush_new_wine_reports_missing_configuration(
     )
 
     with pytest.raises(main.typer.Exit) as exc:
-        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+        (main.flush_new_wine_command(dry_run=False, no_discovery=False))
 
     assert exc.value.exit_code == 1
     assert "not configured" in capsys.readouterr().out

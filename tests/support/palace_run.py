@@ -15,13 +15,13 @@ from datetime import tzinfo
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
-
-from spotipy import Spotify
 
 from spotify_manager.application.palace_history import PalaceHistory
 from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import HistoricalAlbum
@@ -204,14 +204,14 @@ class PalaceObservations:
             }
         return {"next_alphabetical_index": 1, "unknown": "retained on read"}
 
-    def save(self, payload: dict[str, object]) -> None:
+    def save(self, value: dict[str, object], *, message: str | None = None) -> None:
         """Accept the original complete cursor replacement.
 
         Args:
-            payload: Original successful next-position checkpoint.
+            value: Original successful next-position checkpoint.
         """
-        self.record("state-save", deepcopy(payload))
-        self.cursor = deepcopy(payload)
+        self.record("state-save", deepcopy(value))
+        self.cursor = deepcopy(value)
         if self.failure == "accepted-state":
             self.record("accepted-state")
 
@@ -235,7 +235,7 @@ class PalaceObservations:
         selected = () if self.scenario == "empty-history" else history()
         return NOW, date(2025, 12, 31), 3, selected
 
-    def playlist(self, spotify: Spotify, identity: str) -> PlaylistState:
+    async def playlist(self, spotify: Spotify, identity: str) -> PlaylistState:
         """Supply initial and final live membership authority.
 
         Args:
@@ -257,7 +257,7 @@ class PalaceObservations:
             identities.add("track-remote")
         return PlaylistState(len(identities), frozenset(identities))
 
-    def first_track(
+    async def first_track(
         self, spotify: Spotify, album: legacy.SpotifyAlbum, retry: legacy.RetryCall
     ) -> legacy.SpotifyFirstTrack:
         """Supply original first tracks and observe run-scoped cache reuse.
@@ -274,7 +274,7 @@ class PalaceObservations:
         identity = f"track-{album.spotify_id}"
         return legacy.SpotifyFirstTrack(identity, f"spotify:track:{identity}", "First")
 
-    def search(
+    async def search(
         self, spotify: Spotify, artist: str, album: str, retry: legacy.RetryCall
     ) -> legacy.SpotifyAlbum | None:
         """Supply remote album resolution or an original no-match result.
@@ -295,7 +295,7 @@ class PalaceObservations:
             "remote", "spotify:album:remote", artist, album, False, 1.0
         )
 
-    def _post(self, path: str, payload: dict[str, object]) -> None:
+    async def _post(self, path: str, payload: dict[str, object]) -> None:
         self.record("append", path, payload)
         for uri in cast(list[str], payload["uris"]):
             self.accepted.add(uri.removeprefix("spotify:track:"))
@@ -358,22 +358,26 @@ def _patches(edge: PalaceObservations) -> tuple[tuple[object, str, object], ...]
         (SavedMirror, "run", partialmethod(_cursor_refresh, edge)),
         (legacy, "_state_access", edge.state),
         (PalaceHistory, "run", partialmethod(_historical, edge)),
-        (legacy, "load_first_track", edge.first_track),
-        (legacy, "search_spotify_album", edge.search),
+        (legacy, "async_load_first_track", AsyncMock(side_effect=edge.first_track)),
+        (legacy, "async_search_spotify_album", AsyncMock(side_effect=edge.search)),
         (legacy, "_append_log", edge.audit),
         (legacy, "datetime", FixedClock),
-        (blast_from_past, "load_playlist_state", edge.playlist),
+        (
+            blast_from_past,
+            "async_load_playlist_state",
+            AsyncMock(side_effect=edge.playlist),
+        ),
     )
 
 
-def _run(edge: PalaceObservations, preview: bool) -> object:
+async def _run(edge: PalaceObservations, preview: bool) -> object:
     override = "3" if edge.scenario == "override" else None
     if edge.scenario == "invalid-override":
         override = ""
     with ExitStack() as stack:
         for module, name, callback in _patches(edge):
             stack.enter_context(patch.object(module, name, callback))
-        result = legacy.fill_palace_of_memory(
+        result = await legacy.async_fill_palace_of_memory(
             cast(Spotify, edge),
             PalaceOptions(
                 playlist_id="destination",
@@ -394,7 +398,7 @@ def _run(edge: PalaceObservations, preview: bool) -> object:
     return asdict(result)
 
 
-def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def original_outcome(scenario: str, preview: bool, failure: str | None) -> object:
     """Observe the original complete runner before its application extraction.
 
     Args:
@@ -408,7 +412,7 @@ def original_outcome(scenario: str, preview: bool, failure: str | None) -> objec
     edge = PalaceObservations(scenario, failure)
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = _run(edge, preview)
+        outcome["result"] = await _run(edge, preview)
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome["trace"] = edge.trace
@@ -424,7 +428,7 @@ def cases() -> list[dict[str, object]]:
     return cast(list[dict[str, object]], json.loads(FIXTURE.read_text()))
 
 
-def recovery_outcome(failure: str) -> object:
+async def recovery_outcome(failure: str) -> object:
     """Replay original accepted effects and durable authority across a fresh run.
 
     Args:
@@ -436,16 +440,16 @@ def recovery_outcome(failure: str) -> object:
     edge = PalaceObservations("normal", failure)
     outcome: dict[str, object] = {}
     try:
-        _run(edge, False)
+        (await _run(edge, False))
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     edge.failure = None
-    outcome["result"] = _run(edge, False)
+    outcome["result"] = await _run(edge, False)
     outcome["trace"] = edge.trace
     return json.loads(json.dumps(outcome, default=str))
 
 
-def cursor_outcome(position: int, failure: str | None) -> object:
+async def cursor_outcome(position: int, failure: str | None) -> object:
     """Observe original manual cursor refresh and checkpoint ordering.
 
     Args:
@@ -458,18 +462,18 @@ def cursor_outcome(position: int, failure: str | None) -> object:
     edge = PalaceObservations("normal", failure)
     result: dict[str, object] = {}
     try:
-        result["result"] = _cursor_run(edge, position)
+        result["result"] = await _cursor_run(edge, position)
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
     return json.loads(json.dumps(result, default=str))
 
 
-def _cursor_run(edge: PalaceObservations, position: int) -> object:
+async def _cursor_run(edge: PalaceObservations, position: int) -> object:
     with ExitStack() as stack:
         for module, name, callback in _patches(edge):
             stack.enter_context(patch.object(module, name, callback))
-        result = legacy.set_alphabetical_cursor(
+        result = await legacy.async_set_alphabetical_cursor(
             cast(Spotify, edge),
             position,
             albums_path=Path("albums"),
@@ -484,7 +488,7 @@ def _cursor_run(edge: PalaceObservations, position: int) -> object:
     }
 
 
-def _historical(
+async def _historical(
     resources: PalaceHistory,
     edge: PalaceObservations,
     count: int,
@@ -498,7 +502,7 @@ def _historical(
     )
 
 
-def _cursor_refresh(
+async def _cursor_refresh(
     workflow: SavedMirror,
     edge: PalaceObservations,
 ) -> tuple[tuple[YourLibraryAlbum, ...], legacy.SavedAlbumRefresh]:

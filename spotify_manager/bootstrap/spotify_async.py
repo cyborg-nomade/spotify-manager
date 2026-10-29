@@ -59,6 +59,8 @@ class AsyncSpotifyRuntime:
     _transport: NativeSpotifyTransport | None = field(
         default=None, init=False, repr=False
     )
+    _views: list[NativeSpotifyTransport] = field(default_factory=list, init=False)
+    _closed: bool = field(default=False, init=False)
 
     async def __aenter__(self) -> AsyncSpotify:
         """Build OAuth resources off-loop and return the named native adapter.
@@ -69,7 +71,7 @@ class AsyncSpotifyRuntime:
         Raises:
             RuntimeError: This runtime is already entered.
         """
-        if self._transport is not None:
+        if self._transport is not None or self._closed:
             raise RuntimeError("Spotify runtime cannot be entered twice.")
         blocking = BlockingOAuth(asyncio.Semaphore(self.options.oauth_workers))
         provisioner = OAuthProvisioner(self.configuration, self.options.interactive)
@@ -88,6 +90,24 @@ class AsyncSpotifyRuntime:
         )
         return AsyncSpotify(self._transport)
 
+    def profile(self, retries: RetryProfile) -> AsyncSpotify:
+        """Bind a retry profile while sharing the loop's pool and refresh locks.
+
+        Args:
+            retries: Original interface-specific adapter retry settings.
+
+        Returns:
+            A client with independent credential rotation and shared refresh owners.
+
+        Raises:
+            RuntimeError: The owning runtime has not been entered.
+        """
+        if self._transport is None or self._closed:
+            raise RuntimeError("Spotify runtime has not been entered.")
+        transport = self._transport.retry_view(retries)
+        self._views.append(transport)
+        return AsyncSpotify(transport)
+
     async def __aexit__(
         self,
         kind: type[BaseException] | None,
@@ -101,8 +121,17 @@ class AsyncSpotifyRuntime:
             error: Original context failure.
             traceback: Original context traceback.
         """
-        if self._transport is not None:
+        if self._transport is None:
+            return
+        self._closed = True
+        try:
+            await self._close_views()
+        finally:
             await self._transport.aclose()
+
+    async def _close_views(self) -> None:
+        for view in self._views:
+            await view.aclose()
 
 
 def _http_client(options: SpotifyRuntimeOptions) -> httpx.AsyncClient:

@@ -43,7 +43,7 @@ class MemoryCredits:
         if name == self.fail:
             raise RuntimeError(name)
 
-    def save(self, state: RecoveryState) -> None:
+    async def save(self, state: RecoveryState) -> None:
         """Observe accepted recovery progress.
 
         Args:
@@ -51,7 +51,7 @@ class MemoryCredits:
         """
         self.effect("checkpoint")
 
-    def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
+    async def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
         """Read current membership in the supplied order.
 
         Args:
@@ -66,7 +66,7 @@ class MemoryCredits:
             return self.response
         return [artist.spotify_id in self.followed for artist in artists]
 
-    def follow(self, artists: list[AlbumArtist]) -> None:
+    async def follow(self, artists: list[AlbumArtist]) -> None:
         """Accept the requested follows.
 
         Args:
@@ -75,7 +75,7 @@ class MemoryCredits:
         self.effect("follow")
         self.followed.update(artist.spotify_id for artist in artists)
 
-    def record(self, artists: list[AlbumArtist]) -> set[str]:
+    async def record(self, artists: list[AlbumArtist]) -> set[str]:
         """Accept mirror publication for all checked artists.
 
         Args:
@@ -87,7 +87,7 @@ class MemoryCredits:
         self.effect("mirror")
         return {artist.spotify_id for artist in artists}
 
-    def audit(self, events: list[dict[str, object]]) -> None:
+    async def audit(self, events: list[dict[str, object]]) -> None:
         """Accept the original artist event documents.
 
         Args:
@@ -131,13 +131,15 @@ class MemoryCredits:
         return self.clock()
 
 
-def test_credits_keep_last_duplicate_name_first_position_and_forty_id_batches() -> None:
+async def test_credits_keep_last_duplicate_name_first_position_and_forty_id() -> None:
     """Retain stable dictionary deduplication, completed IDs, and batch boundaries."""
     fixture = MemoryCredits(followed={"2"})
     artists = [AlbumArtist(str(index), f"Artist {index}") for index in range(42)]
     artists.append(AlbumArtist("0", "Last observed name"))
     state = RecoveryState(set(), {"1"}, fixture)
-    result = follow_credited_artists(fixture.dependencies(), artists, state, False)
+    result = await follow_credited_artists(
+        fixture.dependencies(), artists, state, False
+    )
     assert result == (41, 40)
     assert [len(batch) for batch in fixture.batches] == [40, 1]
     assert fixture.batches[0][0] == AlbumArtist("0", "Last observed name")
@@ -148,11 +150,11 @@ def test_credits_keep_last_duplicate_name_first_position_and_forty_id_batches() 
     assert fixture.effects[:4] == ["statuses", "follow", "mirror", "clock"]
 
 
-def test_credit_preview_marks_checked_without_persisting_or_writing() -> None:
+async def test_credit_preview_marks_checked_without_persisting_or_writing() -> None:
     """Preview retains run-local deduplication and clocks but omits durable effects."""
     fixture = MemoryCredits()
     state = RecoveryState(set(), set(), fixture)
-    result = follow_credited_artists(
+    result = await follow_credited_artists(
         fixture.dependencies(), [AlbumArtist("a", "A")], state, True
     )
     assert result == (1, 1)
@@ -162,7 +164,9 @@ def test_credit_preview_marks_checked_without_persisting_or_writing() -> None:
 
 
 @pytest.mark.parametrize("response", [[], [True, False]])
-def test_credit_membership_length_fails_before_any_write(response: list[bool]) -> None:
+async def test_credit_membership_length_fails_before_any_write(
+    response: list[bool],
+) -> None:
     """Do not guess missing or excess follow statuses.
 
     Args:
@@ -171,24 +175,28 @@ def test_credit_membership_length_fails_before_any_write(response: list[bool]) -
     fixture = MemoryCredits(response=response)
     state = RecoveryState(set(), set())
     with pytest.raises(RuntimeError, match="incomplete artist-follow response"):
-        follow_credited_artists(
-            fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+        (
+            await follow_credited_artists(
+                fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+            )
         )
     assert fixture.effects == ["statuses"]
     assert not state.checked_artist_ids
 
 
-def test_credit_publication_failure_retains_follow_for_restart() -> None:
+async def test_credit_publication_failure_retains_follow_for_restart() -> None:
     """A retry observes an accepted remote follow before publishing its local record."""
     fixture = MemoryCredits(fail="mirror")
     state = RecoveryState(set(), set())
     artists = [AlbumArtist("a", "A")]
     with pytest.raises(RuntimeError, match="mirror"):
-        follow_credited_artists(fixture.dependencies(), artists, state, False)
+        (await follow_credited_artists(fixture.dependencies(), artists, state, False))
     assert fixture.followed == {"a"}
     assert state.checked_artist_ids == set()
     fixture.fail = None
-    assert follow_credited_artists(fixture.dependencies(), artists, state, False) == (
+    assert (
+        await follow_credited_artists(fixture.dependencies(), artists, state, False)
+    ) == (
         1,
         0,
     )
@@ -196,23 +204,27 @@ def test_credit_publication_failure_retains_follow_for_restart() -> None:
     assert fixture.events[0]["followed_now"] is False
 
 
-def test_credit_audit_failure_retains_in_memory_check_before_checkpoint() -> None:
+async def test_credit_audit_failure_retains_in_memory_check_before() -> None:
     """Audit failure occurs after marking checked but before durable persistence."""
     fixture = MemoryCredits(fail="audit")
     state = RecoveryState(set(), set(), fixture)
     with pytest.raises(RuntimeError, match="audit"):
-        follow_credited_artists(
-            fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+        (
+            await follow_credited_artists(
+                fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+            )
         )
     assert state.checked_artist_ids == {"a"}
     assert "checkpoint" not in fixture.effects
 
 
-def test_completed_credits_skip_all_observations() -> None:
+async def test_completed_credits_skip_all_observations() -> None:
     """An entirely completed batch performs no work and returns zero counts."""
     fixture = MemoryCredits()
     state = RecoveryState(set(), {"a"})
-    assert follow_credited_artists(
-        fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+    assert (
+        await follow_credited_artists(
+            fixture.dependencies(), [AlbumArtist("a", "A")], state, False
+        )
     ) == (0, 0)
     assert fixture.effects == []

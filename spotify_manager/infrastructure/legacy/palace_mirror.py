@@ -1,17 +1,19 @@
 """Bind saved-mirror preflight to original live parsing, ordering and file effects."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.palace_mirror import SavedAlbumPage
 from spotify_manager.application.palace_values import PalaceOfMemoryDataError
 from spotify_manager.application.palace_values import SavedAlbumRefresh
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.library_models import album_from_saved_item
 from spotify_manager.infrastructure.library_models import deduplicate_models
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import palace_of_memory as legacy
 from spotify_manager.utils.sorting import album_sort_key
@@ -37,7 +39,7 @@ class LegacySavedMirror:
     retry: legacy.RetryCall
     callback: legacy.ProgressCallback | None
 
-    def previous(self) -> tuple[YourLibraryAlbum, ...]:
+    async def previous(self) -> tuple[YourLibraryAlbum, ...]:
         """Read the original mirror only when its canonical file exists.
 
         Returns:
@@ -45,7 +47,11 @@ class LegacySavedMirror:
         """
         from spotify_manager.routines.palace_of_memory import load_saved_albums
 
-        return load_saved_albums(self.path) if self.path.exists() else ()
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(load_saved_albums, self.path)
+            )
+            return await finish_blocking(file_operation) if self.path.exists() else ()
 
     def progress(self, message: str) -> None:
         """Retain original optional paging progress.
@@ -56,7 +62,7 @@ class LegacySavedMirror:
         if self.callback is not None:
             self.callback.echo(message)
 
-    def page(self, offset: int) -> SavedAlbumPage:
+    async def page(self, offset: int) -> SavedAlbumPage:
         """Read original raw saved rows and retain exact raw offset accounting.
 
         Args:
@@ -73,8 +79,8 @@ class LegacySavedMirror:
         for attempt in self.retry.attempts(
             f"refreshing saved albums at offset {offset}"
         ):
-            with attempt:
-                response = _read_saved_album_page(self.spotify, offset)
+            async with attempt:
+                response = await _read_saved_album_page(self.spotify, offset)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -106,7 +112,7 @@ class LegacySavedMirror:
             )
         )
 
-    def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
+    async def replace(self, albums: tuple[YourLibraryAlbum, ...]) -> str | None:
         """Retain original backup, atomic replacement and publication ordering.
 
         Args:
@@ -117,7 +123,13 @@ class LegacySavedMirror:
         """
         from spotify_manager.routines.palace_of_memory import _replace_saved_albums
 
-        return _replace_saved_albums(self.path, self.backups, albums)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _replace_saved_albums, self.path, self.backups, albums
+                )
+            )
+            return await finish_blocking(file_operation)
 
     def clock(self) -> datetime:
         """Retain original independent UTC refresh completion timestamp.
@@ -127,7 +139,7 @@ class LegacySavedMirror:
         """
         return legacy.datetime.now(UTC)
 
-    def audit(self, refresh: SavedAlbumRefresh) -> None:
+    async def audit(self, refresh: SavedAlbumRefresh) -> None:
         """Retain original unchanged-mirror and replaced-mirror preflight audits.
 
         Args:
@@ -135,4 +147,8 @@ class LegacySavedMirror:
         """
         from spotify_manager.routines.palace_of_memory import _append_refresh_log
 
-        _append_refresh_log(self.log_path, refresh)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_refresh_log, self.log_path, refresh)
+            )
+            await finish_blocking(file_operation)

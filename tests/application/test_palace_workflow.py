@@ -21,6 +21,7 @@ from spotify_manager.domain.palace_albums import cursor_index
 from spotify_manager.domain.palace_values import HistoricalAlbumSelection
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from spotify_manager.models.your_library import YourLibraryAlbum
 from tests.support.palace_run import FIXTURE
 from tests.support.palace_run import PalaceObservations
@@ -65,7 +66,7 @@ class MemoryPalace:
             Original typed in-memory cursor boundary.
         """
         self.edge.record("state-access", "cursor", True)
-        return self.edge
+        return AsyncRoutineState(self.edge)
 
     def start_index(
         self,
@@ -108,7 +109,7 @@ class MemoryPalace:
         selected = () if self.edge.scenario == "empty-history" else history()
         return NOW, date(2025, 12, 31), 3, selected
 
-    def playlist(self, recheck: bool) -> PlaylistState:
+    async def playlist(self, recheck: bool) -> PlaylistState:
         """Supply original retry placement and current live membership.
 
         Args:
@@ -132,7 +133,7 @@ class MemoryPalace:
             identities.add("track-remote")
         return PlaylistState(len(identities), frozenset(identities))
 
-    def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Supply original first-marker facts.
 
         Args:
@@ -145,7 +146,7 @@ class MemoryPalace:
         identity = f"track-{album.spotify_id}"
         return SpotifyFirstTrack(identity, f"spotify:track:{identity}", "First")
 
-    def search(self, artist: str, album: str) -> SpotifyAlbum | None:
+    async def search(self, artist: str, album: str) -> SpotifyAlbum | None:
         """Supply original remote resolution or no-match facts.
 
         Args:
@@ -160,15 +161,18 @@ class MemoryPalace:
             return None
         return SpotifyAlbum("remote", "spotify:album:remote", artist, album, False, 1.0)
 
-    def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
+    async def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
         """Accept original distinct pending markers through the original retry seam.
 
         Args:
             pending: Original ordered pending markers.
         """
         self.edge.record("retry", "adding first tracks to Palace of Memory")
-        self.edge._post(
-            "playlists/destination/items", {"uris": [track.uri for track in pending]}
+        (
+            await self.edge._post(
+                "playlists/destination/items",
+                {"uris": [track.uri for track in pending]},
+            )
         )
 
     def echo(self, message: str) -> None:
@@ -199,7 +203,7 @@ class MemoryPalace:
             "last_alphabetical_album": last.album,
         }
 
-    def audit(self, summary: PalaceOfMemorySummary) -> None:
+    async def audit(self, summary: PalaceOfMemorySummary) -> None:
         """Accept original audit after the durable cursor checkpoint.
 
         Args:
@@ -218,7 +222,7 @@ class ScriptedMirror:
 
     effects: MemoryPalace
 
-    def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+    async def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
         """Return the original stage outcome.
 
         Returns:
@@ -237,7 +241,7 @@ class ScriptedHistory:
 
     effects: MemoryPalace
 
-    def run(
+    async def run(
         self, count: int
     ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
         """Return the original history-stage outcome.
@@ -251,12 +255,12 @@ class ScriptedHistory:
         return self.effects.historical()
 
 
-def _run(edge: PalaceObservations, preview: bool) -> object:
+async def _run(edge: PalaceObservations, preview: bool) -> object:
     override = "3" if edge.scenario == "override" else None
     if edge.scenario == "invalid-override":
         override = ""
     effects = MemoryPalace(edge)
-    result = Palace(
+    result = await Palace(
         effects,
         cast(SavedMirror, ScriptedMirror(effects)),
         cast(PalaceHistory, ScriptedHistory(effects)),
@@ -265,13 +269,13 @@ def _run(edge: PalaceObservations, preview: bool) -> object:
     return asdict(result)
 
 
-def _outcome(case: dict[str, object]) -> object:
+async def _outcome(case: dict[str, object]) -> object:
     edge = PalaceObservations(
         cast(str, case["scenario"]), cast(str | None, case["failure"])
     )
     result: dict[str, object] = {}
     try:
-        result["result"] = _run(edge, bool(case["preview"]))
+        result["result"] = await _run(edge, bool(case["preview"]))
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
@@ -279,13 +283,15 @@ def _outcome(case: dict[str, object]) -> object:
 
 
 @pytest.mark.parametrize("case", cases())
-def test_injected_palace_matches_original_complete_run(case: dict[str, object]) -> None:
+async def test_injected_palace_matches_original_complete_run(
+    case: dict[str, object],
+) -> None:
     """Compare complete results and accepted-effect prefixes with the original runner.
 
     Args:
         case: Original immutable inputs and observed outcome.
     """
-    assert _outcome(case) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]
 
 
 def _recovery_cases() -> list[dict[str, object]]:
@@ -295,21 +301,21 @@ def _recovery_cases() -> list[dict[str, object]]:
     )
 
 
-def _recovery_outcome(failure: str) -> object:
+async def _recovery_outcome(failure: str) -> object:
     edge = PalaceObservations("normal", failure)
     outcome: dict[str, object] = {}
     try:
-        _run(edge, False)
+        (await _run(edge, False))
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     edge.failure = None
-    outcome["result"] = _run(edge, False)
+    outcome["result"] = await _run(edge, False)
     outcome["trace"] = edge.trace
     return json.loads(json.dumps(outcome, default=str))
 
 
 @pytest.mark.parametrize("case", _recovery_cases())
-def test_palace_recovery_retains_original_live_and_checkpoint_authority(
+async def test_palace_recovery_retains_original_live_and_checkpoint_authority(
     case: dict[str, object],
 ) -> None:
     """Retain original resumed cursor positions and suppression of accepted markers.
@@ -318,5 +324,5 @@ def test_palace_recovery_retains_original_live_and_checkpoint_authority(
         case: Original immutable accepted-boundary recovery scenario.
     """
     failure = cast(str, case["failure"])
-    assert recovery_outcome(failure) == case["outcome"]
-    assert _recovery_outcome(failure) == case["outcome"]
+    assert (await recovery_outcome(failure)) == case["outcome"]
+    assert (await _recovery_outcome(failure)) == case["outcome"]

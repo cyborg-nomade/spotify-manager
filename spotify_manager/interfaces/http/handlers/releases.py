@@ -1,11 +1,16 @@
 """Validate and present releases HTTP requests."""
 
-from fastapi import HTTPException
-from spotipy import Spotify
+import asyncio
 
+from fastapi import HTTPException
+
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.core.state.models import StateConfigurationError
 from spotify_manager.core.state.models import StateConflictError
 from spotify_manager.core.state.models import StateError
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.releases import ReleaseCheckChoiceRequest
@@ -19,7 +24,7 @@ from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 
 
-def cmd_check_new_releases(client: Spotify, dry_run: bool) -> BlastJobResult:
+async def cmd_check_new_releases(client: Spotify, dry_run: bool) -> BlastJobResult:
     """Start a reconnectable release check for Last.fm's top artists.
 
     Args:
@@ -45,12 +50,15 @@ def cmd_check_new_releases(client: Spotify, dry_run: bool) -> BlastJobResult:
         found_art.FoundArtConfigError,
     ) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_release_check_job(
-        client, playlists, api_key, username, dry_run=dry_run
-    )
+    async with current_execution().release_state_lock:
+        return await jobs.start_release_check_job(
+            client, playlists, api_key, username, dry_run=dry_run
+        )
 
 
-def cmd_release_check_state(known_fingerprint: str | None) -> ReleaseCheckStateSnapshot:
+async def cmd_release_check_state(
+    known_fingerprint: str | None,
+) -> ReleaseCheckStateSnapshot:
     """Return restart state, omitting the payload when the browser is current.
 
     Args:
@@ -63,12 +71,16 @@ def cmd_release_check_state(known_fingerprint: str | None) -> ReleaseCheckStateS
         HTTPException: An original validation or feature error is observed.
     """
     try:
-        return jobs._release_check_state_snapshot(known_fingerprint)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(jobs._release_check_state_snapshot, known_fingerprint)
+            )
+            return await finish_blocking(file_operation)
     except (release_check.ReleaseCheckStateError, StateError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-def cmd_restore_release_check_state(
+async def cmd_restore_release_check_state(
     request: ReleaseCheckStateRestoreRequest,
 ) -> ReleaseCheckStateSnapshot:
     """Restore a newer browser mirror without overwriting concurrent progress.
@@ -82,13 +94,22 @@ def cmd_restore_release_check_state(
     Raises:
         HTTPException: An original validation or feature error is observed.
     """
+    async with current_execution().release_state_lock:
+        _require_inactive_release_check()
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_restore_state_locked, request)
+            )
+            return await finish_blocking(file_operation)
+
+
+def _require_inactive_release_check() -> None:
     with jobs._blast_jobs_lock:
         if _has_active_release_check():
             raise HTTPException(
                 status_code=409,
                 detail="New-release check is active; state restore was not applied",
             )
-        return _restore_state_locked(request)
 
 
 def cmd_active_release_check_jobs() -> list[BlastJobResult]:

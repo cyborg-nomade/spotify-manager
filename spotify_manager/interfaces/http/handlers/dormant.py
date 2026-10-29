@@ -1,14 +1,14 @@
 """Validate and present dormant HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 
 
-def cmd_blast_from_the_past_artists(
+async def cmd_blast_from_the_past_artists(
     client: Spotify, count: int, dry_run: bool
 ) -> BlastJobResult:
     """Start an alphabetic dormant-artist recovery update.
@@ -30,7 +30,7 @@ def cmd_blast_from_the_past_artists(
         )
     except blast_from_past.BlastFromPastConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_blast_artist_job(client, playlist_id, count, dry_run)
+    return await jobs.start_blast_artist_job(client, playlist_id, count, dry_run)
 
 
 def cmd_active_blast_artist_jobs() -> list[BlastJobResult]:

@@ -1,7 +1,7 @@
 """Explicit sauvignon CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Never
@@ -14,14 +14,19 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -100,7 +105,7 @@ class SauvignonCLI:
             )
         console.print(table)
 
-    def _prompt_sauvignon_album(
+    async def _prompt_sauvignon_album(
         self,
         console: Console,
         recommendation: sauvignon.AlbumRecommendation,
@@ -144,7 +149,7 @@ class SauvignonCLI:
                     option.spotify_id,
                 )
             console.print(table)
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Release number / [s]kip this run / [q]uit",
                 choices=[
                     *(str(index) for index in range(1, len(options) + 1)),
@@ -162,7 +167,7 @@ class SauvignonCLI:
         finally:
             progress.start()
 
-    def _run_fill_sauvignon_from_lastfm(
+    async def _run_fill_sauvignon_from_lastfm(
         self,
         count: int | None,
         max_playlist_length: int | None,
@@ -182,7 +187,7 @@ class SauvignonCLI:
                 "use either --count or --max-playlist-length, not both"
             )
         self._fill_sauvignon_from_lastfm_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlist_id = sauvignon.parse_playlist_id(
                 configuration.sauvignon_terre_neuve_playlist
@@ -201,7 +206,7 @@ class SauvignonCLI:
             LastFmCredentials(api_key, username),
             FillSauvignonFromLastfmDiagnostics(self),
         )
-        summary = self._execute_fill_sauvignon_from_lastfm(
+        summary = await self._execute_fill_sauvignon_from_lastfm(
             count, dry_run, effective_maximum, lastfm_client, playlist_id, seed_count
         )
         self._show_fill_sauvignon_from_lastfm(summary)
@@ -218,12 +223,12 @@ class SauvignonCLI:
     def _fill_sauvignon_from_lastfm_log(self, message: str) -> None:
         return self._fill_sauvignon_from_lastfm_console.print(message, style="yellow")
 
-    def _fill_sauvignon_from_lastfm_ask_sauvignon_album(
+    async def _fill_sauvignon_from_lastfm_ask_sauvignon_album(
         self,
         recommendation: sauvignon.AlbumRecommendation,
         options: tuple[sauvignon.SpotifyAlbumOption, ...],
     ) -> str:
-        return self._prompt_sauvignon_album(
+        return await self._prompt_sauvignon_album(
             self._fill_sauvignon_from_lastfm_console,
             recommendation,
             options,
@@ -279,7 +284,7 @@ class SauvignonCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_fill_sauvignon_from_lastfm_interrupted_interrupted(
-        self, exc: KeyboardInterrupt
+        self, exc: KeyboardInterrupt | CliInterruptedError
     ) -> Never:
         self._fill_sauvignon_from_lastfm_console.print(
             "Sauvignon fill stopped safely. Cached Last.fm calls remain saved.",
@@ -318,7 +323,7 @@ class SauvignonCLI:
                 "Sauvignon fill paused; rerun to continue.", style="bold yellow"
             )
 
-    def _execute_fill_sauvignon_from_lastfm(
+    async def _execute_fill_sauvignon_from_lastfm(
         self,
         count: int | None,
         dry_run: bool,
@@ -360,8 +365,8 @@ class SauvignonCLI:
                         description, total=None
                     )
                 )
-                summary = sauvignon.fill_sauvignon_from_lastfm(
-                    self.runtime.review_client(),
+                summary = await sauvignon.fill_sauvignon_from_lastfm(
+                    (await self.runtime.review_client()),
                     lastfm_client,
                     SauvignonOptions(
                         playlist_id=playlist_id,
@@ -386,7 +391,7 @@ class SauvignonCLI:
             self._report_fill_sauvignon_from_lastfm_sauvignon_failure(exc)
         except SpotifyException as exc:
             self._report_fill_sauvignon_from_lastfm_spotify_spotify_failure(exc)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_fill_sauvignon_from_lastfm_interrupted_interrupted(exc)
         finally:
             if progress_ref is not None:
@@ -404,7 +409,7 @@ class FillSauvignonFromLastfmInteraction:
 
     owner: SauvignonCLI
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -429,9 +434,10 @@ class FillSauvignonFromLastfmInteraction:
         Args:
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._fill_sauvignon_from_lastfm_update_progress(status)
 
-    def choose_album(
+    async def choose_album(
         self,
         recommendation: sauvignon.AlbumRecommendation,
         options: tuple[sauvignon.SpotifyAlbumOption, ...],
@@ -445,7 +451,7 @@ class FillSauvignonFromLastfmInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._fill_sauvignon_from_lastfm_ask_sauvignon_album(
+        return await self.owner._fill_sauvignon_from_lastfm_ask_sauvignon_album(
             recommendation, options
         )
 

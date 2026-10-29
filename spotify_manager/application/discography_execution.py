@@ -13,7 +13,7 @@ from spotify_manager.domain.discography_values import QueueName
 class DiscographyStateAccess(Protocol):
     """Preserve complete caller-owned priority state at the final checkpoint."""
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read complete accepted priority.
 
         Returns:
@@ -21,7 +21,7 @@ class DiscographyStateAccess(Protocol):
         """
         ...
 
-    def save(self, state: dict[str, object], /) -> object:
+    async def save(self, state: dict[str, object], /) -> object:
         """Accept original complete final priority.
 
         Args:
@@ -36,7 +36,7 @@ class DiscographyStateAccess(Protocol):
 class DiscographyEffects(Protocol):
     """Accept original removals, audits and priority writes through one adapter."""
 
-    def remove(
+    async def remove(
         self, selection: ArtistSelection, group: ArtistMarkers, batch: list[str]
     ) -> None:
         """Accept the original retried removal batch.
@@ -47,7 +47,7 @@ class DiscographyEffects(Protocol):
             batch: Ordered unique removal URIs.
         """
 
-    def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
+    async def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
         """Accept one completed artist audit.
 
         Args:
@@ -82,7 +82,7 @@ class DiscographyExecution:
     effects: DiscographyEffects
     batch_size: int = 100
 
-    def run(self, plan: DiscographyPlan) -> DiscographyRunSummary:
+    async def run(self, plan: DiscographyPlan) -> DiscographyRunSummary:
         """Remove every artist, audit each one, then checkpoint priority once.
 
         Args:
@@ -94,22 +94,22 @@ class DiscographyExecution:
         removed = 0
         for selection in plan.artists:
             self.effects.progress(f"Removing {selection.name} from discography queues")
-            removed += self._remove(selection)
-            self.effects.audit(selection, plan.next_queue)
+            removed += await self._remove(selection)
+            await self.effects.audit(selection, plan.next_queue)
         state_access = self.effects.state()
-        state = state_access.load()
+        state = await state_access.load()
         state["next_queue"] = plan.next_queue
-        state_access.save(state)
+        await state_access.save(state)
         return DiscographyRunSummary(len(plan.artists), removed, plan.next_queue)
 
-    def _remove(self, selection: ArtistSelection) -> int:
+    async def _remove(self, selection: ArtistSelection) -> int:
         removed = 0
         for group in selection.markers:
             uris = list(dict.fromkeys(group.uris))
-            removed += self._remove_group(selection, group, uris)
+            removed += await self._remove_group(selection, group, uris)
         return removed
 
-    def _remove_group(
+    async def _remove_group(
         self,
         selection: ArtistSelection,
         group: ArtistMarkers,
@@ -118,6 +118,6 @@ class DiscographyExecution:
         removed = 0
         for start in range(0, len(uris), self.batch_size):
             batch = uris[start : start + self.batch_size]
-            self.effects.remove(selection, group, batch)
+            await self.effects.remove(selection, group, batch)
             removed += len(batch)
         return removed

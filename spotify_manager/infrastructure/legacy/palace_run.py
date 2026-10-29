@@ -1,14 +1,16 @@
 """Bind Palace's application stages to original synchronous compatibility seams."""
 
+import asyncio
 from dataclasses import dataclass
-
-from spotipy import Spotify
 
 from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
 from spotify_manager.interfaces.requests.palace import PalaceResources
@@ -49,9 +51,13 @@ class LegacyPalace:
         Returns:
             Original caller-owned state boundary.
         """
-        from spotify_manager.routines.palace_of_memory import _state_access
+        from spotify_manager.routines.palace_of_memory import (
+            _async_state_access as _async_state_access,
+        )
 
-        return _state_access(self.resources.state_path, self.resources.state_service)
+        return _async_state_access(
+            self.resources.state_path, self.resources.state_service
+        )
 
     def start_index(
         self,
@@ -76,7 +82,7 @@ class LegacyPalace:
             return resolve_alphabetical_start(albums, manual)
         return _cursor_index(state, albums)
 
-    def playlist(self, recheck: bool) -> PlaylistState:
+    async def playlist(self, recheck: bool) -> PlaylistState:
         """Read original destination authority through the original retry boundary.
 
         Args:
@@ -87,11 +93,11 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _read_palace_playlist
 
-        return _read_palace_playlist(
+        return await _read_palace_playlist(
             self.spotify, self.options.playlist_id, self.retry, recheck
         )
 
-    def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
+    async def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
         """Read the original first playable marker.
 
         Args:
@@ -100,11 +106,13 @@ class LegacyPalace:
         Returns:
             Original complete first marker.
         """
-        from spotify_manager.routines.palace_of_memory import load_first_track
+        from spotify_manager.routines.palace_of_memory import (
+            async_load_first_track as load_first_track,
+        )
 
-        return load_first_track(self.spotify, album, self.retry)
+        return await load_first_track(self.spotify, album, self.retry)
 
-    def search(self, artist: str, album: str) -> SpotifyAlbum | None:
+    async def search(self, artist: str, album: str) -> SpotifyAlbum | None:
         """Retain original historical album qualification and search options.
 
         Args:
@@ -114,11 +122,13 @@ class LegacyPalace:
         Returns:
             Original qualified remote release or none.
         """
-        from spotify_manager.routines.palace_of_memory import search_spotify_album
+        from spotify_manager.routines.palace_of_memory import (
+            async_search_spotify_album as search_spotify_album,
+        )
 
-        return search_spotify_album(self.spotify, artist, album, self.retry)
+        return await search_spotify_album(self.spotify, artist, album, self.retry)
 
-    def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
+    async def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
         """Retain the original caller-owned retry around complete marker append.
 
         Args:
@@ -126,7 +136,7 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _append_first_tracks
 
-        _append_first_tracks(
+        await _append_first_tracks(
             self.spotify, self.options.playlist_id, pending, self.retry
         )
 
@@ -154,7 +164,7 @@ class LegacyPalace:
 
         return _cursor_payload(next_index, last)
 
-    def audit(self, summary: PalaceOfMemorySummary) -> None:
+    async def audit(self, summary: PalaceOfMemorySummary) -> None:
         """Retain original completion audit after the successful cursor checkpoint.
 
         Args:
@@ -162,4 +172,8 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _append_log
 
-        _append_log(self.resources.log_path, summary)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_log, self.resources.log_path, summary)
+            )
+            await finish_blocking(file_operation)

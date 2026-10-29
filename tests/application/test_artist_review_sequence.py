@@ -65,7 +65,7 @@ class MemoryReview:
         """
         return MemoryMembershipPages(self.edge, identity)
 
-    def append(self, identity: str, uri: str, description: str) -> object:
+    async def append(self, identity: str, uri: str, description: str) -> object:
         """Accept the original fake destination effect.
 
         Args:
@@ -76,9 +76,9 @@ class MemoryReview:
         Returns:
             Original accepted response.
         """
-        return self.edge._post(f"playlists/{identity}/items", {"uris": [uri]})
+        return await self.edge._post(f"playlists/{identity}/items", {"uris": [uri]})
 
-    def remove(self, identity: str, uris: list[str], description: str) -> object:
+    async def remove(self, identity: str, uris: list[str], description: str) -> object:
         """Accept the original ordered fake source removals.
 
         Args:
@@ -89,11 +89,11 @@ class MemoryReview:
         Returns:
             Original accepted response.
         """
-        return self.edge._delete(
+        return await self.edge._delete(
             f"playlists/{identity}/items", {"items": [{"uri": uri} for uri in uris]}
         )
 
-    def unfollow(self, uris: list[str], description: str) -> object:
+    async def unfollow(self, uris: list[str], description: str) -> object:
         """Accept the original complete fake unfollow batch.
 
         Args:
@@ -103,7 +103,7 @@ class MemoryReview:
         Returns:
             Original accepted response.
         """
-        return self.edge._delete("me/library", uris=",".join(uris))
+        return await self.edge._delete("me/library", uris=",".join(uris))
 
 
 @dataclass(frozen=True)
@@ -116,7 +116,7 @@ class MemoryReviewCheckpoint:
 
     edge: original.ReviewObservations
 
-    def save(self, state: ArtistReviewState) -> None:
+    async def save(self, state: ArtistReviewState) -> None:
         """Accept the complete current model.
 
         Args:
@@ -153,7 +153,7 @@ def _event(run_id: str, name: str, **details: object) -> dict[str, object]:
     }
 
 
-def _run(edge: original.ReviewObservations) -> ArtistReviewSummary:
+async def _run(edge: original.ReviewObservations) -> ArtistReviewSummary:
     memory = MemoryReview(edge)
     storage = MemoryReviewFiles(edge)
     catalog = cast(ReviewCatalog, ScriptedReviewCatalog(edge))
@@ -165,13 +165,13 @@ def _run(edge: original.ReviewObservations) -> ArtistReviewSummary:
         None if edge.profile == "release-auto" else edge,
     )
     limit = {"limit-zero": 0, "limit-negative": -1}.get(edge.profile)
-    return ArtistReview(original.PLAYLISTS, storage, catalog, spotify, interaction).run(
-        edge.profile == "cache-refresh", limit
-    )
+    return await ArtistReview(
+        original.PLAYLISTS, storage, catalog, spotify, interaction
+    ).run(edge.profile == "cache-refresh", limit)
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_injected_review_matches_original_complete_effects(
+async def test_injected_review_matches_original_complete_effects(
     case: dict[str, object],
 ) -> None:
     """Retain complete decisions, mutation failures and recovery-before-review order.
@@ -180,18 +180,17 @@ def test_injected_review_matches_original_complete_effects(
         case: Immutable original complete scenario and observations.
     """
     assert (
-        original.outcome(
+        await original.outcome(
             cast(str, case["profile"]),
             cast(str | None, case["failure"]),
             cast(bool, case["resume"]),
             _run,
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_public_review_matches_original_complete_effects(
+async def test_public_review_matches_original_complete_effects(
     case: dict[str, object],
 ) -> None:
     """Verify composition preserves the original public runner and caller seams.
@@ -200,19 +199,18 @@ def test_public_review_matches_original_complete_effects(
         case: Immutable original complete scenario and observations.
     """
     assert (
-        original.outcome(
+        await original.outcome(
             cast(str, case["profile"]),
             cast(str | None, case["failure"]),
             cast(bool, case["resume"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]
 
 
-def test_plain_review_state_has_an_explicit_noop_persistence_default() -> None:
+async def test_plain_review_state_has_an_explicit_noop_persistence_default() -> None:
     """Retain the original optional persistence callback for plain state callers."""
     state = ArtistReviewState(set(), {}, {})
-    state.persist()
+    (await state.persist())
     assert state.completed_artist_ids == set()
     assert state.pending_unfollows == {}
     assert state.pending_queue_moves == {}
@@ -230,7 +228,7 @@ class MemoryMembershipPages:
     edge: original.ReviewObservations
     identity: str
 
-    def read_membership(self, offset: int) -> MembershipPage:
+    async def read_membership(self, offset: int) -> MembershipPage:
         """Read and parse the recorded queue response.
 
         Args:
@@ -240,7 +238,7 @@ class MemoryMembershipPages:
             Parsed markers and raw continuation facts.
         """
         return membership_page(
-            self.edge._get(f"playlists/{self.identity}/items", 50, offset),
+            (await self.edge._get(f"playlists/{self.identity}/items", 50, offset)),
             self.identity,
         )
 
@@ -255,7 +253,7 @@ class MemoryReviewFiles:
 
     edge: original.ReviewObservations
 
-    def artists(self) -> list[YourLibraryArtist]:
+    async def artists(self) -> list[YourLibraryArtist]:
         """Observe artists at the recorded boundary.
 
         Returns:
@@ -263,7 +261,7 @@ class MemoryReviewFiles:
         """
         return self.edge.load_models(original.PATHS.artists, YourLibraryArtist)
 
-    def tracks(self) -> list[YourLibraryTrack]:
+    async def tracks(self) -> list[YourLibraryTrack]:
         """Observe tracks at the recorded boundary.
 
         Returns:
@@ -271,7 +269,7 @@ class MemoryReviewFiles:
         """
         return self.edge.load_models(original.PATHS.liked_tracks, YourLibraryTrack)
 
-    def state(self) -> ArtistReviewState:
+    async def state(self) -> ArtistReviewState:
         """Observe state at the recorded boundary.
 
         Returns:
@@ -279,7 +277,7 @@ class MemoryReviewFiles:
         """
         return MemoryReview(self.edge).state()
 
-    def cache(self, refresh: bool) -> None:
+    async def cache(self, refresh: bool) -> None:
         """Observe cache at the recorded boundary.
 
         Args:
@@ -308,7 +306,7 @@ class MemoryReviewFiles:
         """
         return _event(run_id, name, **details)
 
-    def append(self, events: list[dict[str, object]]) -> None:
+    async def append(self, events: list[dict[str, object]]) -> None:
         """Observe append at the recorded boundary.
 
         Args:
@@ -316,7 +314,7 @@ class MemoryReviewFiles:
         """
         self.edge.append(original.PATHS.log, events)
 
-    def save_artists(self, artists: list[YourLibraryArtist]) -> None:
+    async def save_artists(self, artists: list[YourLibraryArtist]) -> None:
         """Observe save artists at the recorded boundary.
 
         Args:
@@ -324,7 +322,7 @@ class MemoryReviewFiles:
         """
         self.edge.save_artists(original.PATHS.artists, artists)
 
-    def stats(self, total: int, removed: int) -> None:
+    async def stats(self, total: int, removed: int) -> None:
         """Observe stats at the recorded boundary.
 
         Args:
@@ -344,7 +342,7 @@ class ScriptedReviewCatalog:
 
     edge: original.ReviewObservations
 
-    def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
+    async def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
         """Observe tracks at the recorded boundary.
 
         Args:
@@ -355,7 +353,7 @@ class ScriptedReviewCatalog:
         """
         return self.edge.ranked_tracks(artist)
 
-    def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+    async def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Observe ranked at the recorded boundary.
 
         Args:
@@ -366,7 +364,7 @@ class ScriptedReviewCatalog:
         """
         return self.edge.ranked("ranked", artist)
 
-    def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+    async def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Observe earliest at the recorded boundary.
 
         Args:

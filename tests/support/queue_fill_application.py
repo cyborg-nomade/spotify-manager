@@ -23,6 +23,7 @@ from spotify_manager.domain.queue_values import ArtistHistory
 from spotify_manager.domain.queue_values import ArtistRecommendation
 from spotify_manager.domain.queue_values import ArtistSeed
 from spotify_manager.domain.release_check_values import RankedArtist
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from tests.support.queue_fill import ARTIST
 from tests.support.queue_fill import FillObservations
 from tests.support.queue_neighbors import NOW
@@ -62,7 +63,9 @@ class MemoryQueueFill:
         assert now == NOW
         return WEEK
 
-    def history(self, preview: bool, now: datetime) -> tuple[tuple[Scrobble, ...], int]:
+    async def history(
+        self, preview: bool, now: datetime
+    ) -> tuple[tuple[Scrobble, ...], int]:
         """Observe original history without a filesystem or service.
 
         Args:
@@ -79,7 +82,7 @@ class MemoryQueueFill:
 
         return (PLAY,), 2
 
-    def queue_length(self) -> int:
+    async def queue_length(self) -> int:
         """Observe original Queue membership.
 
         Returns:
@@ -131,7 +134,7 @@ class MemoryQueueFill:
         self.observations.record("candidates", sorted(heard), limit)
         return (RECOMMENDATION,)
 
-    def represented(self) -> set[str]:
+    async def represented(self) -> set[str]:
         """Observe original representation destinations.
 
         Returns:
@@ -148,7 +151,7 @@ class MemoryQueueFill:
         Returns:
             Original observation state reader and writer.
         """
-        return self.observations
+        return AsyncRoutineState(self.observations)
 
     def decode_mapping(self, raw: object) -> SpotifyArtistCandidate | None:
         """Decode only the trusted in-memory scenario's known mapping.
@@ -165,7 +168,7 @@ class MemoryQueueFill:
             else None
         )
 
-    def resolve(
+    async def resolve(
         self, recommendation: ArtistRecommendation
     ) -> SpotifyArtistCandidate | str | None:
         """Observe original interaction arguments without a client or presenter.
@@ -185,7 +188,9 @@ class MemoryQueueFill:
             return scenario
         return None if scenario == "no-match" else ARTIST
 
-    def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(
+        self, artist: SpotifyArtistCandidate
+    ) -> tuple[CatalogTrack, ...]:
         """Observe original top tracks.
 
         Args:
@@ -199,7 +204,7 @@ class MemoryQueueFill:
         self.observations.record("top", artist.spotify_id)
         return (TRACK,)
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Observe original liked membership.
 
         Args:
@@ -211,7 +216,7 @@ class MemoryQueueFill:
         self.observations.record("liked", [track.spotify_id for track in tracks])
         return {"track": self.observations.scenario == "all-liked"}
 
-    def following(self, artist: SpotifyArtistCandidate) -> bool:
+    async def following(self, artist: SpotifyArtistCandidate) -> bool:
         """Observe and validate original follow status.
 
         Args:
@@ -223,20 +228,22 @@ class MemoryQueueFill:
         Raises:
             QueueSpotifyError: Original scenario returns an invalid response.
         """
-        statuses = self.observations.current_user_following_artists([artist.spotify_id])
+        statuses = await self.observations.current_user_following_artists(
+            [artist.spotify_id]
+        )
         if not statuses:
             raise QueueSpotifyError("Spotify returned invalid artist follow status.")
         return statuses[0]
 
-    def follow(self, artist: SpotifyArtistCandidate) -> None:
+    async def follow(self, artist: SpotifyArtistCandidate) -> None:
         """Accept the original follow.
 
         Args:
             artist: Original accepted mapping.
         """
-        self.observations.user_follow_artists([artist.spotify_id])
+        (await self.observations.user_follow_artists([artist.spotify_id]))
 
-    def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
+    async def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
         """Observe original persistence after following.
 
         Args:
@@ -244,7 +251,7 @@ class MemoryQueueFill:
         """
         self.observations.record("persist-follow", artist.spotify_id)
 
-    def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
+    async def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue append.
 
         Args:
@@ -253,7 +260,7 @@ class MemoryQueueFill:
         """
         self.observations.record("append", "queue", track.uri)
 
-    def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
+    async def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
         """Observe original selected and rejection event fields.
 
         Args:
@@ -318,7 +325,7 @@ class ScriptedQueueCandidates:
 
     effects: MemoryQueueFill
 
-    def run(
+    async def run(
         self,
         seeds: tuple[ArtistSeed, ...],
         heard: set[str],
@@ -347,7 +354,9 @@ def fill_workflow(effects: MemoryQueueFill) -> QueueFill:
     return QueueFill(effects, stages)
 
 
-def application_outcome(scenario: str, preview: bool, failure: str | None) -> object:
+async def application_outcome(
+    scenario: str, preview: bool, failure: str | None
+) -> object:
     """Run the independent application using frozen original scenario facts.
 
     Args:
@@ -361,7 +370,7 @@ def application_outcome(scenario: str, preview: bool, failure: str | None) -> ob
     observations = FillObservations(scenario, failure)
     outcome: dict[str, object] = {}
     try:
-        result = fill_workflow(MemoryQueueFill(observations)).run(
+        result = await fill_workflow(MemoryQueueFill(observations)).run(
             QueueFillRequest(1, None, 30, preview)
         )
         outcome["result"] = asdict(result)

@@ -19,7 +19,7 @@ from spotify_manager.models.your_library import YourLibraryTrack
 class ReviewStorage(Protocol):
     """Bind ordered local reads, accepted progress and durable publications."""
 
-    def artists(self) -> list[YourLibraryArtist]:
+    async def artists(self) -> list[YourLibraryArtist]:
         """Complete current followed-artist mirror.
 
         Returns:
@@ -27,7 +27,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def tracks(self) -> list[YourLibraryTrack]:
+    async def tracks(self) -> list[YourLibraryTrack]:
         """Complete current liked-track mirror.
 
         Returns:
@@ -35,7 +35,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def state(self) -> ArtistReviewState:
+    async def state(self) -> ArtistReviewState:
         """Load original progress and attach its named checkpoint store.
 
         Returns:
@@ -43,7 +43,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def cache(self, refresh: bool) -> None:
+    async def cache(self, refresh: bool) -> None:
         """Initialize original metadata cache for subsequent catalog reads.
 
         Args:
@@ -72,7 +72,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def append(self, events: list[dict[str, object]]) -> None:
+    async def append(self, events: list[dict[str, object]]) -> None:
         """Append original ordered audit records.
 
         Args:
@@ -80,7 +80,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def save_artists(self, artists: list[YourLibraryArtist]) -> None:
+    async def save_artists(self, artists: list[YourLibraryArtist]) -> None:
         """Publish original remaining followed artists.
 
         Args:
@@ -88,7 +88,7 @@ class ReviewStorage(Protocol):
         """
         ...
 
-    def stats(self, total: int, removed: int) -> None:
+    async def stats(self, total: int, removed: int) -> None:
         """Publish original post-unfollow statistics.
 
         Args:
@@ -134,7 +134,7 @@ class ReviewCatalog:
 
     sources: CatalogSources
 
-    def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
+    async def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
         """Gather ranked associated tracks through the named catalog stage.
 
         Args:
@@ -143,9 +143,9 @@ class ReviewCatalog:
         Returns:
             Complete candidates.
         """
-        return self._artist(artist).ranked_tracks()
+        return await self._artist(artist).ranked_tracks()
 
-    def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+    async def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Gather ranked releases through the named catalog stage.
 
         Args:
@@ -154,9 +154,9 @@ class ReviewCatalog:
         Returns:
             Complete enriched releases.
         """
-        return self._artist(artist).ranked_releases()
+        return await self._artist(artist).ranked_releases()
 
-    def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+    async def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Gather chronological releases through the named catalog stage.
 
         Args:
@@ -165,7 +165,7 @@ class ReviewCatalog:
         Returns:
             Complete enriched releases.
         """
-        return self._artist(artist).earliest_releases()
+        return await self._artist(artist).earliest_releases()
 
     def _artist(self, artist: YourLibraryArtist) -> ArtistCatalog:
         return ArtistCatalog(
@@ -187,7 +187,7 @@ class ReviewSpotify(Protocol):
         """
         ...
 
-    def append(self, identity: str, uri: str, description: str) -> object:
+    async def append(self, identity: str, uri: str, description: str) -> object:
         """Original single-marker addition.
 
         Args:
@@ -200,7 +200,7 @@ class ReviewSpotify(Protocol):
         """
         ...
 
-    def remove(self, identity: str, uris: list[str], description: str) -> object:
+    async def remove(self, identity: str, uris: list[str], description: str) -> object:
         """Original requested marker removal, retaining batch order.
 
         Args:
@@ -213,7 +213,7 @@ class ReviewSpotify(Protocol):
         """
         ...
 
-    def unfollow(self, uris: list[str], description: str) -> object:
+    async def unfollow(self, uris: list[str], description: str) -> object:
         """Original forty-artist mutation boundary.
 
         Args:
@@ -229,7 +229,7 @@ class ReviewSpotify(Protocol):
 class TrackChoices(Protocol):
     """Read an operator's tied-track selection."""
 
-    def choose_track(
+    async def choose_track(
         self, artist: YourLibraryArtist, candidates: tuple[TrackCandidate, ...], /
     ) -> str:
         """Choose a track or return the original control response.
@@ -247,7 +247,7 @@ class TrackChoices(Protocol):
 class ReleaseChoices(Protocol):
     """Read an operator's release selection."""
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: YourLibraryArtist,
         candidates: tuple[ReleaseCandidate, ...],

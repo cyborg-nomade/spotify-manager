@@ -1,7 +1,7 @@
 """Explicit discovery CLI execution, prompts and presentation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -14,15 +14,20 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_kids as new_kids
 from spotify_manager.interfaces.operations import (
@@ -51,7 +56,7 @@ class DiscoveryCLI:
     display: ConsoleDisplay
     sleep: Wait
 
-    def _prompt_new_kids_release_choice(
+    async def _prompt_new_kids_release_choice(
         self,
         console: Console,
         artist_name: str,
@@ -72,7 +77,7 @@ class DiscoveryCLI:
         if progress is not None:
             progress.stop()
         try:
-            return self._read_new_kids_release_choice(
+            return await self._read_new_kids_release_choice(
                 console, artist_name, candidates, progress
             )
         finally:
@@ -127,7 +132,7 @@ class DiscoveryCLI:
             )
         console.print(table)
 
-    def _run_flush_new_kids(self, dry_run: bool) -> None:
+    async def _run_flush_new_kids(self, dry_run: bool) -> None:
         """Advance New Kids artists and refill the playlist from Queue 2.
 
         Args:
@@ -135,7 +140,7 @@ class DiscoveryCLI:
         """
         self._flush_new_kids_console = self.display.create_console()
         self._flush_new_kids_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -164,7 +169,7 @@ class DiscoveryCLI:
             LastFmCredentials(lastfm_api_key, lastfm_username),
             FlushNewKidsDiagnostics(self),
         )
-        summary = self._execute_flush_new_kids(
+        summary = await self._execute_flush_new_kids(
             dry_run,
             great_discoveries_playlist_id,
             lastfm_client,
@@ -206,17 +211,17 @@ class DiscoveryCLI:
     def _flush_new_kids_log(self, message: str) -> None:
         return self._flush_new_kids_console.print(message, style="yellow")
 
-    def _flush_new_kids_ask_new_kids_release_choice(
+    async def _flush_new_kids_ask_new_kids_release_choice(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
-        return self._prompt_new_kids_release_choice(
+        return await self._prompt_new_kids_release_choice(
             self._flush_new_kids_console,
             artist,
             candidates,
             self._flush_new_kids_progress_ref,
         )
 
-    def _run_flush_queue_2(self, dry_run: bool) -> None:
+    async def _run_flush_queue_2(self, dry_run: bool) -> None:
         """Fill New Kids, then advance the first ten Queue 2 artists.
 
         Args:
@@ -224,7 +229,7 @@ class DiscoveryCLI:
         """
         self._flush_queue_2_console = self.display.create_console()
         self._flush_queue_2_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -253,7 +258,7 @@ class DiscoveryCLI:
             LastFmCredentials(lastfm_api_key, lastfm_username),
             FlushQueue2Diagnostics(self),
         )
-        summary = self._execute_flush_queue(
+        summary = await self._execute_flush_queue(
             dry_run,
             great_discoveries_playlist_id,
             lastfm_client,
@@ -295,10 +300,10 @@ class DiscoveryCLI:
     def _flush_queue_2_log(self, message: str) -> None:
         return self._flush_queue_2_console.print(message, style="yellow")
 
-    def _flush_queue_2_ask_new_kids_release_choice(
+    async def _flush_queue_2_ask_new_kids_release_choice(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
-        return self._prompt_new_kids_release_choice(
+        return await self._prompt_new_kids_release_choice(
             self._flush_queue_2_console,
             artist,
             candidates,
@@ -412,7 +417,7 @@ class DiscoveryCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_new_kids_interrupted_interrupted(
-        self, exc: KeyboardInterrupt, dry_run: bool
+        self, exc: KeyboardInterrupt | CliInterruptedError, dry_run: bool
     ) -> Never:
         if not dry_run:
             self._flush_new_kids_console.print(
@@ -439,7 +444,7 @@ class DiscoveryCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_flush_queue_2_interrupted_interrupted(
-        self, exc: KeyboardInterrupt, dry_run: bool
+        self, exc: KeyboardInterrupt | CliInterruptedError, dry_run: bool
     ) -> Never:
         if not dry_run:
             self._flush_queue_2_console.print(
@@ -524,7 +529,7 @@ class DiscoveryCLI:
                 "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
-    def _execute_flush_new_kids(
+    async def _execute_flush_new_kids(
         self,
         dry_run: bool,
         great_discoveries_playlist_id: str,
@@ -568,8 +573,8 @@ class DiscoveryCLI:
                 self._flush_new_kids_task_id = self._flush_new_kids_progress.add_task(
                     description, total=None
                 )
-                summary = new_kids.flush_new_kids(
-                    self.runtime.review_client(),
+                summary = await new_kids.flush_new_kids(
+                    (await self.runtime.review_client()),
                     DiscoveryOptions(
                         new_kids_playlist_id=new_kids_playlist_id,
                         queue_2_playlist_id=queue_2_playlist_id,
@@ -593,11 +598,11 @@ class DiscoveryCLI:
             self._report_flush_new_kids_new_kids_failure(exc)
         except SpotifyException as exc:
             self._report_flush_new_kids_spotify_spotify_failure(exc, dry_run)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_new_kids_interrupted_interrupted(exc, dry_run)
         return summary
 
-    def _execute_flush_queue(
+    async def _execute_flush_queue(
         self,
         dry_run: bool,
         great_discoveries_playlist_id: str,
@@ -641,8 +646,8 @@ class DiscoveryCLI:
                 self._flush_queue_2_task_id = self._flush_queue_2_progress.add_task(
                     description, total=None
                 )
-                summary = new_kids.flush_queue_2(
-                    self.runtime.review_client(),
+                summary = await new_kids.flush_queue_2(
+                    (await self.runtime.review_client()),
                     DiscoveryOptions(
                         new_kids_playlist_id=new_kids_playlist_id,
                         queue_2_playlist_id=queue_2_playlist_id,
@@ -668,11 +673,11 @@ class DiscoveryCLI:
             self._report_flush_queue_2_new_kids_failure(exc)
         except SpotifyException as exc:
             self._report_flush_queue_2_spotify_spotify_failure(exc, dry_run)
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_flush_queue_2_interrupted_interrupted(exc, dry_run)
         return summary
 
-    def _read_new_kids_release_choice(
+    async def _read_new_kids_release_choice(
         self,
         console: Console,
         artist_name: str,
@@ -705,7 +710,7 @@ class DiscoveryCLI:
             self._row_new_kids_release_choice_candidate(candidate, index, table)
         console.print(table)
         choices = [str(index) for index in range(1, len(candidates) + 1)]
-        response = self.display.prompt.ask(
+        response = await TerminalPrompt(self.display.prompt).ask(
             "Release number / [s]kip this run / [q]uit",
             choices=[*choices, "s", "q"],
             console=console,
@@ -776,7 +781,7 @@ class FlushNewKidsInteraction:
 
     owner: DiscoveryCLI
 
-    def choose(
+    async def choose(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
         """Read the operator's release or composer-playlist selection.
@@ -788,7 +793,7 @@ class FlushNewKidsInteraction:
         Returns:
             Selected identity or original control value.
         """
-        return self.owner._flush_new_kids_ask_new_kids_release_choice(
+        return await self.owner._flush_new_kids_ask_new_kids_release_choice(
             artist, candidates
         )
 
@@ -808,9 +813,10 @@ class FlushNewKidsInteraction:
             total: Expected-entry count.
             detail: Original operation description.
         """
+        check_cli_interruption()
         self.owner._flush_new_kids_update_progress(completed, total, detail)
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -832,7 +838,7 @@ class FlushQueue2Interaction:
 
     owner: DiscoveryCLI
 
-    def choose(
+    async def choose(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
         """Read the operator's release or composer-playlist selection.
@@ -844,7 +850,9 @@ class FlushQueue2Interaction:
         Returns:
             Selected identity or original control value.
         """
-        return self.owner._flush_queue_2_ask_new_kids_release_choice(artist, candidates)
+        return await self.owner._flush_queue_2_ask_new_kids_release_choice(
+            artist, candidates
+        )
 
     def echo(self, message: str) -> None:
         """Present the command's original message.
@@ -862,9 +870,10 @@ class FlushQueue2Interaction:
             total: Expected-entry count.
             detail: Original operation description.
         """
+        check_cli_interruption()
         self.owner._flush_queue_2_update_progress(completed, total, detail)
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:

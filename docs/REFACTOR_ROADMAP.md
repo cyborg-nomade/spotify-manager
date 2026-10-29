@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–7a deployed and merged; item 8 implemented for PR review.**
+**Status: items 1–8 deployed and merged; item 9 implemented for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
@@ -25,7 +25,10 @@ approved, deployed and merged in PR #67. Its
 records the preserved contracts. Item 8's
 [native transport and verification guide](refactor/ASYNC_SPOTIFY_TRANSPORT.md)
 records the new adapter, ownership, compatibility limits and review environment.
-Item 8 deployment and merge await its own PR approval. Later items remain pending.
+Item 8 was approved, deployed and merged in PR #68. The
+[item 9 async execution guide](refactor/ASYNC_EXECUTION.md) records runtime
+ownership, retained synchronous APIs and verification. Item 9 awaits PR review;
+later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
@@ -259,16 +262,16 @@ The 2026-10-19 application-to-domain review further requires direct imports and
 calls for fixed domain rules, concrete named application stage objects, and
 cohesive external-resource objects with explicit read/write methods. Do not
 inject fixed decisions or stage methods as callbacks, or execute an application
-stage behind an integration adapter. Keep genuine operator, progress,
-cancellation, retry and time callbacks. This revision is included in PR #67 and
-must be reviewed before the Item 7a release; it does not authorize Item 8.
+stage behind an integration adapter. Use named operator, progress,
+cancellation, retry and time resources under the later owner clarification.
+This revision was included in the approved Item 7a release.
 
 The 2026-10-20 review extends this to ordinary I/O, state schemas, checkpoint
 publication, serialization, presentation and operational sequencing throughout
 the package. Replace callback dependencies with cohesive named resources or
 direct calls. Preserve existing Python hook APIs only at compatibility edges,
-and record their reasons in the callback dependency guard. PR #67 includes this
-pass; approval is still required before deployment and merge.
+and record their reasons in the callback dependency guard. PR #67 included this
+pass and was subsequently approved, deployed and merged.
 
 1. Inventory HTTP, CLI and background execution paths by routine family. Identify
    each wrapper's responsibility and distinguish public compatibility seams from

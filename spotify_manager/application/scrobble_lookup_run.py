@@ -18,7 +18,7 @@ from spotify_manager.models.lookups import TrackScrobbleStatus
 class TrackHistory(Protocol):
     """Read latest matching play facts."""
 
-    def latest(self, track: str, artist: str) -> datetime | None:
+    async def latest(self, track: str, artist: str) -> datetime | None:
         """Read the latest play for resolved metadata.
 
         Args:
@@ -64,7 +64,7 @@ class TrackHistoryLookup:
     timezone: tzinfo
 
 
-def status(deps: TrackHistoryLookup) -> TrackScrobbleStatus:
+async def status(deps: TrackHistoryLookup) -> TrackScrobbleStatus:
     """Read original history before observing current and previous seasons.
 
     Args:
@@ -73,8 +73,8 @@ def status(deps: TrackHistoryLookup) -> TrackScrobbleStatus:
     Returns:
         Original complete track-scrobble status model.
     """
-    track = resolve_track(deps.tracks, deps.name, deps.identifier)
-    latest = deps.history.latest(track.name, track.primary_artist)
+    track = await resolve_track(deps.tracks, deps.name, deps.identifier)
+    latest = await deps.history.latest(track.name, track.primary_artist)
     current = season_window(deps.clock.now(), deps.timezone)
     last = season_window(latest, deps.timezone) if latest else None
     return TrackScrobbleStatus(

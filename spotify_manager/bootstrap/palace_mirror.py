@@ -2,10 +2,9 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.legacy.palace_mirror import LegacySavedMirror
 from spotify_manager.routines import palace_of_memory as legacy
 

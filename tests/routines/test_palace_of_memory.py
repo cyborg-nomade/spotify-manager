@@ -102,7 +102,7 @@ class FakeSpotify:
         self.get_calls = 0
         self.fail_post = False
 
-    def current_user_saved_albums(
+    async def current_user_saved_albums(
         self,
         limit: int,
         offset: int,
@@ -115,7 +115,7 @@ class FakeSpotify:
             "next": "next" if offset + len(items) < len(self.saved_albums) else None,
         }
 
-    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+    async def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
         assert path == "playlists/palace/items"
         self.get_calls += 1
         source = self.playlist_tracks
@@ -128,7 +128,7 @@ class FakeSpotify:
             "next": "next" if offset + len(tracks) < len(source) else None,
         }
 
-    def album_tracks(
+    async def album_tracks(
         self,
         album_id: str,
         limit: int,
@@ -138,7 +138,7 @@ class FakeSpotify:
         assert offset == 0
         return {"items": self.album_track_map.get(album_id, [])}
 
-    def search(
+    async def search(
         self,
         q: str,
         type: str,  # noqa: A002 - mirrors Spotipy's public method signature
@@ -151,7 +151,7 @@ class FakeSpotify:
         self.search_calls.append(q)
         return {"albums": {"items": self.search_items}}
 
-    def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
+    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, str]:
         if self.fail_post:
             raise RuntimeError("post failed")
         self.posts.append((path, payload))
@@ -244,7 +244,7 @@ def test_resolve_alphabetical_start_rejects_ambiguous_title() -> None:
         palace_of_memory.resolve_alphabetical_start(albums, "Shared Title")
 
 
-def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> None:
+async def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> None:
     """Historical selection uses seconds only and wraps.
 
     Args:
@@ -267,12 +267,15 @@ def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> Non
     scrobbles.append(raw_scrobble("Future", "Future Album", timestamp_ms(2026, 1, 1)))
     history_path.write_text(json.dumps({"scrobbles": scrobbles}))
 
-    generated_at, cutoff, available, selections = (
-        palace_of_memory.select_historical_albums(
-            path=history_path,
-            today=date(2026, 8, 4),
-            random_index_reader=FixedRandomIndexesResource(),
-        )
+    (
+        generated_at,
+        cutoff,
+        available,
+        selections,
+    ) = palace_of_memory.select_historical_albums(
+        path=history_path,
+        today=date(2026, 8, 4),
+        random_index_reader=FixedRandomIndexesResource(),
     )
 
     assert generated_at.second == 52
@@ -283,7 +286,7 @@ def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> Non
     assert {selection.albums_on_date for selection in selections} == {3}
 
 
-def test_dry_run_plans_ten_unique_first_tracks_without_writes(
+async def test_dry_run_plans_ten_unique_first_tracks_without_writes(
     tmp_path: Path,
 ) -> None:
     """Dry run plans ten unique first tracks without writes.
@@ -330,7 +333,9 @@ def test_dry_run_plans_ten_unique_first_tracks_without_writes(
     assert not log_path.exists()
 
 
-def test_saved_album_refresh_publishes_live_order_with_backup(tmp_path: Path) -> None:
+async def test_saved_album_refresh_publishes_live_order_with_backup(
+    tmp_path: Path,
+) -> None:
     albums_path = tmp_path / "albums.json"
     backups_dir = tmp_path / "backups"
     refresh_log = tmp_path / "refresh.jsonl"
@@ -357,7 +362,7 @@ def test_saved_album_refresh_publishes_live_order_with_backup(tmp_path: Path) ->
     assert json.loads(refresh_log.read_text())["added"] == 1
 
 
-def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None:
+async def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None:
     """Real run adds in order and persists next cursor.
 
     Args:
@@ -425,7 +430,7 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
     ] == [f"album-{index}" for index in range(5, 10)]
 
 
-def test_manual_alphabetical_start_overrides_and_replaces_cursor(
+async def test_manual_alphabetical_start_overrides_and_replaces_cursor(
     tmp_path: Path,
 ) -> None:
     """Manual alphabetical start overrides and replaces cursor.
@@ -478,7 +483,7 @@ def test_manual_alphabetical_start_overrides_and_replaces_cursor(
     assert state["last_alphabetical_album_id"] == "album-6"
 
 
-def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
+async def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
     tmp_path: Path,
 ) -> None:
     """Manual alphabetical start dry run does not change cursor.
@@ -518,7 +523,7 @@ def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
     assert state_path.read_text() == original_state
 
 
-def test_set_alphabetical_cursor_persists_next_position_without_playlist_calls(
+async def test_set_alphabetical_cursor_persists_next_position_without_playlist_calls(
     tmp_path: Path,
 ) -> None:
     albums_path = tmp_path / "albums.json"
@@ -540,10 +545,9 @@ def test_set_alphabetical_cursor_persists_next_position_without_playlist_calls(
     assert (
         palace_of_memory._load_cursor(  # noqa: SLF001
             state_path,
-            palace_of_memory.load_saved_albums(albums_path),
+            (palace_of_memory.load_saved_albums(albums_path)),
         )
-        == 5
-    )
+    ) == 5
     state = json.loads(state_path.read_text())
     assert state["next_alphabetical_index"] == 5
     assert state["last_alphabetical_album_id"] == "album-4"
@@ -551,7 +555,9 @@ def test_set_alphabetical_cursor_persists_next_position_without_playlist_calls(
     assert spotify.posts == []
 
 
-def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> None:
+async def test_real_run_rechecks_playlist_and_avoids_new_duplicate(
+    tmp_path: Path,
+) -> None:
     """Real run rechecks playlist and avoids new duplicate.
 
     Args:
@@ -591,7 +597,7 @@ def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> 
     assert "spotify:track:track-0" not in spotify.posts[0][1]["uris"]
 
 
-def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
+async def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
     """Failed playlist write does not advance cursor.
 
     Args:
@@ -606,24 +612,26 @@ def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
     spotify.fail_post = True
 
     with pytest.raises(RuntimeError, match="post failed"):
-        palace_of_memory.fill_palace_of_memory(
-            spotify,
-            PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
-            PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
-            PalaceResources(
-                albums_path=albums_path,
-                scrobbles_path=history_path,
-                state_path=state_path,
-                log_path=tmp_path / "log.jsonl",
-                album_backups_dir=tmp_path / "album-backups",
-                album_refresh_log_path=tmp_path / "refresh.jsonl",
-            ),
+        (
+            palace_of_memory.fill_palace_of_memory(
+                spotify,
+                PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+                PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+                PalaceResources(
+                    albums_path=albums_path,
+                    scrobbles_path=history_path,
+                    state_path=state_path,
+                    log_path=tmp_path / "log.jsonl",
+                    album_backups_dir=tmp_path / "album-backups",
+                    album_refresh_log_path=tmp_path / "refresh.jsonl",
+                ),
+            )
         )
 
     assert not state_path.exists()
 
 
-def test_search_fallback_requires_exact_artist_and_keeps_track_order() -> None:
+async def test_search_fallback_requires_exact_artist_and_keeps_track_order() -> None:
     """Search fallback requires exact artist and keeps track order."""
     spotify = FakeSpotify()
     spotify.search_items = [
@@ -665,7 +673,7 @@ def test_search_fallback_requires_exact_artist_and_keeps_track_order() -> None:
 class FixedRandomIndexesResource:
     """Own the original fixed fixture observation."""
 
-    def sample(
+    async def sample(
         self, population_size: int, count: int
     ) -> blast_from_past.RandomIndexSet:
         """Observe the original fixture boundary.

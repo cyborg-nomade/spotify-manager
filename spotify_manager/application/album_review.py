@@ -60,7 +60,7 @@ def _membership_key(track: Track) -> str:
     return str(track.spotify_id)
 
 
-def review_album(
+async def review_album(
     catalog: AlbumCatalog,
     membership: TrackMembership,
     request: AlbumReviewRequest,
@@ -80,11 +80,11 @@ def review_album(
         ValueError: Required input or numeric threshold is invalid.
         RuntimeError: An integration rejects a response or cannot complete a read.
     """
-    album = catalog.resolve_album(
+    album = await catalog.resolve_album(
         name=request.name, album_id=request.album_id, artist=request.artist
     )
-    tracks = catalog.album_tracks(album.spotify_id)
-    statuses = membership.liked_tracks(_track_ids(tracks))
+    tracks = await catalog.album_tracks(album.spotify_id)
+    statuses = await membership.liked_tracks(_track_ids(tracks))
     liked = tuple(statuses.get(_membership_key(track), False) for track in tracks)
     assessment = assess_album(len(tracks), sum(liked), request.threshold)
     return AlbumReview(album, tracks, liked, assessment, request.threshold)

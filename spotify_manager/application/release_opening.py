@@ -22,7 +22,7 @@ type ReleaseState = dict[str, object]
 class ReleaseOpeningEffects(Protocol):
     """Original history, state, frozen ranking and accepted-start audit boundaries."""
 
-    def load(self) -> ReleaseState:
+    async def load(self) -> ReleaseState:
         """Load original state after resolving the effective clock and local date.
 
         Returns:
@@ -49,14 +49,14 @@ class ReleaseOpeningEffects(Protocol):
             Original frozen ranked artists.
         """
 
-    def persist(self, state: ReleaseState) -> None:
+    async def persist(self, state: ReleaseState) -> None:
         """Accept the original initial checkpoint before its started audit.
 
         Args:
             state: Original complete new-run state.
         """
 
-    def audit(self, run_id: str, event: str, **details: object) -> None:
+    async def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept the original started event after the initial checkpoint.
 
         Args:
@@ -193,7 +193,7 @@ class ReleaseRunOpening:
     calendar: ReleaseCalendar
     minimum_scrobbles: int = 100
 
-    def run(self, dry_run: bool) -> OpenedReleaseRun:
+    async def run(self, dry_run: bool) -> OpenedReleaseRun:
         """Load original state, resume its window or refresh history before a new start.
 
         Args:
@@ -208,14 +208,14 @@ class ReleaseRunOpening:
         """
         stamp = self.calendar.clock()
         today = self.calendar.local_date(stamp)
-        persisted = self.effects.load()
+        persisted = await self.effects.load()
         state = deepcopy(persisted)
         active = state.get("active_run")
         if isinstance(active, dict):
             return self._resume(
                 stamp, today, persisted, state, cast(ReleaseState, active)
             )
-        return self._start(stamp, today, persisted, state, dry_run)
+        return await self._start(stamp, today, persisted, state, dry_run)
 
     def _resume(
         self,
@@ -241,7 +241,7 @@ class ReleaseRunOpening:
             None,
         )
 
-    def _start(
+    async def _start(
         self,
         stamp: datetime,
         today: date,
@@ -249,7 +249,7 @@ class ReleaseRunOpening:
         state: ReleaseState,
         dry_run: bool,
     ) -> OpenedReleaseRun:
-        refreshed = self.history.run(self.username, False, False, stamp)
+        refreshed = await self.history.run(self.username, False, False, stamp)
         artists = self.effects.rank(refreshed.history)
         if not artists:
             raise ReleaseCheckError(
@@ -260,8 +260,8 @@ class ReleaseRunOpening:
         active = _active_record(run_id, stamp, start, today, artists)
         state["active_run"] = active
         if not dry_run:
-            self.effects.persist(state)
-            self.effects.audit(
+            await self.effects.persist(state)
+            await self.effects.audit(
                 run_id,
                 "run_started",
                 checked_from=start.isoformat(),

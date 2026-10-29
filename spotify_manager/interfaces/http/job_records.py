@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 from dataclasses import field
-from threading import Event
 
+from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 

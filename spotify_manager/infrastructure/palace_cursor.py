@@ -214,9 +214,11 @@ class PalaceCursorAccess:
         Returns:
             Original selected cursor authority.
         """
-        from spotify_manager.routines.palace_of_memory import _state_access
+        from spotify_manager.routines.palace_of_memory import (
+            _async_state_access as _async_state_access,
+        )
 
-        return _state_access(self.path, self.service)
+        return _async_state_access(self.path, self.service)
 
     def cursor_payload(self, index: int, album: YourLibraryAlbum) -> dict[str, object]:
         """Observe the original write clock and serialize the replacement.

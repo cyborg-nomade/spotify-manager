@@ -56,7 +56,7 @@ class SauvignonEffects(Protocol):
         """Resolve the invocation's retry policy after validating its options."""
         ...
 
-    def refresh(
+    async def refresh(
         self, generated_at: datetime, dry_run: bool
     ) -> tuple[list[Scrobble], int]:
         """Refresh canonical history.
@@ -69,21 +69,21 @@ class SauvignonEffects(Protocol):
             Plays and live-added count.
         """
 
-    def read(self) -> tuple[PlaylistTrack, ...]:
+    async def read(self) -> tuple[PlaylistTrack, ...]:
         """Observe original ordered destination membership.
 
         Returns:
             Playable markers.
         """
 
-    def previous(self) -> set[AlbumKey]:
+    async def previous(self) -> set[AlbumKey]:
         """Read prior accepted additions.
 
         Returns:
             Normalized album exclusions.
         """
 
-    def first(self, album: SpotifyAlbumOption) -> FirstTrack:
+    async def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Read a playable marker before any playlist mutation.
 
         Args:
@@ -93,14 +93,14 @@ class SauvignonEffects(Protocol):
             First playable track.
         """
 
-    def append(self, additions: list[PendingAlbum]) -> None:
+    async def append(self, additions: list[PendingAlbum]) -> None:
         """Accept the original ordered append.
 
         Args:
             additions: Freshly filtered proposals.
         """
 
-    def audit(self, summary: SauvignonSummary) -> None:
+    async def audit(self, summary: SauvignonSummary) -> None:
         """Append the original result after all accepted effects.
 
         Args:
@@ -168,7 +168,7 @@ class SauvignonRun:
     minimum_searches: int = 50
     search_multiplier: int = 5
 
-    def run(
+    async def run(
         self,
         playlist_id: str,
         count: int | None,
@@ -197,9 +197,9 @@ class SauvignonRun:
         self.effects.prepare()
         stamp = self.clock.now()
         week = listening_week_start(self.calendar.local_date(stamp))
-        history, live_added = self.effects.refresh(stamp, dry_run)
+        history, live_added = await self.effects.refresh(stamp, dry_run)
         self.progress.echo("Loading Sauvignon Terre-Neuve")
-        playlist = self.effects.read()
+        playlist = await self.effects.read()
         before = len(playlist)
         requested = (
             count
@@ -207,10 +207,10 @@ class SauvignonRun:
             else max(0, (maximum or self.default_maximum) - before)
         )
         keys = heard_album_keys(history)
-        batch = self._gather(
+        batch = await self._gather(
             history, keys, playlist, requested, seed_count, week, stamp, dry_run
         )
-        added = self._append(batch.selection, dry_run)
+        added = await self._append(batch.selection, dry_run)
         summary = SauvignonSummary(
             stamp,
             week,
@@ -228,10 +228,10 @@ class SauvignonRun:
             dry_run,
             tuple(batch.selection.results),
         )
-        self.effects.audit(summary)
+        await self.effects.audit(summary)
         return summary
 
-    def _gather(
+    async def _gather(
         self,
         history: list[Scrobble],
         keys: set[AlbumKey],
@@ -248,7 +248,7 @@ class SauvignonRun:
         aggregated = aggregate_track_history(history)
         seeds = self.stages.seeds.run(aggregated, seed_count, week)
         pool = max(self.minimum_pool, requested * self.pool_multiplier)
-        tracks = self.stages.candidates.run(
+        tracks = await self.stages.candidates.run(
             seeds, {track.key for track in aggregated}, week, pool, stamp
         )
         existing_ids = {track.release.spotify_id for track in playlist}
@@ -257,21 +257,25 @@ class SauvignonRun:
             existing_keys.add(
                 canonical_album_key(track.primary_artist_name, track.release.name)
             )
-        excluded = keys | existing_keys | self.effects.previous()
+        excluded = keys | existing_keys | (await self.effects.previous())
         maximum = min(
             len(tracks), max(self.minimum_searches, requested * self.search_multiplier)
         )
-        albums = self.stages.albums.run(tracks, excluded, existing_ids, maximum, week)
-        selection.run(albums, requested)
+        albums = await self.stages.albums.run(
+            tracks, excluded, existing_ids, maximum, week
+        )
+        await selection.run(albums, requested)
         return AlbumBatch(seeds, tracks, albums, selection)
 
-    def _append(self, selection: AlbumSelection, dry_run: bool) -> int:
+    async def _append(self, selection: AlbumSelection, dry_run: bool) -> int:
         if not selection.pending or dry_run:
             return 0
         self.progress.echo("Rechecking Sauvignon before adding albums")
-        additions = fresh_additions(tuple(selection.pending), self.effects.read())
+        additions = fresh_additions(
+            tuple(selection.pending), (await self.effects.read())
+        )
         if additions:
-            self.effects.append(additions)
+            await self.effects.append(additions)
             self.output.echo(f"Added {len(additions)} albums to Sauvignon Terre-Neuve.")
         selection.results = list(accepted_results(tuple(selection.results), additions))
         return len(additions)

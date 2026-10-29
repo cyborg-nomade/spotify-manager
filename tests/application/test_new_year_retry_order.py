@@ -1,7 +1,7 @@
 """Verify original direct and falsey caller retry timing around cancellation checks."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 
 from spotify_manager.application.new_year_retry import AnnualRetry
@@ -16,13 +16,11 @@ def _operation(trace: list[str]) -> int:
     return 11
 
 
-def test_annual_missing_caller_retry_runs_operation_between_cancellation_checks() -> (
-    None
-):
+async def test_annual_missing_caller_retry_runs_operation_between() -> None:
     """Retain original direct invocation and both cancellation boundaries."""
     trace: list[str] = []
     retry = AnnualRetry(None, TraceCancellation(trace))
-    assert _execute(retry, trace) == 11
+    assert (await _execute(retry, trace)) == 11
     assert trace == ["cancel", "operation", "cancel"]
 
 
@@ -45,7 +43,7 @@ class FalseyRetry:
         self.trace.append("truthiness")
         return False
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Reject execution through the original falsey retry authority.
 
         Args:
@@ -57,14 +55,12 @@ class FalseyRetry:
         raise AssertionError("falsey caller must not execute")
 
 
-def test_annual_falsey_retry_is_checked_only_after_first_cancellation_boundary() -> (
-    None
-):
+async def test_annual_falsey_retry_is_checked_only_after_first_cancellation() -> None:
     """Retain original late truthiness and direct operation semantics."""
     trace: list[str] = []
     retry = AnnualRetry(FalseyRetry(trace), TraceCancellation(trace))
     assert trace == []
-    assert _execute(retry, trace) == 11
+    assert (await _execute(retry, trace)) == 11
     assert trace == ["cancel", "truthiness", "operation", "cancel"]
 
 
@@ -83,8 +79,8 @@ class TraceCancellation:
         _cancel(self.trace)
 
 
-def _execute(retry: AnnualRetry, trace: list[str]) -> int:
+async def _execute(retry: AnnualRetry, trace: list[str]) -> int:
     for attempt in retry.attempts("description"):
-        with attempt:
+        async with attempt:
             return _operation(trace)
     raise AssertionError("Retry scopes must include an attempt")

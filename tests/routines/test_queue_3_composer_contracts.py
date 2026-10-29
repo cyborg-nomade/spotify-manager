@@ -85,7 +85,7 @@ INVALID = Answer("unowned")
 
 
 @pytest.mark.parametrize("choice", [None, QUIT, INVALID])
-def test_original_stale_route_is_removed_before_ambiguous_choice(
+async def test_original_stale_route_is_removed_before_ambiguous_choice(
     choice: queue_3.ComposerPlaylistReader | None,
 ) -> None:
     """Cancellation and selection errors leave the stale route removed in working state.
@@ -97,18 +97,28 @@ def test_original_stale_route_is_removed_before_ambiguous_choice(
     state: dict[str, object] = {"composer_routes": routes}
     owned = (WORKS, OwnedPlaylist("other", "[CD] Johann Sebastian Bach Collection", 2))
     if choice is QUIT:
-        assert queue_3._resolve_composer_playlist(
-            "bach", "Johann Sebastian Bach", "source", "queue", owned, state, choice
+        assert (
+            await queue_3._resolve_composer_playlist(
+                "bach", "Johann Sebastian Bach", "source", "queue", owned, state, choice
+            )
         ) == (None, True)
     else:
         with pytest.raises(queue_3.Queue3ConfigError):
-            queue_3._resolve_composer_playlist(
-                "bach", "Johann Sebastian Bach", "source", "queue", owned, state, choice
+            (
+                await queue_3._resolve_composer_playlist(
+                    "bach",
+                    "Johann Sebastian Bach",
+                    "source",
+                    "queue",
+                    owned,
+                    state,
+                    choice,
+                )
             )
     assert routes == {}
 
 
-def test_original_valid_route_reuse_leaves_original_record_unchanged() -> None:
+async def test_original_valid_route_reuse_leaves_original_record_unchanged() -> None:
     """Existing valid routes do not refresh marker IDs or timestamps."""
     route: dict[str, object] = {
         "playlist_id": "works",
@@ -116,8 +126,10 @@ def test_original_valid_route_reuse_leaves_original_record_unchanged() -> None:
         "unknown": True,
     }
     state: dict[str, object] = {"composer_routes": {"bach": route}}
-    assert queue_3._resolve_composer_playlist(
-        "bach", "Johann Sebastian Bach", "source", "queue", (WORKS,), state, None
+    assert (
+        await queue_3._resolve_composer_playlist(
+            "bach", "Johann Sebastian Bach", "source", "queue", (WORKS,), state, None
+        )
     ) == (WORKS, False)
     assert route == {"playlist_id": "works", "current_track_id": "old", "unknown": True}
 

@@ -5,8 +5,6 @@ from datetime import date as date
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
 from spotify_manager.application.found_art_values import (
     FoundArtConfigError as FoundArtConfigError,
 )
@@ -14,6 +12,7 @@ from spotify_manager.application.found_art_values import FoundArtError as FoundA
 from spotify_manager.application.found_art_values import (
     FoundArtSummary as FoundArtSummary,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.recommendations import candidate_gathering
 from spotify_manager.bootstrap.recommendations import recommendation_resolution
 from spotify_manager.bootstrap.recommendations import recommendation_run
@@ -75,7 +74,7 @@ def select_seed_tracks(
     return configured.run(history, seed_count, week_start)
 
 
-def gather_candidates(
+async def gather_candidates(
     lastfm: LastFmReader,
     seeds: tuple[FoundArtSeed, ...],
     heard_keys: set[TrackKey],
@@ -111,10 +110,10 @@ def gather_candidates(
     configured = candidate_gathering(
         lastfm, cache_path, log_path, now, progress_callback
     )
-    return configured.run(seeds, heard_keys, week_start, candidate_pool_size)
+    return await configured.run(seeds, heard_keys, week_start, candidate_pool_size)
 
 
-def resolve_spotify_candidates(
+async def resolve_spotify_candidates(
     sp: Spotify,
     candidates: tuple[FoundArtCandidate, ...],
     playlist: blast_from_past.PlaylistState,
@@ -141,10 +140,10 @@ def resolve_spotify_candidates(
         ValueError: The configured batch size is zero.
     """
     configured = recommendation_resolution(sp, progress_callback)
-    return configured.run(candidates, playlist, count, dry_run)
+    return await configured.run(candidates, playlist, count, dry_run)
 
 
-def run_found_art(
+async def run_found_art(
     sp: Spotify,
     lastfm: LastFmReader,
     playlist_id: str,
@@ -196,4 +195,6 @@ def run_found_art(
         now,
         progress_callback,
     )
-    return configured.run(playlist_id, count, max_playlist_length, seed_count, dry_run)
+    return await configured.run(
+        playlist_id, count, max_playlist_length, seed_count, dry_run
+    )

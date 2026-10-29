@@ -10,7 +10,7 @@ from spotify_manager.domain.composers import OwnedPlaylist
 class AnnualStateAccess(Protocol):
     """Read original shallow annual authority and accept complete namespace writes."""
 
-    def load(self) -> RetrospectiveState:
+    async def load(self) -> RetrospectiveState:
         """Read original detached complete annual state.
 
         Returns:
@@ -18,7 +18,7 @@ class AnnualStateAccess(Protocol):
         """
         ...
 
-    def save(self, state: RetrospectiveState, /) -> object:
+    async def save(self, state: RetrospectiveState, /) -> object:
         """Accept the original complete namespace checkpoint.
 
         Args:
@@ -54,7 +54,7 @@ class AnnualEffects(Protocol):
             Original complete namespace access.
         """
 
-    def owned(self) -> tuple[OwnedPlaylist, ...]:
+    async def owned(self) -> tuple[OwnedPlaylist, ...]:
         """Read current owned playlists.
 
         Returns:

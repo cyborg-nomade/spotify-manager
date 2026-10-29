@@ -15,10 +15,13 @@ from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_cli
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import ReleaseCheckResult
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.history import present_history_summary
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
@@ -42,7 +45,7 @@ class ReleasesCLI:
     progress_display: ProgressDisplay
     display: ConsoleDisplay
 
-    def _prompt_release_check_artist(
+    async def _prompt_release_check_artist(
         self,
         console: Console,
         artist: release_check.RankedArtist,
@@ -62,13 +65,13 @@ class ReleasesCLI:
         """
         progress.stop()
         try:
-            return self._read_release_check_artist(
+            return await self._read_release_check_artist(
                 console, artist, candidates, progress
             )
         finally:
             progress.start()
 
-    def _prompt_release_check_release(
+    async def _prompt_release_check_release(
         self,
         console: Console,
         artist: release_check.RankedArtist,
@@ -122,7 +125,7 @@ class ReleasesCLI:
                 )
                 choices.insert(1, "p")
                 default = "p"
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 prompt, choices=choices, default=default, console=console
             )
             return {
@@ -191,14 +194,14 @@ class ReleasesCLI:
             )
             console.print(message, style="bold yellow")
 
-    def _run_check_new_releases(self, dry_run: bool) -> None:
+    async def _run_check_new_releases(self, dry_run: bool) -> None:
         """Check Last.fm's most-played artists for newly released music.
 
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._check_new_releases_console = self.display.create_console()
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlists = release_check.ReleaseCheckPlaylists.from_references(
                 configuration.wine_cellar_playlist, configuration.new_vintage_playlist
@@ -232,8 +235,8 @@ class ReleasesCLI:
                         "Preparing release check", total=None
                     )
                 )
-                summary = release_check.run_release_check(
-                    self.runtime.client(),
+                summary = await release_check.run_release_check(
+                    (await self.runtime.client()),
                     lastfm_client,
                     ReleaseCheckOptions(
                         playlists=playlists, expected_username=username, dry_run=dry_run
@@ -245,7 +248,7 @@ class ReleasesCLI:
                     ),
                     ReleaseCheckResources(),
                 )
-        except KeyboardInterrupt as exc:
+        except (KeyboardInterrupt, CliInterruptedError) as exc:
             self._report_check_new_releases_interrupted_interrupted(exc, dry_run)
         except (
             release_check.ReleaseCheckError,
@@ -272,7 +275,7 @@ class ReleasesCLI:
             description=status,
         )
 
-    def _check_new_releases_choose_release(
+    async def _check_new_releases_choose_release(
         self,
         artist: release_check.RankedArtist,
         release: release_check.ReleaseCandidate,
@@ -280,7 +283,7 @@ class ReleasesCLI:
         destinations: tuple[str, ...],
         unattached: bool,
     ) -> str:
-        return self._prompt_release_check_release(
+        return await self._prompt_release_check_release(
             self._check_new_releases_console,
             artist,
             release,
@@ -293,12 +296,12 @@ class ReleasesCLI:
     def _check_new_releases_log(self, message: str) -> None:
         return self._check_new_releases_console.print(message, style="yellow")
 
-    def _check_new_releases_ask_release_check_artist(
+    async def _check_new_releases_ask_release_check_artist(
         self,
         artist: release_check.RankedArtist,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self._prompt_release_check_artist(
+        return await self._prompt_release_check_artist(
             self._check_new_releases_console,
             artist,
             candidates,
@@ -352,7 +355,7 @@ class ReleasesCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_check_new_releases_interrupted_interrupted(
-        self, exc: KeyboardInterrupt, dry_run: bool
+        self, exc: KeyboardInterrupt | CliInterruptedError, dry_run: bool
     ) -> Never:
         if dry_run:
             self._check_new_releases_console.print(
@@ -365,7 +368,7 @@ class ReleasesCLI:
             )
         raise typer.Exit(code=0) from exc
 
-    def _read_release_check_artist(
+    async def _read_release_check_artist(
         self,
         console: Console,
         artist: release_check.RankedArtist,
@@ -384,7 +387,7 @@ class ReleasesCLI:
             The original value selected or formatted by this adapter.
         """
         self._show_artist_options(console, artist, candidates)
-        response = self.display.prompt.ask(
+        response = await TerminalPrompt(self.display.prompt).ask(
             (
                 "Artist number / [n]ew search / [s]kip this run /"
                 " [p]ermanently skip / [q]uit and resume later"
@@ -400,7 +403,7 @@ class ReleasesCLI:
             console=console,
         )
         if response == "n":
-            return self._read_artist_search(console)
+            return await self._read_artist_search(console)
         if response == "s":
             return release_check.CHOICE_SKIP
         if response == "p":
@@ -514,10 +517,12 @@ class ReleasesCLI:
             self._row_release_check_artist_candidate(candidate, index, table)
         console.print(table)
 
-    def _read_artist_search(self, console: Console) -> str:
+    async def _read_artist_search(self, console: Console) -> str:
         while True:
-            search_text = self.display.prompt.ask(
-                "New Spotify artist search", console=console
+            search_text = (
+                await TerminalPrompt(self.display.prompt).ask(
+                    "New Spotify artist search", console=console
+                )
             ).strip()
             if search_text:
                 return f"{release_check.CHOICE_SEARCH_PREFIX}{search_text}"
@@ -561,9 +566,10 @@ class CheckNewReleasesInteraction:
             total: Original total.
             status: Original status.
         """
+        check_cli_interruption()
         self.owner._check_new_releases_update_progress(completed, total, status)
 
-    def choose_artist(
+    async def choose_artist(
         self,
         artist: release_check.RankedArtist,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
@@ -577,11 +583,11 @@ class CheckNewReleasesInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._check_new_releases_ask_release_check_artist(
+        return await self.owner._check_new_releases_ask_release_check_artist(
             artist, candidates
         )
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: release_check.RankedArtist,
         release: release_check.ReleaseCandidate,
@@ -601,6 +607,6 @@ class CheckNewReleasesInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._check_new_releases_choose_release(
+        return await self.owner._check_new_releases_choose_release(
             artist, release, track, destinations, unattached
         )

@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import pytest
 
 from spotify_manager.client import lastfm
-from tests.support.runtime_resources import DelayList
+from tests.support.runtime_resources import BlockingDelayList as DelayList
 from tests.support.runtime_resources import MessageList
 
 

@@ -21,7 +21,7 @@ type Echo = Messages
 class ActionReader(Protocol):
     """Own the operator interaction for choose action."""
 
-    def choose_action(
+    async def choose_action(
         self, album: YourLibraryAlbum, evaluation: AlbumEvaluation, /
     ) -> str:
         """Read or report the original operator interaction.
@@ -113,7 +113,7 @@ def _normalized_action(action: str, evaluation: AlbumEvaluation) -> str | None:
     return None
 
 
-def read_action(
+async def read_action(
     album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
     action_reader: ActionReader,
@@ -131,7 +131,9 @@ def read_action(
         Normalized remove, keep, skip, or quit action.
     """
     while True:
-        action = action_reader.choose_action(album, evaluation).strip().casefold()
+        action = (
+            (await action_reader.choose_action(album, evaluation)).strip().casefold()
+        )
         normalized = _normalized_action(action, evaluation)
         if normalized is not None:
             return normalized
@@ -232,7 +234,7 @@ class AlbumReviewPresenter:
             return
         self.output.echo(f"Live liked tracks: {count}")
 
-    def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
+    async def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
         """Read the original interface action.
 
         Args:
@@ -242,7 +244,7 @@ class AlbumReviewPresenter:
         Returns:
             Normalized action.
         """
-        return read_action(album, evaluation, self.action_reader, self.output)
+        return await read_action(album, evaluation, self.action_reader, self.output)
 
     def progress(self, position: int, total: int) -> None:
         """Deliver completion progress when a callback exists.

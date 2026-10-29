@@ -5,9 +5,8 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_resolution import (
     RecommendationResolution,

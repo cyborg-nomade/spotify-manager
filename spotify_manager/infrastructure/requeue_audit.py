@@ -1,9 +1,12 @@
 """Named JSON Lines audit storage for Requeue outcomes."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
 from spotify_manager.application.requeue_result import RequeueForADreamSummary
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
 @dataclass(frozen=True)
@@ -16,7 +19,7 @@ class RequeueAudit:
 
     path: Path
 
-    def write(self, result: RequeueForADreamSummary) -> None:
+    async def write(self, result: RequeueForADreamSummary) -> None:
         """Accept a complete outcome with the original bytes and error semantics.
 
         Args:
@@ -24,4 +27,8 @@ class RequeueAudit:
         """
         from spotify_manager.routines.requeue_for_a_dream import _append_log
 
-        _append_log(result, self.path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_log, result, self.path)
+            )
+            await finish_blocking(file_operation)

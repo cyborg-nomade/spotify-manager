@@ -97,7 +97,7 @@ class SomethingOld:
     username: str | None
     minimum_plays: int = 50
 
-    def run(self, playlist: str, preview: bool) -> SomethingOldSummary:
+    async def run(self, playlist: str, preview: bool) -> SomethingOldSummary:
         """Refresh and select only after the original destination-empty check.
 
         Args:
@@ -113,10 +113,10 @@ class SomethingOld:
         """
         now = self.effects.clock()
         self.effects.progress("Checking whether Something Old is empty")
-        size = self.effects.playlist_length(False)
+        size = await self.effects.playlist_length(False)
         if size:
             return _nonempty(now, playlist, size, preview)
-        history = self.history.run(self.username, preview, False, now)
+        history = await self.history.run(self.username, preview, False, now)
         self.effects.progress("Calculating Golden Oldies average scrobble dates")
         ranking = self.effects.ranking(history.history)
         if not ranking:
@@ -124,26 +124,26 @@ class SomethingOld:
                 f"No artists have at least {self.minimum_plays} scrobbles."
             )
         facts = _OldFacts(now, playlist, preview, history, ranking)
-        mapped = self.effects.resolve(ranking[0])
+        mapped = await self.effects.resolve(ranking[0])
         if mapped is None:
             return _summary(facts, "cancelled")
-        return self._selection(facts, mapped)
+        return await self._selection(facts, mapped)
 
-    def _selection(
+    async def _selection(
         self, facts: _OldFacts, mapped: SpotifyArtistCandidate
     ) -> SomethingOldSummary:
         artist = facts.ranking[0]
-        raw_mode = self.effects.mode(artist, mapped)
+        raw_mode = await self.effects.mode(artist, mapped)
         if raw_mode == "quit":
             return _summary(facts, "cancelled", mapped)
         if raw_mode not in {"lastfm_top_tracks", "spotify_top_tracks", "album"}:
             raise SomethingOldError("The Something Old selection mode is invalid.")
         mode = cast(SelectionMode, raw_mode)
         self.effects.progress(f"Preparing {artist.artist}'s {mode.replace('_', ' ')}")
-        release, tracks = self._tracks(mode, artist, mapped)
+        release, tracks = await self._tracks(mode, artist, mapped)
         if mode == "album" and release is None:
             return _summary(facts, "cancelled", mapped, mode)
-        self._append(tracks, facts.preview)
+        await self._append(tracks, facts.preview)
         summary = _summary(
             facts,
             "would add" if facts.preview else "added",
@@ -153,28 +153,28 @@ class SomethingOld:
             tracks,
         )
         if not facts.preview:
-            self.effects.audit(summary)
+            await self.effects.audit(summary)
         return summary
 
-    def _tracks(
+    async def _tracks(
         self,
         mode: SelectionMode,
         artist: GoldenOldieArtist,
         mapped: SpotifyArtistCandidate,
     ) -> tuple[DiscographyRelease | None, tuple[SelectedTrack, ...]]:
         if mode == "lastfm_top_tracks":
-            return None, self.effects.lastfm_tracks(artist)
+            return None, (await self.effects.lastfm_tracks(artist))
         if mode == "spotify_top_tracks":
-            return None, self.effects.spotify_tracks(mapped)
-        return self.effects.album_tracks(artist, mapped)
+            return None, (await self.effects.spotify_tracks(mapped))
+        return await self.effects.album_tracks(artist, mapped)
 
-    def _append(self, tracks: tuple[SelectedTrack, ...], preview: bool) -> None:
+    async def _append(self, tracks: tuple[SelectedTrack, ...], preview: bool) -> None:
         if preview:
             return
         self.effects.progress("Rechecking the empty playlist before adding")
-        if self.effects.playlist_length(True):
+        if await self.effects.playlist_length(True):
             raise SomethingOldError(
                 "Something Old changed while the selection was being prepared; "
                 "nothing was added."
             )
-        self.effects.append(tracks)
+        await self.effects.append(tracks)

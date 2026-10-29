@@ -28,7 +28,7 @@ class HistoryCommand:
     console: Console
     configuration: Settings
 
-    def run(self, full_rebuild: bool, dry_run: bool) -> None:
+    async def run(self, full_rebuild: bool, dry_run: bool) -> None:
         """Run the original configuration, refresh and rendering sequence.
 
         Args:
@@ -41,7 +41,7 @@ class HistoryCommand:
         lastfm, username = self._client()
         try:
             with self.console.status("Refreshing Last.fm scrobble history") as status:
-                summary = history.refresh_scrobble_history(
+                summary = await history.refresh_scrobble_history(
                     lastfm,
                     expected_username=username,
                     dry_run=dry_run,

@@ -6,11 +6,12 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.music import NamedTrack
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue_result import (
     RequeueForADreamChangedError as RequeueForADreamChangedError,
 )
@@ -28,10 +29,14 @@ from spotify_manager.application.requeue_result import (
 )
 from spotify_manager.domain.requeue import RequeueAction as RequeueAction
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
-
-# UFI
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening as slow_listening
+
+
+# UFI
 
 
 type ProgressCallback = Messages
@@ -68,7 +73,7 @@ def parse_playlist_id(reference: str | None) -> str:
         raise RequeueForADreamConfigError(str(exc)) from exc
 
 
-def _add_track(
+async def _add_track(
     spotify: Spotify,
     playlist_id: str,
     track: NamedTrack,
@@ -76,11 +81,11 @@ def _add_track(
 ) -> None:
     """Append the replacement before the source is removed."""
     for attempt in retry_call.attempts(f"adding {track.name} to Requeue for a Dream"):
-        with attempt:
-            _post_track(spotify, playlist_id, track)
+        async with attempt:
+            await _post_track(spotify, playlist_id, track)
 
 
-def _remove_track(
+async def _remove_track(
     spotify: Spotify,
     playlist_id: str,
     track: NamedTrack,
@@ -90,19 +95,21 @@ def _remove_track(
     for attempt in retry_call.attempts(
         f"removing {track.name} from Requeue for a Dream"
     ):
-        with attempt:
-            _delete_track(spotify, playlist_id, track)
+        async with attempt:
+            await _delete_track(spotify, playlist_id, track)
 
 
-def _post_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
-    return spotify._post(
+async def _post_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
+    return await spotify._post(
         f"playlists/{playlist_id}/items",
         payload={"uris": [track.uri]},
     )
 
 
-def _delete_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
-    return spotify._delete(
+async def _delete_track(
+    spotify: Spotify, playlist_id: str, track: NamedTrack
+) -> object:
+    return await spotify._delete(
         f"playlists/{playlist_id}/items",
         payload={"items": [{"uri": track.uri}]},
     )
@@ -141,7 +148,7 @@ class ClockClock:
 _CLOCK_RESOURCE = ClockClock()
 
 
-def flush_requeue_for_a_dream(
+async def async_flush_requeue_for_a_dream(
     spotify: Spotify,
     playlist_id: str,
     *,
@@ -173,7 +180,7 @@ def flush_requeue_for_a_dream(
         flush_requeue_for_a_dream as operation,
     )
 
-    return operation(
+    return await operation(
         spotify,
         playlist_id,
         dry_run=dry_run,
@@ -181,4 +188,49 @@ def flush_requeue_for_a_dream(
         progress_callback=progress_callback,
         retry_call=retry_call,
         log_path=log_path,
+    )
+
+
+def flush_requeue_for_a_dream(
+    spotify: LegacySpotify,
+    playlist_id: str,
+    *,
+    dry_run: bool = False,
+    echo: Echo = STANDARD_OUTPUT,
+    progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall | None | LegacyRetry = None,
+    log_path: Path = DEFAULT_LOG_PATH,
+) -> RequeueForADreamSummary:
+    """Advance the playlist through the application use case.
+
+    Args:
+        spotify: Existing synchronous client.
+        playlist_id: Already-parsed playlist identifier.
+        dry_run: Preview without mutation, final recheck, or audit.
+        echo: Mutation message sink.
+        progress_callback: Optional progress and cancellation boundary.
+        retry_call: Existing interface retry policy, or direct execution.
+        log_path: Original JSONL audit destination.
+
+    Returns:
+        The original summary, consumed unchanged by CLI and HTTP presenters.
+
+    Raises:
+        RequeueForADreamError: A read, head check, or audit fails.
+        RuntimeError: The caller interrupts execution through its retry callback.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_flush_requeue_for_a_dream(
+            legacy_spotify(spotify),
+            playlist_id,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=PythonRetry(retry_call) if retry_call is not None else None,
+            log_path=log_path,
+        )
     )

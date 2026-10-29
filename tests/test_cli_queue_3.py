@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -113,7 +114,11 @@ def test_flush_queue_3_dry_run_uses_configured_playlist(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushQueue3DryRunUsesConfiguredPlaylistScenario(received=received)
     monkeypatch.setattr(
         main.queue_3, "flush_queue_3", FeatureInvocation(scenario, ("playlist_id",))
@@ -145,12 +150,18 @@ def test_previous_year_import_command_does_not_run_queue_transitions(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = PreviousYearImportCommandDoesNotRunQueueTransitionsScenario(
         received=received
     )
     monkeypatch.setattr(
-        main.queue_3, "import_previous_year_discoveries", scenario.import_previous_year
+        main.queue_3,
+        "import_previous_year_discoveries",
+        AsyncMock(side_effect=scenario.import_previous_year),
     )
     result = CliRunner().invoke(main.app, ["import-queue-3-previous-year", "--dry-run"])
     assert result.exit_code == 0

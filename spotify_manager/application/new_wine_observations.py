@@ -11,7 +11,7 @@ from spotify_manager.domain.catalog import ReleaseTrack
 class WineCatalog(Protocol):
     """Gather current release facts using the original synchronous read boundaries."""
 
-    def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Read a release's ordered playable tracks.
 
         Args:
@@ -21,7 +21,7 @@ class WineCatalog(Protocol):
             Tracks in original disc and track order.
         """
 
-    def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
+    async def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
         """Read current-year primary-credit candidates.
 
         Args:
@@ -32,7 +32,7 @@ class WineCatalog(Protocol):
             Eligible releases in original order.
         """
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Fill missing membership observations using the existing batch rules.
 
         Args:
@@ -61,7 +61,7 @@ class WineObservations:
         default_factory=dict
     )
 
-    def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Observe a release once per invocation, including empty responses.
 
         Args:
@@ -71,10 +71,10 @@ class WineObservations:
             Cached or newly observed tracks.
         """
         if release.spotify_id not in self.release_tracks:
-            self.release_tracks[release.spotify_id] = self.catalog.tracks(release)
+            self.release_tracks[release.spotify_id] = await self.catalog.tracks(release)
         return self.release_tracks[release.spotify_id]
 
-    def releases(self, artist_id: str) -> tuple[ReleaseCandidate, ...]:
+    async def releases(self, artist_id: str) -> tuple[ReleaseCandidate, ...]:
         """Observe an artist's current-year releases once per invocation.
 
         Args:
@@ -84,20 +84,20 @@ class WineObservations:
             Cached or newly observed candidates.
         """
         if artist_id not in self.artist_releases:
-            self.artist_releases[artist_id] = self.catalog.releases(
+            self.artist_releases[artist_id] = await self.catalog.releases(
                 artist_id, self.year
             )
         return self.artist_releases[artist_id]
 
-    def memberships(self, tracks: tuple[ReleaseTrack, ...]) -> None:
+    async def memberships(self, tracks: tuple[ReleaseTrack, ...]) -> None:
         """Observe missing likes for the supplied canonical track sequence.
 
         Args:
             tracks: Ordered tracks needed for this decision.
         """
-        self.catalog.likes([track.spotify_id for track in tracks], self.liked)
+        await self.catalog.likes([track.spotify_id for track in tracks], self.liked)
 
-    def source_liked(self, spotify_id: str) -> bool:
+    async def source_liked(self, spotify_id: str) -> bool:
         """Observe the current source before reconstructing its preceding streak.
 
         Args:
@@ -106,5 +106,5 @@ class WineObservations:
         Returns:
             Current source status under the existing per-run cache policy.
         """
-        self.catalog.likes([spotify_id], self.liked)
+        await self.catalog.likes([spotify_id], self.liked)
         return self.liked[spotify_id]

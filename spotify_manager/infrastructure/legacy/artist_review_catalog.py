@@ -50,7 +50,7 @@ class LegacyScan:
         """
         return int(cast(int | float | str, self.raw.get("offset", 0)))
 
-    def accept(self, page: RawReleasePage, offset: int) -> None:
+    async def accept(self, page: RawReleasePage, offset: int) -> None:
         """Update original in-memory progress before guarding and checkpointing.
 
         Args:
@@ -70,7 +70,7 @@ class LegacyScan:
             raise ArtistReviewError(
                 f"Spotify returned an empty release page for {self.name}."
             )
-        self.checkpoint.save()
+        await self.checkpoint.save()
 
     def candidates(self) -> list[ReleaseCandidate]:
         """Decode original complete raw scan only after pagination ends.
@@ -125,16 +125,16 @@ class LegacyCatalogCache:
         """
         return records.cached_releases(self.data.get(key))
 
-    def save_tracks(self, tracks: list[TrackCandidate]) -> None:
+    async def save_tracks(self, tracks: list[TrackCandidate]) -> None:
         """Assign original complete tracks before checkpoint publication.
 
         Args:
             tracks: Original associated ranked facts.
         """
         self.data["ranked_tracks"] = [asdict(track) for track in tracks]
-        self.checkpoint.save()
+        await self.checkpoint.save()
 
-    def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
+    async def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
         """Assign original complete releases before checkpoint publication.
 
         Args:
@@ -142,7 +142,7 @@ class LegacyCatalogCache:
             releases: Original mutable complete candidates.
         """
         self.data[key] = [asdict(release) for release in releases]
-        self.checkpoint.save()
+        await self.checkpoint.save()
 
     def scan(self) -> CatalogScan:
         """Resolve original mutable raw scan and its original shape guard.

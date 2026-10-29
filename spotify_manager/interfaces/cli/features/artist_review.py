@@ -10,9 +10,11 @@ from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
@@ -34,7 +36,7 @@ class ArtistReviewCLI:
     progress_display: ProgressDisplay
     display: ConsoleDisplay
 
-    def _prompt_artist_track_choice(
+    async def _prompt_artist_track_choice(
         self,
         console: Console,
         artist: object,
@@ -73,7 +75,7 @@ class ArtistReviewCLI:
                 )
             console.print(table)
             choices = [str(index) for index in range(1, len(candidates) + 1)]
-            response = self.display.prompt.ask(
+            response = await TerminalPrompt(self.display.prompt).ask(
                 "Track number / [s]kip this run / [q]uit",
                 choices=[*choices, "s", "q"],
                 console=console,
@@ -87,7 +89,7 @@ class ArtistReviewCLI:
             if progress is not None:
                 progress.start()
 
-    def _prompt_artist_release_choice(
+    async def _prompt_artist_release_choice(
         self,
         console: Console,
         artist: object,
@@ -110,14 +112,14 @@ class ArtistReviewCLI:
         if progress is not None:
             progress.stop()
         try:
-            return self._read_artist_release_choice(
+            return await self._read_artist_release_choice(
                 console, artist, candidates, allow_decline, progress
             )
         finally:
             if progress is not None:
                 progress.start()
 
-    def _run_review_artists(self, refresh_cache: bool, limit: int | None) -> None:
+    async def _run_review_artists(self, refresh_cache: bool, limit: int | None) -> None:
         """Review followed artists and place one track in the matching queue.
 
         Args:
@@ -126,7 +128,7 @@ class ArtistReviewCLI:
         """
         self._review_artists_console = self.display.create_console()
         self._review_artists_progress_ref: Progress | None = None
-        configuration = self.runtime.configuration()
+        configuration = await self.runtime.configuration()
         try:
             playlists = artist_review.QueuePlaylists.from_references(
                 configuration.the_queue_playlist,
@@ -151,8 +153,8 @@ class ArtistReviewCLI:
                 self._review_artists_task_id = self._review_artists_progress.add_task(
                     "Reviewing artists", total=None
                 )
-                summary = artist_review.review_artists(
-                    self.runtime.review_client(),
+                summary = await artist_review.review_artists(
+                    (await self.runtime.review_client()),
                     playlists,
                     track_choice_reader=ReviewArtistsInteraction(self),
                     release_choice_reader=ReviewArtistsInteraction(self),
@@ -204,23 +206,23 @@ class ArtistReviewCLI:
             description=f"Reviewing artists: {artist_name}",
         )
 
-    def _review_artists_ask_artist_track_choice(
+    async def _review_artists_ask_artist_track_choice(
         self, artist: object, candidates: tuple[artist_review.TrackCandidate, ...]
     ) -> str:
-        return self._prompt_artist_track_choice(
+        return await self._prompt_artist_track_choice(
             self._review_artists_console,
             artist,
             candidates,
             self._review_artists_progress_ref,
         )
 
-    def _review_artists_ask_artist_release_choice(
+    async def _review_artists_ask_artist_release_choice(
         self,
         artist: object,
         candidates: tuple[artist_review.ReleaseCandidate, ...],
         allow_decline: bool,
     ) -> str:
-        return self._prompt_artist_release_choice(
+        return await self._prompt_artist_release_choice(
             self._review_artists_console,
             artist,
             candidates,
@@ -308,7 +310,7 @@ class ArtistReviewCLI:
         )
         self._review_artists_console.print(table)
 
-    def _read_artist_release_choice(
+    async def _read_artist_release_choice(
         self,
         console: Console,
         artist: object,
@@ -330,7 +332,7 @@ class ArtistReviewCLI:
         """
         artist_name = getattr(artist, "name", "")
         if allow_decline:
-            action = self.display.prompt.ask(
+            action = await TerminalPrompt(self.display.prompt).ask(
                 f"Add {artist_name} to queue 3?",
                 choices=["y", "n", "s", "q"],
                 default="n",
@@ -346,7 +348,7 @@ class ArtistReviewCLI:
             console, artist, artist_name, candidates
         )
         choices = [str(index) for index in eligible_indexes]
-        response = self.display.prompt.ask(
+        response = await TerminalPrompt(self.display.prompt).ask(
             "Eligible release number / [s]kip this run / [q]uit",
             choices=[*choices, "s", "q"],
             console=console,
@@ -441,9 +443,10 @@ class ReviewArtistsInteraction:
             total: Original total.
             artist_name: Original artist name.
         """
+        check_cli_interruption()
         self.owner._review_artists_update_progress(position, total, artist_name)
 
-    def choose_track(
+    async def choose_track(
         self, artist: object, candidates: tuple[artist_review.TrackCandidate, ...]
     ) -> str:
         """Use this command's fixed choose track prompt.
@@ -455,9 +458,11 @@ class ReviewArtistsInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._review_artists_ask_artist_track_choice(artist, candidates)
+        return await self.owner._review_artists_ask_artist_track_choice(
+            artist, candidates
+        )
 
-    def choose_release(
+    async def choose_release(
         self,
         artist: object,
         candidates: tuple[artist_review.ReleaseCandidate, ...],
@@ -473,6 +478,6 @@ class ReviewArtistsInteraction:
         Returns:
             Original operator response.
         """
-        return self.owner._review_artists_ask_artist_release_choice(
+        return await self.owner._review_artists_ask_artist_release_choice(
             artist, candidates, allow_decline
         )

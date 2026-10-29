@@ -89,7 +89,7 @@ class MemoryCatalog:
             return None
         return [_cached_release(item) for item in raw]
 
-    def save_tracks(self, tracks: list[TrackCandidate]) -> None:
+    async def save_tracks(self, tracks: list[TrackCandidate]) -> None:
         """Accept and observe the original complete ranked-track checkpoint.
 
         Args:
@@ -98,7 +98,7 @@ class MemoryCatalog:
         self.edge.cache["a"]["ranked_tracks"] = [asdict(item) for item in tracks]
         self.edge.save(CACHE_PATH, self.edge.cache)
 
-    def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
+    async def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
         """Accept and observe the original complete release checkpoint.
 
         Args:
@@ -124,14 +124,14 @@ class MemoryCatalog:
             raise ArtistReviewError("Invalid cached discography for A.")
         return MemoryScan(self.edge, raw)
 
-    def read_tracks(self) -> list[TrackCandidate]:
+    async def read_tracks(self) -> list[TrackCandidate]:
         """Supply observed parsed ranked tracks at the injected read boundary.
 
         Returns:
             Complete original associated tracks.
         """
         self.edge.record("retry", "searching ranked tracks for A")
-        response = self.edge.search('artist:"A"', 10, 0, type="track")
+        response = await self.edge.search('artist:"A"', 10, 0, type="track")
         page = _search_page(response, "tracks")
         tracks = []
         for rank, row in enumerate(cast(list[object], page["items"]), start=1):
@@ -140,7 +140,7 @@ class MemoryCatalog:
                 tracks.append(track)
         return tracks
 
-    def read_search(self, offset: int) -> ReleasePage:
+    async def read_search(self, offset: int) -> ReleasePage:
         """Supply observed parsed release pages with original raw accounting.
 
         Args:
@@ -150,14 +150,14 @@ class MemoryCatalog:
             Original complete associated release facts and raw accounting.
         """
         self.edge.record("retry", f"searching ranked releases for A at offset {offset}")
-        response = self.edge.search('artist:"A"', 10, offset, type="album")
+        response = await self.edge.search('artist:"A"', 10, offset, type="album")
         page = _search_page(response, "albums")
         rows = cast(list[object], page["items"])
         return ReleasePage(
             tuple(_parsed_releases(rows, offset)), len(rows), bool(page.get("next"))
         )
 
-    def read_discography(self, offset: int) -> RawReleasePage:
+    async def read_discography(self, offset: int) -> RawReleasePage:
         """Supply observed complete raw discography pages for durable staging.
 
         Args:
@@ -167,13 +167,15 @@ class MemoryCatalog:
             Original complete raw rows and next authority.
         """
         self.edge.record("retry", f"fetching releases for A at offset {offset}")
-        response = self.edge.artist_albums("a", "album,single,compilation", 10, offset)
+        response = await self.edge.artist_albums(
+            "a", "album,single,compilation", 10, offset
+        )
         page = _page(response, "Spotify returned invalid release data for A.")
         return RawReleasePage(
             tuple(cast(list[object], page["items"])), bool(page.get("next"))
         )
 
-    def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
+    async def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
         """Supply observed first markers with original narrowed 404 handling.
 
         Args:
@@ -184,7 +186,7 @@ class MemoryCatalog:
         """
         self.edge.record("retry", f"fetching the first track of {release.name}")
         try:
-            raw = self.edge.album_tracks(release.spotify_id, 1, 0)
+            raw = await self.edge.album_tracks(release.spotify_id, 1, 0)
         except SpotifyException as exc:
             if exc.http_status != 404:
                 raise
@@ -205,7 +207,7 @@ class MemoryCatalog:
             cast(str, artists[0]["name"]),
         )
 
-    def read_membership(self, offset: int) -> MembershipPage:
+    async def read_membership(self, offset: int) -> MembershipPage:
         """Supply observed parsed queue facts at the injected raw-page boundary.
 
         Args:
@@ -215,7 +217,7 @@ class MemoryCatalog:
             Original complete independent marker facts and pagination authority.
         """
         self.edge.record("retry", f"loading queue playlist one at offset {offset}")
-        raw = self.edge._get("playlists/one/items", 50, offset)
+        raw = await self.edge._get("playlists/one/items", 50, offset)
         page = _page(raw, "Spotify returned invalid playlist data for one.")
         rows = cast(list[object], page["items"])
         markers = []
@@ -260,7 +262,7 @@ class MemoryScan:
         """
         return int(cast(int, self.raw.get("offset", 0)))
 
-    def accept(self, page: RawReleasePage, offset: int) -> None:
+    async def accept(self, page: RawReleasePage, offset: int) -> None:
         """Accept original raw page progress before checkpointing.
 
         Args:
@@ -385,10 +387,10 @@ def _entry_marker(raw: object) -> QueueMarker | None:
     return _parsed_marker(raw.get("item") or raw.get("track"))
 
 
-def _invoke(edge: original.CatalogObservations, kind: str) -> object:
+async def _invoke(edge: original.CatalogObservations, kind: str) -> object:
     memory = MemoryCatalog(edge)
     if kind == "members":
-        membership = playlist_membership("one", memory)
+        membership = await playlist_membership("one", memory)
         return {
             "primary_artist_ids": sorted(membership.primary_artist_ids),
             "track_ids": sorted(membership.track_ids),
@@ -397,26 +399,26 @@ def _invoke(edge: original.CatalogObservations, kind: str) -> object:
     catalog = ReviewCatalog(memory)
     artist = YourLibraryArtist(name="A", uri="spotify:artist:a")
     if kind == "tracks":
-        return [asdict(item) for item in catalog.tracks(artist)]
+        return [asdict(item) for item in (await catalog.tracks(artist))]
     if kind == "ranked":
-        return [asdict(item) for item in catalog.ranked(artist)]
-    return [asdict(item) for item in catalog.earliest(artist)]
+        return [asdict(item) for item in (await catalog.ranked(artist))]
+    return [asdict(item) for item in (await catalog.earliest(artist))]
 
 
-def _outcome(case: Raw) -> Raw:
+async def _outcome(case: Raw) -> Raw:
     edge = original.CatalogObservations(cast(str, case["profile"]))
     original._prepare_cache(edge, cast(str, case["kind"]))
     results: list[object] = []
     for _attempt in range(2 if case["repeat"] else 1):
-        _observe(edge, cast(str, case["kind"]), results)
+        (await _observe(edge, cast(str, case["kind"]), results))
     return clone({"results": results, "trace": edge.trace, "cache": edge.cache})
 
 
-def _observe(
+async def _observe(
     edge: original.CatalogObservations, kind: str, results: list[object]
 ) -> None:
     try:
-        results.append({"value": _invoke(edge, kind)})
+        results.append({"value": (await _invoke(edge, kind))})
     except (
         RuntimeError,
         TypeError,
@@ -428,27 +430,26 @@ def _observe(
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_injected_catalog_matches_original_complete_effects(case: Raw) -> None:
+async def test_injected_catalog_matches_original_complete_effects(case: Raw) -> None:
     """Retain every catalog read, raw offset, delayed scan and accepted checkpoint.
 
     Args:
         case: Immutable original complete catalog scenario and observations.
     """
-    assert _outcome(case) == case["outcome"]
+    assert (await _outcome(case)) == case["outcome"]
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_public_catalog_matches_original_complete_effects(case: Raw) -> None:
+async def test_public_catalog_matches_original_complete_effects(case: Raw) -> None:
     """Verify original compatibility entry points bind unchanged complete reads.
 
     Args:
         case: Immutable original complete catalog scenario and observations.
     """
     assert (
-        original.outcome(
+        await original.outcome(
             cast(str, case["profile"]),
             cast(str, case["kind"]),
             cast(bool, case["repeat"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

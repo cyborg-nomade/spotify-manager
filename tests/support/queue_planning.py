@@ -8,13 +8,13 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import patch
-
-from spotipy import Spotify
 
 from spotify_manager.application import queue_flush_planning as queue_planning
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.infrastructure.legacy.artist_assessment import (
@@ -69,7 +69,7 @@ class PlanningObservations:
     cached: bool
     trace: list[list[object]] = field(default_factory=list)
 
-    def tracks(self) -> tuple[CatalogTrack, ...]:
+    async def tracks(self) -> tuple[CatalogTrack, ...]:
         """Build the original ordered top-track facts.
 
         Returns:
@@ -87,7 +87,7 @@ class PlanningObservations:
             )
         return tuple(tracks)
 
-    def top(
+    async def top(
         self,
         spotify: Spotify,
         artist: str,
@@ -104,7 +104,7 @@ class PlanningObservations:
             Original ranks and ordered top tracks.
         """
         self.trace.append(["top", artist])
-        return {}, self.tracks()
+        return {}, (await self.tracks())
 
     def liked(
         self,
@@ -211,7 +211,7 @@ class PlanningObservations:
         return self.promotion_tracks()
 
 
-def original_outcome(case: dict[str, object]) -> object:
+async def original_outcome(case: dict[str, object]) -> object:
     """Observe original live decisions with shared assessment and cache seams.
 
     Args:
@@ -222,13 +222,25 @@ def original_outcome(case: dict[str, object]) -> object:
     """
     edge = observations(case)
     with (
-        patch.object(new_kids, "load_top_track_data", edge.top),
-        patch.object(legacy, "_liked_statuses", edge.liked),
-        patch.object(new_kids, "load_ranked_catalog", edge.catalog),
-        patch.object(queue_planning, "assess_artist", partial(_assessment, edge)),
-        patch.object(new_kids, "load_release_tracks", edge.release_tracks),
+        patch.object(
+            new_kids, "async_load_top_track_data", AsyncMock(side_effect=edge.top)
+        ),
+        patch.object(legacy, "_liked_statuses", AsyncMock(side_effect=edge.liked)),
+        patch.object(
+            new_kids, "async_load_ranked_catalog", AsyncMock(side_effect=edge.catalog)
+        ),
+        patch.object(
+            queue_planning,
+            "assess_artist",
+            AsyncMock(side_effect=partial(_assessment, edge)),
+        ),
+        patch.object(
+            new_kids,
+            "async_load_release_tracks",
+            AsyncMock(side_effect=edge.release_tracks),
+        ),
     ):
-        plan = legacy._plan_flush_entry(
+        plan = await legacy._plan_flush_entry(
             cast(Spotify, edge), SOURCE, [SOURCE.uri], NoRetry()
         )
     return json.loads(json.dumps({"plan": plan, "trace": edge.trace}))

@@ -4,6 +4,7 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -67,11 +68,11 @@ def test_daily_mind_radio_command_prints_dates_selection_and_result(
         "Settings",
         lambda: SimpleNamespace(daily_mind_radio_playlist="spotify:playlist:daily"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
     monkeypatch.setattr(
         main.daily_mind_radio,
         "add_daily_mind_radio_to_spotify",
-        lambda *_args, **_kwargs: summary,
+        AsyncMock(side_effect=lambda *_args, **_kwargs: summary),
     )
 
     result = CliRunner().invoke(main.app, ["daily-mind-radio"])
@@ -106,11 +107,11 @@ def test_daily_mind_radio_command_handles_no_populated_dates(
         "Settings",
         lambda: SimpleNamespace(daily_mind_radio_playlist="daily"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
     monkeypatch.setattr(
         main.daily_mind_radio,
         "add_daily_mind_radio_to_spotify",
-        lambda *_args, **_kwargs: summary,
+        AsyncMock(side_effect=lambda *_args, **_kwargs: summary),
     )
 
     result = CliRunner().invoke(main.app, ["daily-mind-radio"])

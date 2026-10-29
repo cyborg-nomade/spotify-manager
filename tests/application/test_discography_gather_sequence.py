@@ -29,7 +29,7 @@ class MemoryCatalog:
     reads: list[int] = field(default_factory=list)
     saved_reads: list[list[str]] = field(default_factory=list)
 
-    def page(self, artist: str, offset: int) -> DiscographyPage:
+    async def page(self, artist: str, offset: int) -> DiscographyPage:
         """Read typed facts at the original raw offset.
 
         Args:
@@ -41,7 +41,7 @@ class MemoryCatalog:
         self.reads.append(offset)
         return self.pages[offset]
 
-    def saved(self, identities: list[str]) -> list[bool]:
+    async def saved(self, identities: list[str]) -> list[bool]:
         """Observe ordered original saved batches.
 
         Args:
@@ -54,32 +54,32 @@ class MemoryCatalog:
         return [True for identity in identities]
 
 
-def test_discography_catalog_offsets_count_skipped_rows_and_replace_duplicate_ids() -> (
-    None
-):
+async def test_discography_catalog_offsets_count_skipped_rows_and_replace() -> None:
     """Retain raw offsets, latest facts and original first identity insertion order."""
     first = release("a")
     last = replace(first, name="Latest")
     edge = MemoryCatalog(
         {0: DiscographyPage((first,), 2, True), 2: DiscographyPage((last,), 1, False)}
     )
-    assert DiscographyCatalog(edge).run("artist") == (replace(last, saved=True),)
+    assert (await DiscographyCatalog(edge).run("artist")) == (
+        replace(last, saved=True),
+    )
     assert edge.reads == [0, 2]
     assert edge.saved_reads == [["a"]]
 
 
-def test_discography_catalog_reads_all_candidates_before_saved_batches() -> None:
+async def test_discography_catalog_reads_all_candidates_before_saved() -> None:
     """Retain twenty-release membership batches and complete catalog order."""
     releases = tuple(release(f"id-{index}") for index in range(43))
     edge = MemoryCatalog({0: DiscographyPage(releases, 43, False)})
-    result = DiscographyCatalog(edge).run("artist")
+    result = await DiscographyCatalog(edge).run("artist")
     assert len(result) == 43
     assert [len(batch) for batch in edge.saved_reads] == [20, 20, 3]
     assert all(item.saved for item in result)
 
 
 @pytest.mark.parametrize("has_next", [False, True])
-def test_discography_empty_catalog_obeys_original_next_authority(
+async def test_discography_empty_catalog_obeys_original_next_authority(
     has_next: bool,
 ) -> None:
     """Reject empty next pages while accepting an empty completed catalog.
@@ -91,9 +91,9 @@ def test_discography_empty_catalog_obeys_original_next_authority(
     owner = DiscographyCatalog(edge)
     if has_next:
         with pytest.raises(DiscographyError, match="empty artist release page"):
-            owner.run("artist")
+            (await owner.run("artist"))
         return
-    assert owner.run("artist") == ()
+    assert (await owner.run("artist")) == ()
     assert edge.saved_reads == []
 
 
@@ -107,7 +107,7 @@ class MemoryQueues:
 
     reads: list[str] = field(default_factory=list)
 
-    def read(self, playlist: str) -> tuple[PlaylistTrack, ...]:
+    async def read(self, playlist: str) -> tuple[PlaylistTrack, ...]:
         """Read complete original marker facts.
 
         Args:
@@ -125,7 +125,7 @@ class MemoryQueues:
 
 
 @pytest.mark.parametrize("extra", [None, "", "extra"])
-def test_discography_reads_sources_before_optional_auxiliary_markers(
+async def test_discography_reads_sources_before_optional_auxiliary_markers(
     extra: str | None,
 ) -> None:
     """Retain source order and treat only none as an absent auxiliary playlist.
@@ -134,7 +134,7 @@ def test_discography_reads_sources_before_optional_auxiliary_markers(
         extra: Original optional auxiliary source.
     """
     edge = MemoryQueues()
-    queues, markers = DiscographyQueues(
+    queues, markers = await DiscographyQueues(
         edge, {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"}, extra
     ).run()
     expected = ["nf", "ml", "rq"]

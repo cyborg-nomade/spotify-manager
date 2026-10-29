@@ -47,7 +47,7 @@ class FailureScope(Protocol):
 class Preparation(Protocol):
     """Read selected exports and encode deterministic fallback parts."""
 
-    def read(self, path: Path, key: str) -> tuple[bytes, int]:
+    async def read(self, path: Path, key: str) -> tuple[bytes, int]:
         """Read and shallowly validate an export.
 
         Args:
@@ -75,7 +75,7 @@ class Preparation(Protocol):
 class UploadActions(Protocol):
     """Read remote state and publish local and remote upload artifacts."""
 
-    def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
+    async def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
         """Read complete remote file names.
 
         Args:
@@ -86,7 +86,7 @@ class UploadActions(Protocol):
         """
         ...
 
-    def materialize(self, plan: LibraryFilesUploadPlan) -> None:
+    async def materialize(self, plan: LibraryFilesUploadPlan) -> None:
         """Accept local fallback parts and remove obsolete local parts.
 
         Args:
@@ -106,7 +106,9 @@ class UploadActions(Protocol):
         """
         ...
 
-    def commit(self, plan: LibraryFilesUploadPlan, operations: list[object]) -> object:
+    async def commit(
+        self, plan: LibraryFilesUploadPlan, operations: list[object]
+    ) -> object:
         """Accept one remote commit.
 
         Args:
@@ -131,7 +133,7 @@ class UploadActions(Protocol):
         ...
 
 
-def prepare(
+async def prepare(
     deps: Preparation,
     directory: Path,
     include_library: bool,
@@ -160,12 +162,12 @@ def prepare(
     resources: list[UploadResource] = []
     parts: tuple[GeneratedPart, ...] = ()
     if include_library:
-        resource, _ = _prepare_resource(
+        resource, _ = await _prepare_resource(
             deps, directory, YOUR_LIBRARY_FILENAME, "tracks"
         )
         resources.append(resource)
     if include_lastfm:
-        resource, content = _prepare_resource(
+        resource, content = await _prepare_resource(
             deps, directory, LASTFM_FILENAME, "scrobbles"
         )
         resources.append(resource)
@@ -173,18 +175,18 @@ def prepare(
     return LibraryFilesUploadPlan(repo, revision, tuple(resources), parts)
 
 
-def _prepare_resource(
+async def _prepare_resource(
     deps: Preparation, directory: Path, name: str, key: str
 ) -> tuple[UploadResource, bytes]:
     path = directory / name
-    content, count = deps.read(path, key)
+    content, count = await deps.read(path, key)
     resource = UploadResource(
         name, path, f"{REMOTE_FILES_DIR}/{name}", count, len(content)
     )
     return resource, content
 
 
-def upload(
+async def upload(
     deps: UploadActions, plan: LibraryFilesUploadPlan
 ) -> LibraryFilesUploadResult:
     """Observe remote files before local publication and one ordered commit.
@@ -200,7 +202,7 @@ def upload(
         LibraryFilesUploadError: Original listing, publication or commit fails.
     """
     with deps.failure("list", plan.repo_id):
-        remote = set(deps.remote(plan))
+        remote = set(await deps.remote(plan))
     desired = {part.path_in_repo for part in plan.lastfm_parts}
     stale = stale_parts(
         remote,
@@ -209,10 +211,10 @@ def upload(
         f"{REMOTE_FILES_DIR}/{LASTFM_BINARY_PART_PREFIX}",
         f"{REMOTE_FILES_DIR}/{LASTFM_PART_PREFIX}",
     )
-    deps.materialize(plan)
+    await deps.materialize(plan)
     operations = deps.manifest(plan, stale)
     with deps.failure("commit", plan.repo_id):
-        commit = deps.commit(plan, operations)
+        commit = await deps.commit(plan, operations)
     return _upload_result(plan, stale, commit)
 
 

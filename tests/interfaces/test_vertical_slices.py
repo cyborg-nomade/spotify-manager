@@ -1,19 +1,23 @@
 """CLI and HTTP entry points executing the real migrated use cases."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import partial
+from time import monotonic
+from time import sleep
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 from requests.exceptions import ConnectionError as RequestsConnectionError
-from spotipy import Spotify
 from typer.testing import CliRunner
 
 from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.infrastructure.test_listening_adapters import _client
 from tests.infrastructure.test_listening_adapters import _recorded_album
@@ -29,13 +33,17 @@ def _provided_client(client: Spotify) -> Spotify:
     return client
 
 
-def _http_client(monkeypatch: pytest.MonkeyPatch, client: Spotify) -> TestClient:
+@contextmanager
+def _http_client(
+    monkeypatch: pytest.MonkeyPatch, client: Spotify
+) -> Iterator[TestClient]:
     provider = partial(_provided_client, client)
     overrides = dict(api.app.dependency_overrides)
     overrides[api.get_client] = provider
     overrides[api.get_interactive_client] = provider
     monkeypatch.setattr(api.app, "dependency_overrides", overrides)
-    return TestClient(api.app)
+    with TestClient(api.app) as http:
+        yield http
 
 
 def test_album_http_executes_use_case_and_preserves_wire_response(
@@ -47,11 +55,11 @@ def test_album_http_executes_use_case_and_preserves_wire_response(
         monkeypatch: Scoped dependency overrides.
     """
     client = _client([_track("x"), _track("x")], [True, False])
-    http = _http_client(monkeypatch, client)
-    response = http.get("/albums/evaluation", params={"album_id": "album"})
-    assert response.status_code == 200
-    assert response.json() == _recorded_album(["x", "x"])["result"]
-    client.current_user_saved_tracks_contains.assert_called_once_with(["x", "x"])
+    with _http_client(monkeypatch, client) as http:
+        response = http.get("/albums/evaluation", params={"album_id": "album"})
+        assert response.status_code == 200
+        assert response.json() == _recorded_album(["x", "x"])["result"]
+        client.current_user_saved_tracks_contains.assert_called_once_with(["x", "x"])
 
 
 def test_album_cli_executes_use_case_and_preserves_json(
@@ -63,7 +71,7 @@ def test_album_cli_executes_use_case_and_preserves_json(
         monkeypatch: Scoped client factory override.
     """
     client = _client([_track("x")], [True])
-    monkeypatch.setattr(main, "client", Mock(return_value=client))
+    monkeypatch.setattr(main, "_native_client", AsyncMock(return_value=client))
     result = CliRunner().invoke(main.app, ["album-decision", "--album-id", "album"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == _recorded_album(["x"])["result"]
@@ -80,49 +88,14 @@ def test_album_transport_failure_keeps_http_and_cli_translation(
     """
     client = _client([], [])
     client.album.side_effect = RequestsConnectionError("offline")
-    response = _http_client(monkeypatch, client).get(
-        "/albums/evaluation", params={"album_id": "album"}
-    )
-    assert response.status_code == 502
-    assert "several attempts" in response.json()["detail"]
-    monkeypatch.setattr(main, "client", Mock(return_value=client))
-    result = CliRunner().invoke(main.app, ["album-decision", "--album-id", "album"])
-    assert result.exit_code == 1
-    assert "several attempts" in result.stderr
-
-
-class InlineThread:
-    """Execute the real HTTP worker deterministically at its existing start boundary.
-
-    Args:
-        target: Existing worker callback supplied by the job launcher.
-        args: Existing worker arguments.
-        name: Thread label, irrelevant to the synchronous test executor.
-        daemon: Original thread lifetime flag.
-    """
-
-    def __init__(
-        self,
-        *,
-        target: Callable[..., None],
-        args: tuple[object, ...],
-        name: str,
-        daemon: bool,
-    ) -> None:
-        """Store the worker invocation without executing it.
-
-        Args:
-            target: Existing worker callback.
-            args: Original worker arguments.
-            name: Original thread label.
-            daemon: Original lifetime flag.
-        """
-        self.target = target
-        self.args = args
-
-    def start(self) -> None:
-        """Run the real worker once; its normal job-state handling remains active."""
-        self.target(*self.args)
+    with _http_client(monkeypatch, client) as http:
+        response = http.get("/albums/evaluation", params={"album_id": "album"})
+        assert response.status_code == 502
+        assert "several attempts" in response.json()["detail"]
+        monkeypatch.setattr(main, "_native_client", AsyncMock(return_value=client))
+        result = CliRunner().invoke(main.app, ["album-decision", "--album-id", "album"])
+        assert result.exit_code == 1
+        assert "several attempts" in result.stderr
 
 
 def _configure_requeue(monkeypatch: pytest.MonkeyPatch) -> FakeSpotify:
@@ -132,8 +105,7 @@ def _configure_requeue(monkeypatch: pytest.MonkeyPatch) -> FakeSpotify:
     )
     monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(http_jobs, "Thread", InlineThread)
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(http_jobs, "_blast_jobs", {})
     return spotify
 
@@ -144,9 +116,15 @@ def _requeue_request(http: TestClient, dry_run: bool) -> dict[str, object]:
     )
     assert response.status_code == 202
     job_id = response.json()["job_id"]
-    completed = http.get(f"/commands/flush-requeue-for-a-dream-jobs/{job_id}")
-    assert completed.status_code == 200
-    return dict(completed.json())
+    deadline = monotonic() + 3
+    while monotonic() < deadline:
+        completed = http.get(f"/commands/flush-requeue-for-a-dream-jobs/{job_id}")
+        assert completed.status_code == 200
+        result = dict(completed.json())
+        if result["status"] in {"completed", "failed", "paused", "cancelled"}:
+            return result
+        sleep(0.01)
+    raise AssertionError("The native background job did not reach a terminal phase.")
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
@@ -160,12 +138,15 @@ def test_requeue_http_runs_complete_slice(
         dry_run: Whether to preview or mutate the simulated playlist.
     """
     spotify = _configure_requeue(monkeypatch)
-    result = _requeue_request(_http_client(monkeypatch, spotify), dry_run)
-    assert result["status"] == "completed"
-    assert result["requeue_action"] == "advance"
-    assert result["requeue_target_track"] == "First Track"
-    assert result["playlist_length_before"] == result["playlist_length_after"] == 1
-    assert spotify.mutations == ([] if dry_run else [("add", "t2a"), ("remove", "t1")])
+    with _http_client(monkeypatch, spotify) as http:
+        result = _requeue_request(http, dry_run)
+        assert result["status"] == "completed"
+        assert result["requeue_action"] == "advance"
+        assert result["requeue_target_track"] == "First Track"
+        assert result["playlist_length_before"] == result["playlist_length_after"] == 1
+        assert spotify.mutations == (
+            [] if dry_run else [("add", "t2a"), ("remove", "t1")]
+        )
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
@@ -197,11 +178,11 @@ def test_http_restart_after_accepted_replacement_does_not_duplicate(
     """
     spotify = _configure_requeue(monkeypatch)
     spotify.fail_next_delete = True
-    http = _http_client(monkeypatch, spotify)
-    failed = _requeue_request(http, False)
-    assert failed["status"] == "failed"
-    assert spotify.mutations == [("add", "t2a")]
-    resumed = _requeue_request(http, False)
-    assert resumed["status"] == "completed"
-    assert resumed["requeue_target_already_present"] is True
-    assert spotify.mutations == [("add", "t2a"), ("remove", "t1")]
+    with _http_client(monkeypatch, spotify) as http:
+        failed = _requeue_request(http, False)
+        assert failed["status"] == "failed"
+        assert spotify.mutations == [("add", "t2a")]
+        resumed = _requeue_request(http, False)
+        assert resumed["status"] == "completed"
+        assert resumed["requeue_target_already_present"] is True
+        assert spotify.mutations == [("add", "t2a"), ("remove", "t1")]

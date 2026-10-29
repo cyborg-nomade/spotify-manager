@@ -3,6 +3,7 @@
 import json
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -17,12 +18,15 @@ from tests.interfaces.test_found_art_slice import RecommendationClock
 from tests.interfaces.test_found_art_slice import _lastfm
 from tests.routines.test_blast_from_past import FakeSpotify
 from tests.routines.test_sauvignon import raw_spotify_track
+from tests.support.runtime_resources import provided_lastfm
 
 
 class AlbumSpotify(FakeSpotify):
     """Provide the original complete album search and playable first-track response."""
 
-    def album_tracks(self, album_id: str, limit: int, offset: int) -> dict[str, object]:
+    async def album_tracks(
+        self, album_id: str, limit: int, offset: int
+    ) -> dict[str, object]:
         """Return a deterministic playable first track.
 
         Args:
@@ -53,8 +57,9 @@ def _environment(monkeypatch: pytest.MonkeyPatch) -> AlbumSpotify:
     spotify.search_results[query] = [raw_spotify_track(artist="New", track="New Song")]
     lastfm = _lastfm()
     monkeypatch.setattr(main, "Settings", _settings)
-    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
+    monkeypatch.setattr(main, "_native_review_client", AsyncMock(return_value=spotify))
     monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(clients, "AsyncLastFmClient", provided_lastfm)
     monkeypatch.setattr(found_art, "datetime", RecommendationClock)
     monkeypatch.setattr(sauvignon, "datetime", RecommendationClock)
     return spotify

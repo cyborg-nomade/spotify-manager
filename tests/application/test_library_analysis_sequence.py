@@ -5,18 +5,17 @@ from typing import Literal
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import library_analysis_checkpoint as checkpoints
 from spotify_manager.application import library_analysis_run as workflow
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
 from spotify_manager.application.library_analysis_values import scoped_paths
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.library_analysis_values import LibraryAnalysisCancelledError
 from spotify_manager.domain.library_analysis_values import LibrarySyncSummary
 from spotify_manager.domain.library_analysis_values import MirrorRefreshMode
@@ -28,6 +27,7 @@ from spotify_manager.infrastructure import library_analysis_files as codecs
 from spotify_manager.infrastructure.library_analysis_catalog import SpotifyOffsetPages
 from spotify_manager.infrastructure.library_analysis_errors import AnalysisFailure
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
+from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
 from spotify_manager.infrastructure.library_models import album_from_saved_item
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from tests.support import library_analysis_run as original
@@ -58,7 +58,7 @@ class MemoryCatalog:
         """
         return SpotifyOffsetPages(cast(Spotify, self.edge.spotify), resource, initial)
 
-    def artists(self, after: str | None) -> object:
+    async def artists(self, after: str | None) -> object:
         """Retain original immediate 502 fallback for the initial cursor scan.
 
         Args:
@@ -71,7 +71,7 @@ class MemoryCatalog:
             _FollowedArtistsEndpointUnavailableError: Original immediate 502 fallback.
         """
         try:
-            return self.edge.spotify.current_user_followed_artists(
+            return await self.edge.spotify.current_user_followed_artists(
                 limit=10, after=after
             )
         except SpotifyException as exc:
@@ -81,7 +81,7 @@ class MemoryCatalog:
                 ) from exc
             raise
 
-    def reconcile_artists(self, after: str | None) -> object:
+    async def reconcile_artists(self, after: str | None) -> object:
         """Supply original complete fake artist reconciliation facts.
 
         Args:
@@ -90,9 +90,11 @@ class MemoryCatalog:
         Returns:
             Original unvalidated fake cursor page.
         """
-        return self.edge.spotify.current_user_followed_artists(limit=10, after=after)
+        return await self.edge.spotify.current_user_followed_artists(
+            limit=10, after=after
+        )
 
-    def following(self, identities: list[str]) -> object:
+    async def following(self, identities: list[str]) -> object:
         """Supply original fake candidate verification authority.
 
         Args:
@@ -101,7 +103,7 @@ class MemoryCatalog:
         Returns:
             Original fake live follow statuses.
         """
-        return self.edge.spotify.current_user_following_artists(identities)
+        return await self.edge.spotify.current_user_following_artists(identities)
 
     def convert(self, row: object, resource: ResourceName) -> LibraryModel | None:
         """Decode a saved resource row without configurable parsing callbacks.
@@ -143,8 +145,8 @@ class MemoryCatalog:
         return codecs.followed_artist_page_items(page)
 
 
-def _publication(files: AnalysisFiles) -> AnalysisPublication:
-    return RecordedAnalysisBackups(files)
+def _publication() -> AnalysisPublication:
+    return RecordedAnalysisBackups(AnalysisStorage())
 
 
 def _paths(edge: original.AnalysisObservations, kind: str) -> LibraryAnalysisPaths:
@@ -154,7 +156,7 @@ def _paths(edge: original.AnalysisObservations, kind: str) -> LibraryAnalysisPat
     return paths
 
 
-def _run(
+async def _run(
     edge: original.AnalysisObservations, kind: str, full: bool
 ) -> LibrarySyncSummary:
     files = observed_analysis_files()
@@ -162,17 +164,17 @@ def _run(
     refresh: MirrorRefreshMode | None = None
     if paths.mode == "mirrors":
         refresh = "full" if full else "incremental"
-    checkpoint = checkpoints.load_or_create_checkpoint(files, paths, refresh)
+    checkpoint = await checkpoints.load_or_create_checkpoint(files, paths, refresh)
     catalog = MemoryCatalog(edge)
     retry = LibraryRetry(paths, checkpoint, files, edge, edge, edge, 0, 0)
     progress = None if edge.profile == "no-progress" else edge
     session = AnalysisSession(
         paths, checkpoint, files, catalog, retry, edge, progress, edge
     )
-    return _invoke(session, RecordedAnalysisBackups(files), kind, full)
+    return await _invoke(session, RecordedAnalysisBackups(files.source), kind, full)
 
 
-def _invoke(
+async def _invoke(
     session: AnalysisSession, publication: AnalysisPublication, kind: str, full: bool
 ) -> LibrarySyncSummary:
     label = f"Live {kind} mirror refresh failed"
@@ -188,26 +190,26 @@ def _invoke(
     )
     if kind != "export":
         paused = (*paused, SpotifyRateLimitError)
-    with AnalysisFailure(session, label, paused):
-        return _complete(session, publication, kind, full)
+    async with AnalysisFailure(session, label, paused):
+        return await _complete(session, publication, kind, full)
 
 
-def _complete(
+async def _complete(
     session: AnalysisSession, publication: AnalysisPublication, kind: str, full: bool
 ) -> LibrarySyncSummary:
     if kind == "export":
-        return workflow.analyse_export(session, publication)
+        return await workflow.analyse_export(session, publication)
     if kind == "sync":
-        return workflow.analyse_live(session, publication)
+        return await workflow.analyse_live(session, publication)
     if kind == "mirrors":
-        return workflow.refresh_mirrors(session, publication, full)
-    return workflow.refresh_resource(
+        return await workflow.refresh_mirrors(session, publication, full)
+    return await workflow.refresh_resource(
         session, publication, cast(ResourceName, kind), full
     )
 
 
 @pytest.mark.parametrize("case", original.cases())
-def test_injected_analysis_matches_original_complete_effects(
+async def test_injected_analysis_matches_original_complete_effects(
     case: dict[str, object],
 ) -> None:
     """Preserve complete original runs and restart prefixes with explicit dependencies.
@@ -226,7 +228,7 @@ def test_injected_analysis_matches_original_complete_effects(
         )
     )
     assert (
-        original.outcome(
+        await original.outcome(
             cast(str, case["kind"]),
             cast(str, case["profile"]),
             cast(bool, case["full"]),
@@ -234,5 +236,4 @@ def test_injected_analysis_matches_original_complete_effects(
             cast(bool, case["resume"]),
             _run,
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

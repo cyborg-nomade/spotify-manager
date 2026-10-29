@@ -132,7 +132,7 @@ class Queue3Execution:
     presentation: ExecutionPresentation
     dry_run: bool
 
-    def run(
+    async def run(
         self, transition: Queue3Transition, queue: Queue3LiveQueue
     ) -> tuple[str, ReleaseTrack | None]:
         """Execute a saved transition without acknowledging its audit or checkpoint.
@@ -158,20 +158,22 @@ class Queue3Execution:
         target = track_from_record(plan.get("target"))
         evaluation = _evaluation(plan.get("evaluation"))
         if evaluation is not None and current is not None:
-            self.library.reconcile(ranked_release(current), evaluation)
+            await self.library.reconcile(ranked_release(current), evaluation)
         uris = queue.artist_uris(transition)
         if (
             action in {"advance", "composer_advance", "next_release"}
             and target is not None
         ):
-            self._advance(transition, queue, target, target_release or current, uris)
+            await self._advance(
+                transition, queue, target, target_release or current, uris
+            )
         elif action == "complete":
-            self._complete(transition, queue, uris)
+            await self._complete(transition, queue, uris)
         elif action == "skip":
             self.presentation.skipped(transition.artist_name, plan.get("reason"))
         return action, target
 
-    def _advance(
+    async def _advance(
         self,
         transition: Queue3Transition,
         queue: Queue3LiveQueue,
@@ -187,11 +189,11 @@ class Queue3Execution:
                 f"{source.name} and its planned replacement are both absent."
             )
         if not target_present:
-            self._add(transition, queue, target, release)
+            await self._add(transition, queue, target, release)
         if not source_present and not uris:
             return
         if not self.dry_run:
-            self.access.remove(
+            await self.access.remove(
                 queue.playlist_id,
                 uris or [source.uri],
                 f"removing the previous {transition.artist_name} marker",
@@ -199,7 +201,7 @@ class Queue3Execution:
         queue.removed(uris)
         self.presentation.removed(source.name, self.dry_run)
 
-    def _add(
+    async def _add(
         self,
         transition: Queue3Transition,
         queue: Queue3LiveQueue,
@@ -210,30 +212,30 @@ class Queue3Execution:
             raise Queue3StateError(f"{target.name} has no saved target release.")
         if not self.dry_run:
             marker = _target_marker(transition, target, release)
-            self.access.append(
+            await self.access.append(
                 queue.playlist_id, [marker], f"adding {target.name} to Queue 3"
             )
         queue.ids.add(target.spotify_id)
         self.presentation.added(target.name, self.dry_run)
 
-    def _complete(
+    async def _complete(
         self,
         transition: Queue3Transition,
         queue: Queue3LiveQueue,
         uris: list[str],
     ) -> None:
         if uris:
-            self._remove_completed(transition, queue, uris)
+            await self._remove_completed(transition, queue, uris)
         self.presentation.completed(transition.artist_name, self.dry_run)
 
-    def _remove_completed(
+    async def _remove_completed(
         self,
         transition: Queue3Transition,
         queue: Queue3LiveQueue,
         uris: list[str],
     ) -> None:
         if not self.dry_run:
-            self.access.remove(
+            await self.access.remove(
                 queue.playlist_id,
                 uris,
                 f"completing {transition.artist_name} in Queue 3",

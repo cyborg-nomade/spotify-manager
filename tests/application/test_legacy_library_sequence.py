@@ -19,11 +19,11 @@ ORIGINAL = json.loads(
 
 
 @pytest.mark.parametrize("index,scenario", list(enumerate(scenarios())))
-def test_original_application_sequence(index: int, scenario: Scenario) -> None:
+async def test_original_application_sequence(index: int, scenario: Scenario) -> None:
     """Preserve original effects with independently injected stages.
 
     Args:
         index: Immutable original observation index.
         scenario: Original workflow and interruption.
     """
-    assert observe(scenario, run) == ORIGINAL[index]
+    assert (await observe(scenario, run)) == ORIGINAL[index]

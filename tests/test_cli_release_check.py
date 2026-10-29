@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -77,7 +78,9 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
             )
         ),
     )
-    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main, "_native_client", AsyncMock(side_effect=Mock(return_value=object()))
+    )
     scenario = CheckNewReleasesPromptsForMappingAndPrintsDryRunScenario(
         artist=artist,
         candidates=candidates,
@@ -132,7 +135,7 @@ class CheckNewReleasesPromptsForMappingAndPrintsDryRunScenario:
     result: main.release_check.ReleaseCheckResult
     track: main.release_check.ReleaseTrack
 
-    def __call__(
+    async def __call__(
         self, *_args: object, **kwargs: object
     ) -> main.release_check.ReleaseCheckSummary:
         """Execute the original run mock boundary.
@@ -145,13 +148,13 @@ class CheckNewReleasesPromptsForMappingAndPrintsDryRunScenario:
             Original fixture result.
         """
         self.received["dry_run"] = kwargs["dry_run"]
-        self.received["search_choice"] = kwargs["artist_choice_reader"].choose_artist(
-            self.artist, self.candidates
-        )
-        self.received["artist_choice"] = kwargs["artist_choice_reader"].choose_artist(
-            self.artist, (self.candidates[1],)
-        )
-        self.received["release_choice"] = kwargs[
+        self.received["search_choice"] = await kwargs[
+            "artist_choice_reader"
+        ].choose_artist(self.artist, self.candidates)
+        self.received["artist_choice"] = await kwargs[
+            "artist_choice_reader"
+        ].choose_artist(self.artist, (self.candidates[1],))
+        self.received["release_choice"] = await kwargs[
             "release_choice_reader"
         ].choose_release(
             self.artist, self.release, self.track, ("Wine Cellar", "New Vintage"), False

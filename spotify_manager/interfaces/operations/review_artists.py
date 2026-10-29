@@ -1,8 +1,6 @@
 """Invoke review artists use cases for CLI and HTTP features."""
 
-import time
-
-from spotipy import Spotify as Spotify
+import asyncio
 
 from spotify_manager.application.artist_review_membership import MembershipAccess
 from spotify_manager.application.artist_review_recovery import (
@@ -23,6 +21,7 @@ from spotify_manager.application.artist_review_values import (
 from spotify_manager.application.artist_review_values import (
     ReviewCounts as ReviewCounts,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import artist_review as composition
 from spotify_manager.core.state.service import StateService as StateService
 from spotify_manager.domain.artist_review_values import (
@@ -71,7 +70,7 @@ from spotify_manager.routines.review_artists import _default_state as _default_s
 from spotify_manager.routines.review_artists import validate_state as validate_state
 
 
-def flush_pending_unfollows(
+async def flush_pending_unfollows(
     sp: Spotify,
     artists: list[YourLibraryArtist],
     state: ArtistReviewState,
@@ -99,11 +98,11 @@ def flush_pending_unfollows(
     session = composition.recovery_session(
         sp, artists, state, counts, paths, run_id, retry_call, echo
     )
-    flush_unfollows(session)
+    await flush_unfollows(session)
     return session.artists
 
 
-def flush_pending_queue_moves(
+async def flush_pending_queue_moves(
     sp: Spotify,
     artists: list[YourLibraryArtist],
     state: ArtistReviewState,
@@ -130,10 +129,10 @@ def flush_pending_queue_moves(
     session = composition.recovery_session(
         sp, artists, state, counts, paths, run_id, retry_call, echo
     )
-    flush_moves(session, memberships)
+    await flush_moves(session, memberships)
 
 
-def review_artists(
+async def review_artists(
     sp: Spotify,
     playlists: QueuePlaylists,
     track_choice_reader: TrackChoiceReader | None = None,
@@ -143,7 +142,7 @@ def review_artists(
     progress_callback: ProgressCallback | None = None,
     refresh_cache: bool = False,
     limit: int | None = None,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -171,7 +170,7 @@ def review_artists(
     Raises:
         ArtistReviewError: An original required boundary is invalid.
     """
-    return composition.compose(
+    return await composition.compose(
         sp,
         playlists,
         paths,

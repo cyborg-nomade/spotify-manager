@@ -87,7 +87,7 @@ class NewKidsPlanner:
     year: int
     dry_run: bool
 
-    def plan(self, context: ReviewSource) -> ReviewDecision:
+    async def plan(self, context: ReviewSource) -> ReviewDecision:
         """Choose a next track, release or terminal artist outcome.
 
         Args:
@@ -99,26 +99,30 @@ class NewKidsPlanner:
         Raises:
             NewKidsError: The selected release is unavailable or has no primary tracks.
         """
-        facts = self._facts(context)
-        target, reason = self._next_track(facts)
+        facts = await self._facts(context)
+        target, reason = await self._next_track(facts)
         if target is not None:
             return _advance_plan(facts, target, reason)
-        self.observations.memberships([track.spotify_id for track in context.tracks])
+        await self.observations.memberships(
+            [track.spotify_id for track in context.tracks]
+        )
         evaluation = evaluate_catalog_release(
             context.release, context.tracks, self.observations.liked
         )
         catalog = review_catalog(context.catalog, self.observations.release_limit)
-        played = self.observations.played(catalog)
-        self._record_history(facts, played)
+        played = await self.observations.played(catalog)
+        await self._record_history(facts, played)
         if len(played) >= self.observations.release_limit:
-            return self._finish(facts, evaluation)
-        options = self._remaining_options(context, catalog, played)
+            return await self._finish(facts, evaluation)
+        options = await self._remaining_options(context, catalog, played)
         if not options:
-            return self._finish(facts, evaluation)
-        return self._select_release(facts, evaluation, options[:10], len(played) + 1)
+            return await self._finish(facts, evaluation)
+        return await self._select_release(
+            facts, evaluation, options[:10], len(played) + 1
+        )
 
-    def _facts(self, context: ReviewSource) -> ReviewFacts:
-        self.observations.memberships([context.source.spotify_id])
+    async def _facts(self, context: ReviewSource) -> ReviewFacts:
+        await self.observations.memberships([context.source.spotify_id])
         liked = self.observations.liked[context.source.spotify_id]
         raw_prior = context.progress.get("prior_unliked_streak")
         if isinstance(raw_prior, int):
@@ -126,17 +130,18 @@ class NewKidsPlanner:
         prior = 0
         if context.source_index is not None:
             preceding = context.primary_tracks[: context.source_index]
-            self.observations.memberships([track.spotify_id for track in preceding])
-            prior = trailing_unliked(
-                self.observations.liked[track.spotify_id]
-                for track in reversed(preceding)
+            await self.observations.memberships(
+                [track.spotify_id for track in preceding]
             )
+            memberships = self.observations.liked
+            statuses = (memberships[track.spotify_id] for track in reversed(preceding))
+            prior = trailing_unliked(statuses)
         return ReviewFacts(context, liked, advance_streak(prior, liked))
 
-    def _next_track(self, facts: ReviewFacts) -> tuple[CatalogTrack | None, str]:
+    async def _next_track(self, facts: ReviewFacts) -> tuple[CatalogTrack | None, str]:
         context = facts.context
         if facts.streak >= 3:
-            self.observations.memberships(
+            await self.observations.memberships(
                 [track.spotify_id for track in context.primary_tracks]
             )
             return next_liked_track(
@@ -147,12 +152,12 @@ class NewKidsPlanner:
             return context.primary_tracks[index + 1], "next track"
         return None, "next track"
 
-    def _record_history(
+    async def _record_history(
         self, facts: ReviewFacts, played: tuple[RankedRelease, ...]
     ) -> None:
         context = facts.context
         self.presentation.release_progress(context.artist_name, len(played), self.year)
-        self.audit.event(
+        await self.audit.event(
             "annual_release_progress_checked",
             artist=context.artist_name,
             artist_id=context.artist_id,
@@ -162,11 +167,13 @@ class NewKidsPlanner:
             dry_run=self.dry_run,
         )
 
-    def _finish(
+    async def _finish(
         self, facts: ReviewFacts, evaluation: AlbumEvaluation
     ) -> dict[str, object]:
         context = facts.context
-        assessment = self.observations.assessment(context.artist_id, context.catalog)
+        assessment = await self.observations.assessment(
+            context.artist_id, context.catalog
+        )
         return {
             "action": "finish",
             "result_action": _finish_action(assessment),
@@ -179,7 +186,7 @@ class NewKidsPlanner:
             "assessment": asdict(assessment),
         }
 
-    def _remaining_options(
+    async def _remaining_options(
         self,
         context: ReviewSource,
         catalog: tuple[RankedRelease, ...],
@@ -193,12 +200,12 @@ class NewKidsPlanner:
                 or release.identity == context.release.identity
             ):
                 continue
-            tracks = self.observations.tracks(release)
+            tracks = await self.observations.tracks(release)
             if _primary_track(tracks, context.artist_id) is not None:
                 viable.append(release)
         return next_release_options(tuple(viable))
 
-    def _select_release(
+    async def _select_release(
         self,
         facts: ReviewFacts,
         evaluation: AlbumEvaluation,
@@ -206,13 +213,13 @@ class NewKidsPlanner:
         number: int,
     ) -> ReviewDecision:
         context = facts.context
-        choice = self.choose.choose(context.artist_name, options)
+        choice = await self.choose.choose(context.artist_name, options)
         if choice == "__quit__":
             return None
         if choice == "__skip__":
             return self._skip(facts)
         selected = _selected_release(options, choice)
-        tracks = self.observations.tracks(selected)
+        tracks = await self.observations.tracks(selected)
         target = _primary_track(tracks, context.artist_id)
         if target is None:
             raise NewKidsError(f"{selected.name} has no primary-artist tracks.")

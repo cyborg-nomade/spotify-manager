@@ -1,15 +1,17 @@
 """Tests for local and live artist-stats and album-evaluation lookups."""
 
+import asyncio
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import library_lookup_run as lookup_workflow
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -63,7 +65,7 @@ class FakeSpotify:
         self._tracks_by_album = tracks_by_album
         self.requested: list[str] = []
 
-    def album_tracks(self, album_id, limit=50, offset=0):
+    async def album_tracks(self, album_id, limit=50, offset=0):
         self.requested.append(album_id)
         return {"items": self._tracks_by_album.get(album_id, []), "next": None}
 
@@ -113,92 +115,124 @@ def test_parse_spotify_lookup_reference_rejects_empty_and_invalid_uri(
         parse_spotify_lookup_reference(reference, "artist")
 
 
-def test_paginated_items_validate_pages_and_progress() -> None:
+async def test_paginated_items_validate_pages_and_progress() -> None:
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._all_items(object(), None)  # type: ignore[arg-type]
+        (await library_lookups._all_items(object(), None))  # type: ignore[arg-type]
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._all_items(object(), {})  # type: ignore[arg-type]
+        (await library_lookups._all_items(object(), {}))  # type: ignore[arg-type]
     with pytest.raises(library_lookups.SpotifyLookupResponseError, match="empty"):
-        library_lookups._all_items(
-            object(),  # type: ignore[arg-type]
-            {"items": [], "next": "next"},
+        (
+            await library_lookups._all_items(
+                object(),  # type: ignore[arg-type]
+                {"items": [], "next": "next"},
+            )
         )
 
-    spotify = SimpleNamespace(next=lambda _page: {"items": [{"id": "two"}]})
-    assert library_lookups._all_items(
-        spotify,  # type: ignore[arg-type]
-        {"items": [{"id": "one"}, None], "next": "next"},
+    spotify = SimpleNamespace(next=AsyncMock(return_value={"items": [{"id": "two"}]}))
+    assert (
+        await library_lookups._all_items(
+            spotify,  # type: ignore[arg-type]
+            {"items": [{"id": "one"}, None], "next": "next"},
+        )
     ) == [{"id": "one"}, {"id": "two"}]
 
 
-def test_live_artist_resolution_validates_direct_and_search_responses() -> None:
+async def test_live_artist_resolution_validates_direct_and_search_responses() -> None:
     """Verify live artist resolution validates direct and search responses."""
     with pytest.raises(ValueError):
-        library_lookups.resolve_live_artist(object())  # type: ignore[arg-type]
+        (await asyncio.to_thread(library_lookups.resolve_live_artist, object()))  # type: ignore[arg-type]
 
     missing = SimpleNamespace(
         artist=Mock(side_effect=SpotifyException(404, -1, "missing"))
     )
     with pytest.raises(library_lookups.ArtistNotFoundError):
-        library_lookups.resolve_live_artist(missing, artist_id="missing")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_artist, missing, artist_id="missing"
+            )
+        )  # type: ignore[arg-type]
 
     malformed = SimpleNamespace(artist=Mock(return_value={"id": "artist"}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups.resolve_live_artist(malformed, artist_id="artist")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_artist, malformed, artist_id="artist"
+            )
+        )  # type: ignore[arg-type]
 
-    invalid_search = SimpleNamespace(search=Mock(return_value={}))
+    invalid_search = SimpleNamespace(search=AsyncMock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups.resolve_live_artist(invalid_search, name="Artist")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_artist, invalid_search, name="Artist"
+            )
+        )  # type: ignore[arg-type]
 
     no_exact_match = SimpleNamespace(
-        search=Mock(
+        search=AsyncMock(
             return_value={
                 "artists": {"items": [None, {"id": "other", "name": "Other"}]}
             }
         )
     )
     with pytest.raises(library_lookups.ArtistNotFoundError):
-        library_lookups.resolve_live_artist(no_exact_match, name="Artist")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_artist, no_exact_match, name="Artist"
+            )
+        )  # type: ignore[arg-type]
 
 
-def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None:
+async def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None:
     """Verify live catalog helpers reject malformed pagination and statuses."""
-    malformed_releases = SimpleNamespace(artist_albums=Mock(return_value={}))
+    malformed_releases = SimpleNamespace(artist_albums=AsyncMock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._live_artist_release_ids(
-            malformed_releases,  # type: ignore[arg-type]
-            "artist",
+        (
+            await library_lookups._live_artist_release_ids(
+                malformed_releases,  # type: ignore[arg-type]
+                "artist",
+            )
         )
 
     stalled_releases = SimpleNamespace(
-        artist_albums=Mock(return_value={"items": [], "next": "next"})
+        artist_albums=AsyncMock(return_value={"items": [], "next": "next"})
     )
     with pytest.raises(library_lookups.SpotifyLookupResponseError, match="empty"):
-        library_lookups._live_artist_release_ids(
-            stalled_releases,  # type: ignore[arg-type]
-            "artist",
+        (
+            await library_lookups._live_artist_release_ids(
+                stalled_releases,  # type: ignore[arg-type]
+                "artist",
+            )
         )
 
-    malformed_albums = SimpleNamespace(albums=Mock(return_value={}))
+    malformed_albums = SimpleNamespace(albums=AsyncMock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._live_primary_track_ids(
-            malformed_albums,  # type: ignore[arg-type]
-            "artist",
-            ["album"],
+        (
+            await library_lookups._live_primary_track_ids(
+                malformed_albums,  # type: ignore[arg-type]
+                "artist",
+                ["album"],
+            )
         )
 
     malformed_tracks = SimpleNamespace(
-        albums=Mock(return_value={"albums": [{"tracks": None}]})
+        albums=AsyncMock(return_value={"albums": [{"tracks": None}]})
     )
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._live_primary_track_ids(
-            malformed_tracks,  # type: ignore[arg-type]
-            "artist",
-            ["album"],
+        (
+            await library_lookups._live_primary_track_ids(
+                malformed_tracks,  # type: ignore[arg-type]
+                "artist",
+                ["album"],
+            )
         )
 
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        lookup_workflow.count_contains(["one"], EmptyMembership(), "Liked Songs", 20)
+        (
+            await lookup_workflow.count_contains(
+                ["one"], EmptyMembership(), "Liked Songs", 20
+            )
+        )
 
 
 class LiveFakeSpotify:
@@ -270,7 +304,7 @@ class LiveFakeSpotify:
             "tracks": {"items": tracks[album_id], "next": None},
         }
 
-    def search(
+    async def search(
         self,
         q,
         limit=10,
@@ -285,10 +319,10 @@ class LiveFakeSpotify:
             return {"albums": {"items": items}}
         raise AssertionError(f"unexpected search type: {type}")
 
-    def artist(self, artist_id):
+    async def artist(self, artist_id):
         return self._artist(artist_id)
 
-    def artist_albums(
+    async def artist_albums(
         self,
         artist_id,
         album_type=None,
@@ -311,29 +345,29 @@ class LiveFakeSpotify:
             "next": None,
         }
 
-    def albums(self, album_ids, market=None):
+    async def albums(self, album_ids, market=None):
         return {"albums": [self._album(album_id) for album_id in album_ids]}
 
-    def album(self, album_id, market=None):
+    async def album(self, album_id, market=None):
         return self._album(album_id)
 
-    def album_tracks(self, album_id, limit=50, offset=0, market=None):
+    async def album_tracks(self, album_id, limit=50, offset=0, market=None):
         return self._album(album_id)["tracks"]
 
-    def current_user_saved_albums_contains(self, album_ids):
+    async def current_user_saved_albums_contains(self, album_ids):
         self.contains_album_calls.append(album_ids)
         return [album_id == "alb1" for album_id in album_ids]
 
-    def current_user_saved_tracks_contains(self, track_ids=None):
+    async def current_user_saved_tracks_contains(self, track_ids=None):
         track_ids = track_ids or []
         self.contains_track_calls.append(track_ids)
         return [track_id in {"t1", "shared"} for track_id in track_ids]
 
 
-def test_live_artist_stats_use_live_saved_and_liked_statuses() -> None:
+async def test_live_artist_stats_use_live_saved_and_liked_statuses() -> None:
     sp = LiveFakeSpotify()
 
-    stats = get_live_artist_library_stats(sp, name="radiohead")
+    stats = await asyncio.to_thread(get_live_artist_library_stats, sp, name="radiohead")
 
     assert stats.artist_id == "art1"
     assert stats.artist_name == "Radiohead"
@@ -344,17 +378,17 @@ def test_live_artist_stats_use_live_saved_and_liked_statuses() -> None:
     assert sp.contains_track_calls == [["t1", "shared", "t2"]]
 
 
-def test_live_artist_stats_require_an_id_for_ambiguous_exact_names() -> None:
+async def test_live_artist_stats_require_an_id_for_ambiguous_exact_names() -> None:
     sp = LiveFakeSpotify()
     sp.artist_search.append({"id": "art2", "name": "Radiohead"})
 
     with pytest.raises(AmbiguousArtistError) as exc:
-        get_live_artist_library_stats(sp, name="Radiohead")
+        (await asyncio.to_thread(get_live_artist_library_stats, sp, name="Radiohead"))
 
     assert [candidate["id"] for candidate in exc.value.candidates] == ["art1", "art2"]
 
 
-def test_evaluate_album_resolves_exact_id_not_search() -> None:
+async def test_evaluate_album_resolves_exact_id_not_search() -> None:
     sp = FakeSpotify(
         {
             "alb1": [
@@ -364,7 +398,9 @@ def test_evaluate_album_resolves_exact_id_not_search() -> None:
             ]
         }
     )
-    result = evaluate_album(sp, name="ok computer", library=_library())
+    result = await asyncio.to_thread(
+        evaluate_album, sp, name="ok computer", library=_library()
+    )
     assert sp.requested == ["alb1"]  # resolved to the saved album, never searched
     assert result.album_id == "alb1"
     assert result.total_tracks == 3
@@ -375,7 +411,7 @@ def test_evaluate_album_resolves_exact_id_not_search() -> None:
     assert [track.spotify_id for track in result.tracks] == ["t1", "t2", "t3"]
 
 
-def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> None:
+async def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> None:
     sp = FakeSpotify(
         {
             "alb1": [
@@ -388,7 +424,9 @@ def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> Non
         }
     )
 
-    result = evaluate_album(sp, name="ok computer", library=_library())
+    result = await asyncio.to_thread(
+        evaluate_album, sp, name="ok computer", library=_library()
+    )
 
     assert result.total_tracks == 5
     assert result.liked_tracks == 2
@@ -397,10 +435,10 @@ def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> Non
     assert result.decision == "keep"
 
 
-def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
+async def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
     sp = LiveFakeSpotify()
 
-    result = evaluate_album_live(sp, name="OK Computer")
+    result = await asyncio.to_thread(evaluate_album_live, sp, name="OK Computer")
 
     assert result.album_id == "alb1"
     assert result.album_name == "OK Computer"
@@ -414,26 +452,38 @@ def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
     assert sp.contains_track_calls == [["t1", "guest", "shared"]]
 
 
-def test_live_album_resolution_validates_direct_lookup_failures() -> None:
+async def test_live_album_resolution_validates_direct_lookup_failures() -> None:
     """Verify live album resolution validates direct lookup failures."""
     with pytest.raises(ValueError):
-        library_lookups.resolve_live_album(object())  # type: ignore[arg-type]
+        (await asyncio.to_thread(library_lookups.resolve_live_album, object()))  # type: ignore[arg-type]
 
     missing = SimpleNamespace(
-        album=Mock(side_effect=SpotifyException(404, -1, "missing"))
+        album=AsyncMock(side_effect=SpotifyException(404, -1, "missing"))
     )
     with pytest.raises(AlbumNotFoundError):
-        library_lookups.resolve_live_album(missing, album_id="missing")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album, missing, album_id="missing"
+            )
+        )  # type: ignore[arg-type]
 
-    malformed = SimpleNamespace(album=Mock(return_value=None))
+    malformed = SimpleNamespace(album=AsyncMock(return_value=None))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups.resolve_live_album(malformed, album_id="album")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album, malformed, album_id="album"
+            )
+        )  # type: ignore[arg-type]
 
 
-def test_live_album_resolution_handles_search_ambiguity_and_filters() -> None:
+async def test_live_album_resolution_handles_search_ambiguity_and_filters() -> None:
     invalid = SimpleNamespace(search=lambda **_kwargs: {})
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups.resolve_live_album(invalid, name="Album")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album, invalid, name="Album"
+            )
+        )  # type: ignore[arg-type]
 
     no_match = SimpleNamespace(
         search=lambda **_kwargs: {
@@ -451,10 +501,13 @@ def test_live_album_resolution_handles_search_ambiguity_and_filters() -> None:
         }
     )
     with pytest.raises(AlbumNotFoundError, match="by 'Artist'"):
-        library_lookups.resolve_live_album(
-            no_match,  # type: ignore[arg-type]
-            name="Album",
-            artist="Artist",
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album,
+                no_match,
+                name="Album",
+                artist="Artist",
+            )
         )
 
     ambiguous = SimpleNamespace(
@@ -472,35 +525,41 @@ def test_live_album_resolution_handles_search_ambiguity_and_filters() -> None:
         }
     )
     with pytest.raises(AmbiguousAlbumError) as exc:
-        library_lookups.resolve_live_album(ambiguous, name="Album")  # type: ignore[arg-type]
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album, ambiguous, name="Album"
+            )
+        )  # type: ignore[arg-type]
     assert {candidate["id"] for candidate in exc.value.candidates} == {"one", "two"}
 
 
-def test_live_album_resolution_rejects_incomplete_selected_album() -> None:
+async def test_live_album_resolution_rejects_incomplete_selected_album() -> None:
     spotify = SimpleNamespace(
         search=lambda **_kwargs: {
             "albums": {"items": [{"id": "album", "name": "Album"}]}
         }
     )
-    assert library_lookups.resolve_live_album(
-        spotify,  # type: ignore[arg-type]
-        name="Album",
+    assert (
+        await asyncio.to_thread(
+            library_lookups.resolve_live_album, spotify, name="Album"
+        )
     ) == ("album", "Album", None)
 
     incomplete = SimpleNamespace(album=lambda *_args, **_kwargs: {"id": "album"})
     with pytest.raises(library_lookups.SpotifyLookupResponseError, match="incomplete"):
-        library_lookups.resolve_live_album(
-            incomplete,  # type: ignore[arg-type]
-            album_id="album",
+        (
+            await asyncio.to_thread(
+                library_lookups.resolve_live_album, incomplete, album_id="album"
+            )
         )
 
 
-def test_live_album_evaluation_rejects_misaligned_liked_statuses() -> None:
+async def test_live_album_evaluation_rejects_misaligned_liked_statuses() -> None:
     spotify = LiveFakeSpotify()
     spotify.current_user_saved_tracks_contains = lambda _ids: []  # type: ignore[method-assign]
 
     with pytest.raises(library_lookups.SpotifyLookupResponseError, match="Liked Songs"):
-        evaluate_album_live(spotify, album_id="alb1")
+        (await asyncio.to_thread(evaluate_album_live, spotify, album_id="alb1"))
 
 
 def test_required_liked_tracks_keeps_non_empty_positive_threshold_meaningful() -> None:
@@ -520,16 +579,18 @@ def test_local_album_resolution_validates_input_and_allows_unsaved_ids() -> None
     ) == ("unsaved", None, None)
 
 
-def test_evaluate_album_by_id() -> None:
+async def test_evaluate_album_by_id() -> None:
     sp = FakeSpotify({"alb2": [{"id": "x", "name": "Bones", "uri": "spotify:track:x"}]})
-    result = evaluate_album(sp, album_id="alb2", library=_library())
+    result = await asyncio.to_thread(
+        evaluate_album, sp, album_id="alb2", library=_library()
+    )
     assert result.album_id == "alb2"
     assert result.liked_tracks == 0
     assert result.required_liked_tracks == 1
     assert result.decision == "remove"
 
 
-def test_evaluate_album_ambiguous_name() -> None:
+async def test_evaluate_album_ambiguous_name() -> None:
     lib = _library()
     lib.albums.append(
         YourLibraryAlbum(
@@ -540,11 +601,11 @@ def test_evaluate_album_ambiguous_name() -> None:
     )
     sp = FakeSpotify({})
     with pytest.raises(AmbiguousAlbumError) as exc:
-        evaluate_album(sp, name="OK Computer", library=lib)
+        (await asyncio.to_thread(evaluate_album, sp, name="OK Computer", library=lib))
     assert len(exc.value.candidates) == 2
 
 
-def test_evaluate_album_ambiguous_resolved_by_artist() -> None:
+async def test_evaluate_album_ambiguous_resolved_by_artist() -> None:
     lib = _library()
     lib.albums.append(
         YourLibraryAlbum(
@@ -556,13 +617,19 @@ def test_evaluate_album_ambiguous_resolved_by_artist() -> None:
     sp = FakeSpotify(
         {"alb1": [{"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"}]}
     )
-    result = evaluate_album(sp, name="OK Computer", artist="Radiohead", library=lib)
+    result = await asyncio.to_thread(
+        evaluate_album, sp, name="OK Computer", artist="Radiohead", library=lib
+    )
     assert result.album_id == "alb1"
 
 
-def test_evaluate_album_name_not_found() -> None:
+async def test_evaluate_album_name_not_found() -> None:
     with pytest.raises(AlbumNotFoundError):
-        evaluate_album(FakeSpotify({}), name="Nonexistent", library=_library())
+        (
+            await asyncio.to_thread(
+                evaluate_album, FakeSpotify({}), name="Nonexistent", library=_library()
+            )
+        )
 
 
 _ALB1 = {
@@ -574,36 +641,54 @@ _ALB1 = {
 }
 
 
-def test_cache_hit_skips_api(album_cache_store: dict) -> None:
+async def test_cache_hit_skips_api(album_cache_store: dict) -> None:
     sp = FakeSpotify(_ALB1)
-    first = evaluate_album(sp, name="ok computer", library=_library())
+    first = await asyncio.to_thread(
+        evaluate_album, sp, name="ok computer", library=_library()
+    )
     assert first.from_cache is False
     assert first.source == "files+api"
     assert sp.requested == ["alb1"]
     assert "alb1" in album_cache_store  # persisted
 
-    second = evaluate_album(sp, name="ok computer", library=_library())
+    second = await asyncio.to_thread(
+        evaluate_album, sp, name="ok computer", library=_library()
+    )
     assert second.from_cache is True
     assert second.source == "files"
     assert sp.requested == ["alb1"]  # no second API call
     assert second.decision == first.decision == "keep"
 
 
-def test_refresh_cache_refetches(album_cache_store: dict) -> None:
+async def test_refresh_cache_refetches(album_cache_store: dict) -> None:
     sp = FakeSpotify(_ALB1)
-    evaluate_album(sp, name="ok computer", library=_library())
-    evaluate_album(sp, name="ok computer", library=_library(), refresh_cache=True)
+    (
+        await asyncio.to_thread(
+            evaluate_album, sp, name="ok computer", library=_library()
+        )
+    )
+    (
+        await asyncio.to_thread(
+            evaluate_album,
+            sp,
+            name="ok computer",
+            library=_library(),
+            refresh_cache=True,
+        )
+    )
     assert sp.requested == ["alb1", "alb1"]  # forced re-fetch
 
 
-def test_no_cache_does_not_persist(album_cache_store: dict) -> None:
+async def test_no_cache_does_not_persist(album_cache_store: dict) -> None:
     sp = FakeSpotify(_ALB1)
-    result = evaluate_album(sp, name="ok computer", library=_library(), use_cache=False)
+    result = await asyncio.to_thread(
+        evaluate_album, sp, name="ok computer", library=_library(), use_cache=False
+    )
     assert result.from_cache is False
     assert album_cache_store == {}  # nothing written
 
 
-def test_client_factory_called_only_on_miss(album_cache_store: dict) -> None:
+async def test_client_factory_called_only_on_miss(album_cache_store: dict) -> None:
     """Client factory called only on miss.
 
     Args:
@@ -614,16 +699,30 @@ def test_client_factory_called_only_on_miss(album_cache_store: dict) -> None:
 
     factory = RecordedClient(cast(Spotify, sp), calls)
 
-    evaluate_album(client_factory=factory, name="ok computer", library=_library())
+    (
+        await asyncio.to_thread(
+            evaluate_album,
+            client_factory=factory,
+            name="ok computer",
+            library=_library(),
+        )
+    )
     assert calls == [1]  # built the client on the miss
-    evaluate_album(client_factory=factory, name="ok computer", library=_library())
+    (
+        await asyncio.to_thread(
+            evaluate_album,
+            client_factory=factory,
+            name="ok computer",
+            library=_library(),
+        )
+    )
     assert calls == [1]  # cache hit -> factory never called again
 
 
 class EmptyMembership:
     """Supply a malformed response with too few statuses."""
 
-    def contains(self, identifiers: list[str]) -> object:
+    async def contains(self, identifiers: list[str]) -> object:
         """Observe contains at the recorded boundary.
 
         Args:

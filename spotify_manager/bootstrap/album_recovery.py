@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.album_recovery import Progress
 from spotify_manager.application.album_recovery import recover_albums
 from spotify_manager.application.credited_artists import CreditedArtistDependencies
@@ -13,6 +11,7 @@ from spotify_manager.application.ports.runtime import DateClock
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recovery_values import RecoveryState
 from spotify_manager.application.recovery_values import RecoverySummary
 from spotify_manager.core.state.service import StateService
@@ -23,7 +22,7 @@ from spotify_manager.interfaces.presenters.album_recovery import RecoveryPresent
 from spotify_manager.models.your_library import YourLibraryArtist
 
 
-def run_artist_recovery(
+async def run_artist_recovery(
     spotify: Spotify,
     artists: list[AlbumArtist],
     state: RecoveryState,
@@ -54,10 +53,10 @@ def run_artist_recovery(
     """
     access = CreditedArtistAdapter(spotify, total_artists, known_ids, retry, audit_path)
     dependencies = CreditedArtistDependencies(access, clock, RecoveryPresenter(echo))
-    return follow_credited_artists(dependencies, artists, state, dry_run)
+    return await follow_credited_artists(dependencies, artists, state, dry_run)
 
 
-def run_album_recovery(
+async def run_album_recovery(
     spotify: Spotify,
     echo: Messages,
     progress: Progress | None,
@@ -102,7 +101,7 @@ def run_album_recovery(
         retry_delay,
         max_attempts,
     )
-    return recover_albums(
+    return await recover_albums(
         library,
         RecoveryPresenter(echo),
         clock,

@@ -35,7 +35,9 @@ class QueueFillEffects(Protocol):
             Original effective listening week.
         """
 
-    def history(self, preview: bool, now: datetime) -> tuple[Sequence[Scrobble], int]:
+    async def history(
+        self, preview: bool, now: datetime
+    ) -> tuple[Sequence[Scrobble], int]:
         """Refresh original history with unchanged preview behavior.
 
         Args:
@@ -46,14 +48,14 @@ class QueueFillEffects(Protocol):
             Original refreshed plays and live additions.
         """
 
-    def queue_length(self) -> int:
+    async def queue_length(self) -> int:
         """Read original Queue membership after refreshing history.
 
         Returns:
             Original observed Queue length.
         """
 
-    def represented(self) -> set[str]:
+    async def represented(self) -> set[str]:
         """Read original representation destinations before state loading.
 
         Returns:
@@ -77,7 +79,9 @@ class QueueFillEffects(Protocol):
             Original mapping or no mapping.
         """
 
-    def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(
+        self, artist: SpotifyArtistCandidate
+    ) -> tuple[CatalogTrack, ...]:
         """Read original artist top tracks.
 
         Args:
@@ -87,7 +91,7 @@ class QueueFillEffects(Protocol):
             Original ordered top tracks.
         """
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Read original liked membership for the selected window.
 
         Args:
@@ -97,7 +101,7 @@ class QueueFillEffects(Protocol):
             Original liked statuses.
         """
 
-    def following(self, artist: SpotifyArtistCandidate) -> bool:
+    async def following(self, artist: SpotifyArtistCandidate) -> bool:
         """Read and validate original artist follow status.
 
         Args:
@@ -107,21 +111,21 @@ class QueueFillEffects(Protocol):
             Original observed follow status.
         """
 
-    def follow(self, artist: SpotifyArtistCandidate) -> None:
+    async def follow(self, artist: SpotifyArtistCandidate) -> None:
         """Accept the original follow before local persistence.
 
         Args:
             artist: Original accepted mapping.
         """
 
-    def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
+    async def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
         """Persist original artist mirrors after an accepted follow.
 
         Args:
             artist: Original accepted mapping.
         """
 
-    def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
+    async def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue append after following when needed.
 
         Args:
@@ -129,7 +133,7 @@ class QueueFillEffects(Protocol):
             track: Original selected Queue marker.
         """
 
-    def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
+    async def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
         """Accept original completion or rejection fields.
 
         Args:

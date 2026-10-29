@@ -84,7 +84,7 @@ def converted_items(
     return converted
 
 
-def staged_offset(
+async def staged_offset(
     session: AnalysisSession, resource: OffsetResource
 ) -> list[LibraryModel]:
     """Read original staged saved-resource facts.
@@ -98,9 +98,11 @@ def staged_offset(
     """
     if resource == "albums":
         return list(
-            session.files.staged(session.paths.stage(resource), YourLibraryAlbum)
+            await session.files.staged(session.paths.stage(resource), YourLibraryAlbum)
         )
-    return list(session.files.staged(session.paths.stage(resource), YourLibraryTrack))
+    return list(
+        await session.files.staged(session.paths.stage(resource), YourLibraryTrack)
+    )
 
 
 def reported_total(page: dict[str, object]) -> int | None:
@@ -116,7 +118,7 @@ def reported_total(page: dict[str, object]) -> int | None:
     return value if isinstance(value, int) else None
 
 
-def scan_initial(session: AnalysisSession, resource: OffsetResource) -> None:
+async def scan_initial(session: AnalysisSession, resource: OffsetResource) -> None:
     """Scan original offsets monotonically before beginning reconciliation.
 
     Args:
@@ -127,10 +129,10 @@ def scan_initial(session: AnalysisSession, resource: OffsetResource) -> None:
     if state["status"] not in {"pending", "scanning"}:
         return
     state["status"] = "scanning"
-    session.save()
+    await session.save()
     scan = offset_scan(session, resource, True)
     while True:
-        page, rows = _save_initial_page(session, scan, state)
+        page, rows = await _save_initial_page(session, scan, state)
         if not rows and page.get("next"):
             raise IncompleteLiveResourceError(
                 f"Spotify returned an empty {resource} page with a next link."
@@ -138,11 +140,11 @@ def scan_initial(session: AnalysisSession, resource: OffsetResource) -> None:
         if not rows or not page.get("next"):
             state["status"] = "reconciling"
             state["stable_passes"] = 0
-            session.save()
+            await session.save()
             return
 
 
-def _save_initial_page(
+async def _save_initial_page(
     session: AnalysisSession, scan: OffsetScan, state: ResourceState
 ) -> tuple[dict[str, object], list[object]]:
     session.check_cancel()
@@ -150,19 +152,19 @@ def _save_initial_page(
     for attempt in session.request.attempts(
         f"reading saved {scan.resource} at offset {offset}"
     ):
-        with attempt:
-            response = scan.pages.read(limit=scan.limit, offset=offset)
+        async with attempt:
+            response = await scan.pages.read(limit=scan.limit, offset=offset)
     page = response
     rows = session.catalog.items(page, scan.resource)
     converted = converted_items(rows, session.catalog, scan.resource)
-    session.files.append(session.paths.stage(scan.resource), converted)
+    await session.files.append(session.paths.stage(scan.resource), converted)
     state["skipped"] += len(rows) - len(converted)
     state["offset"] = offset + len(rows)
     state["pages"] += 1
     envelope = cast(dict[str, object], page)
     state["total"] = envelope.get("total")
-    session.save()
-    session.event(
+    await session.save()
+    await session.event(
         "page_saved",
         resource=scan.resource,
         offset=offset,
@@ -178,7 +180,7 @@ def _save_initial_page(
     return envelope, rows
 
 
-def reconcile(session: AnalysisSession, resource: OffsetResource) -> None:
+async def reconcile(session: AnalysisSession, resource: OffsetResource) -> None:
     """Stop after two complete recent-edge passes find no additions.
 
     Args:
@@ -187,25 +189,25 @@ def reconcile(session: AnalysisSession, resource: OffsetResource) -> None:
     """
     state = session.checkpoint["resources"][resource]
     if state["status"] == "complete":
-        count = len(deduplicate_models(staged_offset(session, resource)))
+        count = len(deduplicate_models(await staged_offset(session, resource)))
         session.notify(resource, count, count, "Complete")
         return
     scan = offset_scan(session, resource, False)
     while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
-        added = _reconcile_pass(session, scan, state)
-        finish_pass(session, resource, state, added)
-    complete_resource(session, resource)
+        added = await _reconcile_pass(session, scan, state)
+        await finish_pass(session, resource, state, added)
+    await complete_resource(session, resource)
 
 
-def _reconcile_pass(
+async def _reconcile_pass(
     session: AnalysisSession, scan: OffsetScan, state: ResourceState
 ) -> int:
-    known = {item.spotify_id for item in staged_offset(session, scan.resource)}
+    known = {item.spotify_id for item in (await staged_offset(session, scan.resource))}
     offset = 0
     added = 0
     stable_pages = 0
     while True:
-        rows, page, unseen = _reconcile_page(session, scan, state, known, offset)
+        rows, page, unseen = await _reconcile_page(session, scan, state, known, offset)
         added += unseen
         stable_pages = 0 if unseen else stable_pages + 1
         if not rows or not page.get("next") or stable_pages >= scan.stable_pages:
@@ -213,7 +215,7 @@ def _reconcile_pass(
         offset += len(rows)
 
 
-def _reconcile_page(
+async def _reconcile_page(
     session: AnalysisSession,
     scan: OffsetScan,
     state: ResourceState,
@@ -224,13 +226,13 @@ def _reconcile_page(
     for attempt in session.request.attempts(
         f"reconciling saved {scan.resource} at offset {offset}"
     ):
-        with attempt:
-            page = scan.pages.read(limit=scan.limit, offset=offset)
+        async with attempt:
+            page = await scan.pages.read(limit=scan.limit, offset=offset)
     rows = session.catalog.items(page, scan.resource)
     unseen = unseen_items(converted_items(rows, session.catalog, scan.resource), known)
-    session.files.append(session.paths.stage(scan.resource), unseen)
+    await session.files.append(session.paths.stage(scan.resource), unseen)
     known.update(item.spotify_id for item in unseen)
-    session.save()
+    await session.save()
     envelope = cast(dict[str, object], page)
     label = f"Checking for additions (pass {int(state['stable_passes']) + 1})"
     session.notify(scan.resource, len(known), reported_total(envelope), label)
@@ -250,7 +252,7 @@ def unseen_items(items: list[LibraryModel], known: set[str]) -> list[LibraryMode
     return [item for item in items if item.spotify_id not in known]
 
 
-def finish_pass(
+async def finish_pass(
     session: AnalysisSession, resource: ResourceName, state: ResourceState, added: int
 ) -> None:
     """Persist original stable-pass progress after its optional additions audit.
@@ -263,13 +265,13 @@ def finish_pass(
     """
     if added:
         state["stable_passes"] = 0
-        session.event("reconciliation_additions", resource=resource, count=added)
+        await session.event("reconciliation_additions", resource=resource, count=added)
     else:
         state["stable_passes"] += 1
-    session.save()
+    await session.save()
 
 
-def complete_resource(
+async def complete_resource(
     session: AnalysisSession,
     resource: ResourceName,
 ) -> None:
@@ -281,15 +283,18 @@ def complete_resource(
     """
     state = session.checkpoint["resources"][resource]
     state["status"] = "complete"
-    session.save()
-    count = len(deduplicate_models(staged_resource(session, resource)))
-    session.event(
-        "resource_completed", resource=resource, count=count, skipped=state["skipped"]
+    await session.save()
+    count = len(deduplicate_models(await staged_resource(session, resource)))
+    await session.event(
+        "resource_completed",
+        resource=resource,
+        count=count,
+        skipped=state["skipped"],
     )
     session.notify(resource, count, count, "Complete")
 
 
-def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None:
+async def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None:
     """Retain stored rows until an explicitly requested full rebuild.
 
     Args:
@@ -301,20 +306,22 @@ def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None
         return
     if resource == "albums":
         existing: list[LibraryModel] = list(
-            session.files.models(session.paths.albums_total, YourLibraryAlbum)
+            await session.files.models(session.paths.albums_total, YourLibraryAlbum)
         )
         retained_label = "Unsaved albums"
     else:
         existing = list(
-            session.files.models(session.paths.liked_tracks_total, YourLibraryTrack)
+            await session.files.models(
+                session.paths.liked_tracks_total, YourLibraryTrack
+            )
         )
         retained_label = "Unliked tracks"
-    session.files.append(session.paths.stage(resource), existing)
+    await session.files.append(session.paths.stage(resource), existing)
     state["status"] = "reconciling"
     state["total"] = len(existing)
     state["stable_passes"] = 0
-    session.save()
-    session.event(f"incremental_{resource}_seeded", count=len(existing))
+    await session.save()
+    await session.event(f"incremental_{resource}_seeded", count=len(existing))
     session.output.echo(
         f"{resource.title()}: checking recent additions against "
         f"{len(existing)} stored entries. {retained_label} remain until a full rebuild."
@@ -322,7 +329,7 @@ def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None
     session.notify(resource, len(existing), len(existing), "Checking recent additions")
 
 
-def staged_resource(
+async def staged_resource(
     session: AnalysisSession, resource: ResourceName
 ) -> list[LibraryModel]:
     """Read accepted staging after the completion checkpoint.
@@ -336,6 +343,6 @@ def staged_resource(
     """
     if resource == "artists":
         return list(
-            session.files.staged(session.paths.stage(resource), YourLibraryArtist)
+            await session.files.staged(session.paths.stage(resource), YourLibraryArtist)
         )
-    return staged_offset(session, resource)
+    return await staged_offset(session, resource)

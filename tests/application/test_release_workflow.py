@@ -35,13 +35,15 @@ FAILURES = (
 )
 
 
-def _observe(profile: str, failure: str | None) -> dict[str, object]:
+async def _observe(profile: str, failure: str | None) -> dict[str, object]:
     context = opening(profile)
     effects = Effects(profile, failure, context.persisted_state)
     progress = ReleaseProgress(context, effects, "preview" in profile)
     outcome: object
     try:
-        outcome = asdict(release_workflow(progress, "wine", "vintage", effects).run())
+        outcome = asdict(
+            await release_workflow(progress, "wine", "vintage", effects).run()
+        )
     except (EffectFailureError, ReleaseCheckError) as exc:
         outcome = {"error": type(exc).__name__, "message": str(exc)}
     return cast(
@@ -65,27 +67,27 @@ def _fixture() -> dict[str, object]:
 
 
 @pytest.mark.parametrize("profile", PROFILES)
-def test_independent_release_workflow_contract(profile: str) -> None:
+async def test_independent_release_workflow_contract(profile: str) -> None:
     """Keep every original complete-run scenario without an SDK or legacy runner.
 
     Args:
         profile: Frozen original workflow scenario.
     """
-    assert _observe(profile, None) == _fixture()[profile]
+    assert (await _observe(profile, None)) == _fixture()[profile]
 
 
 @pytest.mark.parametrize("failure", FAILURES)
-def test_independent_release_workflow_failure_prefix(failure: str) -> None:
+async def test_independent_release_workflow_failure_prefix(failure: str) -> None:
     """Keep original accepted-effect and restart state prefixes on failures.
 
     Args:
         failure: Original accepted effect at which to stop.
     """
-    assert _observe("album", failure) == _fixture()["failure:" + failure]
+    assert (await _observe("album", failure)) == _fixture()["failure:" + failure]
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
+async def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
     """Audit accepted Wine Cellar cleanup after its progress report.
 
     Args:
@@ -93,7 +95,7 @@ def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
     """
     context = opening("album")
     effects = Effects("duplicate_wine", persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, preview), "wine", "vintage", None
     ).run()
     assert summary.wine_cellar_duplicates_removed == 1
@@ -119,7 +121,9 @@ def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
 
 
 @pytest.mark.parametrize("profile", ["album", "pending", "destinations_full"])
-def test_release_default_review_avoids_unnecessary_interaction(profile: str) -> None:
+async def test_release_default_review_avoids_unnecessary_interaction(
+    profile: str,
+) -> None:
     """Use existing defaults without prompting when no reader or destination is needed.
 
     Args:
@@ -128,7 +132,7 @@ def test_release_default_review_avoids_unnecessary_interaction(profile: str) -> 
     context = opening(profile)
     effects = Effects(profile, persisted=context.persisted_state)
     reader = effects if profile == "destinations_full" else None
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", reader
     ).run()
     names = [cast(list[object], event)[0] for event in effects.events]
@@ -142,11 +146,11 @@ def test_release_default_review_avoids_unnecessary_interaction(profile: str) -> 
         assert summary.results[0].wine_cellar_action == "artist already present"
 
 
-def test_preview_one_run_artist_skip_does_not_save_completion() -> None:
+async def test_preview_one_run_artist_skip_does_not_save_completion() -> None:
     """Keep interactive one-run skips out of preview restart state."""
     context = opening("skip")
     effects = Effects("skip", persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, True), "wine", "vintage", None
     ).run()
     assert summary.artists_processed == 1 and not effects.saves
@@ -156,19 +160,19 @@ def test_preview_one_run_artist_skip_does_not_save_completion() -> None:
     )
 
 
-def test_release_processed_duplicate_is_not_recorded_again() -> None:
+async def test_release_processed_duplicate_is_not_recorded_again() -> None:
     """Keep terminal duplicate decisions out of subsequent review results."""
     context = opening("duplicates")
     cast(ReleaseState, context.state["processed_releases"])["b"] = {"accepted": True}
     effects = Effects("duplicates", persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert [result.release_id for result in summary.results] == ["c", "a"]
 
 
 @pytest.mark.parametrize("profile", ["other_pending", "processed"])
-def test_release_invalid_or_other_artist_pending_records_are_ignored(
+async def test_release_invalid_or_other_artist_pending_records_are_ignored(
     profile: str,
 ) -> None:
     """Only decoded pending markers owned by the current artist can reopen a release.
@@ -180,17 +184,17 @@ def test_release_invalid_or_other_artist_pending_records_are_ignored(
     if profile == "processed":
         cast(ReleaseState, context.state["pending_singles"])["release"] = None
     effects = Effects(profile, persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results == ()
 
 
-def test_release_pending_absent_from_catalog_reuses_retained_track() -> None:
+async def test_release_pending_absent_from_catalog_reuses_retained_track() -> None:
     """Reconsider an existing pending single even when the live catalog is empty."""
     context = opening("pending_processed")
     effects = Effects("catalog_empty", persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results[0].release_id == "release"
@@ -198,11 +202,11 @@ def test_release_pending_absent_from_catalog_reuses_retained_track() -> None:
     assert not any(cast(list[object], event)[0] == "first" for event in effects.events)
 
 
-def test_release_unplayable_single_is_terminal_without_record_matching() -> None:
+async def test_release_unplayable_single_is_terminal_without_record_matching() -> None:
     """Skip review prompts and playlist writes for unplayable singles."""
     context = opening("pending")
     effects = Effects("empty_single", persisted=context.persisted_state)
-    summary = release_workflow(
+    summary = await release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results[0].reason == "release has no playable first track"

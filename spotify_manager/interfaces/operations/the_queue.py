@@ -4,8 +4,7 @@ from datetime import date as date
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_fill_values import FillResult as FillResult
 from spotify_manager.application.queue_fill_values import FillSummary as FillSummary
 from spotify_manager.application.queue_flush_values import FlushResult as FlushResult
@@ -56,7 +55,7 @@ from spotify_manager.routines.the_queue import _default_state as _default_state
 from spotify_manager.routines.the_queue import validate_state as validate_state
 
 
-def gather_artist_recommendations(
+async def gather_artist_recommendations(
     lastfm: LastFmReader,
     seeds: tuple[ArtistSeed, ...],
     heard_keys: set[str],
@@ -90,10 +89,10 @@ def gather_artist_recommendations(
     configured = queue_recommendations(
         lastfm, cache_path, log_path, now, progress_callback
     )
-    return configured.run(seeds, heard_keys, week_start, candidate_pool_size)
+    return await configured.run(seeds, heard_keys, week_start, candidate_pool_size)
 
 
-def fill_queue_from_lastfm(
+async def fill_queue_from_lastfm(
     sp: Spotify,
     lastfm: LastFmReader,
     options: QueueFillOptions,
@@ -119,7 +118,7 @@ def fill_queue_from_lastfm(
     from spotify_manager.application.queue_fill_values import QueueFillRequest
 
     configured = queue_fill(sp, lastfm, options, callbacks, resources)
-    return configured.run(
+    return await configured.run(
         QueueFillRequest(
             options.count,
             options.max_playlist_length,
@@ -129,7 +128,7 @@ def fill_queue_from_lastfm(
     )
 
 
-def flush_queue(
+async def flush_queue(
     sp: Spotify,
     playlists: QueuePlaylists,
     *,
@@ -174,4 +173,4 @@ def flush_queue(
         log_path,
         artists_path,
     )
-    return configured.run(dry_run)
+    return await configured.run(dry_run)

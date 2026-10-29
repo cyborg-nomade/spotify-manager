@@ -15,7 +15,7 @@ from spotify_manager.application.ports.discovery_execution import (
     DiscoveryExecutionPresentation,
 )
 from spotify_manager.application.ports.runtime import Clock
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
@@ -83,7 +83,7 @@ class NewKidsExecution:
     dry_run: bool
     clock: Clock
 
-    def execute(
+    async def execute(
         self,
         source: PlaylistTrack,
         artist: ReviewArtist,
@@ -110,40 +110,42 @@ class NewKidsExecution:
         transition = _transition(plan)
         if isinstance(plan.get("evaluation"), dict):
             evaluation = AlbumEvaluation.model_validate(plan["evaluation"])
-            self.library.reconcile(transition.release, evaluation)
-        self._destination(artist, transition)
-        self._remove_source(source)
-        self._complete(artist, entry, progress, transition)
+            await self.library.reconcile(transition.release, evaluation)
+        await self._destination(artist, transition)
+        await self._remove_source(source)
+        await self._complete(artist, entry, progress, transition)
         return result_from_plan(source, plan, self.dry_run, artist_name=artist.name)
 
-    def _destination(self, artist: ReviewArtist, transition: ReviewTransition) -> None:
+    async def _destination(
+        self, artist: ReviewArtist, transition: ReviewTransition
+    ) -> None:
         if (
             transition.action in {"advance", "next_release"}
             and transition.target is not None
         ):
-            self._advance(transition.target)
+            await self._advance(transition.target)
         elif transition.action == "finish":
-            self.completion.finish(artist, transition.plan)
+            await self.completion.finish(artist, transition.plan)
 
-    def _advance(self, target: CatalogTrack) -> None:
+    async def _advance(self, target: CatalogTrack) -> None:
         if target.spotify_id in self.live_ids:
             return
         if not self.dry_run:
-            self.access.append(
+            await self.access.append(
                 self.playlist_id, target, f"adding {target.name} to {self.label}"
             )
         self.live_ids.add(target.spotify_id)
         self.presentation.marker_added(target.name, self.dry_run)
 
-    def _remove_source(self, source: PlaylistTrack) -> None:
+    async def _remove_source(self, source: PlaylistTrack) -> None:
         if source.spotify_id not in self.live_ids:
             return
         if not self.dry_run:
-            self.access.remove(self.playlist_id, source, self.label)
+            await self.access.remove(self.playlist_id, source, self.label)
         self.live_ids.discard(source.spotify_id)
         self.presentation.marker_removed(source.name, self.dry_run)
 
-    def _complete(
+    async def _complete(
         self,
         artist: ReviewArtist,
         entry: dict[str, object],
@@ -157,7 +159,7 @@ class NewKidsExecution:
         else:
             self._progress(artist.identifier, progress, transition)
         entry["status"] = "completed"
-        self.state_access.save(self.state)
+        await self.state_access.save(self.state)
 
     def _forget_artist(self, artist_id: str) -> None:
         artists = self.state["artists"]

@@ -39,7 +39,7 @@ class ArtistFollowOutcome:
 class AlbumArtistAccess(Protocol):
     """Resolution, fresh membership, follow, and local recording boundaries."""
 
-    def resolve(self, album: YourLibraryAlbum) -> AlbumArtist | None:
+    async def resolve(self, album: YourLibraryAlbum) -> AlbumArtist | None:
         """Resolve the original primary artist from local facts or metadata.
 
         Args:
@@ -49,7 +49,7 @@ class AlbumArtistAccess(Protocol):
             Resolved identity, or None when no usable identifier exists.
         """
 
-    def followed(self, artist: AlbumArtist) -> bool:
+    async def followed(self, artist: AlbumArtist) -> bool:
         """Read the artist's current membership.
 
         Args:
@@ -59,14 +59,14 @@ class AlbumArtistAccess(Protocol):
             Original truthy first-status interpretation.
         """
 
-    def follow(self, artist: AlbumArtist) -> None:
+    async def follow(self, artist: AlbumArtist) -> None:
         """Follow one artist.
 
         Args:
             artist: Resolved identity.
         """
 
-    def record(self, artist: AlbumArtist) -> ArtistPersistenceResult:
+    async def record(self, artist: AlbumArtist) -> ArtistPersistenceResult:
         """Record the follow in the artist mirror and statistics.
 
         Args:
@@ -77,7 +77,7 @@ class AlbumArtistAccess(Protocol):
         """
 
 
-def follow_album_artist(
+async def follow_album_artist(
     access: AlbumArtistAccess, album: YourLibraryAlbum, checked_ids: set[str]
 ) -> ArtistFollowOutcome:
     """Resolve and follow an artist once, preserving accepted-write boundaries.
@@ -93,15 +93,15 @@ def follow_album_artist(
     Raises:
         RuntimeError: An integration fails; accepted prior effects remain visible.
     """
-    artist = access.resolve(album)
+    artist = await access.resolve(album)
     if artist is None:
         return ArtistFollowOutcome("unresolved", None)
     if artist.spotify_id in checked_ids:
         return ArtistFollowOutcome("checked", artist)
-    if access.followed(artist):
+    if await access.followed(artist):
         checked_ids.add(artist.spotify_id)
         return ArtistFollowOutcome("already-followed", artist)
-    access.follow(artist)
-    persistence = access.record(artist)
+    await access.follow(artist)
+    persistence = await access.record(artist)
     checked_ids.add(artist.spotify_id)
     return ArtistFollowOutcome("followed", artist, persistence)

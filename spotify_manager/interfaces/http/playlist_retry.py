@@ -1,7 +1,7 @@
 """Original bounded Spotify retry behavior with job-owned cancellation."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -38,7 +38,7 @@ class PlaylistRetry:
         """
         blast_from_past.check_cancel(self.job.cancel_event)
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         """Wait interruptibly on the existing cancellation signal.
 
         Args:
@@ -47,12 +47,12 @@ class PlaylistRetry:
         Raises:
             blast_from_past.BlastFromPastCancelledError: Cancellation interrupts.
         """
-        if self.job.cancel_event.wait(seconds):
+        if await self.job.cancel_event.wait(seconds):
             raise blast_from_past.BlastFromPastCancelledError(
                 "Playlist routine cancelled."
             )
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -69,7 +69,7 @@ class PlaylistRetry:
 class RateLimitRecovery(Protocol):
     """Own a reconnectable job's rate-limit wait and accepted status."""
 
-    def wait_for_rate_limit(
+    async def wait_for_rate_limit(
         self, error: SpotifyRateLimitError, description: str
     ) -> None:
         """Wait at the original interface boundary.
@@ -135,7 +135,7 @@ class RateLimitPolicy:
         """Clear the job's retry status after accepting the request."""
         self.owner.retry_accepted()
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Wait for rate limits and preserve all other failure decisions.
 
         Args:
@@ -145,8 +145,8 @@ class RateLimitPolicy:
             Whether the operation should be attempted again.
         """
         try:
-            return self.transport.failed(error)
+            return await self.transport.failed(error)
         except SpotifyRateLimitError as rate_limit:
-            self.owner.wait_for_rate_limit(rate_limit, self.description)
+            await self.owner.wait_for_rate_limit(rate_limit, self.description)
             self.transport.failures = 0
             return True

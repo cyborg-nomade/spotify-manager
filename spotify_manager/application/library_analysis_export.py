@@ -6,7 +6,7 @@ from spotify_manager.application.library_analysis_values import resource_config
 from spotify_manager.domain.library_analysis_values import ResourceName
 
 
-def prepare_export_resource[T: LibraryModel](
+async def prepare_export_resource[T: LibraryModel](
     session: AnalysisSession,
     resource: ResourceName,
     models: list[T],
@@ -25,7 +25,9 @@ def prepare_export_resource[T: LibraryModel](
     """
     state = session.checkpoint["resources"][resource]
     if state["status"] == "complete":
-        completed = session.files.models(session.paths.stage(resource), model_type)
+        completed = await session.files.models(
+            session.paths.stage(resource), model_type
+        )
         if session.progress:
             session.progress.progress(
                 resource, len(completed), len(completed), "Complete"
@@ -36,11 +38,11 @@ def prepare_export_resource[T: LibraryModel](
     by_id = _read_export(session, resource, models, total)
     _target, _model, sort_key = resource_config(session.paths, resource)
     prepared = sorted(by_id.values(), key=sort_key)
-    publish_export_resource(session, resource, prepared, total)
+    await publish_export_resource(session, resource, prepared, total)
     return prepared
 
 
-def publish_export_resource[T: LibraryModel](
+async def publish_export_resource[T: LibraryModel](
     session: AnalysisSession, resource: ResourceName, prepared: list[T], total: int
 ) -> None:
     """Accept staged export models before checkpointing and reporting completion.
@@ -52,12 +54,12 @@ def publish_export_resource[T: LibraryModel](
         total: Original raw export count.
     """
     state = session.checkpoint["resources"][resource]
-    session.files.publish(session.paths.stage(resource), prepared)
+    await session.files.publish(session.paths.stage(resource), prepared)
     state["status"] = "complete"
     state["total"] = len(prepared)
     state["skipped"] = total - len(prepared)
-    session.save()
-    session.event(
+    await session.save()
+    await session.event(
         "resource_completed",
         resource=resource,
         count=len(prepared),

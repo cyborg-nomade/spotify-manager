@@ -1,9 +1,7 @@
 """Invoke analyse library use cases for CLI and HTTP features."""
 
-import time
+import asyncio
 from typing import cast as cast
-
-from spotipy import Spotify as Spotify
 
 from spotify_manager.application import library_analysis_run as analysis_runs
 from spotify_manager.application.library_analysis_checkpoint import (
@@ -16,6 +14,7 @@ from spotify_manager.application.library_analysis_values import (
 from spotify_manager.application.library_analysis_values import (
     scoped_paths as live_mirror_resource_paths,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.library_analysis import (
     analysis_files as analysis_storage,
 )
@@ -41,7 +40,7 @@ from spotify_manager.domain.library_analysis_values import (
     ResourceSyncSummary as ResourceSyncSummary,
 )
 from spotify_manager.domain.library_analysis_values import RetryNotice as RetryNotice
-from spotify_manager.infrastructure import library_analysis_restore as analysis_restore
+from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
 from spotify_manager.infrastructure.library_analysis_errors import (
     AnalysisFailure as AnalysisFailure,
 )
@@ -78,7 +77,7 @@ from spotify_manager.routines.analyse_library import RetryWait as RetryWait
 from spotify_manager.routines.analyse_library import Sleep as Sleep
 
 
-def analyse_library_async_routine(
+async def analyse_library_async_routine(
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
@@ -99,29 +98,29 @@ def analyse_library_async_routine(
     del echo
     if paths.mode != "async":
         raise LibrarySyncError("Export analysis requires async output paths.")
-    checkpoint = load_or_create_checkpoint(analysis_storage(), paths)
+    checkpoint = await load_or_create_checkpoint(analysis_storage(), paths)
     session = analysis_session(
         paths,
         cast(Checkpoint, checkpoint),
         progress=progress_callback,
         cancel_check=cancel_check,
     )
-    with AnalysisFailure(
+    async with AnalysisFailure(
         session,
         "Export analysis failed",
-        (LibraryAnalysisCancelledError, KeyboardInterrupt),
+        (LibraryAnalysisCancelledError, KeyboardInterrupt, CliInterruptedError),
     ):
-        return analysis_runs.analyse_export(session, analysis_publication())
+        return await analysis_runs.analyse_export(session, analysis_publication())
 
 
-def analyse_library_sync_routine(
+async def analyse_library_sync_routine(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_SYNC_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
 ) -> LibrarySyncSummary:
@@ -144,7 +143,7 @@ def analyse_library_sync_routine(
     """
     if paths.mode != "sync":
         raise LibrarySyncError("Live analysis requires sync output paths.")
-    checkpoint = load_or_create_checkpoint(analysis_storage(), paths)
+    checkpoint = await load_or_create_checkpoint(analysis_storage(), paths)
     session = analysis_session(
         paths,
         cast(Checkpoint, checkpoint),
@@ -157,22 +156,27 @@ def analyse_library_sync_routine(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    with AnalysisFailure(
+    async with AnalysisFailure(
         session,
         "Live analysis failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+        (
+            LibraryAnalysisCancelledError,
+            SpotifyRateLimitError,
+            KeyboardInterrupt,
+            CliInterruptedError,
+        ),
     ):
-        return analysis_runs.analyse_live(session, analysis_publication())
+        return await analysis_runs.analyse_live(session, analysis_publication())
 
 
-def refresh_live_library_mirrors_routine(
+async def refresh_live_library_mirrors_routine(
     sp: Spotify,
     echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -198,7 +202,9 @@ def refresh_live_library_mirrors_routine(
     if paths.mode != "mirrors":
         raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
     refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(analysis_storage(), paths, refresh_mode)
+    checkpoint = await load_or_create_checkpoint(
+        analysis_storage(), paths, refresh_mode
+    )
     session = analysis_session(
         paths,
         cast(Checkpoint, checkpoint),
@@ -211,17 +217,22 @@ def refresh_live_library_mirrors_routine(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    with AnalysisFailure(
+    async with AnalysisFailure(
         session,
         "Live mirror refresh failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+        (
+            LibraryAnalysisCancelledError,
+            SpotifyRateLimitError,
+            KeyboardInterrupt,
+            CliInterruptedError,
+        ),
     ):
-        return analysis_runs.refresh_mirrors(
+        return await analysis_runs.refresh_mirrors(
             session, analysis_publication(), full_rebuild
         )
 
 
-def refresh_live_library_resource_routine(
+async def refresh_live_library_resource_routine(
     sp: Spotify,
     resource: ResourceName,
     echo: Echo = STANDARD_OUTPUT,
@@ -229,7 +240,7 @@ def refresh_live_library_resource_routine(
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = time,
+    sleep: Sleep = asyncio,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -257,7 +268,9 @@ def refresh_live_library_resource_routine(
         raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
     paths = live_mirror_resource_paths(paths, resource)
     refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(analysis_storage(), paths, refresh_mode)
+    checkpoint = await load_or_create_checkpoint(
+        analysis_storage(), paths, refresh_mode
+    )
     session = analysis_session(
         paths,
         cast(Checkpoint, checkpoint),
@@ -270,17 +283,22 @@ def refresh_live_library_resource_routine(
         retry_base_seconds=retry_base_seconds,
         retry_max_seconds=retry_max_seconds,
     )
-    with AnalysisFailure(
+    async with AnalysisFailure(
         session,
         f"Live {resource} mirror refresh failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+        (
+            LibraryAnalysisCancelledError,
+            SpotifyRateLimitError,
+            KeyboardInterrupt,
+            CliInterruptedError,
+        ),
     ):
-        return analysis_runs.refresh_resource(
+        return await analysis_runs.refresh_resource(
             session, analysis_publication(), resource, full_rebuild
         )
 
 
-def restore_library_sync(
+async def restore_library_sync(
     run_id: str, paths: LibraryAnalysisPaths | None = None
 ) -> tuple[str, ...]:
     """Restore generated files from one completed async or sync backup.
@@ -298,4 +316,4 @@ def restore_library_sync(
         if paths is not None
         else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS, DEFAULT_LIVE_MIRROR_PATHS]
     )
-    return analysis_restore.restore_library_sync(run_id, candidates, analysis_storage())
+    return await analysis_storage().restore(run_id, candidates)

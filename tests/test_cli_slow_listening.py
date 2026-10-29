@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -112,9 +113,17 @@ def test_flush_slow_listening_dry_run_uses_configured_playlist(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushSlowListeningDryRunUsesConfiguredPlaylistScenario(received=received)
-    monkeypatch.setattr(main.slow_listening, "flush_slow_listening", scenario.flush)
+    monkeypatch.setattr(
+        main.slow_listening,
+        "flush_slow_listening",
+        AsyncMock(side_effect=scenario.flush),
+    )
     result = CliRunner().invoke(main.app, ["flush-slow-listening", "--dry-run"])
     assert result.exit_code == 0
     assert received == {

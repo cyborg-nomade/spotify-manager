@@ -1,5 +1,6 @@
 """Differential contracts for the temporary synchronous integration adapters."""
 
+import asyncio
 import gzip
 import json
 from collections.abc import Iterator
@@ -14,7 +15,6 @@ from typing import cast
 from unittest.mock import Mock
 
 import pytest
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.album_review import AlbumReviewRequest
@@ -22,6 +22,7 @@ from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.listening import album_review_ports
 from spotify_manager.bootstrap.listening import listening_history
 from spotify_manager.bootstrap.listening import requeue_audit
@@ -71,7 +72,7 @@ def _recorded_album(identifiers: list[object]) -> dict[str, object]:
         (["", "x"], [True]),
     ],
 )
-def test_album_ports_match_legacy_values_and_calls(
+async def test_album_ports_match_legacy_values_and_calls(
     identifiers: list[object], statuses: list[object]
 ) -> None:
     """Compare the migrated public facade to independently frozen legacy recordings.
@@ -83,7 +84,9 @@ def test_album_ports_match_legacy_values_and_calls(
     tracks: list[object] = [_track(identifier) for identifier in identifiers]
     adapted = _client(tracks, statuses)
     expected = _recorded_album(identifiers)
-    actual = library_lookups.evaluate_album_live(adapted, album_id="album")
+    actual = await asyncio.to_thread(
+        library_lookups.evaluate_album_live, adapted, album_id="album"
+    )
     calls = []
     for call in adapted.mock_calls:
         calls.append(
@@ -94,7 +97,7 @@ def test_album_ports_match_legacy_values_and_calls(
 
 
 @pytest.mark.parametrize("count", [0, 1, 19, 20, 21, 40, 41])
-def test_membership_keeps_original_batch_boundaries(count: int) -> None:
+async def test_membership_keeps_original_batch_boundaries(count: int) -> None:
     """Retain twenty-item batches, input ordering, and the empty-input shortcut.
 
     Args:
@@ -106,7 +109,7 @@ def test_membership_keeps_original_batch_boundaries(count: int) -> None:
     for start in range(0, count, 20):
         batches.append([True] * min(20, count - start))
     client.current_user_saved_tracks_contains.side_effect = batches
-    result = review_album(
+    result = await review_album(
         *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
     )
     expected = []
@@ -118,7 +121,7 @@ def test_membership_keeps_original_batch_boundaries(count: int) -> None:
 
 
 @pytest.mark.parametrize("response", [None, {}, [True, False], []])
-def test_bad_membership_response_retains_exception(response: object) -> None:
+async def test_bad_membership_response_retains_exception(response: object) -> None:
     """Preserve status-response validation and its exception text.
 
     Args:
@@ -129,16 +132,20 @@ def test_bad_membership_response_retains_exception(response: object) -> None:
         library_lookups.SpotifyLookupResponseError,
         match=r"^Spotify returned invalid Liked Songs statuses\.$",
     ):
-        library_lookups.evaluate_album_live(client, album_id="album")
+        (
+            await asyncio.to_thread(
+                library_lookups.evaluate_album_live, client, album_id="album"
+            )
+        )
     client.current_user_saved_tracks_contains.assert_called_once_with(["x"])
 
 
-def test_album_pagination_preserves_filtered_items_and_page_order() -> None:
+async def test_album_pagination_preserves_filtered_items_and_page_order() -> None:
     """Retain page ordering and the original filtering of non-object entries."""
     client = _client([None, _track("a")], [True, False])
     client.album_tracks.return_value["next"] = "next"
     client.next.return_value = {"items": [_track("b")], "next": None}
-    result = review_album(
+    result = await review_album(
         *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
     )
     assert [track.spotify_id for track in result.tracks] == ["a", "b"]
@@ -150,7 +157,7 @@ def test_album_pagination_preserves_filtered_items_and_page_order() -> None:
     "page",
     [None, {}, {"items": [], "next": "next"}, {"items": [{"id": "x"}], "next": None}],
 )
-def test_malformed_track_pages_keep_legacy_errors(page: object) -> None:
+async def test_malformed_track_pages_keep_legacy_errors(page: object) -> None:
     """Reject malformed or incomplete track pages before reading membership.
 
     Args:
@@ -159,14 +166,17 @@ def test_malformed_track_pages_keep_legacy_errors(page: object) -> None:
     client = _client([], [])
     client.album_tracks.return_value = page
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        review_album(
-            *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+        (
+            await review_album(
+                *album_review_ports(client),
+                request=AlbumReviewRequest(album_id="album"),
+            )
         )
     client.current_user_saved_tracks_contains.assert_not_called()
 
 
 @pytest.mark.parametrize("status", [404, 429, 500])
-def test_catalog_preserves_sdk_error_translation(status: int) -> None:
+async def test_catalog_preserves_sdk_error_translation(status: int) -> None:
     """Keep missing-album translation and all other SDK exceptions unchanged.
 
     Args:
@@ -177,18 +187,21 @@ def test_catalog_preserves_sdk_error_translation(status: int) -> None:
     client.album.side_effect = error
     expected = library_lookups.AlbumNotFoundError if status == 404 else SpotifyException
     with pytest.raises(expected) as caught:
-        review_album(
-            *album_review_ports(client), request=AlbumReviewRequest(album_id="missing")
+        (
+            await review_album(
+                *album_review_ports(client),
+                request=AlbumReviewRequest(album_id="missing"),
+            )
         )
     assert caught.value is error or caught.value.__cause__ is error
     client.album_tracks.assert_not_called()
 
 
-def test_catalog_search_uses_existing_exact_match_and_query() -> None:
+async def test_catalog_search_uses_existing_exact_match_and_query() -> None:
     """Retain exact name matching and the existing search parameters."""
     client = _client([_track("x")], [True])
     client.search.return_value = {"albums": {"items": [ALBUM]}}
-    result = review_album(
+    result = await review_album(
         *album_review_ports(client),
         request=AlbumReviewRequest(name="Album", artist="Artist"),
     )
@@ -221,14 +234,14 @@ class RetryRecorder:
         return NoRetry().attempts(description)
 
 
-def test_playlist_writes_keep_order_payloads_and_retry_descriptions() -> None:
+async def test_playlist_writes_keep_order_payloads_and_retry_descriptions() -> None:
     """Keep append-before-remove effects and their original retry messages."""
     client = Mock(spec=Spotify)
     recorder = RetryRecorder()
     retry: RetryCall = recorder
     playlists = requeue_playlist(client, retry)
-    playlists.append("p", Track("next", "Next", "spotify:track:next"))
-    playlists.remove("p", Track("old", "Old", "spotify:track:old"))
+    (await playlists.append("p", Track("next", "Next", "spotify:track:next")))
+    (await playlists.remove("p", Track("old", "Old", "spotify:track:old")))
     assert [call[0] for call in client.mock_calls] == ["_post", "_delete"]
     client._post.assert_called_once_with(
         "playlists/p/items", payload={"uris": ["spotify:track:next"]}
@@ -242,14 +255,14 @@ def test_playlist_writes_keep_order_payloads_and_retry_descriptions() -> None:
     ]
 
 
-def test_playlist_write_failure_does_not_add_adapter_retries() -> None:
+async def test_playlist_write_failure_does_not_add_adapter_retries() -> None:
     """Propagate an ambiguous write failure without replaying the operation."""
     client = Mock(spec=Spotify)
     error = SpotifyException(500, -1, "accepted then disconnected")
     client._post.side_effect = error
     playlists = requeue_playlist(client, RetryRecorder())
     with pytest.raises(SpotifyException) as caught:
-        playlists.append("p", Track("x", "X", "x"))
+        (await playlists.append("p", Track("x", "X", "x")))
     assert caught.value is error
     client._post.assert_called_once()
     client._delete.assert_not_called()
@@ -273,21 +286,21 @@ def _playlist_track(identifier: str) -> dict[str, object]:
     }
 
 
-def test_playlist_reads_use_original_parser_and_pagination() -> None:
+async def test_playlist_reads_use_original_parser_and_pagination() -> None:
     """Retain parsed duplicate markers and sequential page offsets."""
     client = Mock(spec=Spotify)
     client._get.side_effect = [
         {"items": [{"item": _playlist_track("x")}], "next": "next"},
         {"items": [{"item": _playlist_track("x")}], "next": None},
     ]
-    tracks = requeue_playlist(client, RetryRecorder()).tracks("p")
+    tracks = await requeue_playlist(client, RetryRecorder()).tracks("p")
     assert tracks == (Track("x", "x", "spotify:track:x"),) * 2
     assert client._get.call_args_list[0].kwargs == {"limit": 50, "offset": 0}
     assert client._get.call_args_list[1].kwargs == {"limit": 50, "offset": 1}
 
 
 @pytest.mark.parametrize("compressed", [False, True])
-def test_history_adapter_keeps_timezone_and_compressed_fallback(
+async def test_history_adapter_keeps_timezone_and_compressed_fallback(
     tmp_path: Path, compressed: bool
 ) -> None:
     """Preserve Berlin-local grouping and compressed export fallback behavior.
@@ -309,13 +322,13 @@ def test_history_adapter_keeps_timezone_and_compressed_fallback(
         Path(f"{path}.gz").write_bytes(gzip.compress(payload))
     else:
         path.write_bytes(payload)
-    actual = listening_history(path).by_date()
-    expected = blast_from_past.load_scrobbles_by_date(path)
+    actual = await listening_history(path).by_date()
+    expected = await blast_from_past.async_load_scrobbles_by_date(path)
     assert actual == {day: tuple(events) for day, events in expected.items()}
     assert date(2020, 1, 2) in actual
 
 
-def test_audit_adapter_keeps_existing_jsonl_bytes(tmp_path: Path) -> None:
+async def test_audit_adapter_keeps_existing_jsonl_bytes(tmp_path: Path) -> None:
     """Delay audit writes until invoked and retain their exact JSONL representation.
 
     Args:
@@ -328,11 +341,11 @@ def test_audit_adapter_keeps_existing_jsonl_bytes(tmp_path: Path) -> None:
     requeue_for_a_dream._append_log(summary, original)
     writer = requeue_audit(adapted)
     assert not adapted.exists()
-    writer.write(summary)
+    (await writer.write(summary))
     assert adapted.read_bytes() == original.read_bytes()
 
 
-def test_audit_failure_keeps_original_error(tmp_path: Path) -> None:
+async def test_audit_failure_keeps_original_error(tmp_path: Path) -> None:
     """Retain the original error when the audit destination cannot be written.
 
     Args:
@@ -344,4 +357,4 @@ def test_audit_failure_keeps_original_error(tmp_path: Path) -> None:
         datetime(2026, 9, 25, tzinfo=UTC), "p", False, "drop", 1, 0
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamLogError):
-        requeue_audit(parent / "log.jsonl").write(summary)
+        (await requeue_audit(parent / "log.jsonl").write(summary))

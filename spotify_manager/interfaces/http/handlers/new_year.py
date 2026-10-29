@@ -1,14 +1,16 @@
 """Validate and present new year HTTP requests."""
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.job_registry import register_job
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 
 
-def cmd_new_year(client: Spotify, dry_run: bool, year: int | None) -> BlastJobResult:
+async def cmd_new_year(
+    client: Spotify, dry_run: bool, year: int | None
+) -> BlastJobResult:
     """Start all New Year's Routines for the previous completed calendar year.
 
     Args:
@@ -27,12 +29,11 @@ def cmd_new_year(client: Spotify, dry_run: bool, year: int | None) -> BlastJobRe
         )
         register_job(jobs._blast_jobs, job_id, job)
         snapshot = jobs._blast_job_snapshot(job)
-    jobs.Thread(
-        target=jobs._run_new_year_job,
-        args=(job_id, client, year, dry_run),
-        name=f"new-year-{job_id[:8]}",
-        daemon=True,
-    ).start()
+    current_execution().jobs.start(
+        jobs._run_new_year_job(job_id, client, year, dry_run),
+        job.cancel_event,
+        f"new-year-{job_id[:8]}",
+    )
     return snapshot
 
 

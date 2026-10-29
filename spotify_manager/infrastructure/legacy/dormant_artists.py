@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.dormant_artists import DormantArtist
@@ -47,7 +46,7 @@ class LegacyDormantRecovery:
     retry: legacy.RetryCall
     cancel: legacy.CancelCheck | None
 
-    def candidates(self, today: date) -> tuple[DormantArtist, ...]:
+    async def candidates(self, today: date) -> tuple[DormantArtist, ...]:
         """Observe original history eligibility.
 
         Args:
@@ -56,23 +55,27 @@ class LegacyDormantRecovery:
         Returns:
             Alphabetical candidates.
         """
-        from spotify_manager.routines.blast_from_past_artists import dormant_artists
+        from spotify_manager.routines.blast_from_past_artists import (
+            async_dormant_artists as dormant_artists,
+        )
 
-        return dormant_artists(self.path, today=today)
+        return await dormant_artists(self.path, today=today)
 
-    def read(self) -> PlaylistState:
+    async def read(self) -> PlaylistState:
         """Observe original destination membership.
 
         Returns:
             Ordered original membership facts.
         """
-        from spotify_manager.routines.blast_from_past import load_playlist_state
+        from spotify_manager.routines.blast_from_past import (
+            async_load_playlist_state as load_playlist_state,
+        )
 
-        return load_playlist_state(
+        return await load_playlist_state(
             self.spotify, self.playlist_id, self.retry, self.cancel
         )
 
-    def mapping(
+    async def mapping(
         self, artist: DormantArtist, rank: int
     ) -> SpotifyArtistCandidate | None:
         """Retain the original unique-exact mapping boundary.
@@ -86,17 +89,19 @@ class LegacyDormantRecovery:
         """
         from spotify_manager.routines.blast_from_past_artists import _spotify_artist
 
-        return _spotify_artist(self.spotify, artist, rank, self.retry)
+        return await _spotify_artist(self.spotify, artist, rank, self.retry)
 
-    def append(self, tracks: list[CatalogTrack]) -> None:
+    async def append(self, tracks: list[CatalogTrack]) -> None:
         """Convert original markers and accept the existing ordered batch append.
 
         Args:
             tracks: Original pending markers.
         """
-        from spotify_manager.routines.blast_from_past import add_spotify_matches
+        from spotify_manager.routines.blast_from_past import (
+            async_add_spotify_matches as add_spotify_matches,
+        )
 
         matches = [_match(track) for track in tracks]
-        add_spotify_matches(
+        await add_spotify_matches(
             self.spotify, self.playlist_id, matches, self.retry, self.cancel
         )

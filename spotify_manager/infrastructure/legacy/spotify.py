@@ -6,13 +6,12 @@ move. SDK payloads and routine-specific retry descriptions stay at this boundary
 
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
 from spotify_manager.application import lookup_resolution
 from spotify_manager.application.music import Album
 from spotify_manager.application.music import NamedTrack
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue_result import RequeueForADreamError
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -34,7 +33,7 @@ class SpotifyAlbumCatalog:
 
     client: Spotify
 
-    def resolve_album(
+    async def resolve_album(
         self, *, name: str | None, album_id: str | None, artist: str | None
     ) -> Album:
         """Resolve the exact legacy album identity without local-file fallback.
@@ -53,10 +52,10 @@ class SpotifyAlbumCatalog:
             RuntimeError: Spotify returns malformed data.
         """
         reads = SpotifyAlbumLookup(self.client)
-        identity = lookup_resolution.album(reads, name, album_id, artist)
+        identity = await lookup_resolution.album(reads, name, album_id, artist)
         return Album(*identity)
 
-    def album_tracks(self, album_id: str) -> tuple[Track, ...]:
+    async def album_tracks(self, album_id: str) -> tuple[Track, ...]:
         """Load all album pages through the existing validation rules.
 
         Args:
@@ -68,10 +67,10 @@ class SpotifyAlbumCatalog:
         Raises:
             RuntimeError: Spotify returns incomplete tracks or malformed pages.
         """
-        from spotify_manager.processors.library_lookups import _fetch_album_tracks
+        from spotify_manager.processors.library_lookups import _async_fetch_album_tracks
 
         tracks = []
-        for raw in _fetch_album_tracks(self.client, album_id):
+        for raw in await _async_fetch_album_tracks(self.client, album_id):
             identifier = str(raw["id"]) if raw.get("id") else None
             tracks.append(
                 Track(identifier, str(raw["name"]), str(raw["uri"]), str(raw.get("id")))
@@ -89,7 +88,7 @@ class SpotifyTrackMembership:
 
     client: Spotify
 
-    def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
+    async def liked_tracks(self, track_ids: tuple[str, ...]) -> dict[str, bool]:
         """Read fresh membership without deduplicating or caching observations.
 
         Args:
@@ -101,7 +100,7 @@ class SpotifyTrackMembership:
         Raises:
             RuntimeError: Spotify returns malformed or mismatched statuses.
         """
-        return lookup_resolution.liked_statuses(
+        return await lookup_resolution.liked_statuses(
             list(track_ids),
             LiveLikedTracks(self.client),
             library_lookups.SPOTIFY_CONTAINS_BATCH_SIZE,
@@ -120,7 +119,7 @@ class RequeuePlaylistAccess:
     client: Spotify
     retry: RetryCall
 
-    def sources(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def sources(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read complete markers with the public routine's error translation.
 
         Args:
@@ -132,14 +131,16 @@ class RequeuePlaylistAccess:
         Raises:
             RequeueForADreamError: The existing playlist parser rejects a response.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
         try:
-            return load_playlist_tracks(self.client, playlist_id, self.retry)
+            return await load_playlist_tracks(self.client, playlist_id, self.retry)
         except new_wine.NewWineError as exc:
             raise RequeueForADreamError(str(exc)) from exc
 
-    def tracks(self, playlist_id: str) -> tuple[Track, ...]:
+    async def tracks(self, playlist_id: str) -> tuple[Track, ...]:
         """Read playable markers through the original pagination and codec.
 
         Args:
@@ -151,15 +152,17 @@ class RequeuePlaylistAccess:
         Raises:
             new_wine.NewWineError: A playlist response is malformed.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
+        )
 
-        original = load_playlist_tracks(self.client, playlist_id, self.retry)
+        original = await load_playlist_tracks(self.client, playlist_id, self.retry)
         tracks = []
         for track in original:
             tracks.append(Track(track.spotify_id, track.name, track.uri))
         return tuple(tracks)
 
-    def append(self, playlist_id: str, track: NamedTrack) -> None:
+    async def append(self, playlist_id: str, track: NamedTrack) -> None:
         """Append exactly one marker through the original write and retry path.
 
         Args:
@@ -168,9 +171,9 @@ class RequeuePlaylistAccess:
         """
         from spotify_manager.routines.requeue_for_a_dream import _add_track
 
-        _add_track(self.client, playlist_id, track, self.retry)
+        await _add_track(self.client, playlist_id, track, self.retry)
 
-    def remove(self, playlist_id: str, track: NamedTrack) -> None:
+    async def remove(self, playlist_id: str, track: NamedTrack) -> None:
         """Remove exactly one marker through the original write and retry path.
 
         Args:
@@ -179,7 +182,7 @@ class RequeuePlaylistAccess:
         """
         from spotify_manager.routines.requeue_for_a_dream import _remove_track
 
-        _remove_track(self.client, playlist_id, track, self.retry)
+        await _remove_track(self.client, playlist_id, track, self.retry)
 
 
 @dataclass
@@ -194,7 +197,7 @@ class SpotifyRequeueCatalog:
     client: Spotify
     retry: RetryCall
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Load the selected studio discography with unchanged error translation.
 
         Args:
@@ -206,14 +209,18 @@ class SpotifyRequeueCatalog:
         Raises:
             RequeueForADreamError: The shared catalog parser rejects a response.
         """
-        from spotify_manager.routines.slow_listening import load_discography
+        from spotify_manager.routines.slow_listening import (
+            async_load_discography as load_discography,
+        )
 
         try:
-            return load_discography(self.client, artist_id, self.retry)
+            return await load_discography(self.client, artist_id, self.retry)
         except slow_listening.SlowListeningError as exc:
             raise RequeueForADreamError(str(exc)) from exc
 
-    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    async def release_tracks(
+        self, release: DiscographyRelease
+    ) -> tuple[ReleaseTrack, ...]:
         """Load playable successor tracks with unchanged error translation.
 
         Args:
@@ -225,9 +232,11 @@ class SpotifyRequeueCatalog:
         Raises:
             RequeueForADreamError: The shared track parser rejects a response.
         """
-        from spotify_manager.routines.slow_listening import load_release_tracks
+        from spotify_manager.routines.slow_listening import (
+            async_load_release_tracks as load_release_tracks,
+        )
 
         try:
-            return load_release_tracks(self.client, release, self.retry)
+            return await load_release_tracks(self.client, release, self.retry)
         except slow_listening.SlowListeningError as exc:
             raise RequeueForADreamError(str(exc)) from exc

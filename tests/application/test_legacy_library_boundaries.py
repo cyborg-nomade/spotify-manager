@@ -43,7 +43,7 @@ class Effects:
         """
         self.additions.append((identifier, uris.copy()))
 
-    def single(self, identifier: str, uris: list[str]) -> None:
+    async def single(self, identifier: str, uris: list[str]) -> None:
         """Observe single at the recorded boundary.
 
         Args:
@@ -52,7 +52,7 @@ class Effects:
         """
         self.append(identifier, uris)
 
-    def batch(self, identifier: str, uris: list[str]) -> None:
+    async def batch(self, identifier: str, uris: list[str]) -> None:
         """Observe batch at the recorded boundary.
 
         Args:
@@ -69,7 +69,7 @@ class Effects:
         """
         return self.times.pop(0)
 
-    def create(self, name: str) -> object:
+    async def create(self, name: str) -> object:
         """Accept the original named playlist.
 
         Args:
@@ -85,7 +85,7 @@ class Effects:
 @pytest.mark.parametrize(
     "size,expected", [(0, [0]), (100, [100]), (101, [100, 1]), (205, [100, 100, 5])]
 )
-def test_original_application_batches(size: int, expected: list[int]) -> None:
+async def test_original_application_batches(size: int, expected: list[int]) -> None:
     """Retain all ordered additions including an empty request.
 
     Args:
@@ -98,7 +98,7 @@ def test_original_application_batches(size: int, expected: list[int]) -> None:
         tracks.append(
             SimplifiedTrack(disc_number=1, track_number=index, uri=str(index))
         )
-    append_tracks(tracks, "playlist", effects, effects)
+    (await append_tracks(tracks, "playlist", effects, effects))
     assert [len(uris) for _, uris in effects.additions] == expected
     assert effects.output == [("Appending tracks to playlist...",), ("Done!",)]
 
@@ -106,7 +106,7 @@ def test_original_application_batches(size: int, expected: list[int]) -> None:
 @pytest.mark.parametrize(
     "condition,selected,expected", [(10, 9, "2025.9"), (9, 10, "2025.010")]
 )
-def test_original_independent_playlist_clocks(
+async def test_original_independent_playlist_clocks(
     condition: int, selected: int, expected: str
 ) -> None:
     """Preserve separate clock observations across a month/year boundary.
@@ -123,7 +123,7 @@ def test_original_independent_playlist_clocks(
             datetime(2026, selected, 1),
         ]
     )
-    assert playlist(effects, effects) == "playlist"
+    assert (await playlist(effects, effects)) == "playlist"
     assert effects.output == [
         ("Creating playlist...",),
         (f"Playlist name: {expected}",),

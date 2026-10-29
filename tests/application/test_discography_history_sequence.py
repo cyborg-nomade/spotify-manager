@@ -26,7 +26,7 @@ def _cutoff() -> date:
     return date(2025, 12, 31)
 
 
-def _outcome(profile: str, second: int) -> object:
+async def _outcome(profile: str, second: int) -> object:
     edge = HistoryReads(profile, second)
     owner = DiscographyHistory(
         HistoryInputs(edge, FIXTURE.with_name("history"), _cutoff()),
@@ -35,7 +35,7 @@ def _outcome(profile: str, second: int) -> object:
     )
     result: dict[str, object] = {}
     try:
-        result["result"] = asdict(owner.run())
+        result["result"] = asdict(await owner.run())
     except (RuntimeError, IndexError) as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result["trace"] = edge.trace
@@ -43,7 +43,7 @@ def _outcome(profile: str, second: int) -> object:
 
 
 @pytest.mark.parametrize("case", cases("discography_history.json"))
-def test_discography_history_matches_original_complete_observations(
+async def test_discography_history_matches_original_complete_observations(
     case: dict[str, object],
 ) -> None:
     """Compare complete selections and original malformed-reader error prefixes.
@@ -52,8 +52,8 @@ def test_discography_history_matches_original_complete_observations(
         case: Original immutable history and random input.
     """
     profile, second = cast(str, case["profile"]), cast(int, case["second"])
-    assert _outcome(profile, second) == case["outcome"]
-    assert history_outcome(profile, second) == case["outcome"]
+    assert (await _outcome(profile, second)) == case["outcome"]
+    assert (await history_outcome(profile, second)) == case["outcome"]
 
 
 def _mapping(profile: str, name: str) -> SpotifyArtistCandidate | None:
@@ -75,7 +75,7 @@ class MappingCase:
 
     profile: str
 
-    def resolve(self, name: str) -> SpotifyArtistCandidate | None:
+    async def resolve(self, name: str) -> SpotifyArtistCandidate | None:
         """Return the original external mapping outcome.
 
         Args:
@@ -88,7 +88,7 @@ class MappingCase:
 
 
 @pytest.mark.parametrize("profile", ["normal", "error", "cancel"])
-def test_discography_mapping_keeps_original_translation_and_cancellation(
+async def test_discography_mapping_keeps_original_translation_and_cancellation(
     profile: str,
 ) -> None:
     """Retain exact mapped facts and original error identity/message.
@@ -98,7 +98,7 @@ def test_discography_mapping_keeps_original_translation_and_cancellation(
     """
     catalog = MappingCase(profile)
     if profile == "normal":
-        candidate = DiscographyArtistMapping(catalog).resolve(historical())
+        candidate = await DiscographyArtistMapping(catalog).resolve(historical())
         assert (candidate.spotify_id, candidate.name, candidate.queue) == (
             "past",
             "Past",
@@ -107,4 +107,4 @@ def test_discography_mapping_keeps_original_translation_and_cancellation(
         return
     error = DiscographyCancelledError if profile == "cancel" else DiscographyError
     with pytest.raises(error):
-        DiscographyArtistMapping(catalog).resolve(historical())
+        (await DiscographyArtistMapping(catalog).resolve(historical()))

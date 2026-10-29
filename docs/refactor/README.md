@@ -11,9 +11,10 @@ were deployed and merged in PR #65. [Item 7 interfaces and jobs](INTERFACES_AND_
 were approved, deployed and merged in PR #66.
 The owner approved an additional [Item 7a](CALL_PATH_SIMPLIFICATION.md) on
 2026-10-03 to simplify internal call paths after the Item 7 release and before
-async work. Item 7a is implemented and under PR #67 review, including the owner's
-2026-10-05 request for colocated routes and small typed inputs. Deployment and
-merge await approval. Frontend source restructuring is
+async work. Item 7a was approved, deployed and merged in PR #67, including the
+owner's request for colocated routes and small typed inputs.
+[Item 8 transport](ASYNC_SPOTIFY_TRANSPORT.md) was deployed and merged in PR #68.
+[Item 9 execution](ASYNC_EXECUTION.md) is implemented for review. Frontend source restructuring is
 reserved for a future targeted refactor.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.

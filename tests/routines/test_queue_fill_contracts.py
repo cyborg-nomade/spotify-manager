@@ -9,7 +9,7 @@ from tests.support.queue_fill import original_outcome
 
 
 @pytest.mark.parametrize("name,case", cases(), ids=[name for name, _case in cases()])
-def test_queue_fill_original_contract(name: str, case: dict[str, object]) -> None:
+async def test_queue_fill_original_contract(name: str, case: dict[str, object]) -> None:
     """Match the implementation recorded before business-rule extraction.
 
     Args:
@@ -18,10 +18,9 @@ def test_queue_fill_original_contract(name: str, case: dict[str, object]) -> Non
     """
     assert name
     assert (
-        original_outcome(
+        await original_outcome(
             cast(str, case["scenario"]),
             cast(bool, case["preview"]),
             cast(str | None, case["failure"]),
         )
-        == case["outcome"]
-    )
+    ) == case["outcome"]

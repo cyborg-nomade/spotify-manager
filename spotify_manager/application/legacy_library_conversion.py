@@ -16,7 +16,7 @@ from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.utils.sorting import sort_key
 
 
-def compare_ids(
+async def compare_ids(
     wanted: list[str],
     existing: list[str],
     metadata: ComparisonMetadata,
@@ -37,12 +37,12 @@ def compare_ids(
     additions = unmatched_ids(wanted, existing)
     removals = unmatched_ids(existing, wanted)
     return {
-        "add": enrich_ids(additions, metadata),
-        "remove": enrich_ids(removals, metadata),
+        "add": await enrich_ids(additions, metadata),
+        "remove": await enrich_ids(removals, metadata),
     }
 
 
-def enrich_ids(
+async def enrich_ids(
     identifiers: list[str], metadata: ComparisonMetadata
 ) -> list[ComparisonAlbum]:
     """Enrich every requested identity in its original encounter order.
@@ -56,11 +56,11 @@ def enrich_ids(
     """
     result = []
     for identifier in identifiers:
-        result.append(metadata.enrich(identifier))
+        result.append(await metadata.enrich(identifier))
     return result
 
 
-def compare(files: LegacyFiles, metadata: ComparisonMetadata, echo: Echo) -> None:
+async def compare(files: LegacyFiles, metadata: ComparisonMetadata, echo: Echo) -> None:
     """Compare the export before reading and publishing legacy album facts.
 
     Args:
@@ -68,14 +68,14 @@ def compare(files: LegacyFiles, metadata: ComparisonMetadata, echo: Echo) -> Non
         metadata: Per-identity metadata reader.
         echo: Original presenter.
     """
-    export = files.export()
-    albums = files.albums()
+    export = await files.export()
+    albums = await files.albums()
     wanted = [album.spotify_id for album in export.albums]
     existing = [album.spotify_id for album in albums]
-    files.save_comparison(compare_ids(wanted, existing, metadata, echo))
+    await files.save_comparison(await compare_ids(wanted, existing, metadata, echo))
 
 
-def analyse(
+async def analyse(
     files: LegacyFiles,
     catalog: ComparisonMembership,
     echo: Echo,
@@ -87,14 +87,14 @@ def analyse(
         catalog: Removal and addition membership reader.
         echo: Original presenter.
     """
-    comparison = files.comparison()
+    comparison = await files.comparison()
     echo.echo(f"Albums to remove: {len(comparison['remove'])}")
-    analyse_rows(comparison["remove"], catalog, True, "     is saved", echo)
+    await analyse_rows(comparison["remove"], catalog, True, "     is saved", echo)
     echo.echo(f"Albums to add: {len(comparison['add'])}")
-    analyse_rows(comparison["add"], catalog, False, "     not saved", echo)
+    await analyse_rows(comparison["add"], catalog, False, "     not saved", echo)
 
 
-def analyse_rows(
+async def analyse_rows(
     rows: list[ComparisonAlbum],
     catalog: ComparisonMembership,
     saved: bool,
@@ -113,13 +113,15 @@ def analyse_rows(
     for row in rows:
         echo.echo(row)
         observed = (
-            catalog.contains(row["id"]) if saved else catalog.add_contains(row["id"])
+            (await catalog.contains(row["id"]))
+            if saved
+            else (await catalog.add_contains(row["id"]))
         )
         if bool(observed) == saved:
             echo.echo(message)
 
 
-def convert(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
+async def convert(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
     """Retain removal-before-addition conversion and final sorted publication.
 
     Args:
@@ -127,20 +129,20 @@ def convert(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
         catalog: Original live reads and album enrichment.
         echo: Original presenter.
     """
-    albums = files.albums()
-    comparison = files.comparison()
+    albums = await files.albums()
+    comparison = await files.comparison()
     echo.echo("------------------------------------")
     echo.echo("albums to remove: ", len(comparison["remove"]))
-    removed = remove_rows(albums, comparison["remove"], catalog, echo)
+    removed = await remove_rows(albums, comparison["remove"], catalog, echo)
     echo.echo("removed albums: ", removed)
     echo.echo("------------------------------------")
     echo.echo("albums to add: ", len(comparison["add"]))
-    added = add_rows(albums, comparison["add"], catalog, echo)
+    added = await add_rows(albums, comparison["add"], catalog, echo)
     echo.echo("added_albums", added)
-    files.save_albums(sorted(albums, key=sort_key))
+    await files.save_albums(sorted(albums, key=sort_key))
 
 
-def remove_rows(
+async def remove_rows(
     albums: list[SimplifiedAlbum],
     rows: list[ComparisonAlbum],
     catalog: ControlMembership,
@@ -160,7 +162,7 @@ def remove_rows(
     count = 0
     for row in rows:
         echo.echo(row)
-        if catalog.contains(row["id"]):
+        if await catalog.contains(row["id"]):
             continue
         index = first_index([album.spotify_id for album in albums], row["id"])
         echo.echo(f"{albums[index].name} - {albums[index].artist}")
@@ -169,7 +171,7 @@ def remove_rows(
     return count
 
 
-def add_rows(
+async def add_rows(
     albums: list[SimplifiedAlbum],
     rows: list[ComparisonAlbum],
     catalog: ConversionCatalog,
@@ -189,16 +191,16 @@ def add_rows(
     count = 0
     for row in rows:
         echo.echo(row)
-        if not catalog.add_contains(row["id"]):
+        if not (await catalog.add_contains(row["id"])):
             continue
-        album = catalog.enrich(row["id"])
+        album = await catalog.enrich(row["id"])
         echo.echo(f"{album.name} - {album.artist}")
         albums.append(album)
         count += 1
     return count
 
 
-def restore(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
+async def restore(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
     """Restore artists before tracks with the original singleton live checks.
 
     Args:
@@ -206,14 +208,14 @@ def restore(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
         catalog: Original membership and mutation boundaries.
         echo: Original presenter.
     """
-    export = files.export()
-    artists = restore_artists(export.artists, catalog, echo)
-    tracks = restore_tracks(export.tracks, catalog, echo)
+    export = await files.export()
+    artists = await restore_artists(export.artists, catalog, echo)
+    tracks = await restore_tracks(export.tracks, catalog, echo)
     echo.echo(f"\n\nArtists saved: {artists}")
     echo.echo(f"\nTracks saved: {tracks}")
 
 
-def restore_artists(
+async def restore_artists(
     artists: list[YourLibraryArtist], catalog: ConversionCatalog, echo: Echo
 ) -> int:
     """Follow original missing artists in export order.
@@ -229,16 +231,16 @@ def restore_artists(
     count = 0
     for artist in artists:
         echo.echo(artist.name)
-        if catalog.artist_saved(artist):
+        if await catalog.artist_saved(artist):
             continue
-        catalog.follow(artist)
+        await catalog.follow(artist)
         count += 1
         echo.echo("         saved!")
         echo.echo(f"\nArtists saved so far: {count}\n\n")
     return count
 
 
-def restore_tracks(
+async def restore_tracks(
     tracks: list[YourLibraryTrack], catalog: ConversionCatalog, echo: Echo
 ) -> int:
     """Like original missing tracks in export order.
@@ -256,9 +258,9 @@ def restore_tracks(
         echo.echo(track.album)
         echo.echo(track.artist)
         echo.echo(track.uri)
-        if catalog.track_saved(track):
+        if await catalog.track_saved(track):
             continue
-        catalog.like(track)
+        await catalog.like(track)
         count += 1
         echo.echo("         saved!")
         echo.echo(f"\nTracks saved so far: {count}\n\n")

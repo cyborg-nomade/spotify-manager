@@ -30,7 +30,7 @@ class HistoricalPlaylistEffects:
     check_cancel: Cancellation
     progress: Messages
 
-    def apply(self, resolution: SpotifySelectionResolution, dry_run: bool) -> int:
+    async def apply(self, resolution: SpotifySelectionResolution, dry_run: bool) -> int:
         """Append pending tracks and return the actual projected increase.
 
         Args:
@@ -45,7 +45,7 @@ class HistoricalPlaylistEffects:
         self.progress.echo(
             f"Adding {len(resolution.pending_matches)} tracks to Spotify"
         )
-        self.access.append(list(resolution.pending_matches))
+        await self.access.append(list(resolution.pending_matches))
         return len(resolution.pending_matches)
 
 
@@ -78,7 +78,7 @@ class BlastPlaylist:
     effects: HistoricalPlaylistEffects
     selection: BlastSelection
 
-    def run(
+    async def run(
         self, playlist_id: str, count: int | None, maximum: int | None, dry_run: bool
     ) -> BlastFromPastSpotifySummary:
         """Resolve and append the requested batch without changing preview actions.
@@ -99,16 +99,16 @@ class BlastPlaylist:
         _validate_request(count, maximum)
         self.effects.check_cancel.check()
         self.effects.progress.echo("Loading the Spotify playlist")
-        playlist = self.effects.access.read()
+        playlist = await self.effects.access.read()
         requested = _requested_count(count, maximum, playlist.total_items)
         if requested == 0:
             return BlastFromPastSpotifySummary(
                 playlist_id, 0, playlist.total_items, playlist.total_items, None, ()
             )
-        batch = self.selection.run(requested)
+        batch = await self.selection.run(requested)
         self.effects.check_cancel.check()
-        resolution = self.effects.resolution.run(batch.selections, playlist)
-        added = self.effects.apply(resolution, dry_run)
+        resolution = await self.effects.resolution.run(batch.selections, playlist)
+        added = await self.effects.apply(resolution, dry_run)
         return BlastFromPastSpotifySummary(
             playlist_id,
             requested,
@@ -131,7 +131,9 @@ class AnniversaryPlaylist:
     effects: HistoricalPlaylistEffects
     selection: AnniversarySelection
 
-    def run(self, playlist_id: str, dry_run: bool) -> DailyMindRadioSpotifySummary:
+    async def run(
+        self, playlist_id: str, dry_run: bool
+    ) -> DailyMindRadioSpotifySummary:
         """Skip all Spotify observations when no anniversary date is populated.
 
         Args:
@@ -145,14 +147,14 @@ class AnniversaryPlaylist:
             BlastFromPastCancelledError: Cancellation is requested.
         """
         self.effects.check_cancel.check()
-        batch = self.selection.run()
+        batch = await self.selection.run()
         self.effects.check_cancel.check()
         if not batch.selections:
             return DailyMindRadioSpotifySummary(playlist_id, batch, None, None, ())
         self.effects.progress.echo("Loading the Spotify playlist")
-        playlist = self.effects.access.read()
-        resolution = self.effects.resolution.run(batch.selections, playlist)
-        added = self.effects.apply(resolution, dry_run)
+        playlist = await self.effects.access.read()
+        resolution = await self.effects.resolution.run(batch.selections, playlist)
+        added = await self.effects.apply(resolution, dry_run)
         return DailyMindRadioSpotifySummary(
             playlist_id,
             batch,

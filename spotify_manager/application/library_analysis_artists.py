@@ -41,7 +41,7 @@ def candidate_path(session: AnalysisSession) -> Path:
     return session.paths.staging_dir / "artist_candidates.jsonl"
 
 
-def staged_artists(session: AnalysisSession) -> list[LibraryModel]:
+async def staged_artists(session: AnalysisSession) -> list[LibraryModel]:
     """Read complete original artist staging facts.
 
     Args:
@@ -50,10 +50,12 @@ def staged_artists(session: AnalysisSession) -> list[LibraryModel]:
     Returns:
         Original staged artists in encounter order.
     """
-    return list(session.files.staged(session.paths.stage("artists"), YourLibraryArtist))
+    return list(
+        await session.files.staged(session.paths.stage("artists"), YourLibraryArtist)
+    )
 
 
-def artist_count(session: AnalysisSession) -> int:
+async def artist_count(session: AnalysisSession) -> int:
     """Read the original deduplicated staged artist count.
 
     Args:
@@ -62,10 +64,10 @@ def artist_count(session: AnalysisSession) -> int:
     Returns:
         Original newest-value identity count.
     """
-    return len(deduplicate_models(staged_artists(session)))
+    return len(deduplicate_models(await staged_artists(session)))
 
 
-def scan_initial(session: AnalysisSession) -> None:
+async def scan_initial(session: AnalysisSession) -> None:
     """Scan original cursor pages once with a bounded direct endpoint budget.
 
     Args:
@@ -79,7 +81,7 @@ def scan_initial(session: AnalysisSession) -> None:
     if state["status"] not in {"pending", "scanning"}:
         return
     state["status"] = "scanning"
-    session.save()
+    await session.save()
     while True:
         session.check_cancel()
         if int(state["pages"]) >= ARTIST_DIRECT_MAX_PAGES:
@@ -87,43 +89,46 @@ def scan_initial(session: AnalysisSession) -> None:
                 "the followed-artists cursor scan reached its bounded page budget"
             )
         after = state["after"]
-        rows, page, next_after = _save_initial_page(session, state, after)
+        rows, page, next_after = await _save_initial_page(session, state, after)
         if not rows or not page.get("next"):
-            _begin_reconciliation(session, state)
+            await _begin_reconciliation(session, state)
             return
         check_cursor(next_after, after)
 
 
-def _save_initial_page(
+async def _save_initial_page(
     session: AnalysisSession, state: ResourceState, after: str | None
 ) -> tuple[list[object], dict[str, object], str | None]:
     for attempt in session.request.attempts(
         f"reading followed artists after {after or 'the beginning'}"
     ):
-        with attempt:
-            response = session.catalog.artists(after)
+        async with attempt:
+            response = await session.catalog.artists(after)
     rows, page = session.catalog.artist_items(response)
     converted = converted_items(rows, session.catalog, "artists")
-    session.files.append(session.paths.stage("artists"), converted)
+    await session.files.append(session.paths.stage("artists"), converted)
     state["skipped"] += len(rows) - len(converted)
     state["pages"] += 1
     state["total"] = page.get("total")
     cursors = cast(dict[str, object], page.get("cursors") or {})
     next_after = cast(str | None, cursors.get("after"))
     state["after"] = next_after
-    session.save()
+    await session.save()
     if session.progress:
         session.progress.progress(
-            "artists", artist_count(session), reported_total(page), "Reading live API"
+            "artists",
+            (await artist_count(session)),
+            reported_total(page),
+            "Reading live API",
         )
     return rows, page, next_after
 
 
-def _begin_reconciliation(session: AnalysisSession, state: ResourceState) -> None:
+async def _begin_reconciliation(session: AnalysisSession, state: ResourceState) -> None:
     state["status"] = "reconciling"
     state["stable_passes"] = 0
     state["after"] = None
-    session.save()
+    await session.save()
 
 
 def check_cursor(next_after: str | None, after: str | None) -> None:
@@ -142,7 +147,7 @@ def check_cursor(next_after: str | None, after: str | None) -> None:
         )
 
 
-def reconcile(session: AnalysisSession) -> None:
+async def reconcile(session: AnalysisSession) -> None:
     """Require two complete cursor passes without new artist rows.
 
     Args:
@@ -150,21 +155,21 @@ def reconcile(session: AnalysisSession) -> None:
     """
     state = session.checkpoint["resources"]["artists"]
     if state["status"] == "complete":
-        count = artist_count(session)
+        count = await artist_count(session)
         session.notify("artists", count, count, "Complete")
         return
     while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
-        added = _reconcile_pass(session, state)
-        finish_pass(session, "artists", state, added)
-    complete_resource(session, "artists")
+        added = await _reconcile_pass(session, state)
+        await finish_pass(session, "artists", state, added)
+    await complete_resource(session, "artists")
 
 
-def _reconcile_pass(session: AnalysisSession, state: ResourceState) -> int:
-    known = {item.spotify_id for item in staged_artists(session)}
+async def _reconcile_pass(session: AnalysisSession, state: ResourceState) -> int:
+    known = {item.spotify_id for item in (await staged_artists(session))}
     after: str | None = None
     added = 0
     while True:
-        rows, page, unseen = _reconcile_page(session, state, known, after)
+        rows, page, unseen = await _reconcile_page(session, state, known, after)
         added += unseen
         cursors = cast(dict[str, object], page.get("cursors") or {})
         next_after = cast(str | None, cursors.get("after"))
@@ -174,27 +179,27 @@ def _reconcile_pass(session: AnalysisSession, state: ResourceState) -> int:
         after = str(next_after)
 
 
-def _reconcile_page(
+async def _reconcile_page(
     session: AnalysisSession, state: ResourceState, known: set[str], after: str | None
 ) -> tuple[list[object], dict[str, object], int]:
     session.check_cancel()
     for attempt in session.request.attempts(
         f"reconciling followed artists after {after or 'the beginning'}"
     ):
-        with attempt:
-            response = session.catalog.reconcile_artists(after)
+        async with attempt:
+            response = await session.catalog.reconcile_artists(after)
     rows, page = session.catalog.artist_items(response)
     converted = converted_items(rows, session.catalog, "artists")
     unseen = unseen_items(converted, known)
-    session.files.append(session.paths.stage("artists"), unseen)
+    await session.files.append(session.paths.stage("artists"), unseen)
     known.update(item.spotify_id for item in unseen)
-    session.save()
+    await session.save()
     label = f"Checking for additions (pass {int(state['stable_passes']) + 1})"
     session.notify("artists", len(known), reported_total(page), label)
     return rows, page, len(unseen)
 
 
-def prepare_verification(
+async def prepare_verification(
     session: AnalysisSession,
     *,
     full_rebuild: bool,
@@ -210,28 +215,30 @@ def prepare_verification(
     state = session.checkpoint["resources"]["artists"]
     if state["status"] == "verifying_fallback":
         return
-    existing = session.files.models(session.paths.artists_total, YourLibraryArtist)
-    partial_live = session.files.staged(
+    existing = await session.files.models(
+        session.paths.artists_total, YourLibraryArtist
+    )
+    partial_live = await session.files.staged(
         session.paths.stage("artists"), YourLibraryArtist
     )
-    export_artists = session.files.export_artists(session.paths)
+    export_artists = await session.files.export_artists(session.paths)
     candidates, retained = verification_candidates(
         existing, export_artists, partial_live, full_rebuild
     )
-    _stage_verification(session, candidates, retained, full_rebuild, reason)
+    await _stage_verification(session, candidates, retained, full_rebuild, reason)
 
 
-def _stage_verification(
+async def _stage_verification(
     session: AnalysisSession,
     candidates: list[YourLibraryArtist],
     retained: list[YourLibraryArtist],
     full_rebuild: bool,
     reason: str,
 ) -> None:
-    session.files.remove(candidate_path(session))
-    session.files.remove(session.paths.stage("artists"))
-    session.files.append(candidate_path(session), candidates)
-    session.files.append(session.paths.stage("artists"), retained)
+    await session.files.remove(candidate_path(session))
+    await session.files.remove(session.paths.stage("artists"))
+    await session.files.append(candidate_path(session), candidates)
+    await session.files.append(session.paths.stage("artists"), retained)
     state = session.checkpoint["resources"]["artists"]
     state.update(
         {
@@ -243,8 +250,8 @@ def _stage_verification(
             "after": None,
         }
     )
-    session.save()
-    session.event(
+    await session.save()
+    await session.event(
         "artist_fallback_activated",
         reason=reason,
         full_rebuild=full_rebuild,
@@ -257,25 +264,25 @@ def _stage_verification(
     )
 
 
-def verify(session: AnalysisSession) -> None:
+async def verify(session: AnalysisSession) -> None:
     """Verify candidate batches with durable offsets and the original truthiness rule.
 
     Args:
         session: Original independent artist analysis invocation.
     """
     state = session.checkpoint["resources"]["artists"]
-    candidates = session.files.staged(candidate_path(session), YourLibraryArtist)
+    candidates = await session.files.staged(candidate_path(session), YourLibraryArtist)
     retained = int(state.get("retained", 0))
     while int(state.get("candidate_index", 0)) < len(candidates):
-        _verify_batch(session, state, candidates, retained)
+        await _verify_batch(session, state, candidates, retained)
     state["status"] = "complete"
-    session.save()
+    await session.save()
     if session.progress:
-        count = artist_count(session)
+        count = await artist_count(session)
         session.progress.progress("artists", count, count, "Complete")
 
 
-def _verify_batch(
+async def _verify_batch(
     session: AnalysisSession,
     state: ResourceState,
     candidates: list[YourLibraryArtist],
@@ -289,14 +296,14 @@ def _verify_batch(
         f"verifying followed artists {start + 1}-{start + len(batch)}",
         max_attempts=ARTIST_VERIFICATION_MAX_ATTEMPTS,
     ):
-        with attempt:
-            response = session.catalog.following(identities)
+        async with attempt:
+            response = await session.catalog.following(identities)
     followed = _followed_candidates(batch, response)
-    session.files.append(session.paths.stage("artists"), followed)
+    await session.files.append(session.paths.stage("artists"), followed)
     state["candidate_index"] = start + len(batch)
     state["skipped"] += len(batch) - len(followed)
-    session.save()
-    session.event(
+    await session.save()
+    await session.event(
         "artist_candidates_verified",
         start=start,
         checked=len(batch),

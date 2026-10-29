@@ -59,12 +59,12 @@ class LibraryRetry:
         """
         return RetryAttempts(LibraryAttemptPolicy(self, description, max_attempts))
 
-    def _server_wait(
+    async def _server_wait(
         self, error: SpotifyException, attempt: int, description: str
     ) -> None:
         delay = retry_delay(self.base_seconds, self.max_seconds, attempt)
         notice = RetryNotice(error.http_status, description, attempt, delay)
-        self.files.event(
+        await self.files.event(
             self.paths,
             str(self.checkpoint["run_id"]),
             "server_retry_scheduled",
@@ -77,9 +77,9 @@ class LibraryRetry:
             f"Spotify HTTP {error.http_status} while {description}; "
             f"retrying in {delay} seconds (attempt {attempt})."
         )
-        self._wait(notice, error)
+        await self._wait(notice, error)
 
-    def _transport_wait(
+    async def _transport_wait(
         self,
         error: RequestsConnectionError | RequestsTimeout,
         attempt: int,
@@ -87,7 +87,7 @@ class LibraryRetry:
     ) -> None:
         delay = retry_delay(self.base_seconds, self.max_seconds, attempt)
         notice = RetryNotice(None, description, attempt, delay)
-        self.files.event(
+        await self.files.event(
             self.paths,
             str(self.checkpoint["run_id"]),
             "transport_retry_scheduled",
@@ -100,13 +100,13 @@ class LibraryRetry:
             f"Spotify connection interrupted while {description}; "
             f"retrying in {delay} seconds (attempt {attempt})."
         )
-        self._wait(notice, error)
+        await self._wait(notice, error)
 
-    def _wait(self, notice: RetryNotice, error: BaseException) -> None:
+    async def _wait(self, notice: RetryNotice, error: BaseException) -> None:
         should_continue = (
-            self.wait.wait(notice)
+            (await self.wait.wait(notice))
             if self.wait is not None
-            else _default_wait(notice.delay_seconds, self.sleep)
+            else (await _default_wait(notice.delay_seconds, self.sleep))
         )
         if not should_continue:
             raise LibraryAnalysisCancelledError(
@@ -114,8 +114,8 @@ class LibraryRetry:
             ) from error
 
 
-def _default_wait(delay: int, sleep: Sleep) -> bool:
-    sleep.sleep(delay)
+async def _default_wait(delay: int, sleep: Sleep) -> bool:
+    await sleep.sleep(delay)
     return True
 
 
@@ -174,7 +174,7 @@ class LibraryAttemptPolicy:
     def accepted(self) -> None:
         """Accept the request without an additional observation."""
 
-    def failed(self, error: BaseException) -> bool:
+    async def failed(self, error: BaseException) -> bool:
         """Apply the original server or transport failure policy.
 
         Args:
@@ -187,13 +187,13 @@ class LibraryAttemptPolicy:
             _validate_spotify_failure(error, self.description)
             self.failures += 1
             _check_server_attempt(error, self.failures, self.description, self.maximum)
-            self.retry._server_wait(error, self.failures, self.description)
+            await self.retry._server_wait(error, self.failures, self.description)
             return True
         if isinstance(error, (RequestsConnectionError, RequestsTimeout)):
             self.failures += 1
             _check_transport_attempt(
                 error, self.failures, self.description, self.maximum
             )
-            self.retry._transport_wait(error, self.failures, self.description)
+            await self.retry._transport_wait(error, self.failures, self.description)
             return True
         return False

@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import blast_from_past as routine
 from tests.support.runtime_resources import MessageList
 
@@ -114,11 +115,15 @@ class ResolutionSteps:
 
 def _install(steps: ResolutionSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routine, "check_cancel", steps.cancel)
-    monkeypatch.setattr(routine, "search_spotify_matches", steps.search)
-    monkeypatch.setattr(routine, "liked_spotify_track_ids", steps.liked)
+    monkeypatch.setattr(
+        routine, "async_search_spotify_matches", AsyncMock(side_effect=steps.search)
+    )
+    monkeypatch.setattr(
+        routine, "async_liked_spotify_track_ids", AsyncMock(side_effect=steps.liked)
+    )
 
 
-def _resolve(
+async def _resolve(
     steps: ResolutionSteps,
     selections: tuple[routine.ScrobbleSelection, ...],
     present: frozenset[str] = frozenset(),
@@ -132,7 +137,7 @@ def _resolve(
 
 
 @pytest.mark.parametrize("present", [frozenset(), frozenset({"same"})])
-def test_resolution_searches_all_before_liked_status_and_projects_duplicates(
+async def test_resolution_searches_all_before_liked_status_and_projects_duplicates(
     present: frozenset[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Existing membership precedes within-batch duplicate detection.
@@ -144,7 +149,7 @@ def test_resolution_searches_all_before_liked_status_and_projects_duplicates(
     steps = ResolutionSteps()
     _install(steps, monkeypatch)
     selections = (_selection("first"), _selection("second"), _selection("missing"))
-    result = _resolve(steps, selections, present)
+    result = await _resolve(steps, selections, present)
     assert steps.events == [
         "cancel",
         "first",
@@ -171,7 +176,7 @@ def test_resolution_searches_all_before_liked_status_and_projects_duplicates(
 
 
 @pytest.mark.parametrize("failure", ["first", "second", "liked"])
-def test_resolution_failure_prevents_later_search_or_projection(
+async def test_resolution_failure_prevents_later_search_or_projection(
     failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Keep search and liked-status failure order.
@@ -183,12 +188,12 @@ def test_resolution_failure_prevents_later_search_or_projection(
     steps = ResolutionSteps(failure)
     _install(steps, monkeypatch)
     with pytest.raises(OSError, match=failure):
-        _resolve(steps, (_selection("first"), _selection("second")))
+        (await _resolve(steps, (_selection("first"), _selection("second"))))
     expected = ["cancel", "first", "cancel", "second", "liked"]
     assert steps.events == expected[: expected.index(failure) + 1]
 
 
-def test_empty_selection_still_observes_liked_boundary(
+async def test_empty_selection_still_observes_liked_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Keep the empty-input progress message and liked-reader invocation.
@@ -198,7 +203,7 @@ def test_empty_selection_still_observes_liked_boundary(
     """
     steps = ResolutionSteps()
     _install(steps, monkeypatch)
-    result = _resolve(steps, ())
+    result = await _resolve(steps, ())
     assert steps.events == ["liked"] and steps.messages == [
         "Checking liked Spotify matches"
     ]

@@ -3,12 +3,13 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines.new_wine import PlaylistTrack
@@ -70,7 +71,7 @@ class FakeSpotify:
         self.changed_head: dict[str, object] | None = None
         self.fail_next_delete = False
 
-    def _get(self, _path: str, *, limit: int, offset: int):
+    async def _get(self, _path: str, *, limit: int, offset: int):
         self.playlist_reads += 1
         if self.playlist_reads == 2 and self.changed_head is not None:
             self.playlist.insert(0, self.changed_head)
@@ -81,7 +82,7 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(self.playlist) else None,
         }
 
-    def _post(self, _path: str, *, payload: dict[str, object]):
+    async def _post(self, _path: str, *, payload: dict[str, object]):
         uri = str(payload["uris"][0])  # type: ignore[index]
         track_id = uri.removeprefix("spotify:track:")
         track = next(
@@ -94,7 +95,7 @@ class FakeSpotify:
         self.mutations.append(("add", track_id))
         return {}
 
-    def _delete(self, _path: str, *, payload: dict[str, object]):
+    async def _delete(self, _path: str, *, payload: dict[str, object]):
         if self.fail_next_delete:
             self.fail_next_delete = False
             raise RuntimeError("interrupted after add")
@@ -104,7 +105,7 @@ class FakeSpotify:
         self.mutations.append(("remove", track_id))
         return {}
 
-    def artist_albums(
+    async def artist_albums(
         self,
         _artist_id: str,
         *,
@@ -119,10 +120,10 @@ class FakeSpotify:
             "next": "next" if offset + len(page) < len(self.releases) else None,
         }
 
-    def current_user_saved_albums_contains(self, album_ids: list[str]):
+    async def current_user_saved_albums_contains(self, album_ids: list[str]):
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
-    def album_tracks(self, album_id: str, *, limit: int, offset: int):
+    async def album_tracks(self, album_id: str, *, limit: int, offset: int):
         tracks = self.release_tracks[album_id]
         page = tracks[offset : offset + limit]
         return {
@@ -167,7 +168,7 @@ def test_playlist_reference_is_parsed_or_reported() -> None:
         requeue_for_a_dream.parse_playlist_id(None)
 
 
-def test_flush_adds_first_track_of_next_album_before_removing_source(
+async def test_flush_adds_first_track_of_next_album_before_removing_source(
     tmp_path: Path,
 ) -> None:
     spotify, _first, _second = configured_spotify()
@@ -189,7 +190,7 @@ def test_flush_adds_first_track_of_next_album_before_removing_source(
     assert json.loads(log_path.read_text(encoding="utf-8"))["action"] == "advance"
 
 
-def test_flush_drops_artist_at_last_release(tmp_path: Path) -> None:
+async def test_flush_drops_artist_at_last_release(tmp_path: Path) -> None:
     spotify, _first, second = configured_spotify()
     source = raw_track("t2a", "First Track", second)
     spotify.playlist = [source]
@@ -207,7 +208,7 @@ def test_flush_drops_artist_at_last_release(tmp_path: Path) -> None:
     assert spotify.playlist == []
 
 
-def test_flush_does_not_duplicate_an_existing_replacement(tmp_path: Path) -> None:
+async def test_flush_does_not_duplicate_an_existing_replacement(tmp_path: Path) -> None:
     spotify, _first, second = configured_spotify()
     target = raw_track("t2a", "First Track", second)
     spotify.playlist.append(target)
@@ -223,16 +224,20 @@ def test_flush_does_not_duplicate_an_existing_replacement(tmp_path: Path) -> Non
     assert spotify.mutations == [("remove", "t1")]
 
 
-def test_flush_resumes_safely_when_removal_failed_after_add(tmp_path: Path) -> None:
+async def test_flush_resumes_safely_when_removal_failed_after_add(
+    tmp_path: Path,
+) -> None:
     spotify, _first, _second = configured_spotify()
     spotify.fail_next_delete = True
     log_path = tmp_path / "log.jsonl"
 
     with pytest.raises(RuntimeError, match="interrupted after add"):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=log_path,
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=log_path,
+            )
         )
 
     assert spotify.mutations == [("add", "t2a")]
@@ -246,7 +251,7 @@ def test_flush_resumes_safely_when_removal_failed_after_add(tmp_path: Path) -> N
     assert [track["id"] for track in spotify.playlist] == ["t2a"]
 
 
-def test_dry_run_does_not_mutate_spotify_or_write_a_log(tmp_path: Path) -> None:
+async def test_dry_run_does_not_mutate_spotify_or_write_a_log(tmp_path: Path) -> None:
     spotify, _first, _second = configured_spotify()
     log_path = tmp_path / "log.jsonl"
 
@@ -264,7 +269,9 @@ def test_dry_run_does_not_mutate_spotify_or_write_a_log(tmp_path: Path) -> None:
     assert not log_path.exists()
 
 
-def test_flush_aborts_if_playlist_head_changes_before_mutation(tmp_path: Path) -> None:
+async def test_flush_aborts_if_playlist_head_changes_before_mutation(
+    tmp_path: Path,
+) -> None:
     spotify, first, _second = configured_spotify()
     spotify.changed_head = raw_track("other", "Other", first)
 
@@ -272,16 +279,18 @@ def test_flush_aborts_if_playlist_head_changes_before_mutation(tmp_path: Path) -
         requeue_for_a_dream.RequeueForADreamChangedError,
         match="changed before the update",
     ):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=tmp_path / "log.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
     assert spotify.mutations == []
 
 
-def test_empty_playlist_is_a_no_op(tmp_path: Path) -> None:
+async def test_empty_playlist_is_a_no_op(tmp_path: Path) -> None:
     spotify = FakeSpotify()
 
     summary = requeue_for_a_dream.flush_requeue_for_a_dream(
@@ -296,7 +305,7 @@ def test_empty_playlist_is_a_no_op(tmp_path: Path) -> None:
     assert spotify.mutations == []
 
 
-def test_flush_reports_playlist_discography_and_track_loading_errors(
+async def test_flush_reports_playlist_discography_and_track_loading_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -310,46 +319,64 @@ def test_flush_reports_playlist_discography_and_track_loading_errors(
 
     monkeypatch.setattr(
         requeue_for_a_dream.new_wine,
-        "load_playlist_tracks",
-        Mock(side_effect=requeue_for_a_dream.new_wine.NewWineError("playlist failed")),
+        "async_load_playlist_tracks",
+        AsyncMock(
+            side_effect=Mock(
+                side_effect=requeue_for_a_dream.new_wine.NewWineError("playlist failed")
+            )
+        ),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="playlist"):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=tmp_path / "log.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
     monkeypatch.undo()
     spotify, _first, _second = configured_spotify()
     monkeypatch.setattr(
         requeue_for_a_dream.slow_listening,
-        "load_discography",
-        Mock(side_effect=slow_listening.SlowListeningError("discography failed")),
+        "async_load_discography",
+        AsyncMock(
+            side_effect=Mock(
+                side_effect=slow_listening.SlowListeningError("discography failed")
+            )
+        ),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="discography"):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=tmp_path / "log.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
     monkeypatch.undo()
     spotify, _first, _second = configured_spotify()
     monkeypatch.setattr(
         requeue_for_a_dream.slow_listening,
-        "load_release_tracks",
-        Mock(side_effect=slow_listening.SlowListeningError("tracks failed")),
+        "async_load_release_tracks",
+        AsyncMock(
+            side_effect=Mock(
+                side_effect=slow_listening.SlowListeningError("tracks failed")
+            )
+        ),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="tracks"):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=tmp_path / "log.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=tmp_path / "log.jsonl",
+            )
         )
 
 
-def test_flush_skips_ineligible_current_or_empty_next_release(
+async def test_flush_skips_ineligible_current_or_empty_next_release(
     tmp_path: Path,
 ) -> None:
     spotify, first, _second = configured_spotify()
@@ -378,7 +405,7 @@ def test_flush_skips_ineligible_current_or_empty_next_release(
     assert first["name"] == "First"
 
 
-def test_flush_emits_progress_and_wraps_recheck_failure(
+async def test_flush_emits_progress_and_wraps_recheck_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -410,18 +437,20 @@ def test_flush_emits_progress_and_wraps_recheck_failure(
     reader = FailingPlaylistRecheck()
     monkeypatch.setattr(
         requeue_for_a_dream.new_wine,
-        "load_playlist_tracks",
+        "async_load_playlist_tracks",
         reader.read,
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="recheck"):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=tmp_path / "second.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=tmp_path / "second.jsonl",
+            )
         )
 
 
-def test_log_write_failure_is_reported(tmp_path: Path) -> None:
+async def test_log_write_failure_is_reported(tmp_path: Path) -> None:
     spotify, _first, _second = configured_spotify()
     blocked = tmp_path / "blocked"
     blocked.write_text("file")
@@ -430,10 +459,12 @@ def test_log_write_failure_is_reported(tmp_path: Path) -> None:
         requeue_for_a_dream.RequeueForADreamLogError,
         match="Could not write",
     ):
-        requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            "playlist",
-            log_path=blocked / "log.jsonl",
+        (
+            requeue_for_a_dream.flush_requeue_for_a_dream(
+                spotify,
+                "playlist",
+                log_path=blocked / "log.jsonl",
+            )
         )
 
 
@@ -447,7 +478,7 @@ class FailingPlaylistRecheck:
 
     calls: int = 0
 
-    def read(
+    async def read(
         self, spotify: Spotify, playlist_id: str, retry: Retry
     ) -> tuple[PlaylistTrack, ...]:
         """Read the playlist until the recheck fails.

@@ -152,7 +152,7 @@ class LibrarySyncRestoreError(LibrarySyncError):
 class RetryWait(Protocol):
     """Own an operator's wait or pause decision after a scheduled retry."""
 
-    def wait(self, notice: RetryNotice) -> bool:
+    async def wait(self, notice: RetryNotice) -> bool:
         """Wait or request a clean pause using the original notice.
 
         Args:

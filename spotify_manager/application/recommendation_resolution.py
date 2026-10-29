@@ -28,7 +28,7 @@ class RecommendationResolution:
     batch_size: int = 10
     multiplier: int = 10
 
-    def run(
+    async def run(
         self,
         candidates: tuple[FoundArtCandidate, ...],
         playlist: PlaylistState,
@@ -56,13 +56,13 @@ class RecommendationResolution:
             if len(selection.pending) >= count:
                 break
             batch = candidates[start : start + self.batch_size]
-            groups = self._search(batch, start, maximum, selection)
+            groups = await self._search(batch, start, maximum, selection)
             self.progress.echo("Checking candidates against Spotify Liked Songs")
-            liked_ids = self.catalog.liked(groups)
+            liked_ids = await self.catalog.liked(groups)
             self._project(batch, groups, liked_ids, selection)
         return tuple(selection.results), tuple(selection.pending)
 
-    def _search(
+    async def _search(
         self,
         candidates: tuple[FoundArtCandidate, ...],
         start: int,
@@ -76,7 +76,7 @@ class RecommendationResolution:
                 continue
             self.progress.echo(f"Searching Spotify candidate {index}/{maximum}")
             play = Scrobble(candidate.track, candidate.artist, "", 0)
-            groups.append(self.catalog.search(play))
+            groups.append(await self.catalog.search(play))
         return groups
 
     def _project(

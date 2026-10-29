@@ -1,7 +1,6 @@
 """Compose Something Old's workflow with original caller-owned boundary inputs."""
 
-from spotipy import Spotify
-
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.something_old_run import SomethingOld
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld

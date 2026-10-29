@@ -2,13 +2,12 @@
 
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.album_limits import review_albums
 from spotify_manager.application.artist_follows import ArtistFollowOutcome
 from spotify_manager.application.artist_follows import follow_album_artist
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.album_limits import AlbumArtistAdapter
 from spotify_manager.infrastructure.legacy.album_limits import LegacyAlbumReview
@@ -18,7 +17,7 @@ from spotify_manager.interfaces.presenters.album_limits import ProgressCallback
 from spotify_manager.models.your_library import YourLibraryAlbum
 
 
-def follow_review_artist(
+async def follow_review_artist(
     spotify: Spotify,
     album: YourLibraryAlbum,
     known_artists: dict[str, str],
@@ -35,12 +34,12 @@ def follow_review_artist(
     Returns:
         Original follow outcome and persistence details.
     """
-    return follow_album_artist(
+    return await follow_album_artist(
         AlbumArtistAdapter(spotify, known_artists), album, checked_artists
     )
 
 
-def run_album_review(
+async def run_album_review(
     spotify: Spotify,
     action_reader: ActionReader,
     threshold: float,
@@ -85,4 +84,6 @@ def run_album_review(
         retry_delay,
         max_attempts,
     )
-    review_albums(library, AlbumReviewPresenter(action_reader, echo, progress_callback))
+    await review_albums(
+        library, AlbumReviewPresenter(action_reader, echo, progress_callback)
+    )

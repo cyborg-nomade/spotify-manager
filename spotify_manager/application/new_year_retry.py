@@ -1,7 +1,7 @@
 """Preserve cancellation before and after each original annual retry boundary."""
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 
 from spotify_manager.application.new_year_membership import RetryCall
@@ -22,7 +22,7 @@ class AnnualRetry:
     caller: RetryCall | None
     cancel: Cancellation
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:

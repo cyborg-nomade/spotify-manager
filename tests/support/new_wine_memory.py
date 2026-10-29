@@ -105,7 +105,7 @@ class MemoryWine:
         """
         return 10
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read live markers, reconstructing appended values for a new invocation.
 
         Args:
@@ -117,7 +117,7 @@ class MemoryWine:
         self._before("playlist", playlist_id)
         return tuple(_marker(track) for track in self.playlists[playlist_id])
 
-    def load_state(self, dry_run: bool) -> dict[str, object]:
+    async def load_state(self, dry_run: bool) -> dict[str, object]:
         """Read detached state or preview defaults.
 
         Args:
@@ -129,7 +129,7 @@ class MemoryWine:
         self._before("load", dry_run)
         return _state() if dry_run else deepcopy(self.stored)
 
-    def save(self, state: dict[str, object]) -> None:
+    async def save(self, state: dict[str, object]) -> None:
         """Accept a detached checkpoint.
 
         Args:
@@ -142,7 +142,7 @@ class MemoryWine:
         self.stored = deepcopy(state)
         self._fault("save", True)
 
-    def append(self, playlist_id: str, track: ReleaseTrack) -> None:
+    async def append(self, playlist_id: str, track: ReleaseTrack) -> None:
         """Accept one remote append.
 
         Args:
@@ -156,7 +156,7 @@ class MemoryWine:
         self.playlists[playlist_id].append(track)
         self._fault("append", True)
 
-    def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
+    async def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Accept remote removal of all matching source IDs.
 
         Args:
@@ -174,7 +174,7 @@ class MemoryWine:
         self.playlists[playlist_id] = remaining
         self._fault("remove", True)
 
-    def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
+    async def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
         """Observe current saved membership.
 
         Args:
@@ -187,7 +187,7 @@ class MemoryWine:
         self._before("saved", (release.spotify_id, removing))
         return release.spotify_id in self.saved_albums
 
-    def save_album(self, release: ReleaseCandidate) -> None:
+    async def save_album(self, release: ReleaseCandidate) -> None:
         """Accept a remote save.
 
         Args:
@@ -200,7 +200,7 @@ class MemoryWine:
         self.saved_albums.add(release.spotify_id)
         self._fault("save_album", True)
 
-    def unsave_album(self, release: ReleaseCandidate) -> None:
+    async def unsave_album(self, release: ReleaseCandidate) -> None:
         """Accept a remote unsave.
 
         Args:
@@ -213,7 +213,7 @@ class MemoryWine:
         self.saved_albums.discard(release.spotify_id)
         self._fault("unsave_album", True)
 
-    def mirror_album(self, release: ReleaseCandidate) -> None:
+    async def mirror_album(self, release: ReleaseCandidate) -> None:
         """Record mirror publication.
 
         Args:
@@ -225,7 +225,7 @@ class MemoryWine:
         self._before("mirror", release.spotify_id)
         self._fault("mirror", True)
 
-    def remove_mirror_album(self, release: ReleaseCandidate) -> None:
+    async def remove_mirror_album(self, release: ReleaseCandidate) -> None:
         """Record mirror removal.
 
         Args:
@@ -237,7 +237,7 @@ class MemoryWine:
         self._before("remove_mirror", release.spotify_id)
         self._fault("remove_mirror", True)
 
-    def removed_audit(
+    async def removed_audit(
         self, release: ReleaseCandidate, evaluation: AlbumEvaluation, reason: str
     ) -> None:
         """Record the recovery log boundary.
@@ -253,7 +253,7 @@ class MemoryWine:
         self._before("removed_audit", (release.spotify_id, reason))
         self._fault("removed_audit", True)
 
-    def audit(self, run_id: str, result: FlushResult) -> None:
+    async def audit(self, run_id: str, result: FlushResult) -> None:
         """Accept a flush result, including preview results.
 
         Args:
@@ -292,7 +292,7 @@ class MemoryWine:
         self._before("refill", (cellar_id, no_discovery, dry_run, projected))
         return CellarRefillSummary(10, 0, 0, 0, 0, 0, no_discovery, ())
 
-    def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
+    async def tracks(self, release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         """Observe ordered tracks.
 
         Args:
@@ -304,7 +304,7 @@ class MemoryWine:
         self._before("tracks", release.spotify_id)
         return self.release_tracks.get(release.spotify_id, ())
 
-    def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
+    async def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
         """Observe current-year candidates.
 
         Args:
@@ -317,7 +317,7 @@ class MemoryWine:
         self._before("releases", (artist_id, year))
         return self.candidates
 
-    def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
+    async def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Observe only previously unseen memberships.
 
         Args:
@@ -360,7 +360,7 @@ class MemoryWine:
         self._before("endpoint", (source, tracks, index))
         return self.endpoints.pop(0) if self.endpoints else "continue"
 
-    def checkpoint(self) -> None:
+    async def checkpoint(self) -> None:
         """Record an accepted planner choice checkpoint."""
         self._before("checkpoint")
 
@@ -391,7 +391,7 @@ class MemoryWine:
         """
         return self.clock()
 
-    def choose_release(
+    async def choose_release(
         self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...]
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -405,7 +405,7 @@ class MemoryWine:
         """
         return self.choose(source, candidates)
 
-    def choose_endpoint(
+    async def choose_endpoint(
         self, source: PlaylistTrack, tracks: tuple[ReleaseTrack, ...], index: int
     ) -> str:
         """Observe the same fixture boundary through its named resource method.
@@ -439,7 +439,7 @@ class ScriptedCellar:
 
     memory: MemoryWine
 
-    def run(
+    async def run(
         self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
     ) -> CellarRefillSummary:
         """Observe the original independently tested refill boundary.

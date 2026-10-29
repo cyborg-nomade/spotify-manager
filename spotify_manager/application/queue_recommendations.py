@@ -18,14 +18,14 @@ from spotify_manager.domain.recommendation_history import listening_week_start
 class QueueNeighborhoodCache(Protocol):
     """Original cache, previous-addition and accepted checkpoint boundaries."""
 
-    def load(self) -> dict[str, object]:
+    async def load(self) -> dict[str, object]:
         """Read the validated cache.
 
         Returns:
             Original complete mutable cache document.
         """
 
-    def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
+    async def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
         """Read one uncached Last.fm artist neighborhood.
 
         Args:
@@ -35,7 +35,7 @@ class QueueNeighborhoodCache(Protocol):
             Similar artists in original response order.
         """
 
-    def previous(self) -> set[str]:
+    async def previous(self) -> set[str]:
         """Read actual previous additions.
 
         Returns:
@@ -53,7 +53,7 @@ class QueueNeighborhoodCache(Protocol):
             Observations, including valid empty hits, or a cache miss.
         """
 
-    def remember(
+    async def remember(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -88,7 +88,7 @@ class QueueRecommendations:
     calendar: ListeningCalendar
     progress: ReviewProgress
 
-    def run(
+    async def run(
         self,
         seeds: tuple[ArtistSeed, ...],
         heard: set[str],
@@ -116,19 +116,21 @@ class QueueRecommendations:
         active_week = week or listening_week_start(
             self.calendar.local_date(generated_at)
         )
-        cache = self.cache.load()
+        cache = await self.cache.load()
         entries = cache["entries"]
         assert isinstance(entries, dict)
-        candidates = QueueCandidates(heard | self.cache.previous())
+        candidates = QueueCandidates(heard | (await self.cache.previous()))
         for index, seed in enumerate(seeds, start=1):
             self.progress.progress(
                 index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}"
             )
-            similar = self._neighbors(cache, entries, seed, generated_at, active_week)
+            similar = await self._neighbors(
+                cache, entries, seed, generated_at, active_week
+            )
             candidates.observe(seed, similar)
         return candidates.ranked(active_week, limit)
 
-    def _neighbors(
+    async def _neighbors(
         self,
         cache: dict[str, object],
         entries: dict[str, object],
@@ -139,6 +141,6 @@ class QueueRecommendations:
         similar = self.cache.lookup(entries.get(seed.key), week)
         if similar is not None:
             return similar
-        similar = self.cache.neighbors(seed)
-        self.cache.remember(cache, entries, seed, similar, generated_at)
+        similar = await self.cache.neighbors(seed)
+        await self.cache.remember(cache, entries, seed, similar, generated_at)
         return similar

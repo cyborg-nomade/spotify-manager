@@ -10,7 +10,7 @@ from spotify_manager.domain.catalog import PlaylistTrack
 class PlaylistAppend(Protocol):
     """Accept an original ordered marker batch."""
 
-    def append(
+    async def append(
         self, playlist_id: str, tracks: list[PlaylistTrack], description: str
     ) -> None:
         """Append accepted markers with the original retry description.
@@ -25,7 +25,7 @@ class PlaylistAppend(Protocol):
 class PlaylistWrites(PlaylistAppend, Protocol):
     """Accept original marker additions and removals."""
 
-    def remove(self, playlist_id: str, uris: list[str], description: str) -> None:
+    async def remove(self, playlist_id: str, uris: list[str], description: str) -> None:
         """Remove the original marker batch.
 
         Args:
@@ -38,7 +38,7 @@ class PlaylistWrites(PlaylistAppend, Protocol):
 class QueueAudit(Protocol):
     """Append accepted Queue 3 decisions at their original audit boundary."""
 
-    def audit(self, event: str, details: dict[str, object]) -> None:
+    async def audit(self, event: str, details: dict[str, object]) -> None:
         """Append the original structured event.
 
         Args:
@@ -50,7 +50,7 @@ class QueueAudit(Protocol):
 class ImportAccess(PlaylistAppend, QueueAudit, Protocol):
     """Read annual source markers and accept their import effects."""
 
-    def read(self, playlist_id: str) -> Sequence[PlaylistTrack]:
+    async def read(self, playlist_id: str) -> Sequence[PlaylistTrack]:
         """Observe original complete annual markers.
 
         Args:
@@ -64,7 +64,7 @@ class ImportAccess(PlaylistAppend, QueueAudit, Protocol):
 class WorksRead(Protocol):
     """Observe original complete works-playlist markers."""
 
-    def read(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    async def read(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read an owned works playlist without executing a review stage.
 
         Args:
@@ -78,7 +78,7 @@ class WorksRead(Protocol):
 class StudioCatalog(Protocol):
     """Observe an artist's original chronological studio releases."""
 
-    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    async def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Read eligible studio releases.
 
         Args:

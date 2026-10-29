@@ -7,9 +7,9 @@ from dataclasses import replace
 from typing import cast
 
 import pytest
-from spotipy import Spotify
 
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -56,11 +56,11 @@ class PlanChoices:
         self.events.append(("choose", (source, current, following)))
         return self.response
 
-    def save(self) -> None:
+    async def save(self) -> None:
         """Record a release-order checkpoint before the subsequent prompt."""
         self.events.append(("save", None))
 
-    def choose_transition(
+    async def choose_transition(
         self,
         source: PlaylistTrack,
         current: DiscographyRelease,
@@ -83,7 +83,7 @@ def _retry(operation: Callable[[], object], _description: str) -> object:
     return operation()
 
 
-def _plan(
+async def _plan(
     catalog: tuple[DiscographyRelease, ...],
     tracks: tuple[ReleaseTrack, ...],
     choices: PlanChoices,
@@ -92,7 +92,7 @@ def _plan(
     target: tuple[ReleaseTrack, ...] = (release_track("next"),),
 ) -> dict[str, object] | None:
     cache = {"current": tracks, "following": target}
-    return queue_3._build_plan(
+    return await queue_3._build_plan(
         cast(Spotify, FakeSpotify()),
         source,
         catalog,
@@ -124,7 +124,7 @@ def _plan(
         ),
     ],
 )
-def test_original_current_release_plans(
+async def test_original_current_release_plans(
     tracks: tuple[ReleaseTrack, ...],
     action: str,
     target: str | None,
@@ -139,7 +139,7 @@ def test_original_current_release_plans(
         reason: Original explanatory reason.
     """
     choices = PlanChoices()
-    plan = _plan((CURRENT,), tracks, choices)
+    plan = await _plan((CURRENT,), tracks, choices)
     assert plan is not None
     assert plan["action"] == action and plan["reason"] == reason
     record = plan["target"]
@@ -151,7 +151,7 @@ def test_original_current_release_plans(
 
 
 @pytest.mark.parametrize("response", ["advance", "quit", "invalid"])
-def test_original_boundary_choice_controls_target_loading(response: str) -> None:
+async def test_original_boundary_choice_controls_target_loading(response: str) -> None:
     """A quit leaves no plan and invalid choices retain the original error.
 
     Args:
@@ -162,25 +162,29 @@ def test_original_boundary_choice_controls_target_loading(response: str) -> None
         with pytest.raises(
             queue_3.Queue3Error, match="Release transition must be advance or quit"
         ):
-            _plan((CURRENT, FOLLOWING), (release_track("source"),), choices)
+            (await _plan((CURRENT, FOLLOWING), (release_track("source"),), choices))
         return
-    plan = _plan((CURRENT, FOLLOWING), (release_track("source"),), choices)
+    plan = await _plan((CURRENT, FOLLOWING), (release_track("source"),), choices)
     assert choices.events == [("choose", (SOURCE, CURRENT, FOLLOWING))]
     assert (plan is None) == (response == "quit")
     if plan is not None:
         assert plan["action"] == "next_release" and plan["evaluation"] is not None
 
 
-def test_original_accepted_empty_target_raises_after_choice() -> None:
+async def test_original_accepted_empty_target_raises_after_choice() -> None:
     """An accepted successor must have a playable marker."""
     choices = PlanChoices()
     with pytest.raises(queue_3.Queue3Error, match="Following has no playable tracks"):
-        _plan((CURRENT, FOLLOWING), (release_track("source"),), choices, target=())
+        (
+            await _plan(
+                (CURRENT, FOLLOWING), (release_track("source"),), choices, target=()
+            )
+        )
     assert choices.events == [("choose", (SOURCE, CURRENT, FOLLOWING))]
 
 
 @pytest.mark.parametrize("catalog", [(), (FOLLOWING,)])
-def test_original_ineligible_source_completes_or_prompts_first_release(
+async def test_original_ineligible_source_completes_or_prompts_first_release(
     catalog: tuple[DiscographyRelease, ...],
 ) -> None:
     """Ineligible markers either finish immediately or ask to enter the first release.
@@ -189,7 +193,7 @@ def test_original_ineligible_source_completes_or_prompts_first_release(
         catalog: Empty or eligible observed catalog.
     """
     choices = PlanChoices()
-    plan = _plan(catalog, (), choices)
+    plan = await _plan(catalog, (), choices)
     assert plan is not None and plan["evaluation"] is None
     assert plan["action"] == ("next_release" if catalog else "complete")
     assert plan["reason"] == (
@@ -199,10 +203,10 @@ def test_original_ineligible_source_completes_or_prompts_first_release(
     )
 
 
-def test_original_equal_date_order_checkpoints_before_transition() -> None:
+async def test_original_equal_date_order_checkpoints_before_transition() -> None:
     """Queue 3 accepts catalog tie order without adding another operator prompt."""
     following = replace(FOLLOWING, chronology_date=CURRENT.chronology_date)
     choices = PlanChoices()
-    plan = _plan((CURRENT, following), (release_track("source"),), choices)
+    plan = await _plan((CURRENT, following), (release_track("source"),), choices)
     assert plan is not None and plan["action"] == "next_release"
     assert choices.events == [("save", None), ("choose", (SOURCE, CURRENT, following))]

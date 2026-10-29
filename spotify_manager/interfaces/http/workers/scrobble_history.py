@@ -6,8 +6,10 @@ from datetime import UTC
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
-from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.lastfm_async import (
+    AsyncLastFmClient as LastFmClient,
+)
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
@@ -39,11 +41,11 @@ class ScrobbleHistoryWorker:
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
 
-    def run(self) -> None:
+    async def run(self) -> None:
         """Refresh the shared Last.fm record as a reconnectable web job."""
         self._start()
         try:
-            summary = self._execute()
+            summary = await self._execute()
         except scrobble_history.ScrobbleHistoryCancelledError as exc:
             self._cancelled(exc)
         except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
@@ -82,8 +84,8 @@ class ScrobbleHistoryWorker:
             LastFmCredentials(self.api_key, self.username), self
         )
 
-    def _execute(self) -> scrobble_history.ScrobbleHistorySummary:
-        summary = scrobble_history.refresh_scrobble_history(
+    async def _execute(self) -> scrobble_history.ScrobbleHistorySummary:
+        summary = await scrobble_history.refresh_scrobble_history(
             self.lastfm,
             expected_username=self.username,
             dry_run=self.dry_run,

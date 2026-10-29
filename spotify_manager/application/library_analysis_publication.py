@@ -34,7 +34,7 @@ type Resources = dict[ResourceName, Sequence[LibraryModel]]
 class AnalysisPublication(Protocol):
     """Accept undo snapshots and read publication recovery facts."""
 
-    def analysis_backup(
+    async def analysis_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -58,7 +58,7 @@ class AnalysisPublication(Protocol):
         """
         ...
 
-    def mirror_backup(
+    async def mirror_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -80,7 +80,7 @@ class AnalysisPublication(Protocol):
         """
         ...
 
-    def resource_backup(
+    async def resource_backup(
         self,
         paths: LibraryAnalysisPaths,
         run_id: str,
@@ -106,7 +106,7 @@ class AnalysisPublication(Protocol):
         """
         ...
 
-    def history(
+    async def history(
         self, paths: LibraryAnalysisPaths, backup_dir: Path
     ) -> dict[str, object]:
         """Read backed-up history for repeatable publication.
@@ -161,7 +161,7 @@ class AnalysisPublication(Protocol):
         ...
 
 
-def finalize_analysis(
+async def finalize_analysis(
     session: AnalysisSession,
     publication: AnalysisPublication,
     albums: list[YourLibraryAlbum],
@@ -182,29 +182,31 @@ def finalize_analysis(
     """
     albums, tracks, artists = sort_resources(albums, tracks, artists)
     current: Resources = {"albums": albums, "tracks": tracks, "artists": artists}
-    backup_dir, report, summaries = _analysis_backup(session, publication, current)
-    session.files.publish(session.paths.albums_total, albums)
-    session.files.publish(session.paths.liked_tracks_total, tracks)
-    session.files.publish(session.paths.artists_total, artists)
-    history = publication.history(session.paths, backup_dir)
+    backup_dir, report, summaries = await _analysis_backup(
+        session, publication, current
+    )
+    await session.files.publish(session.paths.albums_total, albums)
+    await session.files.publish(session.paths.liked_tracks_total, tracks)
+    await session.files.publish(session.paths.artists_total, artists)
+    history = await publication.history(session.paths, backup_dir)
     history[publication.period()] = report.model_dump()
-    session.files.write(session.paths.stats_history, history)
-    return complete_publication(session, backup_dir, summaries)
+    await session.files.write(session.paths.stats_history, history)
+    return await complete_publication(session, backup_dir, summaries)
 
 
-def _analysis_backup(
+async def _analysis_backup(
     session: AnalysisSession, publication: AnalysisPublication, current: Resources
 ) -> tuple[Path, StatsReport, tuple[ResourceSyncSummary, ...]]:
     if session.checkpoint["status"] == "finalizing":
-        backup_dir, manifest = _resume_manifest(
+        backup_dir, manifest = await _resume_manifest(
             session, "The analysis backup manifest is invalid."
         )
         report = StatsReport.model_validate(manifest["stats_report"])
         return backup_dir, report, publication.summaries(manifest["summaries"])
     paths = session.paths
-    albums = session.files.models(paths.albums_total, YourLibraryAlbum)
-    tracks = session.files.models(paths.liked_tracks_total, YourLibraryTrack)
-    artists = session.files.models(paths.artists_total, YourLibraryArtist)
+    albums = await session.files.models(paths.albums_total, YourLibraryAlbum)
+    tracks = await session.files.models(paths.liked_tracks_total, YourLibraryTrack)
+    artists = await session.files.models(paths.artists_total, YourLibraryArtist)
     previous: Resources = {"albums": albums, "tracks": tracks, "artists": artists}
     report = stats_report_for_analysis(
         albums,
@@ -218,10 +220,10 @@ def _analysis_backup(
     summaries = _summaries(
         session, previous, current, source, ("albums", "tracks", "artists")
     )
-    backup_dir = publication.analysis_backup(
+    backup_dir = await publication.analysis_backup(
         paths, str(session.checkpoint["run_id"]), previous, current, report, summaries
     )
-    _begin_publication(session, backup_dir)
+    await _begin_publication(session, backup_dir)
     return backup_dir, report, summaries
 
 
@@ -243,23 +245,23 @@ def _summaries(
     return tuple(summaries)
 
 
-def _begin_publication(session: AnalysisSession, backup_dir: Path) -> None:
+async def _begin_publication(session: AnalysisSession, backup_dir: Path) -> None:
     session.checkpoint["status"] = "finalizing"
     session.checkpoint["backup_dir"] = str(backup_dir)
-    session.save()
+    await session.save()
 
 
-def _resume_manifest(
+async def _resume_manifest(
     session: AnalysisSession, error: str
 ) -> tuple[Path, dict[str, object]]:
     backup_dir = Path(str(session.checkpoint["backup_dir"]))
-    manifest = session.files.read(backup_dir / "manifest.json")
+    manifest = await session.files.read(backup_dir / "manifest.json")
     if not isinstance(manifest, dict):
         raise LibrarySyncError(error)
     return backup_dir, cast(dict[str, object], manifest)
 
 
-def finalize_mirrors(
+async def finalize_mirrors(
     session: AnalysisSession,
     publication: AnalysisPublication,
     albums: list[YourLibraryAlbum],
@@ -279,35 +281,39 @@ def finalize_mirrors(
     albums = sorted(deduplicate_models(albums), key=album_sort_key)
     tracks = sorted(deduplicate_models(tracks), key=track_sort_key)
     current: Resources = {"albums": albums, "tracks": tracks}
-    backup_dir, summaries = _mirror_backup(session, publication, current)
-    session.files.publish(session.paths.albums_total, albums)
-    session.files.publish(session.paths.liked_tracks_total, tracks)
-    return complete_publication(session, backup_dir, summaries)
+    backup_dir, summaries = await _mirror_backup(session, publication, current)
+    await session.files.publish(session.paths.albums_total, albums)
+    await session.files.publish(session.paths.liked_tracks_total, tracks)
+    return await complete_publication(session, backup_dir, summaries)
 
 
-def _mirror_backup(
+async def _mirror_backup(
     session: AnalysisSession, publication: AnalysisPublication, current: Resources
 ) -> tuple[Path, tuple[ResourceSyncSummary, ...]]:
     if session.checkpoint["status"] == "finalizing":
-        backup_dir, manifest = _resume_manifest(
+        backup_dir, manifest = await _resume_manifest(
             session, "The live-mirror backup manifest is invalid."
         )
         return backup_dir, publication.summaries(manifest["summaries"])
     previous: Resources = {
-        "albums": session.files.models(session.paths.albums_total, YourLibraryAlbum),
-        "tracks": session.files.models(
-            session.paths.liked_tracks_total, YourLibraryTrack
+        "albums": (
+            await session.files.models(session.paths.albums_total, YourLibraryAlbum)
+        ),
+        "tracks": (
+            await session.files.models(
+                session.paths.liked_tracks_total, YourLibraryTrack
+            )
         ),
     }
     summaries = _summaries(session, previous, current, "live_api", ("albums", "tracks"))
-    backup_dir = publication.mirror_backup(
+    backup_dir = await publication.mirror_backup(
         session.paths, str(session.checkpoint["run_id"]), previous, current, summaries
     )
-    _begin_publication(session, backup_dir)
+    await _begin_publication(session, backup_dir)
     return backup_dir, summaries
 
 
-def finalize_resource(
+async def finalize_resource(
     session: AnalysisSession,
     publication: AnalysisPublication,
     resource: ResourceName,
@@ -326,14 +332,14 @@ def finalize_resource(
     """
     target, model_type, sort_key = resource_config(session.paths, resource)
     current = sorted(deduplicate_models(models), key=sort_key)
-    backup_dir, summary = _resource_backup(
+    backup_dir, summary = await _resource_backup(
         session, publication, resource, target, model_type, current
     )
-    session.files.publish(target, current)
-    return complete_publication(session, backup_dir, (summary,))
+    await session.files.publish(target, current)
+    return await complete_publication(session, backup_dir, (summary,))
 
 
-def _resource_backup(
+async def _resource_backup(
     session: AnalysisSession,
     publication: AnalysisPublication,
     resource: ResourceName,
@@ -342,17 +348,17 @@ def _resource_backup(
     current: list[LibraryModel],
 ) -> tuple[Path, ResourceSyncSummary]:
     if session.checkpoint["status"] == "finalizing":
-        backup_dir, manifest = _resume_manifest(
+        backup_dir, manifest = await _resume_manifest(
             session, "The live-mirror backup manifest is invalid."
         )
         return backup_dir, publication.resource_summary(manifest["summaries"])
-    previous = session.files.models(target, model_type)
+    previous = await session.files.models(target, model_type)
     state = session.checkpoint["resources"][resource]
     source = str(state.get("source") or "live_api")
     summary = resource_summary(
         resource, source, previous, current, int(state.get("skipped", 0))
     )
-    backup_dir = publication.resource_backup(
+    backup_dir = await publication.resource_backup(
         session.paths,
         str(session.checkpoint["run_id"]),
         resource,
@@ -361,11 +367,11 @@ def _resource_backup(
         current,
         summary,
     )
-    _begin_publication(session, backup_dir)
+    await _begin_publication(session, backup_dir)
     return backup_dir, summary
 
 
-def complete_publication(
+async def complete_publication(
     session: AnalysisSession,
     backup_dir: Path,
     summaries: tuple[ResourceSyncSummary, ...],
@@ -382,8 +388,8 @@ def complete_publication(
     """
     session.checkpoint["status"] = "complete"
     session.checkpoint["completed_at"] = session.files.clock()
-    session.save()
-    session.event(
+    await session.save()
+    await session.event(
         "run_completed",
         backup_dir=str(backup_dir),
         summaries=[asdict(summary) for summary in summaries],

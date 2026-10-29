@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Literal
 from typing import Protocol
 
-from spotipy import Spotify
+from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.album_recommendations import (
     AlbumChoices as AlbumChoiceReader,
 )
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.sauvignon_values import (
     SauvignonConfigError as SauvignonConfigError,
 )
@@ -43,15 +44,25 @@ from spotify_manager.domain.album_recommendations import (
 )
 from spotify_manager.domain.album_selection import SauvignonAction as SauvignonAction
 from spotify_manager.domain.album_selection import SauvignonResult as SauvignonResult
+from spotify_manager.infrastructure.python_compat.history import (
+    BlockingRecommendationReader as LegacyRecommendationReader,
+)
+from spotify_manager.infrastructure.python_compat.recommendations import (
+    BlockingRecommendedAlbumChoice as LegacyRecommendedAlbumChoice,
+)
+from spotify_manager.infrastructure.python_compat.retry import (
+    BlockingRetry as LegacyRetry,
+)
 from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
 from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
 from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
-
-# UFI
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines.slow_listening import release_identity as release_identity
+
+
+# UFI
 
 
 type ProgressCallback = Messages
@@ -161,7 +172,7 @@ def _album_option(
     return parse_album_option(raw_track, candidate, search_rank)
 
 
-def search_candidate_albums(
+async def async_search_candidate_albums(
     spotify: Spotify,
     candidate: found_art.FoundArtCandidate,
     retry_call: RetryCall,
@@ -188,8 +199,8 @@ def search_candidate_albums(
     for attempt in retry_call.attempts(
         f"searching Spotify for {candidate.artist} - {candidate.track}"
     ):
-        with attempt:
-            response = spotify.search(
+        async with attempt:
+            response = await spotify.search(
                 q=blast_from_past.spotify_search_query(scrobble),
                 type="track",
                 limit=blast_from_past.SPOTIFY_SEARCH_LIMIT,
@@ -208,7 +219,7 @@ def _option_sort_key(option: SpotifyAlbumOption) -> tuple[float, int, int, str]:
     return album_policy.option_sort_key(option)
 
 
-def gather_album_recommendations(
+async def async_gather_album_recommendations(
     spotify: Spotify,
     candidates: tuple[found_art.FoundArtCandidate, ...],
     excluded_keys: set[AlbumKey],
@@ -239,7 +250,7 @@ def gather_album_recommendations(
     """
     from spotify_manager.interfaces.sauvignon_operations import gather_albums
 
-    return gather_albums(
+    return await gather_albums(
         spotify,
         candidates,
         excluded_keys,
@@ -256,7 +267,7 @@ def _genuinely_ambiguous(options: tuple[SpotifyAlbumOption, ...]) -> bool:
     return album_policy.genuinely_ambiguous(options)
 
 
-def choose_album_option(
+async def async_choose_album_option(
     recommendation: AlbumRecommendation,
     choice_reader: AlbumChoiceReader | None,
 ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
@@ -271,10 +282,10 @@ def choose_album_option(
     """
     from spotify_manager.application.album_recommendations import choose_album
 
-    return choose_album(recommendation, choice_reader, CHOICE_SKIP, CHOICE_QUIT)
+    return await choose_album(recommendation, choice_reader, CHOICE_SKIP, CHOICE_QUIT)
 
 
-def load_first_track(
+async def async_load_first_track(
     spotify: Spotify,
     album: SpotifyAlbumOption,
     retry_call: RetryCall,
@@ -295,8 +306,8 @@ def load_first_track(
     for attempt in retry_call.attempts(
         f"loading the first track of {album.artist} - {album.album}"
     ):
-        with attempt:
-            response = spotify.album_tracks(album.spotify_id, limit=50, offset=0)
+        async with attempt:
+            response = await spotify.album_tracks(album.spotify_id, limit=50, offset=0)
     from spotify_manager.infrastructure.album_recommendations import parse_first_track
 
     return parse_first_track(response, album)
@@ -323,7 +334,7 @@ def append_log(summary: SauvignonSummary, path: Path = DEFAULT_LOG_PATH) -> None
     append(summary, path)
 
 
-def fill_sauvignon_from_lastfm(
+async def async_fill_sauvignon_from_lastfm(
     spotify: Spotify,
     lastfm: LastFmReader,
     options: SauvignonOptions,
@@ -333,31 +344,204 @@ def fill_sauvignon_from_lastfm(
     """Fill Sauvignon with album-level recommendations inferred from Last.fm.
 
     Args:
-    spotify: Caller-owned client.
-    lastfm: Caller-owned client.
-    options: Destinations and execution mode.
-    callbacks: Operator decisions, notifications and retry ownership.
-    resources: Persistent files and checkpoint authority.
+        spotify: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-    The original typed summary and accepted effects.
+        The original typed summary and accepted effects.
 
     Raises:
-    RuntimeError: Observations, selections or persistence cannot complete.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.sauvignon_operations import (
         fill_sauvignon_from_lastfm as operation,
     )
 
-    return operation(spotify, lastfm, options, callbacks, resources)
+    return await operation(spotify, lastfm, options, callbacks, resources)
 
 
-def _append_recommendation_albums(
+async def _append_recommendation_albums(
     spotify: Spotify,
     playlist_id: str,
     additions: list[tuple[SpotifyAlbumOption, FirstTrack]],
 ) -> object:
-    return spotify._post(
+    return await spotify._post(
         f"playlists/{playlist_id}/items",
         payload={"uris": [track.uri for _album, track in additions]},
+    )
+
+
+def search_candidate_albums(
+    spotify: LegacySpotify,
+    candidate: found_art.FoundArtCandidate,
+    retry_call: RetryCall | LegacyRetry,
+) -> tuple[SpotifyAlbumOption, ...]:
+    """Read and decode original eligible album editions for one recommended track.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        candidate: Original ranked Last.fm candidate.
+        retry_call: Existing caller-owned retry boundary.
+
+    Returns:
+        Preferred eligible editions in original deterministic preference order.
+
+    Raises:
+        SauvignonSpotifyError: Search response lacks the original items list.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_search_candidate_albums(
+            legacy_spotify(spotify), candidate, PythonRetry(retry_call)
+        )
+    )
+
+
+def gather_album_recommendations(
+    spotify: LegacySpotify,
+    candidates: tuple[found_art.FoundArtCandidate, ...],
+    excluded_keys: set[AlbumKey],
+    existing_album_ids: set[str],
+    *,
+    maximum_candidates: int,
+    week_start: date,
+    retry_call: RetryCall | LegacyRetry,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[AlbumRecommendation, ...]:
+    """Resolve original track evidence and rank eligible observed albums.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        candidates: Original ordered ranked track pool.
+        excluded_keys: Original heard and previously added album keys.
+        existing_album_ids: Original represented destination album identities.
+        maximum_candidates: Original Python-slice limit on considered tracks.
+        week_start: Original effective listening week.
+        retry_call: Existing caller-owned retry behavior.
+        progress_callback: Optional original candidate presenter.
+
+    Returns:
+        Original ranked album recommendations after all observations succeed.
+
+    Raises:
+        SauvignonSpotifyError: Existing catalog observations are unusable.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_gather_album_recommendations(
+            legacy_spotify(spotify),
+            candidates,
+            excluded_keys,
+            existing_album_ids,
+            maximum_candidates=maximum_candidates,
+            week_start=week_start,
+            retry_call=PythonRetry(retry_call),
+            progress_callback=progress_callback,
+        )
+    )
+
+
+def choose_album_option(
+    recommendation: AlbumRecommendation,
+    choice_reader: AlbumChoiceReader | None | LegacyRecommendedAlbumChoice,
+) -> SpotifyAlbumOption | Literal["skip", "quit"]:
+    """Preserve automatic selection and original ambiguous-edition interaction.
+
+    Args:
+        recommendation: Original ranked evidence and ordered preferred editions.
+        choice_reader: Original interaction, absent for noninteractive runs.
+
+    Returns:
+        First equivalent edition, selected first matching identity, skip or quit.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.recommendations import (
+        PythonRecommendedAlbumChoice,
+    )
+
+    return run_python(
+        async_choose_album_option(
+            recommendation,
+            PythonRecommendedAlbumChoice(choice_reader)
+            if choice_reader is not None
+            else None,
+        )
+    )
+
+
+def load_first_track(
+    spotify: LegacySpotify,
+    album: SpotifyAlbumOption,
+    retry_call: RetryCall | LegacyRetry,
+) -> FirstTrack:
+    """Read the first originally playable track without reordering the response.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        album: Original chosen edition.
+        retry_call: Existing caller-owned retry boundary.
+
+    Returns:
+        First original valid track identity, URI and display name.
+
+    Raises:
+        SauvignonSpotifyError: Response is invalid or has no playable track.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.retry import PythonRetry
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_load_first_track(legacy_spotify(spotify), album, PythonRetry(retry_call))
+    )
+
+
+def fill_sauvignon_from_lastfm(
+    spotify: LegacySpotify,
+    lastfm: LastFmReader | LegacyRecommendationReader,
+    options: SauvignonOptions,
+    callbacks: SauvignonCallbacks,
+    resources: SauvignonResources | None = None,
+) -> SauvignonSummary:
+    """Fill Sauvignon with album-level recommendations inferred from Last.fm.
+
+    Args:
+        spotify: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
+
+    Returns:
+        The original typed summary and accepted effects.
+
+    Raises:
+        RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.bootstrap.execution import run_python
+    from spotify_manager.infrastructure.python_compat.history import (
+        PythonRecommendationReader,
+    )
+    from spotify_manager.infrastructure.python_compat.inputs import (
+        python_sauvignon_callbacks,
+    )
+    from spotify_manager.infrastructure.spotify_compat import legacy_spotify
+
+    return run_python(
+        async_fill_sauvignon_from_lastfm(
+            legacy_spotify(spotify),
+            PythonRecommendationReader(lastfm),
+            options,
+            python_sauvignon_callbacks(callbacks),
+            resources,
+        )
     )

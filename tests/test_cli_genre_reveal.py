@@ -4,6 +4,7 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -58,8 +59,10 @@ def test_genre_reveal_processes_first_incomplete_genre(
         "Settings",
         lambda: SimpleNamespace(genre_reveal_playlist="spotify:playlist:destination"),
     )
-    monkeypatch.setattr(main, "client", lambda: spotify)
-    monkeypatch.setattr(main.genre_reveal, "process_next_genre", process)
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: spotify))
+    monkeypatch.setattr(
+        main.genre_reveal, "process_next_genre", AsyncMock(side_effect=process)
+    )
     monkeypatch.setattr(main.typer, "launch", opened.append)
 
     result = CliRunner().invoke(
@@ -81,7 +84,7 @@ def test_genre_reveal_processes_first_incomplete_genre(
         "destination": "destination",
         "log_path": log_path,
     }
-    assert main.genre_reveal.load_genre_reveal_state(state_path).completed == [
+    assert (main.genre_reveal.load_genre_reveal_state(state_path)).completed == [
         "kerkkoor"
     ]
     assert opened == [
@@ -103,12 +106,14 @@ def test_genre_reveal_failure_does_not_advance_state(
         "Settings",
         lambda: SimpleNamespace(genre_reveal_playlist="destination"),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main, "_native_client", AsyncMock(side_effect=lambda: object()))
 
     def fail(*args: object, **kwargs: object) -> None:
         raise main.genre_reveal.GenreRevealSourceError("Source unavailable")
 
-    monkeypatch.setattr(main.genre_reveal, "process_next_genre", fail)
+    monkeypatch.setattr(
+        main.genre_reveal, "process_next_genre", AsyncMock(side_effect=fail)
+    )
 
     result = CliRunner().invoke(
         main.app,

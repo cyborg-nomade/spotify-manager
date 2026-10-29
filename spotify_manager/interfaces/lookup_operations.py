@@ -3,11 +3,10 @@
 from datetime import datetime
 from pathlib import Path
 
-from spotipy import Spotify
-
 from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.library_lookup_run import artist_statistics
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.scrobble_lookup_run import status
 from spotify_manager.bootstrap import library_lookups
 from spotify_manager.bootstrap import scrobble_lookups
@@ -18,7 +17,7 @@ from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.lookups import TrackScrobbleStatus
 
 
-def evaluate_live_album(
+async def evaluate_live_album(
     client: Spotify,
     *,
     name: str | None = None,
@@ -45,11 +44,11 @@ def evaluate_live_album(
     """
     catalog, membership = album_review_ports(client)
     request = AlbumReviewRequest(name, album_id, artist, threshold)
-    review = review_album(catalog, membership, request)
+    review = await review_album(catalog, membership, request)
     return album_evaluation(review)
 
 
-def get_live_artist_library_stats(
+async def get_live_artist_library_stats(
     sp: Spotify,
     *,
     name: str | None = None,
@@ -70,10 +69,12 @@ def get_live_artist_library_stats(
         ValueError: No reference is supplied.
         RuntimeError: A catalog or membership response is invalid.
     """
-    return artist_statistics(library_lookups.artist_statistics(sp, name, artist_id))
+    return await artist_statistics(
+        library_lookups.artist_statistics(sp, name, artist_id)
+    )
 
 
-def get_track_scrobble_status(
+async def get_track_scrobble_status(
     sp: Spotify,
     *,
     name: str | None = None,
@@ -98,4 +99,4 @@ def get_track_scrobble_status(
         ValueError: No reference is supplied.
         RuntimeError: Spotify or history observations are invalid.
     """
-    return status(scrobble_lookups.resources(sp, name, track_id, path, now))
+    return await status(scrobble_lookups.resources(sp, name, track_id, path, now))

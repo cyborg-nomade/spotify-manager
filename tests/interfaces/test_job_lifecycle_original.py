@@ -1,7 +1,9 @@
 """Keep every original job start, overlap rule and phase decision unchanged."""
 
+import asyncio
 import json
 from collections.abc import Callable
+from collections.abc import Coroutine
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -12,6 +14,8 @@ import pytest
 from fastapi import HTTPException
 
 from spotify_manager import api
+from spotify_manager.infrastructure.async_jobs import JobTasks
+from spotify_manager.infrastructure.async_signal import AsyncSignal
 from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.support.effects import Json
 from tests.support.job_baseline import CASES
@@ -93,7 +97,7 @@ def _pair_names() -> list[str]:
 
 
 @pytest.mark.parametrize("case", CASES, ids=_case_name)
-def test_complete_queued_snapshot_and_dispatch(
+async def test_complete_queued_snapshot_and_dispatch(
     case: StartCase, baseline: dict[str, Json]
 ) -> None:
     """Preserve detached wire fields, queued log and ordered worker arguments.
@@ -102,11 +106,11 @@ def test_complete_queued_snapshot_and_dispatch(
         case: Original configured adapter.
         baseline: Immutable original observations.
     """
-    assert queued(case) == _table(baseline, "starts")[case.name]
+    assert (await queued(case)) == _table(baseline, "starts")[case.name]
 
 
 @pytest.mark.parametrize(("first", "second"), pair_cases(), ids=_pair_names())
-def test_original_directed_overlap_matrix(
+async def test_original_directed_overlap_matrix(
     first: StartCase, second: StartCase, baseline: dict[str, Json]
 ) -> None:
     """Retain exact conflicts and accepted overlaps across both registries.
@@ -117,12 +121,14 @@ def test_original_directed_overlap_matrix(
         baseline: Immutable original overlap outcomes.
     """
     identity = f"{first.name}:{second.name}"
-    assert conflict(first, second, "running") == _table(baseline, "pairs")[identity]
+    assert (await conflict(first, second, "running")) == _table(baseline, "pairs")[
+        identity
+    ]
 
 
 @pytest.mark.parametrize("case", CASES, ids=_case_name)
 @pytest.mark.parametrize("status", STATUSES)
-def test_original_phase_blocks_or_releases_start(
+async def test_original_phase_blocks_or_releases_start(
     case: StartCase, status: JobStatus, baseline: dict[str, Json]
 ) -> None:
     """Preserve the original distinction between active and terminal phases.
@@ -133,7 +139,7 @@ def test_original_phase_blocks_or_releases_start(
         baseline: Immutable original phase outcomes.
     """
     identity = f"{case.name}:{status}"
-    assert conflict(case, case, status) == _table(baseline, "phases")[identity]
+    assert (await conflict(case, case, status)) == _table(baseline, "phases")[identity]
 
 
 def _active_snapshots(
@@ -157,7 +163,7 @@ def _original_snapshot(baseline: dict[str, Json], case: StartCase) -> dict[str, 
 
 @pytest.mark.parametrize("case", CASES, ids=_case_name)
 @pytest.mark.parametrize("status", STATUSES)
-def test_polling_preserves_original_phase_and_detached_view(
+async def test_polling_preserves_original_phase_and_detached_view(
     case: StartCase,
     status: JobStatus,
     baseline: dict[str, Json],
@@ -172,7 +178,7 @@ def test_polling_preserves_original_phase_and_detached_view(
         monkeypatch: Deterministic dispatch and identity boundaries.
     """
     bind(monkeypatch)
-    case.start()
+    (await case.start())
     observed = _results(case.family)[0]
     observed.status = status
     decision = _table(baseline, "phases")[f"{case.name}:{status}"]
@@ -194,17 +200,24 @@ def test_polling_preserves_original_phase_and_detached_view(
 class FailedDispatch(ThreadCapture):
     """Fail the scheduler after the original registry has accepted its handle."""
 
-    def start(self) -> None:
-        """Expose an original thread-start failure without running the worker.
+    @staticmethod
+    def start(
+        owner: JobTasks,
+        operation: Coroutine[object, object, None],
+        cancellation: AsyncSignal,
+        name: str,
+    ) -> None:
+        """Expose an original background-dispatch failure without running the worker.
 
         Raises:
             RuntimeError: Dispatch is unavailable after reservation.
         """
+        operation.close()
         raise RuntimeError("dispatcher unavailable")
 
 
 @pytest.mark.parametrize("case", CASES, ids=_case_name)
-def test_dispatch_failure_retains_original_queued_handle(
+async def test_dispatch_failure_retains_original_queued_handle(
     case: StartCase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Protect the original orphaned-queued failure contract from silent repair.
@@ -214,9 +227,9 @@ def test_dispatch_failure_retains_original_queued_handle(
         monkeypatch: Scoped scheduler and deterministic identity replacements.
     """
     bind(monkeypatch)
-    monkeypatch.setattr(http_jobs, "Thread", FailedDispatch)
+    monkeypatch.setattr(JobTasks, "start", FailedDispatch.start)
     with pytest.raises(RuntimeError, match="dispatcher unavailable"):
-        case.start()
+        (await case.start())
     results = _results(case.family)
     assert len(results) == 1
     assert results[0].status == "queued"
@@ -236,7 +249,7 @@ def _results(family: Family) -> list[api.AnalysisJobResult | api.BlastJobResult]
 def _concurrent_start(case: StartCase, barrier: Barrier) -> int:
     barrier.wait(timeout=5)
     try:
-        case.start()
+        asyncio.run(case.start())
     except HTTPException as error:
         return error.status_code
     return 202
@@ -251,7 +264,7 @@ def _failed_playlist_snapshot(job: api._BlastJob) -> api.BlastJobResult:
 
 
 @pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
-def test_snapshot_failure_retains_reservation_without_dispatch(
+async def test_snapshot_failure_retains_reservation_without_dispatch(
     case: StartCase, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Keep a registered queued handle when its original presenter fails.
@@ -264,7 +277,7 @@ def test_snapshot_failure_retains_reservation_without_dispatch(
     monkeypatch.setattr(http_jobs, "_job_snapshot", _failed_analysis_snapshot)
     monkeypatch.setattr(http_jobs, "_blast_job_snapshot", _failed_playlist_snapshot)
     with pytest.raises(RuntimeError, match="Cannot present"):
-        case.start()
+        (await case.start())
     registry = api._analysis_jobs if case.family == "analysis" else api._blast_jobs
     assert len(registry) == 1
     job = cast(api._AnalysisJob | api._BlastJob, next(iter(registry.values())))

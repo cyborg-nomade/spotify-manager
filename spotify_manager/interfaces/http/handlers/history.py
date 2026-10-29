@@ -11,7 +11,9 @@ from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
-def cmd_update_scrobble_history(dry_run: bool, full_rebuild: bool) -> BlastJobResult:
+async def cmd_update_scrobble_history(
+    dry_run: bool, full_rebuild: bool
+) -> BlastJobResult:
     """Start a background refresh of the shared Last.fm scrobble record.
 
     Args:
@@ -31,7 +33,7 @@ def cmd_update_scrobble_history(dry_run: bool, full_rebuild: bool) -> BlastJobRe
         )
     except found_art.FoundArtConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_scrobble_history_job(
+    return await jobs.start_scrobble_history_job(
         api_key, username, dry_run=dry_run, full_rebuild=full_rebuild
     )
 

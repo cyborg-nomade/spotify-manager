@@ -17,7 +17,7 @@ def _empty_state() -> dict[str, object]:
     return {}
 
 
-def test_local_runtime_service_uses_one_configured_file(
+async def test_local_runtime_service_uses_one_configured_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Reuse the configured state singleton until its cache is explicitly reset.
@@ -31,8 +31,8 @@ def test_local_runtime_service_uses_one_configured_file(
     monkeypatch.setenv("SPOTIFY_MANAGER_STATE_LOCAL_PATH", str(path))
     state = get_state_service()
     namespace = state.namespace("queue", ObjectDefinition())
-    namespace.load()
-    namespace.save({"count": 3})
+    (namespace.load())
+    (namespace.save({"count": 3}))
     assert path.exists()
     assert get_state_service() is state
     reset_state_service()

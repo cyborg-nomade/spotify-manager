@@ -1,5 +1,6 @@
 """Bind Queue fill stages to the original synchronous SDK and persistence seams."""
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -7,10 +8,9 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 
-from spotipy import Spotify
-
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import ReviewProgressMessages
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueStateError
@@ -18,8 +18,10 @@ from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.release_check_values import RankedArtist
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 from spotify_manager.infrastructure.recommendation_history import refresh_history
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
 from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
@@ -69,7 +71,9 @@ class LegacyQueueFill:
         """
         return BerlinCalendar().local_date(now)
 
-    def history(self, preview: bool, now: datetime) -> tuple[Sequence[Scrobble], int]:
+    async def history(
+        self, preview: bool, now: datetime
+    ) -> tuple[Sequence[Scrobble], int]:
         """Preserve original refresh parameters and narrowed error translation.
 
         Args:
@@ -88,7 +92,7 @@ class LegacyQueueFill:
             else None
         )
         try:
-            return refresh_history(
+            return await refresh_history(
                 self.lastfm,
                 export_path=self.resources.export_path,
                 recent_path=self.resources.recent_path,
@@ -102,19 +106,23 @@ class LegacyQueueFill:
     def _history_progress(self, message: str) -> None:
         self.progress(0, 0, message)
 
-    def queue_length(self) -> int:
+    async def queue_length(self) -> int:
         """Observe original Queue membership after history refresh.
 
         Returns:
             Original observed Queue length.
         """
-        from spotify_manager.routines.new_wine import load_playlist_tracks
-
-        return len(
-            load_playlist_tracks(self.spotify, self.options.playlists.queue, self.retry)
+        from spotify_manager.routines.new_wine import (
+            async_load_playlist_tracks as load_playlist_tracks,
         )
 
-    def search(
+        return len(
+            await load_playlist_tracks(
+                self.spotify, self.options.playlists.queue, self.retry
+            )
+        )
+
+    async def search(
         self, artist: RankedArtist, text: str | None
     ) -> tuple[SpotifyArtistCandidate, ...]:
         """Read original artist candidates using the configured retry boundary.
@@ -126,11 +134,13 @@ class LegacyQueueFill:
         Returns:
             Original ordered Spotify artist candidates.
         """
-        from spotify_manager.routines.release_check import search_spotify_artists
+        from spotify_manager.routines.release_check import (
+            async_search_spotify_artists as search_spotify_artists,
+        )
 
-        return search_spotify_artists(self.spotify, artist, self.retry, text)
+        return await search_spotify_artists(self.spotify, artist, self.retry, text)
 
-    def represented(self) -> set[str]:
+    async def represented(self) -> set[str]:
         """Retain original destination read order before state loading.
 
         Returns:
@@ -138,7 +148,7 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _playlist_artist_ids
 
-        return _playlist_artist_ids(
+        return await _playlist_artist_ids(
             self.spotify,
             (
                 self.options.playlists.queue,
@@ -155,9 +165,13 @@ class LegacyQueueFill:
         Returns:
             Original caller-owned state handle.
         """
-        from spotify_manager.routines.the_queue import _state_access
+        from spotify_manager.routines.the_queue import (
+            _async_state_access as _async_state_access,
+        )
 
-        return _state_access(self.resources.state_path, self.resources.state_service)
+        return _async_state_access(
+            self.resources.state_path, self.resources.state_service
+        )
 
     def decode_mapping(self, raw: object) -> SpotifyArtistCandidate | None:
         """Preserve original unchecked mapping tolerance.
@@ -172,7 +186,9 @@ class LegacyQueueFill:
 
         return _mapped_artist(raw)
 
-    def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
+    async def top_tracks(
+        self, artist: SpotifyArtistCandidate
+    ) -> tuple[CatalogTrack, ...]:
         """Read original ordered top tracks.
 
         Args:
@@ -181,12 +197,16 @@ class LegacyQueueFill:
         Returns:
             Original top tracks before window truncation.
         """
-        from spotify_manager.routines.new_kids import load_top_track_data
+        from spotify_manager.routines.new_kids import (
+            async_load_top_track_data as load_top_track_data,
+        )
 
-        _, tracks = load_top_track_data(self.spotify, artist.spotify_id, self.retry)
+        _, tracks = await load_top_track_data(
+            self.spotify, artist.spotify_id, self.retry
+        )
         return tracks
 
-    def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
+    async def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
         """Read original liked membership.
 
         Args:
@@ -197,9 +217,9 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _liked_statuses
 
-        return _liked_statuses(self.spotify, tracks, self.retry)
+        return await _liked_statuses(self.spotify, tracks, self.retry)
 
-    def following(self, artist: SpotifyArtistCandidate) -> bool:
+    async def following(self, artist: SpotifyArtistCandidate) -> bool:
         """Read and validate the original Spotify following response.
 
         Args:
@@ -210,9 +230,9 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _fill_following
 
-        return _fill_following(self.spotify, artist, self.retry)
+        return await _fill_following(self.spotify, artist, self.retry)
 
-    def follow(self, artist: SpotifyArtistCandidate) -> None:
+    async def follow(self, artist: SpotifyArtistCandidate) -> None:
         """Accept the original Spotify follow before mirror persistence.
 
         Args:
@@ -220,9 +240,9 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _fill_follow
 
-        _fill_follow(self.spotify, artist, self.retry)
+        await _fill_follow(self.spotify, artist, self.retry)
 
-    def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
+    async def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
         """Retain original mirror persistence and its presentation.
 
         Args:
@@ -230,22 +250,26 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _persist_followed_artist
 
-        _persist_followed_artist(artist, self.callbacks.output)
+        await _persist_followed_artist(artist, self.callbacks.output)
 
-    def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
+    async def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue marker append.
 
         Args:
             artist: Original accepted mapping.
             track: Original selected marker.
         """
-        from spotify_manager.routines.review_artists import add_playlist_item
+        from spotify_manager.routines.review_artists import (
+            async_add_playlist_item as add_playlist_item,
+        )
 
         for attempt in self.retry.attempts(f"adding {artist.name} to The Queue"):
-            with attempt:
-                add_playlist_item(self.spotify, self.options.playlists.queue, track.uri)
+            async with attempt:
+                await add_playlist_item(
+                    self.spotify, self.options.playlists.queue, track.uri
+                )
 
-    def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
+    async def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
         """Preserve original rejection and selected-addition audit fields.
 
         Args:
@@ -253,23 +277,33 @@ class LegacyQueueFill:
             preview: Original preview behavior.
             selected: Whether an actual or proposed addition was selected.
         """
-        from spotify_manager.routines.the_queue import append_event
+        from spotify_manager.routines.the_queue import append_event as _append_event
 
         if not selected:
-            append_event(
-                self.resources.log_path,
-                "fill_candidate",
-                result=asdict(result),
-                dry_run=preview,
-            )
+            async with blocking_capacity():
+                file_operation_1 = asyncio.create_task(
+                    asyncio.to_thread(
+                        _append_event,
+                        self.resources.log_path,
+                        "fill_candidate",
+                        result=asdict(result),
+                        dry_run=preview,
+                    )
+                )
+                await finish_blocking(file_operation_1)
             return
-        append_event(
-            self.resources.log_path,
-            "fill_candidate" if preview else "artist_added",
-            lastfm_artist_key=result.recommendation.key,
-            result=asdict(result),
-            dry_run=preview,
-        )
+        async with blocking_capacity():
+            file_operation_0 = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_event,
+                    self.resources.log_path,
+                    "fill_candidate" if preview else "artist_added",
+                    lastfm_artist_key=result.recommendation.key,
+                    result=asdict(result),
+                    dry_run=preview,
+                )
+            )
+            await finish_blocking(file_operation_0)
 
     def present(self, result: FillResult, preview: bool) -> None:
         """Retain original text after accepted audit.

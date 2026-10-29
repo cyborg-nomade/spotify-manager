@@ -1,15 +1,19 @@
 """Named external resources for legacy library maintenance."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-
-from spotipy import Spotify
+from typing import cast
 
 from spotify_manager import loaders_savers as files
 from spotify_manager.application.legacy_library_effects import Comparison
 from spotify_manager.application.legacy_library_effects import ComparisonAlbum
 from spotify_manager.application.legacy_library_effects import Page
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.spotify_client import SpotifyClients
 from spotify_manager.infrastructure import legacy_library_records as records
+from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -22,7 +26,17 @@ from spotify_manager.models.your_library import YourLibraryTrack
 class LegacyLibraryFiles:
     """Read and publish legacy files using their original codecs."""
 
-    def albums(self) -> list[SimplifiedAlbum]:
+    async def albums(self) -> list[SimplifiedAlbum]:
+        """Legacy total-album read.
+
+        Returns:
+            Original boundary result.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_albums))
+            return await finish_blocking(task)
+
+    def _blocking_albums(self) -> list[SimplifiedAlbum]:
         """Legacy total-album read.
 
         Returns:
@@ -30,7 +44,17 @@ class LegacyLibraryFiles:
         """
         return files.load_total_albums_file()
 
-    def control(self) -> list[ControlFileItem]:
+    async def control(self) -> list[ControlFileItem]:
+        """Original control read.
+
+        Returns:
+            Original boundary result.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_control))
+            return await finish_blocking(task)
+
+    def _blocking_control(self) -> list[ControlFileItem]:
         """Original control read.
 
         Returns:
@@ -38,7 +62,17 @@ class LegacyLibraryFiles:
         """
         return files.load_control_file()
 
-    def export(self) -> YourLibraryFile:
+    async def export(self) -> YourLibraryFile:
+        """Original export read.
+
+        Returns:
+            Original boundary result.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_export))
+            return await finish_blocking(task)
+
+    def _blocking_export(self) -> YourLibraryFile:
         """Original export read.
 
         Returns:
@@ -46,7 +80,17 @@ class LegacyLibraryFiles:
         """
         return files.load_your_library_file()
 
-    def comparison(self) -> Comparison:
+    async def comparison(self) -> Comparison:
+        """Original unchecked comparison read.
+
+        Returns:
+            Original boundary result.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_comparison))
+            return await finish_blocking(task)
+
+    def _blocking_comparison(self) -> Comparison:
         """Original unchecked comparison read.
 
         Returns:
@@ -54,7 +98,19 @@ class LegacyLibraryFiles:
         """
         return files.load_comparison_file()
 
-    def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+        """Original album publication.
+
+        Args:
+            albums: Original albums.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(self._blocking_save_albums, albums)
+            )
+            return await finish_blocking(task)
+
+    def _blocking_save_albums(self, albums: list[SimplifiedAlbum]) -> None:
         """Original album publication.
 
         Args:
@@ -62,7 +118,19 @@ class LegacyLibraryFiles:
         """
         return files.save_total_albums_file(albums)
 
-    def save_control(self, control: list[ControlFileItem]) -> None:
+    async def save_control(self, control: list[ControlFileItem]) -> None:
+        """Original control publication.
+
+        Args:
+            control: Original control.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(self._blocking_save_control, control)
+            )
+            return await finish_blocking(task)
+
+    def _blocking_save_control(self, control: list[ControlFileItem]) -> None:
         """Original control publication.
 
         Args:
@@ -70,7 +138,19 @@ class LegacyLibraryFiles:
         """
         return files.save_control_file(control)
 
-    def save_stats(self, stats: StatsFileItem) -> None:
+    async def save_stats(self, stats: StatsFileItem) -> None:
+        """Original statistics publication.
+
+        Args:
+            stats: Original stats.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(self._blocking_save_stats, stats)
+            )
+            return await finish_blocking(task)
+
+    def _blocking_save_stats(self, stats: StatsFileItem) -> None:
         """Original statistics publication.
 
         Args:
@@ -78,7 +158,19 @@ class LegacyLibraryFiles:
         """
         return files.save_stats_file(stats)
 
-    def save_comparison(self, comparison: Comparison) -> None:
+    async def save_comparison(self, comparison: Comparison) -> None:
+        """Original comparison publication.
+
+        Args:
+            comparison: Original comparison.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(self._blocking_save_comparison, comparison)
+            )
+            return await finish_blocking(task)
+
+    def _blocking_save_comparison(self, comparison: Comparison) -> None:
         """Original comparison publication.
 
         Args:
@@ -97,7 +189,7 @@ class SpotifyConversionCatalog:
 
     spotify: Spotify
 
-    def contains(self, identifier: str) -> object:
+    async def contains(self, identifier: str) -> object:
         """Original saved-album singleton query.
 
         Args:
@@ -108,9 +200,9 @@ class SpotifyConversionCatalog:
         """
         from spotify_manager.routines.convert_library_file import _contains_removed
 
-        return _contains_removed(self.spotify, identifier)
+        return await _contains_removed(self.spotify, identifier)
 
-    def enrich(self, identifier: str) -> SimplifiedAlbum:
+    async def enrich(self, identifier: str) -> SimplifiedAlbum:
         """Original album-model conversion.
 
         Args:
@@ -119,11 +211,13 @@ class SpotifyConversionCatalog:
         Returns:
             Original boundary result.
         """
-        from spotify_manager.processors.control_file_processors import enrich_album
+        from spotify_manager.processors.control_file_processors import (
+            async_enrich_album as enrich_album,
+        )
 
-        return enrich_album(identifier, self.spotify)
+        return await enrich_album(identifier, self.spotify)
 
-    def artist_saved(self, artist: YourLibraryArtist) -> bool:
+    async def artist_saved(self, artist: YourLibraryArtist) -> bool:
         """Original artist membership.
 
         Args:
@@ -133,12 +227,12 @@ class SpotifyConversionCatalog:
             Original boundary result.
         """
         from spotify_manager.processors.your_library_processors import (
-            is_in_library_artist,
+            async_is_in_library_artist as is_in_library_artist,
         )
 
-        return is_in_library_artist(self.spotify, artist)
+        return await is_in_library_artist(self.spotify, artist)
 
-    def track_saved(self, track: YourLibraryTrack) -> bool:
+    async def track_saved(self, track: YourLibraryTrack) -> bool:
         """Original track membership.
 
         Args:
@@ -148,36 +242,36 @@ class SpotifyConversionCatalog:
             Original boundary result.
         """
         from spotify_manager.processors.your_library_processors import (
-            is_in_library_track,
+            async_is_in_library_track as is_in_library_track,
         )
 
-        return is_in_library_track(self.spotify, track)
+        return await is_in_library_track(self.spotify, track)
 
-    def follow(self, artist: YourLibraryArtist) -> None:
+    async def follow(self, artist: YourLibraryArtist) -> None:
         """Original artist save.
 
         Args:
             artist: Original artist.
         """
         from spotify_manager.processors.your_library_processors import (
-            save_to_library_artist,
+            async_save_to_library_artist as save_to_library_artist,
         )
 
-        return save_to_library_artist(self.spotify, artist)
+        return await save_to_library_artist(self.spotify, artist)
 
-    def like(self, track: YourLibraryTrack) -> None:
+    async def like(self, track: YourLibraryTrack) -> None:
         """Original track save.
 
         Args:
             track: Original track.
         """
         from spotify_manager.processors.your_library_processors import (
-            save_to_library_track,
+            async_save_to_library_track as save_to_library_track,
         )
 
-        return save_to_library_track(self.spotify, track)
+        return await save_to_library_track(self.spotify, track)
 
-    def add_contains(self, identifier: str) -> object:
+    async def add_contains(self, identifier: str) -> object:
         """Original addition membership seam.
 
         Args:
@@ -188,7 +282,7 @@ class SpotifyConversionCatalog:
         """
         from spotify_manager.routines.convert_library_file import _contains_added
 
-        return _contains_added(self.spotify, identifier)
+        return await _contains_added(self.spotify, identifier)
 
 
 @dataclass(frozen=True)
@@ -201,7 +295,7 @@ class SpotifyAlbumRefresh:
 
     spotify: Spotify
 
-    def saved(self, offset: int) -> Page:
+    async def saved(self, offset: int) -> Page:
         """Original initial saved-album page.
 
         Args:
@@ -212,9 +306,9 @@ class SpotifyAlbumRefresh:
         """
         from spotify_manager.processors.total_albums_processor import _saved_page
 
-        return _saved_page(self.spotify, offset)
+        return await _saved_page(self.spotify, offset)
 
-    def recover(self, offset: int) -> Page:
+    async def recover(self, offset: int) -> Page:
         """Original failed-next fallback read.
 
         Args:
@@ -225,9 +319,9 @@ class SpotifyAlbumRefresh:
         """
         from spotify_manager.processors.total_albums_processor import _recover_page
 
-        return _recover_page(self.spotify, offset)
+        return await _recover_page(self.spotify, offset)
 
-    def next(self, page: Page) -> Page:
+    async def next(self, page: Page) -> Page:
         """Original next page.
 
         Args:
@@ -238,7 +332,7 @@ class SpotifyAlbumRefresh:
         """
         from spotify_manager.processors.total_albums_processor import _next_album_page
 
-        return _next_album_page(self.spotify, page)
+        return await _next_album_page(self.spotify, page)
 
     def parse(self, rows: list[object]) -> list[SimplifiedAlbum]:
         """Original saved-album conversion.
@@ -251,7 +345,17 @@ class SpotifyAlbumRefresh:
         """
         return records.saved_albums(rows)
 
-    def load(self) -> list[SimplifiedAlbum]:
+    async def load(self) -> list[SimplifiedAlbum]:
+        """Original incremental authority.
+
+        Returns:
+            Original boundary result.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_load))
+            return await finish_blocking(task)
+
+    def _blocking_load(self) -> list[SimplifiedAlbum]:
         """Original incremental authority.
 
         Returns:
@@ -259,7 +363,17 @@ class SpotifyAlbumRefresh:
         """
         return files.load_total_albums_file()
 
-    def save(self, albums: list[SimplifiedAlbum]) -> None:
+    async def save(self, albums: list[SimplifiedAlbum]) -> None:
+        """Original accepted album publication.
+
+        Args:
+            albums: Original albums.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(asyncio.to_thread(self._blocking_save, albums))
+            return await finish_blocking(task)
+
+    def _blocking_save(self, albums: list[SimplifiedAlbum]) -> None:
         """Original accepted album publication.
 
         Args:
@@ -298,7 +412,7 @@ class SpotifyPlaylistClock:
 
         return total.datetime.now()
 
-    def create(self, name: str) -> object:
+    async def create(self, name: str) -> object:
         """Original named playlist request.
 
         Args:
@@ -309,7 +423,7 @@ class SpotifyPlaylistClock:
         """
         from spotify_manager.processors.total_albums_processor import _create_playlist
 
-        return _create_playlist(self.spotify, name)
+        return await _create_playlist(self.spotify, name)
 
 
 @dataclass(frozen=True)
@@ -322,7 +436,7 @@ class SpotifyTrackRead:
 
     spotify: Spotify
 
-    def read(self, identifier: str) -> Page:
+    async def read(self, identifier: str) -> Page:
         """Original first album-track page.
 
         Args:
@@ -333,9 +447,9 @@ class SpotifyTrackRead:
         """
         from spotify_manager.processors.total_albums_processor import _track_page
 
-        return _track_page(self.spotify, identifier)
+        return await _track_page(self.spotify, identifier)
 
-    def next(self, page: Page) -> Page:
+    async def next(self, page: Page) -> Page:
         """Original next track page.
 
         Args:
@@ -346,7 +460,7 @@ class SpotifyTrackRead:
         """
         from spotify_manager.processors.total_albums_processor import _next_track_page
 
-        return _next_track_page(self.spotify, page)
+        return await _next_track_page(self.spotify, page)
 
     def parse(self, rows: list[object]) -> list[dict[str, object]]:
         """Original truthy row coercion.
@@ -392,7 +506,7 @@ class SpotifyControlMembership:
 
     spotify: Spotify
 
-    def contains(self, identifier: str) -> object:
+    async def contains(self, identifier: str) -> object:
         """Read membership.
 
         Args:
@@ -403,7 +517,7 @@ class SpotifyControlMembership:
         """
         from spotify_manager.processors.control_file_processors import _contains
 
-        return _contains(self.spotify, identifier)
+        return await _contains(self.spotify, identifier)
 
 
 class LegacyMonthlyLimits:
@@ -430,7 +544,7 @@ class SpotifyPlaylistWrites:
 
     spotify: Spotify
 
-    def single(self, identifier: str, uris: list[str]) -> None:
+    async def single(self, identifier: str, uris: list[str]) -> None:
         """Accept a small addition.
 
         Args:
@@ -439,9 +553,9 @@ class SpotifyPlaylistWrites:
         """
         from spotify_manager.processors.total_albums_processor import _append_single
 
-        _append_single(self.spotify, identifier, uris)
+        await _append_single(self.spotify, identifier, uris)
 
-    def batch(self, identifier: str, uris: list[str]) -> None:
+    async def batch(self, identifier: str, uris: list[str]) -> None:
         """Accept a batch addition.
 
         Args:
@@ -450,7 +564,7 @@ class SpotifyPlaylistWrites:
         """
         from spotify_manager.processors.total_albums_processor import _append_batch
 
-        _append_batch(self.spotify, identifier, uris)
+        await _append_batch(self.spotify, identifier, uris)
 
 
 class LegacyComparisonMetadata:
@@ -471,6 +585,65 @@ class LegacyComparisonMetadata:
 
 
 @dataclass(frozen=True)
+class NativeComparisonMetadata:
+    """Read per-identity metadata with invocation-owned native client scopes.
+
+    Args:
+        clients: Original independent client scope provider.
+    """
+
+    clients: SpotifyClients
+
+    async def enrich(self, identifier: str) -> ComparisonAlbum:
+        """Retain requested identity, first-credit selection and display order.
+
+        Args:
+            identifier: Original requested album identity.
+
+        Returns:
+            Original unchecked comparison metadata.
+        """
+        print(identifier)
+        spotify = await self.clients.client()
+        album = await spotify.album(identifier)
+        print(album["name"])
+        return cast(
+            ComparisonAlbum,
+            {
+                "name": album["name"],
+                "artist": album["artists"][0]["name"],
+                "id": identifier,
+            },
+        )
+
+
+@dataclass(frozen=True)
+class AsyncComparisonMetadata:
+    """Adapt the original synchronous Python metadata hook at its outer I/O edge.
+
+    Args:
+        source: Original SDK-constructing compatibility resource.
+    """
+
+    source: LegacyComparisonMetadata
+
+    async def enrich(self, identifier: str) -> ComparisonAlbum:
+        """Await the existing complete metadata observation.
+
+        Args:
+            identifier: Original requested album identity.
+
+        Returns:
+            Original unchecked comparison metadata.
+        """
+        async with blocking_capacity():
+            task = asyncio.create_task(
+                asyncio.to_thread(self.source.enrich, identifier)
+            )
+            return await finish_blocking(task)
+
+
+@dataclass(frozen=True)
 class SpotifyComparisonMembership:
     """Observe analysis membership through its original transport seams.
 
@@ -480,7 +653,7 @@ class SpotifyComparisonMembership:
 
     spotify: Spotify
 
-    def contains(self, identifier: str) -> object:
+    async def contains(self, identifier: str) -> object:
         """Read removal membership.
 
         Args:
@@ -491,9 +664,9 @@ class SpotifyComparisonMembership:
         """
         from spotify_manager.routines.convert_library_file import _analyse_removed
 
-        return _analyse_removed(self.spotify, identifier)
+        return await _analyse_removed(self.spotify, identifier)
 
-    def add_contains(self, identifier: str) -> object:
+    async def add_contains(self, identifier: str) -> object:
         """Read addition membership.
 
         Args:
@@ -504,4 +677,4 @@ class SpotifyComparisonMembership:
         """
         from spotify_manager.routines.convert_library_file import _analyse_added
 
-        return _analyse_added(self.spotify, identifier)
+        return await _analyse_added(self.spotify, identifier)

@@ -1,17 +1,16 @@
 """Bind future-record observation to the original synchronous album-track seam."""
 
-from spotipy import Spotify
-
 from spotify_manager.application.future_release import (
     matching_future_record as match_future,
 )
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
 from spotify_manager.infrastructure.legacy.release_tracks import LegacyReleaseTracks
 from spotify_manager.routines import release_check as legacy
 
 
-def matching_future_record(
+async def matching_future_record(
     sp: Spotify,
     single: ReleaseTrack,
     future: tuple[ReleaseCandidate, ...],
@@ -33,4 +32,4 @@ def matching_future_record(
     Raises:
         ReleaseCheckSpotifyError: Original track observation is unusable.
     """
-    return match_future(LegacyReleaseTracks(sp, retry), single, future, cache)
+    return await match_future(LegacyReleaseTracks(sp, retry), single, future, cache)

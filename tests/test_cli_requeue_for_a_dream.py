@@ -5,6 +5,7 @@ from datetime import UTC
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
@@ -27,10 +28,16 @@ def test_flush_requeue_dry_run_uses_the_configured_playlist(
             )
         ),
     )
-    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        main,
+        "_native_review_client",
+        AsyncMock(side_effect=Mock(return_value=object())),
+    )
     scenario = FlushRequeueDryRunUsesTheConfiguredPlaylistScenario(received=received)
     monkeypatch.setattr(
-        main.requeue_for_a_dream, "flush_requeue_for_a_dream", scenario.flush
+        main.requeue_for_a_dream,
+        "flush_requeue_for_a_dream",
+        AsyncMock(side_effect=scenario.flush),
     )
     result = CliRunner().invoke(main.app, ["flush-requeue-for-a-dream", "--dry-run"])
     assert result.exit_code == 0

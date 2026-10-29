@@ -109,24 +109,26 @@ def test_failed_review_replacement_retains_original_destination_and_temporary(
     assert path.with_suffix(".json.tmp").read_text() == '{\n  "new": true\n}\n'
 
 
-def test_review_model_list_guard_and_complete_model_validation(tmp_path: Path) -> None:
+async def test_review_model_list_guard_and_complete_model_validation(
+    tmp_path: Path,
+) -> None:
     """Retain missing-list defaults and exact non-list guards at the caller seam.
 
     Args:
         tmp_path: Isolated original mirror location.
     """
     path = tmp_path / "artists.json"
-    assert files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles()) == []
+    assert (files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles())) == []
     path.write_text("{}")
     with pytest.raises(ArtistReviewError, match=f"Expected a JSON list in {path}"):
-        files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles())
+        (files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles()))
     path.write_text('[{"name": "A", "uri": "spotify:artist:a"}]')
-    assert files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles()) == [
+    assert (files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles())) == [
         YourLibraryArtist(name="A", uri="spotify:artist:a")
     ]
 
 
-def test_review_artist_publication_sorts_same_list_after_successful_write(
+async def test_review_artist_publication_sorts_same_list_after_successful_write(
     tmp_path: Path,
 ) -> None:
     """Retain caller-list sorting and durable write before canonical publication.
@@ -140,13 +142,13 @@ def test_review_artist_publication_sorts_same_list_after_successful_write(
         YourLibraryArtist(name="A", uri="spotify:artist:a"),
     ]
     effects = Publications()
-    files.save_artists(path, artists, effects)
+    (files.save_artists(path, artists, effects))
     assert [artist.name for artist in artists] == ["A", "B"]
     expected = [artist.model_dump() for artist in artists]
     assert effects.calls == [("write", expected), ("publish", expected)]
 
 
-def test_review_cache_keeps_original_refresh_and_shallow_root_semantics(
+async def test_review_cache_keeps_original_refresh_and_shallow_root_semantics(
     tmp_path: Path,
 ) -> None:
     """Retain refresh-before-read, original error and same unvalidated object.
@@ -155,11 +157,11 @@ def test_review_cache_keeps_original_refresh_and_shallow_root_semantics(
         tmp_path: Isolated complete metadata cache.
     """
     path = tmp_path / "cache.json"
-    assert files.load_cache(path, True, CacheFacts(None, True)) == {}
+    assert (files.load_cache(path, True, CacheFacts(None, True))) == {}
     with pytest.raises(ArtistReviewError, match=f"Expected a JSON object in {path}"):
-        files.load_cache(path, False, CacheFacts([]))
+        (files.load_cache(path, False, CacheFacts([])))
     raw: dict[str, object] = {"artist": "unvalidated", "retained": True}
-    assert files.load_cache(path, False, CacheFacts(raw)) is raw
+    assert (files.load_cache(path, False, CacheFacts(raw))) is raw
 
 
 @dataclass(frozen=True)

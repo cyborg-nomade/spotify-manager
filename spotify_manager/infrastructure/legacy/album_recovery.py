@@ -1,25 +1,27 @@
 """Recovery adapters retaining the original transport and persistence helpers."""
 
+import asyncio
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
-
-from spotipy import Spotify
 
 from spotify_manager.application.credited_artists import CreditedArtistDependencies
 from spotify_manager.application.credited_artists import follow_credited_artists
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.ports.runtime import Wait
-from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.ports.state import AsyncRoutineState as RoutineState
 from spotify_manager.application.recovery_values import RecoveryAlbum
 from spotify_manager.application.recovery_values import RecoveryState
 from spotify_manager.application.recovery_values import RemovedAlbumRecord
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces.presenters.album_recovery import RecoveryPresenter
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -44,7 +46,7 @@ class CreditedArtistAdapter:
     retry: Retry
     audit_path: Path
 
-    def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
+    async def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
         """Read original ordered membership statuses.
 
         Args:
@@ -55,9 +57,9 @@ class CreditedArtistAdapter:
         """
         from spotify_manager.routines.recover_removed_albums import _artist_statuses
 
-        return _artist_statuses(self.spotify, artists, self.retry)
+        return await _artist_statuses(self.spotify, artists, self.retry)
 
-    def follow(self, artists: list[AlbumArtist]) -> None:
+    async def follow(self, artists: list[AlbumArtist]) -> None:
         """Follow the missing batch through its original retry boundary.
 
         Args:
@@ -67,9 +69,9 @@ class CreditedArtistAdapter:
             _follow_missing_artists,
         )
 
-        _follow_missing_artists(self.spotify, artists, self.retry)
+        await _follow_missing_artists(self.spotify, artists, self.retry)
 
-    def record(self, artists: list[AlbumArtist]) -> set[str]:
+    async def record(self, artists: list[AlbumArtist]) -> set[str]:
         """Publish artist mirror and statistics changes in their original order.
 
         Args:
@@ -79,22 +81,26 @@ class CreditedArtistAdapter:
             IDs added to the mirror.
         """
         from spotify_manager.routines.recover_removed_albums import (
-            add_artists_to_local_files,
+            async_add_artists_to_local_files as add_artists_to_local_files,
         )
 
-        return add_artists_to_local_files(artists, self.artists, self.known_ids)
+        return await add_artists_to_local_files(artists, self.artists, self.known_ids)
 
-    def audit(self, events: list[dict[str, object]]) -> None:
+    async def audit(self, events: list[dict[str, object]]) -> None:
         """Append the original artist events.
 
         Args:
             events: Completed artist observations.
         """
         from spotify_manager.routines.recover_removed_albums import (
-            append_recovery_events,
+            append_recovery_events as _append_recovery_events,
         )
 
-        append_recovery_events(events, self.audit_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_append_recovery_events, events, self.audit_path)
+            )
+            await finish_blocking(file_operation)
 
 
 @dataclass(frozen=True)
@@ -107,7 +113,7 @@ class RecoveryCheckpoint:
 
     access: RoutineState
 
-    def save(self, state: RecoveryState) -> None:
+    async def save(self, state: RecoveryState) -> None:
         """Serialize and accept complete progress.
 
         Args:
@@ -115,7 +121,7 @@ class RecoveryCheckpoint:
         """
         from spotify_manager.routines.recover_removed_albums import _serialize_state
 
-        self.access.save(_serialize_state(state))
+        await self.access.save(_serialize_state(state))
 
 
 def _text(value: object) -> str | None:
@@ -171,7 +177,7 @@ class LegacyAlbumRecovery:
     _artist_ids: set[str] = field(default_factory=set, init=False)
     _album_ids: set[str] = field(default_factory=set, init=False)
 
-    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
         Args:
@@ -184,7 +190,7 @@ class LegacyAlbumRecovery:
             self.output, self.sleep, self.retry_delay, self.max_attempts
         ).attempts(description)
 
-    def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
+    async def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
         """Load records, progress, artists, and albums in their original order.
 
         Returns:
@@ -192,23 +198,37 @@ class LegacyAlbumRecovery:
         """
         from spotify_manager.loaders_savers import load_total_albums_new_file
         from spotify_manager.loaders_savers import load_total_artists_file
-        from spotify_manager.routines.recover_removed_albums import _deserialize_state
-        from spotify_manager.routines.recover_removed_albums import _state_access
         from spotify_manager.routines.recover_removed_albums import (
-            load_removed_album_records,
+            _async_state_access as _async_state_access,
+        )
+        from spotify_manager.routines.recover_removed_albums import _deserialize_state
+        from spotify_manager.routines.recover_removed_albums import (
+            load_removed_album_records as _load_removed_album_records,
         )
 
-        records = load_removed_album_records(self.removal_log_path)
-        access = _state_access(self.recovery_log_path, self.state_service)
-        state = _deserialize_state(access.load())
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(_load_removed_album_records, self.removal_log_path)
+            )
+            records = await finish_blocking(file_operation)
+        access = _async_state_access(self.recovery_log_path, self.state_service)
+        state = _deserialize_state(await access.load())
         state.checkpoint = RecoveryCheckpoint(access)
-        self._artists = load_total_artists_file()
-        self._albums = load_total_albums_new_file()
+        async with blocking_capacity():
+            artists_read = asyncio.create_task(
+                asyncio.to_thread(load_total_artists_file)
+            )
+            self._artists = await finish_blocking(artists_read)
+        async with blocking_capacity():
+            albums_read = asyncio.create_task(
+                asyncio.to_thread(load_total_albums_new_file)
+            )
+            self._albums = await finish_blocking(albums_read)
         self._artist_ids = {artist.spotify_id for artist in self._artists}
         self._album_ids = {album.spotify_id for album in self._albums}
         return records, state
 
-    def albums(
+    async def albums(
         self, records: list[RemovedAlbumRecord]
     ) -> tuple[RecoveryAlbum | None, ...]:
         """Parse and pad one original-size metadata batch.
@@ -227,11 +247,11 @@ class LegacyAlbumRecovery:
         )
 
         album_ids = [record.spotify_id for record in records]
-        raw = _fetch_album_metadata(self.spotify, album_ids, self)
+        raw = await _fetch_album_metadata(self.spotify, album_ids, self)
         padded = [*raw, *([None] * (len(records) - len(raw)))]
         return tuple(_album(item) for item in padded)
 
-    def follow_artists(
+    async def follow_artists(
         self, artists: list[AlbumArtist], state: RecoveryState, dry_run: bool
     ) -> tuple[int, int]:
         """Retain credited-artist checks, writes, mirror updates, and checkpoints.
@@ -254,9 +274,9 @@ class LegacyAlbumRecovery:
         dependencies = CreditedArtistDependencies(
             access, _CLOCK_RESOURCE, RecoveryPresenter(self.output)
         )
-        return follow_credited_artists(dependencies, artists, state, dry_run)
+        return await follow_credited_artists(dependencies, artists, state, dry_run)
 
-    def saved(self, record: RemovedAlbumRecord) -> bool:
+    async def saved(self, record: RemovedAlbumRecord) -> bool:
         """Read the original first saved-album status.
 
         Args:
@@ -267,9 +287,9 @@ class LegacyAlbumRecovery:
         """
         from spotify_manager.routines.recover_removed_albums import _saved_album
 
-        return _saved_album(self.spotify, record, self)
+        return await _saved_album(self.spotify, record, self)
 
-    def restore(self, record: RemovedAlbumRecord) -> None:
+    async def restore(self, record: RemovedAlbumRecord) -> None:
         """Restore a future album through the original retry callback.
 
         Args:
@@ -277,9 +297,11 @@ class LegacyAlbumRecovery:
         """
         from spotify_manager.routines.recover_removed_albums import _restore_album
 
-        _restore_album(self.spotify, record, self)
+        await _restore_album(self.spotify, record, self)
 
-    def record_album(self, album: RecoveryAlbum, record: RemovedAlbumRecord) -> bool:
+    async def record_album(
+        self, album: RecoveryAlbum, record: RemovedAlbumRecord
+    ) -> bool:
         """Retain ordered mirror and statistics publication.
 
         Args:
@@ -290,24 +312,30 @@ class LegacyAlbumRecovery:
             Whether the local mirror gained this album.
         """
         from spotify_manager.routines.recover_removed_albums import (
-            add_album_to_local_files,
+            async_add_album_to_local_files as add_album_to_local_files,
         )
 
-        return add_album_to_local_files(
+        return await add_album_to_local_files(
             _payload(album),
             record,
             self._albums,
             self._album_ids,
         )
 
-    def audit(self, event: dict[str, object]) -> None:
+    async def audit(self, event: dict[str, object]) -> None:
         """Append one original recovery event.
 
         Args:
             event: Existing heterogeneous JSON event.
         """
         from spotify_manager.routines.recover_removed_albums import (
-            append_recovery_events,
+            append_recovery_events as _append_recovery_events,
         )
 
-        append_recovery_events([event], self.recovery_log_path)
+        async with blocking_capacity():
+            file_operation = asyncio.create_task(
+                asyncio.to_thread(
+                    _append_recovery_events, [event], self.recovery_log_path
+                )
+            )
+            await finish_blocking(file_operation)

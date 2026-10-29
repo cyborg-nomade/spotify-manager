@@ -35,13 +35,13 @@ class BoundaryFill(MemoryQueueFill):
         """Observe retry configuration after request validation."""
         self.observations.record("configure")
 
-    def queue_length(self) -> int:
+    async def queue_length(self) -> int:
         """Observe Queue membership and return configured capacity facts.
 
         Returns:
             Configured original Queue length.
         """
-        super().queue_length()
+        (await super().queue_length())
         return self.length
 
     def candidates(
@@ -82,7 +82,7 @@ class BoundaryFill(MemoryQueueFill):
         ),
     ],
 )
-def test_fill_validation_precedes_retry_and_all_reads(
+async def test_fill_validation_precedes_retry_and_all_reads(
     fill_request: QueueFillRequest,
     message: str,
 ) -> None:
@@ -94,20 +94,22 @@ def test_fill_validation_precedes_retry_and_all_reads(
     """
     observations = FillObservations("success")
     with pytest.raises(QueueConfigError) as error:
-        fill_workflow(BoundaryFill(observations)).run(fill_request)
+        (await fill_workflow(BoundaryFill(observations)).run(fill_request))
     assert str(error.value) == message
     assert observations.trace == []
 
 
 @pytest.mark.parametrize("preview", [False, True])
-def test_full_queue_stops_after_history_and_initial_membership(preview: bool) -> None:
+async def test_full_queue_stops_after_history_and_initial_membership(
+    preview: bool,
+) -> None:
     """Avoid seeds, candidate cache, representations and state when capacity is zero.
 
     Args:
         preview: Original preview mode.
     """
     observations = FillObservations("success")
-    result = fill_workflow(BoundaryFill(observations, length=2)).run(
+    result = await fill_workflow(BoundaryFill(observations, length=2)).run(
         QueueFillRequest(None, 1, 30, preview)
     )
     assert result.requested_count == result.selected == 0
@@ -122,10 +124,10 @@ def test_full_queue_stops_after_history_and_initial_membership(preview: bool) ->
     ]
 
 
-def test_requested_addition_stops_before_next_candidate_progress() -> None:
+async def test_requested_addition_stops_before_next_candidate_progress() -> None:
     """Stop once the original requested additions are satisfied."""
     observations = FillObservations("success")
-    result = fill_workflow(BoundaryFill(observations)).run(
+    result = await fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(1, None, 30, False)
     )
     assert result.selected == 1
@@ -137,11 +139,13 @@ def test_requested_addition_stops_before_next_candidate_progress() -> None:
     ]
 
 
-def test_saved_mapping_skips_interaction_and_duplicate_artist_is_rejected() -> None:
+async def test_saved_mapping_skips_interaction_and_duplicate_artist_is_rejected() -> (
+    None
+):
     """Reuse accepted mappings and representation updates within the original run."""
     observations = FillObservations("success")
     observations.state["artist_mappings"] = {"artist": asdict(ARTIST)}
-    result = fill_workflow(BoundaryFill(observations)).run(
+    result = await fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(2, None, 30, False)
     )
     assert result.selected == 1
@@ -150,10 +154,10 @@ def test_saved_mapping_skips_interaction_and_duplicate_artist_is_rejected() -> N
     assert not any(row[0] == "resolve" for row in observations.trace)
 
 
-def test_default_count_retains_original_twenty() -> None:
+async def test_default_count_retains_original_twenty() -> None:
     """Preserve the original default when neither count nor maximum is specified."""
     observations = FillObservations("skip")
-    result = fill_workflow(BoundaryFill(observations)).run(
+    result = await fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(None, None, 30, False)
     )
     assert result.requested_count == 20

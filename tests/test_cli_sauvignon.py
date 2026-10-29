@@ -3,6 +3,7 @@
 from datetime import UTC
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from typer.testing import CliRunner
 
@@ -81,7 +82,9 @@ def test_sauvignon_dry_run_defaults_to_playlist_cap_and_prints_result(
             lastfm_username="man-et-arms",
         ),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main, "_native_review_client", AsyncMock(side_effect=lambda: object())
+    )
     monkeypatch.setattr(
         main.sauvignon,
         "fill_sauvignon_from_lastfm",

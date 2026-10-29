@@ -1,0 +1,1027 @@
+[
+  {
+    "owner": "spotify_manager.bootstrap.execution.ExecutionRuntime._open_owner",
+    "function": "Settings",
+    "reason": "Complete the environment and dotenv settings construction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.read",
+    "function": "self.source.read",
+    "reason": "Complete the original read persistence operation (read) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.write",
+    "function": "self.source.write",
+    "reason": "Complete the original write persistence operation (write) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.publish_path",
+    "function": "self.source.publish_path",
+    "reason": "Complete the original publish path persistence operation (publish path) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.models",
+    "function": "self.source.models",
+    "reason": "Complete the original models persistence operation (models) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.staged",
+    "function": "self.source.staged",
+    "reason": "Complete the original staged persistence operation (staged) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.publish",
+    "function": "self.source.publish",
+    "reason": "Complete the original publish persistence operation (publish) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.append",
+    "function": "self.source.append",
+    "reason": "Complete the original append persistence operation (append) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.event",
+    "function": "self.source.event",
+    "reason": "Complete the original event persistence operation (event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.export",
+    "function": "self.source.export",
+    "reason": "Complete the original export persistence operation (export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.fingerprint",
+    "function": "self.source.fingerprint",
+    "reason": "Complete the original fingerprint persistence operation (fingerprint) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.reset_staging",
+    "function": "self.source.reset_staging",
+    "reason": "Complete the original reset staging persistence operation (reset staging) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.remove",
+    "function": "self.source.remove",
+    "reason": "Complete the original remove persistence operation (remove) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.export_artists",
+    "function": "self.source.export_artists",
+    "reason": "Complete the original export artists persistence operation (export artists) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.analysis_async_files.AsyncAnalysisStorage.restore",
+    "function": "restore_library_sync",
+    "reason": "Complete the original restore persistence operation (restore library sync) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewResources.initialize_cache",
+    "function": "load_cache",
+    "reason": "Complete the original initialize cache persistence operation (load cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewMetadata.save",
+    "function": "save_cache",
+    "reason": "Complete the original save persistence operation (save cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewFiles.artists",
+    "function": "load_models",
+    "reason": "Complete the original artists persistence operation (load models) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewFiles.tracks",
+    "function": "load_models",
+    "reason": "Complete the original tracks persistence operation (load models) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewFiles.append",
+    "function": "append_events",
+    "reason": "Complete the original append persistence operation (append events) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewFiles.save_artists",
+    "function": "save_artists",
+    "reason": "Complete the original save artists persistence operation (save artists) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewFiles.stats",
+    "function": "update_stats_after_unfollow",
+    "reason": "Complete the original stats persistence operation (update stats after unfollow) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.artist_review_resources.ReviewAuditFile.append",
+    "function": "append_events",
+    "reason": "Complete the original append persistence operation (append events) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.async_state.AsyncRoutineState.load",
+    "function": "self.source.load",
+    "reason": "Complete the original load persistence operation (load) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.async_state.AsyncRoutineState.save",
+    "function": "self.source.save",
+    "reason": "Complete the original save persistence operation (save) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.discography_observations.DiscographyWrites.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.genre_pages.PublicGenrePages.read",
+    "function": "_read_public_page",
+    "reason": "Complete the original public HTML page read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lastfm_async.AsyncLastFmClient.similar_tracks",
+    "function": "self.client.similar_tracks",
+    "reason": "Complete the original Last.fm SDK similar tracks read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lastfm_async.AsyncLastFmClient.similar_artists",
+    "function": "self.client.similar_artists",
+    "reason": "Complete the original Last.fm SDK similar artists read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lastfm_async.AsyncLastFmClient.recent_tracks",
+    "function": "self.client.recent_tracks",
+    "reason": "Complete the original Last.fm SDK recent tracks read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_limits.LegacyAlbumReview.albums",
+    "function": "load_total_albums_new_file",
+    "reason": "Complete the original albums persistence operation (load total albums new file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_limits.LegacyAlbumReview.albums",
+    "function": "load_your_library_file",
+    "reason": "Complete the original albums persistence operation (load your library file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_limits.LegacyAlbumReview.keep",
+    "function": "record_review_decision",
+    "reason": "Complete the original keep persistence operation (record review decision) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_recovery.CreditedArtistAdapter.audit",
+    "function": "_append_recovery_events",
+    "reason": "Complete the original audit persistence operation (append recovery events) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_recovery.LegacyAlbumRecovery.load",
+    "function": "_load_removed_album_records",
+    "reason": "Complete the original load persistence operation (load removed album records) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_recovery.LegacyAlbumRecovery.load",
+    "function": "load_total_artists_file",
+    "reason": "Complete the original load persistence operation (load total artists file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_recovery.LegacyAlbumRecovery.load",
+    "function": "load_total_albums_new_file",
+    "reason": "Complete the original load persistence operation (load total albums new file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.album_recovery.LegacyAlbumRecovery.audit",
+    "function": "_append_recovery_events",
+    "reason": "Complete the original audit persistence operation (append recovery events) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.discovery.LegacyDiscoveryAudit.event",
+    "function": "_append_event",
+    "reason": "Complete the original event persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.discovery.LegacyDiscoveryLibrary.removed_audit",
+    "function": "_append_removed_album_log",
+    "reason": "Complete the original removed audit persistence operation (append removed album log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.genre_run.LegacyGenreReveal.audit",
+    "function": "_append_genre_reveal_log",
+    "reason": "Complete the original audit persistence operation (append genre reveal log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.hydrate",
+    "function": "self._blocking_hydrate",
+    "reason": "Complete the original hydrate persistence operation (blocking hydrate) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.load",
+    "function": "_load_export",
+    "reason": "Complete the original load persistence operation (load export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.legacy",
+    "function": "_load_legacy_delta",
+    "reason": "Complete the original legacy persistence operation (load legacy delta) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.backup",
+    "function": "_backup_export",
+    "reason": "Complete the original backup persistence operation (backup export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.publish",
+    "function": "self._blocking_publish",
+    "reason": "Complete the original publish persistence operation (blocking publish) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.history_refresh.LegacyHistoryStorage.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.new_wine.LegacyNewWine.removed_audit",
+    "function": "_append_removed_album_log",
+    "reason": "Complete the original removed audit persistence operation (append removed album log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.new_wine.LegacyNewWine.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.new_year_state.LegacyAnnualState.load",
+    "function": "self._blocking_load",
+    "reason": "Complete the original load persistence operation (blocking load) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.new_year_state.LegacyAnnualState.save",
+    "function": "self._blocking_save",
+    "reason": "Complete the original save persistence operation (blocking save) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.palace_mirror.LegacySavedMirror.previous",
+    "function": "load_saved_albums",
+    "reason": "Complete the original previous persistence operation (load saved albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.palace_mirror.LegacySavedMirror.replace",
+    "function": "_replace_saved_albums",
+    "reason": "Complete the original replace persistence operation (replace saved albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.palace_mirror.LegacySavedMirror.audit",
+    "function": "_append_refresh_log",
+    "reason": "Complete the original audit persistence operation (append refresh log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.palace_run.LegacyPalace.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_3.LegacyAnnualImport.audit",
+    "function": "_append_event",
+    "reason": "Complete the original audit persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_fill.LegacyQueueFill.audit",
+    "function": "_append_event",
+    "reason": "Complete the original audit persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_flush.LegacyQueueFlush.audit",
+    "function": "_append_event",
+    "reason": "Complete the original audit persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_recommendations.LegacyQueueNeighborhoods.load",
+    "function": "_load_cache",
+    "reason": "Complete the original load persistence operation (load cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_recommendations.LegacyQueueNeighborhoods.previous",
+    "function": "_previously_added_artist_keys",
+    "reason": "Complete the original previous persistence operation (previously added artist keys) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.queue_recommendations.LegacyQueueNeighborhoods.remember",
+    "function": "_save_cache",
+    "reason": "Complete the original remember persistence operation (save cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.recommendations.LegacyNeighborhoods.load",
+    "function": "data.load_cache",
+    "reason": "Complete the original load persistence operation (load cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.recommendations.LegacyNeighborhoods.previous",
+    "function": "data.previously_added_keys",
+    "reason": "Complete the original previous persistence operation (previously added keys) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.recommendations.LegacyNeighborhoods.remember",
+    "function": "data.save_cache",
+    "reason": "Complete the original remember persistence operation (save cache) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.recommendations.LegacyRecommendationRun.audit",
+    "function": "data.append_audit",
+    "reason": "Complete the original audit persistence operation (append audit) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.release_opening.LegacyReleaseOpening.audit",
+    "function": "_append_event",
+    "reason": "Complete the original audit persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.release_run.LegacyReleaseRun.audit",
+    "function": "_append_event",
+    "reason": "Complete the original audit persistence operation (append event) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.sauvignon.LegacySauvignon.previous",
+    "function": "sauvignon_data.previously_added_album_keys",
+    "reason": "Complete the original previous persistence operation (previously added album keys) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.sauvignon.LegacySauvignon.audit",
+    "function": "sauvignon_data.append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.slow_listening.LegacySlowListening.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.something_old_run.LegacySomethingOld.audit",
+    "function": "_append_log",
+    "reason": "Complete the original audit persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.wine_cellar.WineCellarAccess.inventory",
+    "function": "_load_no_discovery_inventory",
+    "reason": "Complete the original inventory persistence operation (load no discovery inventory) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy.wine_cellar.WineCellarAccess.audit",
+    "function": "_append_cellar_log",
+    "reason": "Complete the original audit persistence operation (append cellar log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.albums",
+    "function": "self._blocking_albums",
+    "reason": "Complete the original albums persistence operation (blocking albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.control",
+    "function": "self._blocking_control",
+    "reason": "Complete the original control persistence operation (blocking control) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.export",
+    "function": "self._blocking_export",
+    "reason": "Complete the original export persistence operation (blocking export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.comparison",
+    "function": "self._blocking_comparison",
+    "reason": "Complete the original comparison persistence operation (blocking comparison) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.save_albums",
+    "function": "self._blocking_save_albums",
+    "reason": "Complete the original save albums persistence operation (blocking save albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.save_control",
+    "function": "self._blocking_save_control",
+    "reason": "Complete the original save control persistence operation (blocking save control) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.save_stats",
+    "function": "self._blocking_save_stats",
+    "reason": "Complete the original save stats persistence operation (blocking save stats) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.LegacyLibraryFiles.save_comparison",
+    "function": "self._blocking_save_comparison",
+    "reason": "Complete the original save comparison persistence operation (blocking save comparison) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.SpotifyAlbumRefresh.load",
+    "function": "self._blocking_load",
+    "reason": "Complete the original load persistence operation (blocking load) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.SpotifyAlbumRefresh.save",
+    "function": "self._blocking_save",
+    "reason": "Complete the original save persistence operation (blocking save) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.legacy_library_resources.AsyncComparisonMetadata.enrich",
+    "function": "self.source.enrich",
+    "reason": "Complete the caller-owned legacy SDK album metadata read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_administration.LibraryAdministration.statuses",
+    "function": "self._statuses",
+    "reason": "Complete the original statuses persistence operation (statuses) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_administration.LibraryAdministration.hydrate",
+    "function": "self._hydrate",
+    "reason": "Complete the original hydrate persistence operation (hydrate) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_administration.LibraryAdministration.publish",
+    "function": "self._publish",
+    "reason": "Complete the original publish persistence operation (publish) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_analysis_publication.AnalysisBackups.analysis_backup",
+    "function": "backups.create_backup_manifest",
+    "reason": "Complete the original analysis backup persistence operation (create backup manifest) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_analysis_publication.AnalysisBackups.mirror_backup",
+    "function": "backups.create_live_mirror_backup_manifest",
+    "reason": "Complete the original mirror backup persistence operation (create live mirror backup manifest) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_analysis_publication.AnalysisBackups.resource_backup",
+    "function": "backups.create_resource_backup",
+    "reason": "Complete the original resource backup persistence operation (create resource backup) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.library_analysis_publication.AnalysisBackups.history",
+    "function": "backups.pre_analysis_stats_history",
+    "reason": "Complete the original history persistence operation (pre analysis stats history) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lookup_resources.AlbumTrackCache.load",
+    "function": "self._blocking_load",
+    "reason": "Complete the original load persistence operation (blocking load) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lookup_resources.AlbumTrackCache.save",
+    "function": "self._blocking_save",
+    "reason": "Complete the original save persistence operation (blocking save) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.lookup_resources.LocalLibraryFiles.library",
+    "function": "self._blocking_library",
+    "reason": "Complete the original library persistence operation (blocking library) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.album_limits.PythonAlbumAction.choose_action",
+    "function": "self._blocking_choose_action",
+    "reason": "Complete the caller-owned synchronous choose action interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.artist_review.PythonArtistTrackChoice.choose_track",
+    "function": "self._blocking_choose_track",
+    "reason": "Complete the caller-owned synchronous choose track interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.artist_review.PythonArtistReleaseChoice.choose_release",
+    "function": "self._blocking_choose_release",
+    "reason": "Complete the caller-owned synchronous choose release interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.catalog.PythonMembership.membership",
+    "function": "self._blocking_membership",
+    "reason": "Complete the caller-owned synchronous membership interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.catalog.PythonGenrePages.read",
+    "function": "self._blocking_read",
+    "reason": "Complete the caller-owned synchronous read interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.discography.PythonDiscographySelection.select_releases",
+    "function": "self._blocking_select_releases",
+    "reason": "Complete the caller-owned synchronous select releases interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.discovery.PythonDiscoveryInteraction.choose",
+    "function": "self._blocking_choose",
+    "reason": "Complete the caller-owned synchronous choose interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.golden.PythonGoldenArtistChoice.choose_artist",
+    "function": "self._blocking_choose_artist",
+    "reason": "Complete the caller-owned synchronous choose artist interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.golden.PythonGoldenAlbumChoice.choose_album",
+    "function": "self._blocking_choose_album",
+    "reason": "Complete the caller-owned synchronous choose album interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.golden.PythonListeningMode.choose_mode",
+    "function": "self._blocking_choose_mode",
+    "reason": "Complete the caller-owned synchronous choose mode interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.golden.PythonOldArtistChoice.choose_artist",
+    "function": "self._blocking_choose_artist",
+    "reason": "Complete the caller-owned synchronous choose artist interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonHistoryReader.recent_tracks",
+    "function": "self._blocking_recent_tracks",
+    "reason": "Complete the caller-owned synchronous recent tracks interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonRecommendationReader.similar_tracks",
+    "function": "self._blocking_similar_tracks",
+    "reason": "Complete the caller-owned synchronous similar tracks interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonRecommendationReader.recent_tracks",
+    "function": "self._blocking_recent_tracks",
+    "reason": "Complete the caller-owned synchronous recent tracks interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonNeighborReader.similar_tracks",
+    "function": "self._blocking_similar_tracks",
+    "reason": "Complete the caller-owned synchronous similar tracks interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonNeighborReader.recent_tracks",
+    "function": "self._blocking_recent_tracks",
+    "reason": "Complete the caller-owned synchronous recent tracks interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.history.PythonNeighborReader.similar_artists",
+    "function": "self._blocking_similar_artists",
+    "reason": "Complete the caller-owned synchronous similar artists interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.queue.PythonQueueArtistChoice.choose_artist",
+    "function": "self._blocking_choose_artist",
+    "reason": "Complete the caller-owned synchronous choose artist interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.queue_3.PythonQueueTransition.choose_transition",
+    "function": "self._blocking_choose_transition",
+    "reason": "Complete the caller-owned synchronous choose transition interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.queue_3.PythonComposerChoice.choose_composer",
+    "function": "self._blocking_choose_composer",
+    "reason": "Complete the caller-owned synchronous choose composer interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.recommendations.PythonRecommendedAlbumChoice.choose_album",
+    "function": "self._blocking_choose_album",
+    "reason": "Complete the caller-owned synchronous choose album interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.release_check.PythonReleaseArtistChoice.choose_artist",
+    "function": "self._blocking_choose_artist",
+    "reason": "Complete the caller-owned synchronous choose artist interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.release_check.PythonReleaseChoice.choose_release",
+    "function": "self._blocking_choose_release",
+    "reason": "Complete the caller-owned synchronous choose release interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.retry.PythonAttempt.__aenter__",
+    "function": "self._enter",
+    "reason": "Complete the caller-owned synchronous   aenter   interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.retry.PythonAttempt.__aexit__",
+    "function": "self._exit",
+    "reason": "Complete the caller-owned synchronous   aexit   interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.runtime.PythonAnalysisWait.wait",
+    "function": "self._blocking_wait",
+    "reason": "Complete the caller-owned synchronous wait interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.runtime.PythonWait.sleep",
+    "function": "self._blocking_sleep",
+    "reason": "Complete the caller-owned synchronous sleep interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.runtime.PythonRandomIndexes.sample",
+    "function": "self._blocking_sample",
+    "reason": "Complete the caller-owned synchronous sample interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.runtime.PythonRandomTimestamp.now",
+    "function": "self._blocking_now",
+    "reason": "Complete the caller-owned synchronous now interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.slow_listening.PythonReleaseOrder.order_releases",
+    "function": "self._blocking_order_releases",
+    "reason": "Complete the caller-owned synchronous order releases interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.slow_listening.PythonListeningCompletion.complete",
+    "function": "self._blocking_complete",
+    "reason": "Complete the caller-owned synchronous complete interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.slow_listening.PythonTrackAction.choose_track",
+    "function": "self._blocking_choose_track",
+    "reason": "Complete the caller-owned synchronous choose track interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.wine.PythonWineReleaseChoice.choose_release",
+    "function": "self._blocking_choose_release",
+    "reason": "Complete the caller-owned synchronous choose release interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.python_compat.wine.PythonWineEndpointChoice.choose_endpoint",
+    "function": "self._blocking_choose_endpoint",
+    "reason": "Complete the caller-owned synchronous choose endpoint interaction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.randomness.RandomOrgIndexes.sample",
+    "function": "_fetch_random_indexes",
+    "reason": "Complete the original Random.org sample read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.requeue_audit.RequeueAudit.write",
+    "function": "_append_log",
+    "reason": "Complete the original write persistence operation (append log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.scrobble_lookup.latest",
+    "function": "_load_scrobble_export",
+    "reason": "Complete the original latest persistence operation (load scrobble export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.album",
+    "function": "self._blocking_album",
+    "reason": "Complete the caller-owned Spotify SDK album request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.album_tracks",
+    "function": "self._blocking_album_tracks",
+    "reason": "Complete the caller-owned Spotify SDK album tracks request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.albums",
+    "function": "self._blocking_albums",
+    "reason": "Complete the caller-owned Spotify SDK albums request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.artist",
+    "function": "self._blocking_artist",
+    "reason": "Complete the caller-owned Spotify SDK artist request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.artist_albums",
+    "function": "self._blocking_artist_albums",
+    "reason": "Complete the caller-owned Spotify SDK artist albums request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.artist_top_tracks",
+    "function": "self._blocking_artist_top_tracks",
+    "reason": "Complete the caller-owned Spotify SDK artist top tracks request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user",
+    "function": "self._blocking_current_user",
+    "reason": "Complete the caller-owned Spotify SDK current user request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_followed_artists",
+    "function": "self._blocking_current_user_followed_artists",
+    "reason": "Complete the caller-owned Spotify SDK current user followed artists request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_following_artists",
+    "function": "self._blocking_current_user_following_artists",
+    "reason": "Complete the caller-owned Spotify SDK current user following artists request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_playlists",
+    "function": "self._blocking_current_user_playlists",
+    "reason": "Complete the caller-owned Spotify SDK current user playlists request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_albums",
+    "function": "self._blocking_current_user_saved_albums",
+    "reason": "Complete the caller-owned Spotify SDK current user saved albums request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_albums_add",
+    "function": "self._blocking_current_user_saved_albums_add",
+    "reason": "Complete the caller-owned Spotify SDK current user saved albums add request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_albums_contains",
+    "function": "self._blocking_current_user_saved_albums_contains",
+    "reason": "Complete the caller-owned Spotify SDK current user saved albums contains request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_albums_delete",
+    "function": "self._blocking_current_user_saved_albums_delete",
+    "reason": "Complete the caller-owned Spotify SDK current user saved albums delete request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_tracks",
+    "function": "self._blocking_current_user_saved_tracks",
+    "reason": "Complete the caller-owned Spotify SDK current user saved tracks request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_tracks_add",
+    "function": "self._blocking_current_user_saved_tracks_add",
+    "reason": "Complete the caller-owned Spotify SDK current user saved tracks add request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.current_user_saved_tracks_contains",
+    "function": "self._blocking_current_user_saved_tracks_contains",
+    "reason": "Complete the caller-owned Spotify SDK current user saved tracks contains request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.next",
+    "function": "self._blocking_next",
+    "reason": "Complete the caller-owned Spotify SDK next request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.playlist_add_items",
+    "function": "self._blocking_playlist_add_items",
+    "reason": "Complete the caller-owned Spotify SDK playlist add items request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.search",
+    "function": "self._blocking_search",
+    "reason": "Complete the caller-owned Spotify SDK search request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.track",
+    "function": "self._blocking_track",
+    "reason": "Complete the caller-owned Spotify SDK track request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.tracks",
+    "function": "self._blocking_tracks",
+    "reason": "Complete the caller-owned Spotify SDK tracks request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.user_follow_artists",
+    "function": "self._blocking_user_follow_artists",
+    "reason": "Complete the caller-owned Spotify SDK user follow artists request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.user_playlist_create",
+    "function": "self._blocking_user_playlist_create",
+    "reason": "Complete the caller-owned Spotify SDK user playlist create request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient._get",
+    "function": "self._blocking_raw_get",
+    "reason": "Complete the caller-owned Spotify SDK  get request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient._post",
+    "function": "self._blocking_raw_post",
+    "reason": "Complete the caller-owned Spotify SDK  post request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient._put",
+    "function": "self._blocking_raw_put",
+    "reason": "Complete the caller-owned Spotify SDK  put request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient._delete",
+    "function": "self._blocking_raw_delete",
+    "reason": "Complete the caller-owned Spotify SDK  delete request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.rotate_credentials",
+    "function": "self._blocking_rotate_credentials",
+    "reason": "Complete the caller-owned Spotify SDK rotate credentials request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacySpotifyClient.refresh_all_app_tokens",
+    "function": "self._blocking_refresh_all_app_tokens",
+    "reason": "Complete the caller-owned Spotify SDK refresh all app tokens request on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.state_administration.StateAdministration.snapshot",
+    "function": "self._snapshot",
+    "reason": "Complete the original snapshot persistence operation (snapshot) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.state_administration.StateAdministration.export",
+    "function": "self._export",
+    "reason": "Complete the original export persistence operation (export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.state_administration.StateAdministration.replace",
+    "function": "self._replace",
+    "reason": "Complete the original replace persistence operation (replace) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.upload_resources.ExportPreparation.read",
+    "function": "_load_and_validate_export",
+    "reason": "Complete the original read persistence operation (load and validate export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.upload_resources.HubUpload.remote",
+    "function": "_remote",
+    "reason": "Complete the original remote persistence operation (remote) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.upload_resources.HubUpload.materialize",
+    "function": "materialize_lastfm_parts",
+    "reason": "Complete the original materialize persistence operation (materialize lastfm parts) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.upload_resources.HubUpload.commit",
+    "function": "_commit",
+    "reason": "Complete the original commit persistence operation (commit) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.features.genre.GenreCLI._run_genre_reveal",
+    "function": "genre_reveal.load_genre_reveal_state",
+    "reason": "Complete the original  run genre reveal persistence operation (load genre reveal state) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.features.spotify_auth.SpotifyAuthCLI._refresh",
+    "function": "spotify.refresh_all_app_tokens",
+    "reason": "Complete the caller-owned SDK credential refresh on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.features.state.read_state_edit",
+    "function": "_read_state_edit",
+    "reason": "Complete the original read state edit persistence operation (read state edit) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.terminal.TerminalPrompt.ask",
+    "function": "self.source.ask",
+    "reason": "Complete the original terminal ask input on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.terminal.terminal_input",
+    "function": "console.input",
+    "reason": "Complete the original terminal terminal input input on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.terminal.terminal_confirm",
+    "function": "typer.confirm",
+    "reason": "Complete the original terminal terminal confirm input on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.cli.terminal.terminal_key",
+    "function": "TerminalKey().read",
+    "reason": "Complete the original terminal terminal key input on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.http.handlers.releases.cmd_release_check_state",
+    "function": "jobs._release_check_state_snapshot",
+    "reason": "Complete the original cmd release check state persistence operation (release check state snapshot) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.http.handlers.releases.cmd_restore_release_check_state",
+    "function": "_restore_state_locked",
+    "reason": "Complete the original cmd restore release check state persistence operation (restore state locked) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.interfaces.http.jobs._hydrate_library_data",
+    "function": "hydrate_runtime_library_data",
+    "reason": "Complete the startup canonical artifact hydration on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.main.CommandResources.configuration",
+    "function": "Settings",
+    "reason": "Complete the environment and dotenv settings construction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.main.CommandResources.get_state_service",
+    "function": "get_state_service",
+    "reason": "Complete the lazy get state service resource construction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.main.CommandResources.get_library_data_service",
+    "function": "get_library_data_service",
+    "reason": "Complete the lazy get library data service resource construction on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.processors.control_file_processors.async_check_album_results",
+    "function": "save_control_file",
+    "reason": "Complete the original check album results persistence operation (save control file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.processors.total_albums_processor._CompatibilityFiles.save_albums",
+    "function": "self._blocking_save_albums",
+    "reason": "Complete the original save albums persistence operation (blocking save albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.blast_from_past.async_load_scrobbles_by_date",
+    "function": "load_scrobble_export",
+    "reason": "Complete the original load scrobbles by date persistence operation (load scrobble export) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.blast_from_past.FetchRandomTimestampClock.now",
+    "function": "fetch_random_timestamp",
+    "reason": "Complete the original Random.org now read on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids._sync_local_album",
+    "function": "_read_json_list",
+    "reason": "Complete the original  sync local album persistence operation (read json list) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids._sync_local_album",
+    "function": "_write_json_list",
+    "reason": "Complete the original  sync local album persistence operation (write json list) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids._sync_local_album",
+    "function": "_sync_stats_history_counts",
+    "reason": "Complete the original  sync local album persistence operation (sync stats history counts) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids.async_remove_local_artist",
+    "function": "_read_json_list",
+    "reason": "Complete the original remove local artist persistence operation (read json list) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids.async_remove_local_artist",
+    "function": "_write_json_list",
+    "reason": "Complete the original remove local artist persistence operation (write json list) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_kids.async_remove_local_artist",
+    "function": "_sync_stats_history_counts",
+    "reason": "Complete the original remove local artist persistence operation (sync stats history counts) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_wine._add_local_album",
+    "function": "_load_local_albums",
+    "reason": "Complete the original  add local album persistence operation (load local albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_wine._add_local_album",
+    "function": "_write_local_albums",
+    "reason": "Complete the original  add local album persistence operation (write local albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_wine._remove_local_album",
+    "function": "_load_local_albums",
+    "reason": "Complete the original  remove local album persistence operation (load local albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.new_wine._remove_local_album",
+    "function": "_write_local_albums",
+    "reason": "Complete the original  remove local album persistence operation (write local albums) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.recover_removed_albums.async_add_artists_to_local_files",
+    "function": "save_total_artists_file",
+    "reason": "Complete the original add artists to local files persistence operation (save total artists file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.recover_removed_albums.async_add_artists_to_local_files",
+    "function": "sync_stats_history_counts",
+    "reason": "Complete the original add artists to local files persistence operation (sync stats history counts) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.recover_removed_albums.async_add_album_to_local_files",
+    "function": "save_total_albums_new_file",
+    "reason": "Complete the original add album to local files persistence operation (save total albums new file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.recover_removed_albums.async_add_album_to_local_files",
+    "function": "sync_stats_history_counts",
+    "reason": "Complete the original add album to local files persistence operation (sync stats history counts) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.review_album_limits.async_update_stats_history_for_followed_artist",
+    "function": "_blocking_update_stats_history_for_followed_artist",
+    "reason": "Complete the original update stats history for followed artist persistence operation (blocking update stats history for followed artist) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.review_album_limits.async_record_followed_artist",
+    "function": "add_followed_artist_to_total_file",
+    "reason": "Complete the original record followed artist persistence operation (add followed artist to total file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.review_album_limits.async_remove_album_from_library",
+    "function": "save_total_albums_new_file",
+    "reason": "Complete the original remove album from library persistence operation (save total albums new file) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.routines.review_album_limits.async_remove_album_from_library",
+    "function": "append_removed_album_log",
+    "reason": "Complete the original remove album from library persistence operation (append removed album log) on a bounded worker and drain it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.web._load_genre_state",
+    "function": "genre_reveal.load_genre_reveal_state",
+    "reason": "Read and validate the complete original Genre Reveal state on a bounded worker; retain capacity through cancellation while its lifespan-owned async lock serializes state access."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.spotify_compat.LegacyOffsetReader.read",
+    "function": "self._read",
+    "reason": "Read the SDK endpoint captured at scan construction on a bounded worker, retaining that exact override throughout retries and draining it before releasing capacity."
+  }
+]

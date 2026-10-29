@@ -35,14 +35,14 @@ class ReleaseEffects(Protocol):
             message: Stage text.
         """
 
-    def persist(self, state: ReleaseState) -> None:
+    async def persist(self, state: ReleaseState) -> None:
         """Accept a complete checkpoint before a possible later failure.
 
         Args:
             state: Mutable working or preview-learning state.
         """
 
-    def audit(self, run_id: str, event: str, **details: object) -> None:
+    async def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original audit fields before a possible later failure.
 
         Args:
@@ -51,14 +51,14 @@ class ReleaseEffects(Protocol):
             details: Ordered event fields.
         """
 
-    def wine(self) -> PlaylistSnapshot:
+    async def wine(self) -> PlaylistSnapshot:
         """Observe Wine Cellar before its cleanup.
 
         Returns:
             Original ordered snapshot.
         """
 
-    def cleanup(
+    async def cleanup(
         self, snapshot: PlaylistSnapshot, preview: bool
     ) -> tuple[int, PlaylistMembership]:
         """Observe original Wine Cellar cleanup.
@@ -71,14 +71,14 @@ class ReleaseEffects(Protocol):
             Original cleanup count and membership.
         """
 
-    def vintage(self) -> PlaylistMembership:
+    async def vintage(self) -> PlaylistMembership:
         """Observe New Vintage after Wine Cellar cleanup.
 
         Returns:
             Original destination membership.
         """
 
-    def composers(self) -> tuple[OwnedPlaylist, ...]:
+    async def composers(self) -> tuple[OwnedPlaylist, ...]:
         """Observe owned composer playlists.
 
         Returns:
@@ -95,7 +95,7 @@ class ReleaseEffects(Protocol):
             The observed previously stored mapping, when present.
         """
 
-    def catalog(
+    async def catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate, start: date
     ) -> tuple[ReleaseCandidate, ...]:
         """Observe the catalog after artist exclusions.
@@ -119,7 +119,7 @@ class ReleaseEffects(Protocol):
             A valid retained marker or no valid pending record.
         """
 
-    def first_track(self, candidate: ReleaseCandidate) -> ReleaseTrack | None:
+    async def first_track(self, candidate: ReleaseCandidate) -> ReleaseTrack | None:
         """Observe a playable first track before eligibility review.
 
         Args:
@@ -129,7 +129,7 @@ class ReleaseEffects(Protocol):
             Original marker, or no playable track.
         """
 
-    def add(
+    async def add(
         self,
         destination: str,
         destination_membership: PlaylistMembership,

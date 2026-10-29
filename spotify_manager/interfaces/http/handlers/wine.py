@@ -1,8 +1,8 @@
 """Validate and present wine HTTP requests."""
 
 from fastapi import HTTPException
-from spotipy import Spotify
 
+from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.wine import NewWineChoiceRequest
@@ -11,7 +11,7 @@ from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import new_wine as new_wine
 
 
-def cmd_flush_new_wine(
+async def cmd_flush_new_wine(
     client: Spotify, dry_run: bool, no_discovery: bool, choose_album_endpoints: bool
 ) -> BlastJobResult:
     """Start an interactive New Wine flush with reconnectable web state.
@@ -43,7 +43,7 @@ def cmd_flush_new_wine(
         )
     except new_wine.NewWineConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return jobs.start_new_wine_job(
+    return await jobs.start_new_wine_job(
         client,
         new_wine_playlist_id,
         sauvignon_playlist_id,
