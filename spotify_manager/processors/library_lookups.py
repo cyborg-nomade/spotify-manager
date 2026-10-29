@@ -146,8 +146,16 @@ async def _live_primary_track_ids(
     release_ids: list[str],
 ) -> list[str]:
     """Return unique catalog track ids where the artist is credited first."""
+    from spotify_manager.infrastructure.catalog_reads import AlbumCatalogReads
+    from spotify_manager.infrastructure.spotify_async.client import AsyncSpotify
+
+    pages = SpotifyLookupPages(sp)
+    if isinstance(sp, AsyncSpotify):
+        return await AlbumCatalogReads(pages).primary_tracks(
+            artist_id, release_ids, SPOTIFY_ALBUM_BATCH_SIZE
+        )
     return await lookup_catalog.primary_tracks(
-        SpotifyLookupPages(sp),
+        pages,
         artist_id,
         release_ids,
         SPOTIFY_ALBUM_BATCH_SIZE,

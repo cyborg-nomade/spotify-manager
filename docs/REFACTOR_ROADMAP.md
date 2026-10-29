@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–8 deployed and merged; item 9 implemented for PR review.**
+**Status: items 1–9 deployed and merged; item 10 implemented for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
@@ -27,8 +27,10 @@ records the preserved contracts. Item 8's
 records the new adapter, ownership, compatibility limits and review environment.
 Item 8 was approved, deployed and merged in PR #68. The
 [item 9 async execution guide](refactor/ASYNC_EXECUTION.md) records runtime
-ownership, retained synchronous APIs and verification. Item 9 awaits PR review;
-later items remain pending.
+ownership, retained synchronous APIs and verification. Item 9 was approved,
+deployed and merged in PR #69. The [Item 10 read-efficiency guide](refactor/INDEPENDENT_READS.md)
+records measured request budgets and the conservative concurrency boundary.
+Item 10 awaits PR review; later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

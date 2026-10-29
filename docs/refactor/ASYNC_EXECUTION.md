@@ -1,8 +1,26 @@
 # Item 9: async execution and interaction
 
-**Status:** implemented for review on `codex/refactor-09-async-execution`, based
-on Item 8 merge `6ea10e4`. Deployment and merge require this item's approval.
+**Status:** approved, deployed and merged in PR #69 on 2026-10-29, based
+on Item 8 merge `6ea10e4`.
 Frontend source restructuring remains outside this roadmap.
+
+## Release record
+
+Approved source `3749a99745013d39b4ff8723424d7b7f983f177c` was deployed as Space
+revision `ed9b701feb20843361cfb70a6ea566e050630549`. All 419 changed code/configuration
+paths matched their exact Git blobs; the Space reached `RUNNING`.
+The rollback Space revision is `33047b35a2ef8f83c3c8b8dcd893b45bb81f9f89`.
+State revision `34537704bf20b4734e141dcb8c37685faa580dbf` and canonical-data revision
+`0ab021b5a5861795138da14edc95fbd6201866f9` stayed unchanged during deployment.
+Authenticated check-only workflows passed
+[before](https://github.com/cyborg-nomade/spotify-manager/actions/runs/40848560265)
+and [after](https://github.com/cyborg-nomade/spotify-manager/actions/runs/40849255579),
+covering shared state, four durable artifacts and all 20 reconnect endpoints with
+no active jobs. No routine was started by these checks.
+PR #69 then merged as `016c62a`. The local preview shut down cleanly and its latest
+four operator files were retained in a named stash and a separate verified backup.
+The Item 9 branch was removed and clean master was updated before Item 10 began.
+The active review environment now follows [Item 10](INDEPENDENT_READS.md).
 
 ## Start here when following a request
 

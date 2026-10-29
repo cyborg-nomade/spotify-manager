@@ -167,16 +167,27 @@ async def primary_tracks(
         albums = records.album_batch(
             await pages.albums(release_ids[start : start + batch_size])
         )
-        await _collect_album_tracks(albums, pages, artist, identifiers)
+        await collect_album_tracks(albums, pages, artist, identifiers)
     return list(identifiers)
 
 
-async def _collect_album_tracks(
+async def collect_album_tracks(
     albums: list[object],
     pages: LookupPages,
     artist: str,
     identifiers: dict[str, None],
 ) -> None:
+    """Decode accepted album rows and follow each dependent page in encounter order.
+
+    Args:
+        albums: Accepted raw rows from one original album batch.
+        pages: Explicit dependent track-page reader.
+        artist: Primary artist whose track IDs are being collected.
+        identifiers: Ordered unique IDs updated after each complete album.
+
+    Raises:
+        SpotifyLookupResponseError: A dependent track page is malformed.
+    """
     for album in albums:
         if not isinstance(album, dict):
             continue
