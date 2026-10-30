@@ -14,6 +14,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClients
 from spotify_manager.infrastructure import legacy_library_records as records
 from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+from spotify_manager.infrastructure.spotify_payloads import AlbumCredits
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -605,7 +606,7 @@ class NativeComparisonMetadata:
         """
         print(identifier)
         spotify = await self.clients.client()
-        album = await spotify.album(identifier)
+        album = cast(AlbumCredits, await spotify.album(identifier))
         print(album["name"])
         return cast(
             ComparisonAlbum,

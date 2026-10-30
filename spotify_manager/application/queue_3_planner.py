@@ -99,7 +99,7 @@ class Queue3Planner:
         catalog: Ordered track and liked-membership observations.
         tracks: Caller-owned track cache, retaining empty observations.
         ordering: Shared chronological ordering and checkpoint rules.
-        choose: Original release-boundary callback.
+        choose: Original release-boundary interaction.
     """
 
     catalog: Queue3Catalog

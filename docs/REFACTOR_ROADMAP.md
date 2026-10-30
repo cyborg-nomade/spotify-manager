@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–9 deployed and merged; item 10 implemented for PR review.**
+**Status: items 1–10 deployed and merged; item 11 implemented for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
@@ -30,7 +30,10 @@ Item 8 was approved, deployed and merged in PR #68. The
 ownership, retained synchronous APIs and verification. Item 9 was approved,
 deployed and merged in PR #69. The [Item 10 read-efficiency guide](refactor/INDEPENDENT_READS.md)
 records measured request budgets and the conservative concurrency boundary.
-Item 10 awaits PR review; later items remain pending.
+Item 10 was approved, deployed and merged in PR #70. The
+[Item 11 enforcement guide](refactor/TYPING_AND_ARCHITECTURE.md) records strict
+typing, architecture guards and the independent CI coverage gates.
+Item 11 awaits PR review; Item 12 remains pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

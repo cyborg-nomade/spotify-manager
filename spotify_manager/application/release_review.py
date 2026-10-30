@@ -95,7 +95,7 @@ class ReleaseReview:
     Args:
         progress: Original state authority and accepted checkpoints/audits.
         destinations: Original mutable memberships and destination identities.
-        reader: Optional original release-choice callback.
+        reader: Optional original release-choice interaction.
         matching: Named containing-record matching stage.
     """
 

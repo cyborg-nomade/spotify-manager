@@ -1,4 +1,4 @@
-"""Paths and callback types for independent resumable analysis workspaces."""
+"""Paths and typed values for independent resumable analysis workspaces."""
 
 from collections.abc import Callable
 from dataclasses import dataclass

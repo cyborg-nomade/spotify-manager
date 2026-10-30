@@ -33,9 +33,16 @@ DEFAULT_ARTIFACT_PATHS: dict[ArtifactName, Path] = {
     "artists": FILES_DIR / "artists_total.json",
     "scrobbles": FILES_DIR / "lastfmstats-man-et-arms.json",
 }
-_PATH_TO_ARTIFACT = {
-    path.resolve(): name for name, path in DEFAULT_ARTIFACT_PATHS.items()
-}
+
+
+def _paths_to_artifacts(paths: dict[ArtifactName, Path]) -> dict[Path, ArtifactName]:
+    lookup = {}
+    for name, path in paths.items():
+        lookup[path.resolve()] = name
+    return lookup
+
+
+_PATH_TO_ARTIFACT = _paths_to_artifacts(DEFAULT_ARTIFACT_PATHS)
 _logger = logging.getLogger(__name__)
 
 

@@ -130,7 +130,7 @@ class CellarWorkflow:
 
     Args:
         access: Original playlist, membership and persistence boundary.
-        moved: Original transfer presentation callback.
+        moved: Original transfer presentation resource.
         presentation: Named presenter for accepted workflow outcomes.
     """
 
@@ -207,7 +207,7 @@ class CellarRefill:
         options: Existing refill settings.
         state: Complete namespace to checkpoint.
         run: Active run containing pending-transfer state.
-        moved: Original transfer message callback.
+        moved: Original transfer message resource.
         destination_ids: Current or projected destination membership.
         sources: Original ordered cellar observations.
         results: Results produced by this invocation.

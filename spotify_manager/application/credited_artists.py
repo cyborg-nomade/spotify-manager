@@ -159,7 +159,7 @@ async def follow_credited_artists(
     Args:
         dependencies: Existing observation, publication, audit, and message effects.
         artists: Album credits, including duplicates across albums.
-        state: Mutable completed-work state and its persistence callback.
+        state: Mutable completed-work state and its checkpoint resource.
         dry_run: Preview without remote or durable writes.
 
     Returns:

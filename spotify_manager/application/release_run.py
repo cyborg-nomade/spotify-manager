@@ -20,7 +20,7 @@ class ReleaseRun:
         progress: Opening observations and accepted-effect boundaries.
         wine_id: Original Wine Cellar destination.
         vintage_id: Original New Vintage destination.
-        reader: Optional original release-choice callback.
+        reader: Optional original release-choice interaction.
         mapping: Named artist-mapping application stage.
         matching: Named containing-record matching stage.
     """

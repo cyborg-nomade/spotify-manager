@@ -60,10 +60,10 @@ class ReleaseCheckSummary:
         Returns:
             Number of original added or would-add Wine Cellar outcomes.
         """
-        return sum(
-            result.wine_cellar_action in {"added", "would add"}
-            for result in self.results
-        )
+        count = 0
+        for result in self.results:
+            count += result.wine_cellar_action in {"added", "would add"}
+        return count
 
     @property
     def new_vintage_added(self) -> int:
@@ -72,7 +72,7 @@ class ReleaseCheckSummary:
         Returns:
             Number of original added or would-add New Vintage outcomes.
         """
-        return sum(
-            result.new_vintage_action in {"added", "would add"}
-            for result in self.results
-        )
+        count = 0
+        for result in self.results:
+            count += result.new_vintage_action in {"added", "would add"}
+        return count

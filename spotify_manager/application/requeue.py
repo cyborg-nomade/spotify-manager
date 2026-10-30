@@ -23,7 +23,7 @@ class RequeueDependencies:
         playlists: Fresh reads and ordered individual playlist effects.
         catalog: Studio discography and track access.
         output: Existing mutation messages, delivered after each accepted effect.
-        progress: Optional progress callback, retaining cancellation boundaries.
+        progress: Optional progress resource, retaining cancellation boundaries.
         audit: Existing completion writer, called after the result timestamp.
         clock: Timestamp source, read only when constructing the final result.
     """
@@ -116,7 +116,7 @@ async def flush_requeue(
     """Advance one marker while retaining every read, write, and audit boundary.
 
     Args:
-        dependencies: Explicit integrations, callbacks, audit writer, and clock.
+        dependencies: Explicit integrations, interactions, audit writer, and clock.
         playlist_id: Already-parsed playlist identifier.
         dry_run: Preview without the final recheck, mutations, or audit.
 

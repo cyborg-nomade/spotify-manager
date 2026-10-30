@@ -3,6 +3,7 @@ set positional-arguments
 package_path := "spotify_manager"
 check_path := package_path
 pytest_report_path := env("PYTEST_REPORT_PATH", "test_report.xml")
+coverage_report_path := env("COVERAGE_REPORT_PATH", "build/reports/coverage.json")
 cli := "uv run spotify-manager"
 
 alias help := default
@@ -55,7 +56,26 @@ lint-ruff-format:
 
 # Type-check the package with mypy.
 lint-mypy:
-    uv run mypy --config-file=pyproject.toml {{ check_path }}
+    uv run mypy --config-file=pyproject.toml {{ check_path }} .github/scripts/nightly_refresh.py
+
+# Enforce strict typing for business rules, native adapters and their test doubles.
+lint-inner:
+    uv run mypy --strict \
+        spotify_manager/domain spotify_manager/application \
+        spotify_manager/infrastructure/spotify_async \
+        spotify_manager/bootstrap/spotify_async.py spotify_manager/client/events.py \
+        spotify_manager/infrastructure/catalog_reads.py \
+        spotify_manager/infrastructure/lookup_catalog.py \
+        spotify_manager/infrastructure/spotify_payloads.py \
+        tests/domain tests/application tests/spotify_async \
+        tests/read_efficiency tests/architecture
+
+# Verify static dependency direction, direct calls, cycles and guard failures.
+test-architecture:
+    uv run ruff check tests/architecture
+    uv run ruff format --check tests/architecture
+    uv run mypy --strict tests/architecture
+    uv run pytest tests/architecture tests/bootstrap tests/domain/test_dependencies.py tests/application/test_application_dependencies.py tests/routines/test_private_routine_dependencies.py
 
 # Audit installed dependencies for known vulnerabilities.
 lint-audit:
@@ -63,7 +83,8 @@ lint-audit:
 
 # Run lint and the randomized test suite with coverage.
 test: lint
-    uv run pytest --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests
+    uv run pytest --random-order --show-capture=no --cov-report term-missing --cov-report=json:{{ quote(coverage_report_path) }} --cov-branch --cov={{ package_path }} tests
+    uv run python -m tests.architecture.coverage_gate {{ quote(coverage_report_path) }}
 
 # Verify native Spotify HTTP parity, credentials, cancellation and cleanup.
 test-spotify-async:
@@ -276,9 +297,10 @@ test-application:
         --cov=spotify_manager.application.slow_listening_values \
         --cov-branch --cov-fail-under=100 tests/application
 
-# Run lint and tests with a JUnit report for CI.
-ci-test: lint
-    uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests
+# Run mandatory typing, randomized compatibility and independent coverage floors.
+ci-test: lint lint-mypy lint-inner
+    uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov-report=json:{{ quote(coverage_report_path) }} --cov-branch --cov={{ package_path }} tests
+    uv run python -m tests.architecture.coverage_gate {{ quote(coverage_report_path) }}
 
 # Run the monthly comparison, reconciliation, stats, and playlist routine.
 monthly-routines *args:

@@ -90,7 +90,7 @@ class ReleaseOrdering:
     """Ask for tie order only when progression reaches a shared release date.
 
     Args:
-        choose: Existing operator ordering callback.
+        choose: Existing operator ordering interaction.
         saved: Mutable persisted preferences, including unrecognized legacy fields.
         checkpoint: Invocation owning persistence of accepted preferences.
     """
@@ -208,7 +208,7 @@ class TrackSelection:
         discography: Selected studio editions.
         observations: Run-scoped track cache and catalog port.
         ordering: Tie choices and checkpoint ownership.
-        choose: Operator's advance, skip or quit callback.
+        choose: Operator's advance, skip or quit interaction.
         skipped_ids: Previously declined track IDs, updated on new declines.
         skipped: Named history and checkpoint ownership for newly declined IDs.
         skipped_labels: Visible labels accumulated during this scan.
@@ -230,7 +230,7 @@ class TrackSelection:
             Legacy durable plan, or None when the operator pauses.
 
         Raises:
-            SlowListeningError: A callback returns an invalid choice.
+            SlowListeningError: An interaction returns an invalid choice.
         """
         release, _following = release_transition(
             self.source.release.name, self.discography

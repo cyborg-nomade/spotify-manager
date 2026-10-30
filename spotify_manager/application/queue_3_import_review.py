@@ -35,7 +35,7 @@ class AnnualImportReview:
 
     Args:
         importer: Annual source selection and accepted-effect workflow.
-        presentation: Existing completion message and final progress callbacks.
+        presentation: Existing completion message and final progress resources.
     """
 
     importer: AnnualDiscoveryImport

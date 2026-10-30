@@ -1,7 +1,8 @@
 # Item 10: proven independent reads
 
-**Status:** implemented for review on `codex/refactor-10-independent-reads`, based
-on Item 9 merge `016c62a`. Deployment and merge await this item's approval.
+**Status:** approved, deployed, verified and merged in PR #70 on 2026-10-30.
+Reviewed source `00143c2` was based on Item 9 merge `016c62a`; Item 10 merge is
+`3cb2f78`.
 
 ## Measured change
 
@@ -140,12 +141,32 @@ Final verification on 2026-10-29:
 
 ## Local review
 
-The item's branch is available at **http://127.0.0.1:8766/** with any non-empty
-local unlock text. The artist-statistics instrument exercises the new native
+The item was reviewed at **http://127.0.0.1:8766/** with nonempty local unlock
+text. The artist-statistics instrument exercises the new native
 catalog reader. Existing workflow and dry-run behavior is preserved. The latest
 four operator files are retained separately, restored after startup hydration and
 excluded from the implementation commit.
 
-Item 11 next completes strict typing and architecture enforcement; Item 12 runs
+## Approved release
+
+The release waited for an active New Kids job to finish. Read-only access checks
+[before](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41054842125)
+and [after](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41055113461)
+deployment passed authentication, shared state, all four durable artifacts and all
+20 reconnect endpoints with no active jobs.
+
+The code-only Space commit `1af40380320cc06f198e13b2a33574fa393bc1f1` contains exactly
+the three reviewed Python changes. Each deployed blob was verified against Git,
+and the Space reached RUNNING before PR merge. Rollback code revision:
+`ed9b701feb20843361cfb70a6ea566e050630549`.
+
+The independent state (`5dcf65d4e7e7c46a292377d3a0f56d463e7e56dd`) and data
+(`f862ffc03bacc16e5bee8b5d7c948c3f2cefac7e`) datasets were unchanged by deployment.
+The latest four operator files and all previous stashes were preserved during
+cleanup. The merged Item 10 branch was removed and clean, updated master was
+verified before Item 11 started.
+
+[Item 11](TYPING_AND_ARCHITECTURE.md) completes strict typing and architecture
+enforcement; Item 12 runs
 the final compatibility and documentation audit. Frontend source restructuring
 remains a separate future refactor.

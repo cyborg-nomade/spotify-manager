@@ -306,7 +306,7 @@ class AnalysisSession:
         catalog: Original live catalog and conversion boundaries.
         request: Original invocation-scoped retry boundary.
         output: Original presenter.
-        progress: Original optional resource progress callback.
+        progress: Original optional resource progress resource.
         cancelled: Original optional cancellation observation.
     """
 
@@ -337,7 +337,7 @@ class AnalysisSession:
     def notify(
         self, resource: ResourceName, done: int, total: int | None, label: str
     ) -> None:
-        """Deliver progress with the original callback truthiness semantics.
+        """Deliver progress with the original resource truthiness semantics.
 
         Args:
             resource: Original active resource.
