@@ -146,10 +146,9 @@ def _load_export(
         raise ScrobbleHistoryError(
             f"Last.fm history must contain a 'scrobbles' list: {path}"
         )
-    records = [
-        _parse_export_record(raw, index)
-        for index, raw in enumerate(payload["scrobbles"])
-    ]
+    records = []
+    for index, raw in enumerate(payload["scrobbles"]):
+        records.append(_parse_export_record(raw, index))
     return payload, records, recovered_from_fallback
 
 
@@ -208,15 +207,17 @@ def _api_record(track: LastFmRecentTrack) -> dict[str, object]:
 
 def _history(records: list[dict[str, object]]) -> tuple[blast_from_past.Scrobble, ...]:
     """Convert ordered export records to the shared normalized model."""
-    return tuple(
-        blast_from_past.Scrobble(
-            track=str(record["track"]),
-            artist=str(record["artist"]),
-            album=str(record.get("album") or ""),
-            timestamp_ms=cast(int, record["date"]),
+    history = []
+    for record in records:
+        history.append(
+            blast_from_past.Scrobble(
+                track=str(record["track"]),
+                artist=str(record["artist"]),
+                album=str(record.get("album") or ""),
+                timestamp_ms=cast(int, record["date"]),
+            )
         )
-        for record in records
-    )
+    return tuple(history)
 
 
 def _backup_export(

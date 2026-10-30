@@ -19,7 +19,7 @@ from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import discography as legacy
 from spotify_manager.routines import new_wine
-from tests.support.discography_run import FIXTURE
+from tests.support.discography_run import HISTORY_INPUT_PATH
 from tests.support.palace_history import HistoryReads
 
 
@@ -233,7 +233,7 @@ async def _historical(edge: HistoryReads) -> object:
         AsyncMock(side_effect=edge.read),
     ):
         selected = await legacy.async_select_historical_artist(
-            path=FIXTURE.with_name("history"),
+            path=HISTORY_INPUT_PATH,
             today=date(2026, 8, 8),
             random_index_reader=edge,
             progress_callback=edge,

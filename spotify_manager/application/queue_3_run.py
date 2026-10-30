@@ -1,5 +1,6 @@
 """Prepare, acknowledge and finish Queue 3 runs using the original restart rules."""
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import cast
 
@@ -203,16 +204,15 @@ def run_summary(
     Returns:
         Original Queue 3 public summary with unchanged action categories.
     """
+    actions = Counter(result.action for result in results)
     return FlushSummary(
         run_id=snapshot.identifier,
         total=len(snapshot.entries),
         processed=len(results),
-        advanced=sum(
-            result.action in {"advance", "composer playlist"} for result in results
-        ),
-        changed_releases=sum(result.action == "next release" for result in results),
-        completed_artists=sum(result.action == "complete" for result in results),
-        skipped=sum(result.action == "skip" for result in results),
+        advanced=actions["advance"] + actions["composer playlist"],
+        changed_releases=actions["next release"],
+        completed_artists=actions["complete"],
+        skipped=actions["skip"],
         annual_import=annual,
         paused=paused,
         dry_run=dry_run,

@@ -26,6 +26,10 @@ from tests.support.queue_neighbors import NOW
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/refactor/discography_run.json"
+# Immutable fake-reader input from the original history trace; never read on disk.
+HISTORY_INPUT_PATH = Path(
+    "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+)
 PROFILES = (
     "normal",
     "round",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Protocol
 
 
@@ -50,11 +49,11 @@ class StateStore(Protocol):
 class RoutineState(Protocol):
     """Existing routine namespace contract, retaining its JSON boundary typing.
 
-    Any remains here for compatibility with heterogeneous, versioned legacy JSON
-    and its validators. New music ports exchange typed values instead.
+    Opaque values retain heterogeneous, versioned legacy JSON and unknown fields.
+    Each use case narrows the fields it consumes; the adapter owns validation.
     """
 
-    def load(self) -> dict[str, Any]:
+    def load(self) -> dict[str, object]:
         """Load this routine's validated state.
 
         Returns:
@@ -66,7 +65,7 @@ class RoutineState(Protocol):
 
     def save(
         self,
-        value: dict[str, Any],
+        value: dict[str, object],
         *,
         message: str | None = None,
     ) -> object:
@@ -87,11 +86,11 @@ class RoutineState(Protocol):
 class AsyncRoutineState(Protocol):
     """Existing routine namespace contract, retaining its JSON boundary typing.
 
-    Any remains here for compatibility with heterogeneous, versioned legacy JSON
-    and its validators. New music ports exchange typed values instead.
+    Opaque values retain heterogeneous, versioned legacy JSON and unknown fields.
+    Each use case narrows the fields it consumes; the adapter owns validation.
     """
 
-    async def load(self) -> dict[str, Any]:
+    async def load(self) -> dict[str, object]:
         """Load this routine's validated state.
 
         Returns:
@@ -103,7 +102,7 @@ class AsyncRoutineState(Protocol):
 
     async def save(
         self,
-        value: dict[str, Any],
+        value: dict[str, object],
         *,
         message: str | None = None,
     ) -> object:

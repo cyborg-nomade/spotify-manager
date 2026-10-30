@@ -60,7 +60,7 @@ class ArtistMapping:
 
     Args:
         catalog: Original ordered catalog search integration.
-        reader: Optional original interaction callback.
+        reader: Optional original interaction resource.
         controls: Original skip, skip-artist and quit markers.
         search_prefix: Original custom-query marker.
     """

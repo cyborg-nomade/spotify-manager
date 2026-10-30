@@ -5,8 +5,8 @@ import json
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 from typing import Protocol
+from typing import cast
 
 from spotipy import Spotify as LegacySpotify
 from spotipy.exceptions import SpotifyException
@@ -84,6 +84,8 @@ from spotify_manager.infrastructure.spotify.retry import (
     parse_retry_after_seconds as parse_retry_after_seconds,
 )
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+from spotify_manager.infrastructure.spotify_payloads import AlbumCredits
+from spotify_manager.infrastructure.spotify_payloads import ArtistCredit
 
 # UFI
 from spotify_manager.interfaces.presenters.album_limits import (
@@ -181,7 +183,7 @@ def known_artist_ids_by_name(library: YourLibraryFile) -> dict[str, str]:
     return identities
 
 
-def _artist_candidate(candidates: list[dict[str, Any]], name: str) -> dict[str, Any]:
+def _artist_candidate(candidates: list[ArtistCredit], name: str) -> ArtistCredit:
     # This original SDK boundary intentionally retains unchecked payload semantics.
     for candidate in candidates:
         if normalise_name(candidate.get("name", "")) == normalise_name(name):
@@ -191,9 +193,9 @@ def _artist_candidate(candidates: list[dict[str, Any]], name: str) -> dict[str, 
 
 async def _album_artist_metadata(
     sp: Spotify, album: YourLibraryAlbum
-) -> dict[str, Any] | None:
+) -> ArtistCredit | None:
     try:
-        spotify_album = await sp.album(album.spotify_id)
+        spotify_album = cast(AlbumCredits, await sp.album(album.spotify_id))
     except SpotifyException as exc:
         handle_spotify_exception(exc)
     spotify_artists = spotify_album.get("artists", [])
@@ -467,7 +469,8 @@ def record_review_decision(
     if state_access is None:
         save_review_decisions(decisions, decisions_path)
     else:
-        state_access.save(decisions)
+        # Widen only the known entry values; retain the caller mapping identity.
+        state_access.save(cast(dict[str, object], decisions))
 
 
 def has_persisted_keep_decision(
@@ -548,7 +551,8 @@ async def async_get_live_liked_track_count(sp: Spotify, track_ids: list[str]) ->
     for start in range(0, len(track_ids), TRACK_CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + TRACK_CONTAINS_BATCH_SIZE]
         try:
-            saved_statuses = await sp.current_user_saved_tracks_contains(batch)
+            response = await sp.current_user_saved_tracks_contains(batch)
+            saved_statuses = cast(list[bool], response)
         except SpotifyException as exc:
             handle_spotify_exception(exc)
         liked_count += sum(1 for is_saved in saved_statuses if is_saved)
@@ -606,7 +610,8 @@ async def async_remove_album_from_library(
 
 async def _is_artist_followed(sp: Spotify, artist: AlbumArtist) -> bool:
     try:
-        followed_response = await sp.current_user_following_artists([artist.spotify_id])
+        response = await sp.current_user_following_artists([artist.spotify_id])
+        followed_response = cast(list[bool], response)
     except SpotifyException as exc:
         handle_spotify_exception(exc)
     return bool(followed_response[0]) if followed_response else False

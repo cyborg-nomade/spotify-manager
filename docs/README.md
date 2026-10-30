@@ -45,6 +45,9 @@ The [Item 9 async execution guide](refactor/ASYNC_EXECUTION.md) follows native
 request paths, resource ownership and retained synchronous Python APIs.
 The [Item 10 read-efficiency guide](refactor/INDEPENDENT_READS.md) records measured
 request budgets, bounded catalog overlap and the preserved sequential boundaries.
+The [Item 11 enforcement guide](refactor/TYPING_AND_ARCHITECTURE.md) describes
+default strict business typing, architecture guards and independent CI coverage
+floors.
 
 ### Operating the Hugging Face Space
 

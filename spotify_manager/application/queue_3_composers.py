@@ -51,7 +51,7 @@ async def resolve_composer_route(
         playlist_id: Queue 3 destination excluded from works candidates.
         owned: Observed owned playlists.
         state: Mutable namespace retaining stale-route removal on cancellation.
-        choose: Optional callback for ambiguous candidates.
+        choose: Optional interaction for ambiguous candidates.
         now: Original clock read only after accepting a new selection.
 
     Returns:

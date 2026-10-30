@@ -27,6 +27,7 @@ from spotify_manager.infrastructure.python_compat.history import (
 from spotify_manager.infrastructure.python_compat.retry import (
     BlockingRetry as LegacyRetry,
 )
+from spotify_manager.infrastructure.spotify_payloads import CreatedPlaylist
 from spotify_manager.routines import blast_from_past as blast_from_past
 from spotify_manager.routines import new_wine as new_wine
 from spotify_manager.routines import palace_of_memory as palace_of_memory
@@ -177,7 +178,7 @@ async def _create_chart(
         public=False,
         description=f"Most scrobbled {kind} of {year} on Last.fm.",
     )
-    return str(created["id"])
+    return str(cast(CreatedPlaylist, created)["id"])
 
 
 async def _primary_artist(sp: Spotify, retry: RetryCall, uri: str) -> object:

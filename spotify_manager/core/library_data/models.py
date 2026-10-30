@@ -11,7 +11,6 @@ from datetime import UTC
 from datetime import datetime
 from typing import Any
 from typing import Literal
-from typing import cast
 
 
 LIBRARY_DATA_SCHEMA_VERSION = 1
@@ -102,7 +101,7 @@ def validate_artifact_name(value: object) -> ArtifactName:
     """Return a supported artifact name or reject it."""
     if value not in ALL_ARTIFACTS:
         raise LibraryDataDocumentError(f"Unknown library-data artifact: {value!r}.")
-    return cast(ArtifactName, value)
+    return value
 
 
 def _metadata(name: ArtifactName, raw: object) -> ArtifactMetadata:

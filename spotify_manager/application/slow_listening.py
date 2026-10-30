@@ -1,5 +1,6 @@
 """Execute Slow Listening choices and checkpoints in their established order."""
 
+from collections import Counter
 from dataclasses import dataclass
 from dataclasses import field
 from typing import cast
@@ -31,17 +32,17 @@ from spotify_manager.domain.catalog import ReleaseTrack
 
 @dataclass(frozen=True)
 class SlowListeningDependencies:
-    """Explicit integrations and interaction callbacks for one routine invocation.
+    """Explicit integrations and interaction resources for one routine invocation.
 
     Args:
         access: Playlist, namespace and audit boundary.
         observations: Run-scoped catalog cache.
-        order: Operator's release-order choice callback.
-        choose: Operator's track choice callback.
-        complete: Completion acknowledgement callback, which may edit the playlist.
+        order: Operator's release-order choice interaction.
+        choose: Operator's track choice interaction.
+        complete: Completion acknowledgement resource, which may edit the playlist.
         presentation: Existing output messages.
         clock: Clock read at the original run creation and completion boundaries.
-        progress: Optional cancellation/progress callback.
+        progress: Optional cancellation/progress resource.
     """
 
     access: SlowListeningAccess
@@ -62,7 +63,7 @@ def new_run(
     Args:
         playlist_id: Playlist whose first two markers are selected.
         tracks: Initial live observations.
-        clock: Original UTC clock callback.
+        clock: Original UTC clock resource.
 
     Returns:
         Active run with original timestamps and pending entries.
@@ -83,7 +84,7 @@ async def flush_slow_listening(
 
     Args:
         playlist_id: Configured Slow Listening playlist identifier.
-        dependencies: Run-owned integrations and interaction callbacks.
+        dependencies: Run-owned integrations and interaction resources.
         dry_run: Preview using fresh state while retaining the legacy audit writes.
 
     Returns:
@@ -158,12 +159,15 @@ def _entry(raw: object) -> dict[str, object]:
 
 def _skipped_ids(entry: dict[str, object]) -> list[str]:
     raw = entry.setdefault("skipped_candidates", [])
-    if not isinstance(raw, list) or not all(
-        isinstance(candidate, str) for candidate in raw
-    ):
+    if not isinstance(raw, list):
         raise SlowListeningStateError(
             "Slow Listening run has invalid skipped candidates."
         )
+    for candidate in raw:
+        if not isinstance(candidate, str):
+            raise SlowListeningStateError(
+                "Slow Listening run has invalid skipped candidates."
+            )
     return cast(list[str], raw)
 
 
@@ -182,7 +186,7 @@ class SlowListeningRun:
     """Own one resumable run's state, observations and ordered effects.
 
     Args:
-        dependencies: Explicit integrations and operator callbacks.
+        dependencies: Explicit integrations and operator interactions.
         state: Complete mutable namespace loaded for this invocation.
         run: Active run retained inside the namespace for real execution.
         entries: Original entry sequence, validated as each entry is reached.
@@ -384,15 +388,14 @@ class SlowListeningRun:
         await self._save()
 
     def _summary(self, run_id: str) -> FlushSummary:
+        actions = Counter(result.action for result in self.results)
         return FlushSummary(
             run_id=run_id,
             total=len(self.entries),
             processed=len(self.results),
-            advanced=sum(result.action == "advance" for result in self.results),
-            completed_artists=sum(
-                result.action == "complete" for result in self.results
-            ),
-            skipped=sum(result.action == "skip" for result in self.results),
+            advanced=actions["advance"],
+            completed_artists=actions["complete"],
+            skipped=actions["skip"],
             paused=self.paused,
             dry_run=self.dry_run,
             resumed=self.resumed,

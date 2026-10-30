@@ -73,7 +73,7 @@ class NewKidsPlanner:
 
     Args:
         observations: Original run-scoped caches and observation services.
-        choose: Existing release-choice callback.
+        choose: Existing release-choice interaction.
         audit: Original event boundary, including preview writes.
         presentation: Original completion-count message boundary.
         year: Existing active invocation year.
