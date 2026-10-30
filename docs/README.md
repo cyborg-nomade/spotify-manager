@@ -43,6 +43,8 @@ cleanup before async work. Frontend source restructuring remains a future
 targeted refactor; its current behavior is covered by compatibility checks.
 The [Item 9 async execution guide](refactor/ASYNC_EXECUTION.md) follows native
 request paths, resource ownership and retained synchronous Python APIs.
+The [Item 10 read-efficiency guide](refactor/INDEPENDENT_READS.md) records measured
+request budgets, bounded catalog overlap and the preserved sequential boundaries.
 
 ### Operating the Hugging Face Space
 

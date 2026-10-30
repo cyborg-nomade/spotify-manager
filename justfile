@@ -97,6 +97,17 @@ test-async-execution:
         spotify_manager/interfaces/http/execution.py tests/async_execution
     uv run pytest tests/async_execution tests/bootstrap
 
+# Verify bounded catalog read budgets, error ordering and native HTTP integration.
+test-read-efficiency:
+    uv run ruff check spotify_manager/infrastructure/catalog_reads.py spotify_manager/infrastructure/lookup_catalog.py spotify_manager/processors/library_lookups.py tests/read_efficiency
+    uv run ruff format --check spotify_manager/infrastructure/catalog_reads.py spotify_manager/infrastructure/lookup_catalog.py spotify_manager/processors/library_lookups.py tests/read_efficiency
+    uv run mypy --strict spotify_manager/infrastructure/catalog_reads.py spotify_manager/infrastructure/lookup_catalog.py tests/read_efficiency
+    uv run pytest tests/read_efficiency --cov=spotify_manager.infrastructure.catalog_reads --cov-branch --cov-fail-under=100
+
+# Illustrate synthetic latency; elapsed time is not a correctness gate.
+benchmark-reads *args:
+    uv run python -m tests.read_efficiency.benchmark {{ args }}
+
 # Verify pure policies without application fixtures, configuration, or SDKs.
 test-domain:
     uv run ruff check spotify_manager/domain tests/domain

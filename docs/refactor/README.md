@@ -14,7 +14,9 @@ The owner approved an additional [Item 7a](CALL_PATH_SIMPLIFICATION.md) on
 async work. Item 7a was approved, deployed and merged in PR #67, including the
 owner's request for colocated routes and small typed inputs.
 [Item 8 transport](ASYNC_SPOTIFY_TRANSPORT.md) was deployed and merged in PR #68.
-[Item 9 execution](ASYNC_EXECUTION.md) is implemented for review. Frontend source restructuring is
+[Item 9 execution](ASYNC_EXECUTION.md) was approved, deployed and merged in PR #69.
+[Item 10 independent reads](INDEPENDENT_READS.md) is implemented for review.
+Frontend source restructuring is
 reserved for a future targeted refactor.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.

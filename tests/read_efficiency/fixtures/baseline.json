@@ -1,0 +1,9 @@
+{
+  "source": "016c62a41be3ac8f3da314b4300b70eb5686e52c",
+  "batch_size": 20,
+  "measurements": {
+    "80_distinct_album_ids": {"requests": 4, "peak_reads": 1, "results": 80},
+    "80_album_ids_repeated_twice": {"requests": 8, "peak_reads": 1, "results": 80},
+    "80_identical_album_ids": {"requests": 4, "peak_reads": 1, "results": 1}
+  }
+}
