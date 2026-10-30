@@ -56,7 +56,7 @@ lint-ruff-format:
 
 # Type-check the package with mypy.
 lint-mypy:
-    uv run mypy --config-file=pyproject.toml {{ check_path }} .github/scripts/nightly_refresh.py
+    uv run mypy --config-file=pyproject.toml {{ check_path }} .github/scripts/nightly_refresh.py docs/refactor/capture_baseline.py
 
 # Enforce strict typing for business rules, native adapters and their test doubles.
 lint-inner:
@@ -67,8 +67,9 @@ lint-inner:
         spotify_manager/infrastructure/catalog_reads.py \
         spotify_manager/infrastructure/lookup_catalog.py \
         spotify_manager/infrastructure/spotify_payloads.py \
+        docs/refactor/cli_capture.py docs/refactor/check_interfaces.py \
         tests/domain tests/application tests/spotify_async \
-        tests/read_efficiency tests/architecture
+        tests/read_efficiency tests/architecture tests/test_refactor_interfaces.py
 
 # Verify static dependency direction, direct calls, cycles and guard failures.
 test-architecture:
@@ -299,6 +300,8 @@ test-application:
 
 # Run mandatory typing, randomized compatibility and independent coverage floors.
 ci-test: lint lint-mypy lint-inner
+    uv run ruff check tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+    uv run ruff format --check tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
     uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov-report=json:{{ quote(coverage_report_path) }} --cov-branch --cov={{ package_path }} tests
     uv run python -m tests.architecture.coverage_gate {{ quote(coverage_report_path) }}
 

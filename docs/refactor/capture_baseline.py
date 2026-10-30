@@ -20,12 +20,19 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib.metadata import version
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING
 from typing import Any
 from unittest.mock import patch
 
 
 if TYPE_CHECKING:
+    from pydantic_settings import BaseSettings
+    from typer._click import Command
+    from typer._click import Parameter
+    from typer.core import TyperGroup
+
+    from docs.refactor.cli_capture import SnapshotRunner
     from spotify_manager.core.state.definitions import StateDefinition
 
 
@@ -310,118 +317,31 @@ def route_inventory(app: Any, surface: str) -> list[dict[str, Any]]:
     return result
 
 
-def capture_cli(main: Any) -> dict[str, str]:
-    """Capture all help pages and a small, explicitly stubbed output sample."""
+def capture_cli(main: ModuleType) -> dict[str, str]:
+    """Capture frozen help, parameter metadata and explicitly canned examples.
+
+    Args:
+        main: Original public CLI module inside the isolated runtime.
+
+    Returns:
+        Original named CLI artifacts, preserving all ordered fields and bytes.
+
+    Raises:
+        TypeError: The CLI is not the original command group.
+        RuntimeError: An original command help invocation fails.
+    """
     from typer.core import TyperGroup
     from typer.main import get_command
-    from typer.testing import CliRunner
 
-    from spotify_manager.interfaces import lookup_operations
-    from spotify_manager.interfaces.operations import legacy_library
-    from spotify_manager.models.lookups import AlbumEvaluation
-    from spotify_manager.models.lookups import ArtistLibraryStats
+    from docs.refactor.cli_capture import SnapshotRunner
 
     command = get_command(main.app)
     if not isinstance(command, TyperGroup):
         raise TypeError("Expected the public CLI to be a command group")
-    runner = CliRunner()
-    help_pages = []
-    commands = []
+    runner = SnapshotRunner()
     with patch.object(main, "hydrate_runtime_library_data", return_value=()):
-        for name in [None, *sorted(command.commands)]:
-            args = ["--help"] if name is None else [name, "--help"]
-            result = runner.invoke(
-                main.app,
-                args,
-                prog_name="spotify-manager",
-                terminal_width=100,
-                color=False,
-            )
-            if result.exit_code != 0:
-                raise RuntimeError(f"Help failed: {args}: {result.exception}")
-            output = terminal_text(result.output)
-            help_pages.append(f"$ spotify-manager {' '.join(args)}\n{output}")
-            if name is None:
-                continue
-            child = command.commands[name]
-            if child.callback is None:
-                raise TypeError(f"Missing callback for {name}")
-            commands.append(
-                {
-                    "name": name,
-                    "handler": child.callback.__name__,
-                    "help": child.help,
-                    "parameters": [
-                        {
-                            "name": parameter.name,
-                            "kind": type(parameter).__name__,
-                            "opts": parameter.opts,
-                            "secondary_opts": parameter.secondary_opts,
-                            "required": parameter.required,
-                            "default": parameter.default,
-                            "nargs": parameter.nargs,
-                            "type": type(parameter.type).__name__,
-                            "help": getattr(parameter, "help", None),
-                            "is_flag": getattr(parameter, "is_flag", False),
-                            "multiple": parameter.multiple,
-                        }
-                        for parameter in child.params
-                    ],
-                }
-            )
-        examples = []
-        stats = ArtistLibraryStats(
-            artist_name="Example Artist",
-            artist_id="artist-id",
-            liked_tracks=6,
-            saved_releases=2,
-            source="spotify-live",
-        )
-        album = AlbumEvaluation(
-            album_name="Example Album",
-            album_id="album-id",
-            artist_name="Example Artist",
-            total_tracks=3,
-            liked_tracks=1,
-            required_liked_tracks=1,
-            liked_ratio=1 / 3,
-            threshold=0.5,
-            decision="keep",
-            tracks=[],
-            source="spotify-live",
-        )
-        # Values below are canned application outputs, not behavioral test oracles.
-        with (
-            patch.object(main, "client", return_value=object()),
-            patch.object(legacy_library, "count_artists_in_library", return_value=42),
-            patch.object(
-                lookup_operations, "get_live_artist_library_stats", return_value=stats
-            ),
-            patch.object(lookup_operations, "evaluate_live_album", return_value=album),
-        ):
-            for args in (
-                ["count-artists"],
-                ["artist-stats", "Example Artist"],
-                ["album-decision", "Example Album"],
-                ["artist-stats"],
-                ["album-decision"],
-                ["not-a-command"],
-            ):
-                result = runner.invoke(
-                    main.app,
-                    args,
-                    prog_name="spotify-manager",
-                    terminal_width=100,
-                    color=False,
-                )
-                examples.append(
-                    {
-                        "argv": args,
-                        "exit_code": result.exit_code,
-                        "stdout": terminal_text(result.stdout),
-                        "stderr": terminal_text(result.stderr),
-                    }
-                )
+        help_pages, commands = _capture_help(main, command, runner)
+        examples = _capture_examples(main, runner)
     return {
         "cli-help.txt": "\n".join(help_pages).rstrip("\n") + "\n",
         "cli-commands.json": as_json(commands),
@@ -429,10 +349,124 @@ def capture_cli(main: Any) -> dict[str, str]:
     }
 
 
+def _capture_help(
+    main: ModuleType, command: TyperGroup, runner: SnapshotRunner
+) -> tuple[list[str], list[dict[str, object]]]:
+    help_pages = []
+    commands = []
+    for name in [None, *sorted(command.commands)]:
+        args = ["--help"] if name is None else [name, "--help"]
+        result = runner.invoke(
+            main.app, args, prog_name="spotify-manager", terminal_width=100, color=False
+        )
+        if result.exit_code != 0:
+            raise RuntimeError(f"Help failed: {args}: {result.exception}")
+        output = terminal_text(result.output)
+        help_pages.append(f"$ spotify-manager {' '.join(args)}\n{output}")
+        if name is not None:
+            commands.append(_command_record(name, command.commands[name]))
+    return help_pages, commands
+
+
+def _command_record(name: str, child: Command) -> dict[str, object]:
+    if child.callback is None:
+        raise TypeError(f"Missing callback for {name}")
+    parameters = []
+    for parameter in child.params:
+        parameters.append(_parameter_record(parameter))
+    return {
+        "name": name,
+        "handler": child.callback.__name__,
+        "help": child.help,
+        "parameters": parameters,
+    }
+
+
+def _parameter_record(parameter: Parameter) -> dict[str, object]:
+    return {
+        "name": parameter.name,
+        "kind": type(parameter).__name__,
+        "opts": parameter.opts,
+        "secondary_opts": parameter.secondary_opts,
+        "required": parameter.required,
+        "default": parameter.default,
+        "nargs": parameter.nargs,
+        "type": type(parameter.type).__name__,
+        "help": getattr(parameter, "help", None),
+        "is_flag": getattr(parameter, "is_flag", False),
+        "multiple": parameter.multiple,
+    }
+
+
+def _capture_examples(
+    main: ModuleType, runner: SnapshotRunner
+) -> list[dict[str, object]]:
+    from spotify_manager.interfaces import lookup_operations
+    from spotify_manager.interfaces.operations import legacy_library
+    from spotify_manager.models.lookups import AlbumEvaluation
+    from spotify_manager.models.lookups import ArtistLibraryStats
+
+    examples = []
+    stats = ArtistLibraryStats(
+        artist_name="Example Artist",
+        artist_id="artist-id",
+        liked_tracks=6,
+        saved_releases=2,
+        source="spotify-live",
+    )
+    album = AlbumEvaluation(
+        album_name="Example Album",
+        album_id="album-id",
+        artist_name="Example Artist",
+        total_tracks=3,
+        liked_tracks=1,
+        required_liked_tracks=1,
+        liked_ratio=1 / 3,
+        threshold=0.5,
+        decision="keep",
+        tracks=[],
+        source="spotify-live",
+    )
+    # Values below are canned application outputs, not behavioral test oracles.
+    with (
+        patch.object(main, "client", return_value=object()),
+        patch.object(legacy_library, "count_artists_in_library", return_value=42),
+        patch.object(
+            lookup_operations, "get_live_artist_library_stats", return_value=stats
+        ),
+        patch.object(lookup_operations, "evaluate_live_album", return_value=album),
+    ):
+        for args in (
+            ["count-artists"],
+            ["artist-stats", "Example Artist"],
+            ["album-decision", "Example Album"],
+            ["artist-stats"],
+            ["album-decision"],
+            ["not-a-command"],
+        ):
+            result = runner.invoke(
+                main.app,
+                args,
+                prog_name="spotify-manager",
+                terminal_width=100,
+                color=False,
+            )
+            examples.append(
+                {
+                    "argv": args,
+                    "exit_code": result.exit_code,
+                    "stdout": terminal_text(result.stdout),
+                    "stderr": terminal_text(result.stderr),
+                }
+            )
+    return examples
+
+
 def capture_runtime() -> dict[str, str]:
     """Inspect application registrations without running ASGI lifespan/jobs."""
     from spotify_manager import api
     from spotify_manager import main
+    from spotify_manager.interfaces.http.jobs import STATE_NAMESPACE_DEFINITIONS
     from spotify_manager.settings import Settings
 
     result = capture_cli(main)
@@ -447,16 +481,11 @@ def capture_runtime() -> dict[str, str]:
     pure_schema = json.loads(result["openapi.json"])
     result["web-openapi-additions.json"] = as_json(
         {
-            "paths": {
-                key: value
-                for key, value in web_schema["paths"].items()
-                if key not in pure_schema["paths"]
-            },
-            "schemas": {
-                key: value
-                for key, value in web_schema["components"]["schemas"].items()
-                if key not in pure_schema["components"]["schemas"]
-            },
+            "paths": _additional_values(web_schema["paths"], pure_schema["paths"]),
+            "schemas": _additional_values(
+                web_schema["components"]["schemas"],
+                pure_schema["components"]["schemas"],
+            ),
         }
     )
     routes.extend(route_inventory(web.app, "web")[pure_count:])
@@ -467,29 +496,47 @@ def capture_runtime() -> dict[str, str]:
                 "env_file": ".env",
                 "case_sensitive": Settings.model_config["case_sensitive"],
             },
-            "fields": {
-                name: {
-                    "environment_name": name.upper(),
-                    "required": field.is_required(),
-                    "default": None if field.is_required() else field.default,
-                    "annotation": str(field.annotation),
-                    "alias": field.alias,
-                    "validation_alias": field.validation_alias,
-                }
-                for name, field in Settings.model_fields.items()
-            },
+            "fields": _settings_fields(Settings),
         }
     )
     result["state-defaults.json"] = as_json(
-        {
-            name: {
-                "default": definition.default(),
-                "validator": retained_validator_name(definition),
-            }
-            for name, definition in api.STATE_NAMESPACE_DEFINITIONS.items()
-        }
+        _state_defaults(STATE_NAMESPACE_DEFINITIONS)
     )
     return result
+
+
+def _additional_values(
+    values: dict[str, object], existing: dict[str, object]
+) -> dict[str, object]:
+    additional = {}
+    for name, value in values.items():
+        if name not in existing:
+            additional[name] = value
+    return additional
+
+
+def _settings_fields(model: type[BaseSettings]) -> dict[str, object]:
+    fields: dict[str, object] = {}
+    for name, value in model.model_fields.items():
+        fields[name] = {
+            "environment_name": name.upper(),
+            "required": value.is_required(),
+            "default": None if value.is_required() else value.default,
+            "annotation": str(value.annotation),
+            "alias": value.alias,
+            "validation_alias": value.validation_alias,
+        }
+    return fields
+
+
+def _state_defaults(definitions: dict[str, StateDefinition]) -> dict[str, object]:
+    defaults: dict[str, object] = {}
+    for name, definition in definitions.items():
+        defaults[name] = {
+            "default": definition.default(),
+            "validator": retained_validator_name(definition),
+        }
+    return defaults
 
 
 def retained_validator_name(definition: StateDefinition) -> str:

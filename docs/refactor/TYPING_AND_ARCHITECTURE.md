@@ -87,6 +87,21 @@ modules, stale reports, exact thresholds and the command's failing exit status.
 
 ## Local and GitHub checks
 
+The original CLI help snapshot contains two terminal-truncated absolute checkout
+paths. [`cli_capture.py`](cli_capture.py) supplies that historical checkout prefix
+only while formatting help, then restores the exact original defaults. The
+independent parameter inventory still checks the real relative path and all
+other default values. Tests capture all 11 artifacts from a different checkout,
+verify restoration on failure and confirm actual command execution uses its real
+defaults. No expected artifact or output-comparison normalization was changed.
+
+The frozen Discography history trace likewise retains its original fake-reader
+path as an explicit test input, rather than deriving it from the current checkout.
+A separate test verifies arbitrary path forwarding. Test isolation removes
+GitHub's forced-color settings before importing the CLI, keeping message
+assertions independent of ANSI styling. The interface checker now reports exact
+unified differences when a byte comparison fails.
+
 ```console
 uv sync --locked --dev
 just lint-mypy
@@ -122,7 +137,7 @@ The strict flags are explicit per module; focused checks also run `--strict`.
 
 ## Verification and review
 
-Final local verification on 2026-10-30:
+Full local verification on 2026-10-30, followed by the CI portability regressions:
 
 - **11,117 tests passed**, randomized seed `20261030`, in 407.83 seconds.
   The existing Starlette TestClient dependency deprecation is the only warning.
@@ -133,19 +148,22 @@ Final local verification on 2026-10-30:
 - Application: **8,782 statements / 2,068 branches, 100% each**.
 - All **68 new architecture/typing/payload/coverage guard tests** pass as part
   of the complete suite. Invalid-source probes prove the guards reject failures.
-- Package/automation mypy passes **687 files**; strict business/native/test typing
-  passes **431 files**. Ruff and formatting pass **696 source/guard files**.
-  The **136 changed/new functions** pass the structural audit.
+- Package/automation/capture typing and strict business/native/tool typing pass.
+  Production changes, capture helpers and new tests pass Ruff, formatting and the
+  structural audit.
 - All **11 frozen public artifacts** match without new normalizations. Original
   expected fixtures, frontend source and callback exemptions are unchanged.
 - Locked installation, source distribution and wheel build pass; the new boundary
-  schemas are included in the wheel. All **114 relative links** in changed guides
-  resolve.
+  schemas are included in the wheel. Relative links in the changed guides resolve.
 - Local read-only health, password, shared-state/source and all **20 reconnect**
   checks pass with no active jobs. The four restored operator files retain their
   exact backed-up bytes and are excluded from the PR.
 
-GitHub repeats these checks on Linux and retains the synthetic reports on the PR.
+The subsequent **127 targeted CI-environment regressions pass** with GitHub's
+color-forcing variables deliberately enabled, including the full capture from a
+foreign checkout, the immutable history traces and all four CLI validation
+messages. Expected fixtures remain unchanged. GitHub repeats the complete updated
+suite on Linux and retains its synthetic reports on the PR.
 Tests use synthetic configuration, block live sockets and protect operator files.
 
 The local web preview for this branch is **http://127.0.0.1:8766/**, with any

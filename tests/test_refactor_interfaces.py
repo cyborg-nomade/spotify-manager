@@ -15,6 +15,25 @@ ENDPOINT_PAYLOAD = """{
 }"""
 
 
+def test_interface_mismatch_reports_the_exact_diff_without_rewriting(
+    tmp_path: Path,
+) -> None:
+    """Make CI failures actionable while retaining byte-exact comparison.
+
+    Args:
+        tmp_path: Independent synthetic original and candidate captures.
+    """
+    candidate, baseline = _captures(tmp_path, ENDPOINT_PAYLOAD)
+    original = "Usage: original --original-option\n"
+    (baseline / "cli-help.txt").write_text(original)
+    (candidate / "cli-help.txt").write_text("Usage: changed --changed-option\n")
+    with pytest.raises(AssertionError, match="cli-help.txt") as failure:
+        compare_interfaces(candidate, baseline)
+    assert "-Usage: original --original-option" in str(failure.value)
+    assert "+Usage: changed --changed-option" in str(failure.value)
+    assert (baseline / "cli-help.txt").read_text() == original
+
+
 def _captures(root: Path, endpoints: str) -> tuple[Path, Path]:
     baseline = root / "baseline"
     candidate = root / "candidate"
