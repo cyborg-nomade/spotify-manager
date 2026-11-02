@@ -12,7 +12,7 @@ compressed Spotify mirrors and Last.fm history live in
 `cyborg-nomade/spotify-manager-data`. Local CLI, local web, and the Space use
 the same services.
 
-Three assets therefore have separate lifecycles:
+Four assets therefore have separate lifecycles:
 
 1. code and packaged data in the Space repository;
 2. durable routine state in the private state dataset;

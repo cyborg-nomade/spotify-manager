@@ -132,7 +132,7 @@ nearest-neighbor route with server-backed completion state.
 | Authentication and clients | `spotify_manager/client/`, `spotify_manager/_auth.py` | Spotify OAuth, credential rotation, Last.fm HTTP calls, and web password enforcement. |
 | Stable entry points | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Preserve command/endpoint signatures, overrides, composition and web delivery. |
 | Feature interfaces | `spotify_manager/interfaces/cli/`, `spotify_manager/interfaces/http/` | Validate input, own job signals, present results and translate interface errors. |
-| Invocation inputs | `spotify_manager/interfaces/requests/` | Cohesive typed options, interaction callbacks and persistence resources with small constructors. |
+| Invocation inputs | `spotify_manager/interfaces/requests/` | Cohesive typed options, named interaction resources and persistence resources with small constructors. |
 | Shared invocations | `spotify_manager/interfaces/operations/`, `lookup_operations.py`, `sauvignon_operations.py` | Construct invocation dependencies and invoke named application stages for CLI and HTTP. |
 | Application | `spotify_manager/application/` | Sequence observations, decisions, accepted effects, checkpoints and recovery. |
 | Domain | `spotify_manager/domain/` | Pure listening, ranking, progression, selection and state rules. |
@@ -145,7 +145,9 @@ nearest-neighbor route with server-backed completion state.
 | Local data | `spotify_manager/files/` | Exports, mirrors, caches, staging, backups, and audit logs. |
 
 Feature interfaces supply invocation-owned choice, progress, retry and cancellation
-callbacks to the shared operation. Application workflows retain Spotify mutation
+objects with explicit methods to the shared operation. Some compatibility type
+names still contain `Callbacks`; their fields are named resources, not functions.
+Application workflows retain Spotify mutation
 order and persistence/recovery sequencing; domain policies retain eligibility and
 selection. Results return to CLI or HTTP presenters. Concrete infrastructure
 bindings use explicit imports rather than mutable routine-module function lookup.
@@ -154,17 +156,20 @@ stage objects expose named `run`, `plan` or `resolve` methods; coordinators call
 those methods directly instead of receiving bound-method callbacks. Cohesive
 external resource objects expose catalog, playlist, history and state methods.
 Application stages stay visible in the application path, including child history
-refreshes, annual imports, release matching and Wine Cellar refill. Genuine
-operator, notification, cancellation, retry and clock callbacks remain at their
-interaction boundaries. The [call-path guide](refactor/CALL_PATH_SIMPLIFICATION.md)
+refreshes, annual imports, release matching and Wine Cellar refill. Operator,
+notification, cancellation, retry and clock resources also use named methods.
+The [call-path guide](refactor/CALL_PATH_SIMPLIFICATION.md)
 shows the entry, decision and result paths by family.
 
 Ordinary I/O, schema validation and checkpoint ownership use named objects, not
 bags of functions. Fixed presenters and operational stages are direct calls.
-Existing Python hook APIs are adapted at compatibility entries; normal routines
-use named state codecs and named catalog/file resources. A callback dependency
-guard rejects new execution indirection and records why each retained hook is
-necessary. See the [boundary inventory](refactor/CALL_PATH_SIMPLIFICATION.md#ordinary-io-and-execution-dependencies-2026-10-20).
+Four former function-valued Python helper APIs were explicitly retired during
+Item 7a; the [final report](refactor/FINAL_VERIFICATION.md#compatibility-edges-and-cleanup)
+lists their replacements. Normal routines use named state codecs and catalog/file
+resources. A callback dependency guard rejects new execution indirection and
+records each unavoidable framework/standard-library call or private SDK method
+capture whose lookup timing is frozen. An interaction or retry label is not an
+exemption. See the [boundary inventory](refactor/CALL_PATH_SIMPLIFICATION.md#ordinary-io-and-execution-dependencies-2026-10-20).
 
 The [retained helper inventory](refactor/RETAINED_LEGACY_HELPERS.md) records the
 remaining compatibility and frozen SDK source boundaries.
@@ -188,11 +193,19 @@ the user-visible behavior and safety rules for every command.
 
 ## Execution model
 
-### Synchronous CLI
+### Foreground CLI and runtime ownership
 
-The CLI executes a routine in the foreground. A routine can emit progress or
-retry events through callbacks and can call a prompt callback when a decision
-is required. Interruptible routines save their active state at safe boundaries.
+Typer parses the stable synchronous command signature. `run_cli` enters one
+top-level async runtime and awaits the named feature method. Application stages
+await I/O and operator choices; domain decisions are ordinary pure functions.
+Named interaction resources own progress, retry and prompts. Interruptible
+routines save their active state at safe boundaries.
+
+`bootstrap.execution.ExecutionRuntime` lazily owns the native HTTP pool,
+credential coordination, admitted jobs and bounded blocking work. CLI invocation
+and web lifespan each have one owner. Clients are never reused across loops.
+Complete Last.fm, Hub, file and retained SDK operations run through bounded
+resources; application workflows themselves stay on the async path.
 
 All durable routine state is accessed through `core.state.StateService`.
 Routines own validation for their namespace; the service owns document schema,
@@ -200,11 +213,11 @@ namespace merge, optimistic concurrency, visibility, manual replacement, and
 export. `infrastructure.huggingface.HubStateStore` persists the single document
 in a private dataset, while `JsonStateStore` provides isolated local/test use.
 
-### Threaded web jobs
+### Async web jobs
 
 Long-running web commands are represented by in-memory job objects in
 `interfaces/http/job_records.py`, registered through `interfaces/http/jobs.py`,
-and run in background threads. A typical interactive
+and scheduled as lifespan-owned async tasks through `JobTasks`. A typical interactive
 job follows this state machine:
 
 ```mermaid
@@ -227,8 +240,10 @@ A process restart removes the in-memory job object, but routines with durable
 state can start again from their last saved boundary.
 
 Only one active job of a given routine is accepted. Attempts to start a second
-one return HTTP 409. Choice endpoints wake a paused worker; cancel endpoints set
-a cancellation event that is checked at safe boundaries.
+one return HTTP 409. Choice endpoints notify that job's awaited signal; cancel
+endpoints set its cancellation signal, checked at safe boundaries. Shutdown drains
+admitted work before closing pooled clients. Accepted writes retain their existing
+checkpoint/reconciliation sequence. See [async execution](refactor/ASYNC_EXECUTION.md).
 
 ### Mutation ordering and idempotency
 
@@ -246,9 +261,12 @@ mappings.
 
 ### Spotify
 
-`spotify_manager/client/__init__.py` builds a `RotatingSpotify` client over one
-primary app and up to four optional apps (`app5` through `app8`). Every app has
-its own `SpotifyOAuth` manager and token cache.
+CLI and HTTP execution use the native adapter in
+`infrastructure/spotify_async/`, constructed by `bootstrap/spotify_async.py` and
+owned by `ExecutionRuntime`. One HTTPX pool serves the invocation's existing
+request profiles; per-credential refresh coordination does not serialize all I/O.
+One primary app and up to four optional apps (`app5` through `app8`) retain their
+OAuth managers, cache paths, scope and activation order.
 
 The client requests playlist read/write, library read/write, and follow
 read/write scopes. On HTTP 429 it refreshes and activates the next configured
@@ -260,13 +278,14 @@ The library analyzer controls retries itself: its 5xx backoff starts at 10
 seconds and is capped at 30 minutes. In the CLI, a waiting analysis can quit
 cleanly or force credential rotation.
 
-The Item 8 native adapter is available separately through
-`bootstrap/spotify_async.py`. One async context owns its HTTPX pool and bounded
-OAuth/cache work, with per-credential refresh coordination and the existing
-request/retry contracts. The current CLI and web routines remain synchronous;
-Item 9 installs that runtime at their entry boundaries. See the
-[native transport guide](refactor/ASYNC_SPOTIFY_TRANSPORT.md) for call paths,
-recorded contracts, cancellation and cleanup guarantees.
+Standard, analysis and interactive retry profiles retain their original
+differences; the transport does not invent a common retry policy. The retained
+`client.RotatingSpotify` and synchronous Python facades support caller-owned SDK
+clients. Normal CLI/HTTP paths use native async methods directly. See the
+[native transport guide](refactor/ASYNC_SPOTIFY_TRANSPORT.md) for HTTP contracts
+and [independent-read guide](refactor/INDEPENDENT_READS.md) for the bounded
+four-batch catalog overlap. Writes, dependent pages and membership observations
+remain sequential. Cache lifetime ends with that metadata operation.
 
 ### Last.fm
 
@@ -402,19 +421,10 @@ API job, authentication and web integration coverage at `tests/` root.
 
 ### Adding or changing a routine
 
-1. Update the listening-rules document when the behavior itself changes.
-2. Put pure decisions in `domain/` and workflow/effect sequencing in
-   `application/`. Bind concrete integrations at the outer boundary and keep
-   prompts and HTML in feature adapters.
-3. Add or update the Typer adapter and its `justfile` recipe.
-4. Add API request/response models and a background-job adapter when the routine
-   belongs in the web cockpit.
-5. Add the cockpit controls, choice rendering, logs, cancellation, and reload
-   reconnection behavior.
-6. Add routine tests first, then CLI/API/web adapter tests proportional to the
-   changed surface.
-7. Update the command reference, configuration table, and data/state guide.
-8. Run `just test`, then follow the state-preserving deployment runbook.
+Follow [Adding or changing a routine](ADDING_A_ROUTINE.md) for concrete route,
+application, domain and presenter navigation, dependency rules and the test
+recipe. Behavioral changes require a separate contract review; this refactor's
+frozen fixtures remain immutable. Frontend source restructuring is future work.
 
 ## Known architectural constraints
 

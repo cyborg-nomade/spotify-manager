@@ -1,7 +1,26 @@
 # Item 11: strict typing and architecture enforcement
 
-**Status:** implemented for review on `codex/refactor-11-type-architecture-gates`,
-based on Item 10 merge `3cb2f78`. Deployment and merge await this item's approval.
+**Status:** approved, deployed, verified and merged in PR #71 on 2026-11-02,
+based on Item 10 merge `3cb2f78`. Merge commit: `c90289d`.
+
+## Release record
+
+Approved source `50e82b12bd892ba6256209c4bc0b42ed0dfe75c4` was deployed as Space
+revision `a7ecf6070803a346fa4f66da2ae9ff9cd866df3a`. All 41 changed code/configuration
+paths matched their exact Git blobs, and the Space reached `RUNNING`.
+The rollback Space revision is `1af40380320cc06f198e13b2a33574fa393bc1f1`.
+State revision `4fa217972f87f7540e531a3cbf7b873894d0b3f0` and canonical-data revision
+`dc442c31b1da47ad5e87798a68caa94a9e3a663a` stayed unchanged during deployment.
+Authenticated check-only workflows passed
+[before](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41415023827)
+and [after](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41415473268),
+covering shared state, four durable artifacts and all 20 reconnect endpoints with
+no active jobs. No routine was started by these checks.
+The final Linux suite passed **11,128 tests**, with package statement/branch
+coverage **95.69% / 92.17%** and domain/application **100% / 100%** each.
+The preview shut down cleanly; the latest four operator files were retained in a
+named stash and a separately verified backup. The Item 11 branch was removed
+and clean master updated before Item 12 began.
 
 ## Default typing protects the business rules
 
@@ -166,11 +185,12 @@ messages. Expected fixtures remain unchanged. GitHub repeats the complete update
 suite on Linux and retains its synthetic reports on the PR.
 Tests use synthetic configuration, block live sockets and protect operator files.
 
-The local web preview for this branch is **http://127.0.0.1:8766/**, with any
+The local web preview for this branch was **http://127.0.0.1:8766/**, with any
 nonempty local unlock text. Its startup, password gate, shared-state/source reads
 and all 20 reconnect endpoints are checked without starting a routine. The latest
 four operator files are backed up separately, restored after startup hydration
 and excluded from the PR.
 
-Item 12 next completes the final compatibility and documentation audit. Frontend
-source restructuring remains a future targeted refactor.
+The active review environment and final compatibility audit now follow
+[Item 12](FINAL_VERIFICATION.md). Frontend source restructuring remains a future
+targeted refactor.

@@ -69,7 +69,23 @@ lint-inner:
         spotify_manager/infrastructure/spotify_payloads.py \
         docs/refactor/cli_capture.py docs/refactor/check_interfaces.py \
         tests/domain tests/application tests/spotify_async \
-        tests/read_efficiency tests/architecture tests/test_refactor_interfaces.py
+        tests/read_efficiency tests/architecture tests/verification tests/test_refactor_interfaces.py
+
+# Verify retained Python imports and test assertion strength without live services.
+test-final:
+    uv run ruff check tests/verification
+    uv run ruff format --check tests/verification
+    uv run mypy --strict tests/verification
+    uv run pytest tests/verification
+
+# Exercise deliberate policy defects in isolated temporary copies of domain code.
+test-mutations:
+    uv run pytest tests/verification/test_policy_mutations.py
+
+# Build and verify actual wheel imports outside the checkout, with sockets blocked.
+verify-wheel:
+    uv build --out-dir build/distributions
+    uv run python -m tests.verification.wheel_smoke build/distributions/spotify_manager-0.1.0-py3-none-any.whl
 
 # Verify static dependency direction, direct calls, cycles and guard failures.
 test-architecture:
@@ -300,8 +316,8 @@ test-application:
 
 # Run mandatory typing, randomized compatibility and independent coverage floors.
 ci-test: lint lint-mypy lint-inner
-    uv run ruff check tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
-    uv run ruff format --check tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+    uv run ruff check tests/architecture tests/verification docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+    uv run ruff format --check tests/architecture tests/verification docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
     uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov-report=json:{{ quote(coverage_report_path) }} --cov-branch --cov={{ package_path }} tests
     uv run python -m tests.architecture.coverage_gate {{ quote(coverage_report_path) }}
 

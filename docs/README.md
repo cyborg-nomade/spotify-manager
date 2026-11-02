@@ -20,8 +20,10 @@ and a responsive web cockpit.
 2. Read the detailed [Architecture](ARCHITECTURE.md) when changing internals.
 3. Read [Data and state](DATA_AND_STATE.md) before touching anything under
    `spotify_manager/files/`.
-4. Use the routine-specific section in the [README](../README.md) together with
-   the corresponding module under `spotify_manager/routines/`.
+4. Follow the [routine developer guide](ADDING_A_ROUTINE.md) from a route or
+   command to its named use case and domain rule. Use the routine-specific
+   [README](../README.md) section for the operator contract; `routines/` retains
+   external Python compatibility entries.
 5. Run the quality checks documented in
    [Architecture: development workflow](ARCHITECTURE.md#development-workflow).
 
@@ -48,6 +50,9 @@ request budgets, bounded catalog overlap and the preserved sequential boundaries
 The [Item 11 enforcement guide](refactor/TYPING_AND_ARCHITECTURE.md) describes
 default strict business typing, architecture guards and independent CI coverage
 floors.
+All roadmap items are implemented, owner-approved and deployed. The
+[Item 12 final verification report](refactor/FINAL_VERIFICATION.md) closes the
+backend plan with the release record, evidence and remaining limitations.
 
 ### Operating the Hugging Face Space
 

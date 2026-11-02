@@ -485,10 +485,6 @@ from spotify_manager.settings import Settings as Settings
 __all__ = ["evaluate_album_live", "sauvignon"]
 
 
-def _new_year_default_state() -> dict[str, object]:
-    return {"years": {}}
-
-
 STATE_NAMESPACE_DEFINITIONS: dict[str, StateDefinition] = {
     "discography": DiscographyStateCodec(),
     "genre_reveal": GenreRevealStateCodec(),
@@ -618,12 +614,6 @@ def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
         job.result.logs, job.next_log_sequence, message, JobLogFormatter(datetime)
     )
     retain_logs(job.result.logs, _MAX_BLAST_LOGS)
-
-
-def _create_job_log(sequence: int, message: str) -> AnalysisJobLog:
-    return AnalysisJobLog(
-        sequence=sequence, timestamp=datetime.now(UTC).isoformat(), message=message
-    )
 
 
 def _analysis_job_identities() -> Iterator[JobIdentity]:
@@ -776,10 +766,6 @@ def _analysis_worker(
         full_rebuild=full_rebuild,
         mirror_resource=mirror_resource,
     )
-
-
-def _job_time() -> datetime:
-    return datetime.now(UTC)
 
 
 async def start_analysis_job(

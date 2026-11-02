@@ -125,7 +125,7 @@ exact routes and request model.
 | Status | Meaning |
 | --- | --- |
 | `queued` | Job object exists but work has not started. |
-| `running` | Worker thread is executing. |
+| `running` | The job's async task is executing. |
 | `waiting` | Worker is waiting for a user choice or scheduled retry. |
 | `cancelling` | Cancellation was requested and is awaiting a safe boundary. |
 | `cancelled` | Worker stopped cleanly. |
@@ -256,9 +256,11 @@ Reveal operation is active.
 
 ### Legacy command endpoints
 
-The API retains synchronous endpoints for monthly routines, total-album update,
+The API retains request/response endpoints for monthly routines, total-album update,
 export restoration, file comparison, comparison analysis, conversion, and
-artist count. They are not displayed in the current cockpit.
+artist count. They await completion instead of returning a background job handle
+and are not displayed in the current cockpit. Their execution is async; the
+historical route and analysis mode names remain unchanged.
 
 ## Calling the API directly
 
@@ -311,8 +313,8 @@ the job with a concise recoverable error while preserving routine state.
   transient connection failures most commonly seen immediately after wake-up.
 - Browser reload is safe during a running job; the card queries the active-job
   collection and resumes polling.
-- Server restart is different from browser reload. The worker thread ends, and
-  only routine files survive if they were preserved by storage or deployment.
+- Server restart is different from browser reload. In-memory tasks and job
+  handles end; persisted routine state and published data survive.
   New Release Check is the exception: the same browser automatically restores
   its newer checkpoint mirror after reconnecting.
 - Do not deploy while jobs are active or waiting for a choice.
