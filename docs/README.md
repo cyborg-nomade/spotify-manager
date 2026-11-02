@@ -50,8 +50,9 @@ request budgets, bounded catalog overlap and the preserved sequential boundaries
 The [Item 11 enforcement guide](refactor/TYPING_AND_ARCHITECTURE.md) describes
 default strict business typing, architecture guards and independent CI coverage
 floors.
-Items 1–11 are deployed and merged. The [Item 12 final verification report](refactor/FINAL_VERIFICATION.md)
-is the last roadmap item's review package and records the remaining limitations.
+All roadmap items are implemented, owner-approved and deployed. The
+[Item 12 final verification report](refactor/FINAL_VERIFICATION.md) closes the
+backend plan with the release record, evidence and remaining limitations.
 
 ### Operating the Hugging Face Space
 

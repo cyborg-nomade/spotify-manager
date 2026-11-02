@@ -1,10 +1,39 @@
 # Item 12: final compatibility verification and handover
 
-**Status:** implemented for review on `codex/refactor-12-final-verification`,
-starting from clean Item 11 merge `c90289d` on 2026-11-02. This is the **last item
-in the approved backend refactor roadmap**, including the additional Item 7a.
-Owner review, deployment verification, merge and cleanup remain pending.
+**Status:** owner-approved, deployed and verified in PR #72 on 2026-11-02,
+starting from clean Item 11 merge `c90289d`. This is the **last item in the
+approved backend refactor roadmap**, including the additional Item 7a.
 Frontend source restructuring remains a separate future targeted refactor.
+
+## Approved release
+
+Approved implementation `39e15a6253e73b36a67ede680c5adeb8770a373d` was deployed as
+Space revision `3d71ef63e020bc10cae221dbffd680c9cf39ab04`. The single changed code
+file, `spotify_manager/interfaces/http/jobs.py`, matches its exact Git blob. No
+data, credentials, configuration or frontend file was uploaded. The Space reached
+`RUNNING`; rollback code revision is
+`a7ecf6070803a346fa4f66da2ae9ff9cd866df3a`.
+
+State revision `4fa217972f87f7540e531a3cbf7b873894d0b3f0` and canonical-data revision
+`3dc5e569b2c8c95cb9a8a63736f19014fd78198f` stayed unchanged during deployment.
+Authenticated check-only workflows passed
+[before](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41427402151)
+and [after](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41427626455),
+covering health/authentication, shared state, all four artifacts and all 20
+reconnect endpoints with no active jobs. These checks started no routine and
+made no Spotify request.
+
+The approved source also passed both
+[Linux CI checks](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41419418101):
+11,794 tests, random seed `901799`, in 419.94 seconds; all independent coverage
+floors; 434 architecture/guard tests; strict typing; all 11 frozen artifacts; and
+the isolated built-wheel smoke. The release-record update changes documentation
+only; the deployed Python source remains the owner-approved implementation.
+
+The local preview was checked idle and stopped gracefully. The latest four
+operator files were copied to a separately verified backup before cleanup and
+are excluded from the PR. The approved backend roadmap is complete; future
+features and behavioral fixes require their own scope and review.
 
 ## What this item changes
 
@@ -182,7 +211,7 @@ checks and built-wheel smoke on Linux using locked dependencies, read-only
 permissions and no service secrets. Synthetic JUnit and coverage reports are
 retained for 14 days. The nightly production workflow is unchanged.
 
-The branch's local preview is **http://127.0.0.1:8766/**, unlocked with any
+The branch's local preview was **http://127.0.0.1:8766/**, unlocked with any
 nonempty local text. Read-only smoke checks cover health, password enforcement,
 shared state, source status and all **20 reconnect endpoints**, with no job
 started. The latest four operator files are retained separately, restored after
@@ -211,7 +240,11 @@ startup hydration and excluded from the implementation commit.
   live-service speedup is introduced. See the
   [frozen hazards](CONTRACTS.md) and
   [architecture backlog](../ARCHITECTURE_SPEC.md#9-pending-backlog).
+- Before this deployment, the owner reported exhausted Spotify credentials and
+  a long `Retry-After` on both local and HF runs. That issue is deferred for a
+  separate investigation; this release neither diagnoses nor changes it. No live
+  Spotify dry run was retried during deployment verification.
 
-After this PR is approved, the only remaining approved-plan actions are the
-state-preserving HF deployment and verification, PR merge, branch/worktree
-cleanup and return to clean, updated `master`.
+This release closes the approved backend plan. Continue to use the same
+state-preserving deployment, verification, PR review and cleanup workflow for
+separately approved future work.

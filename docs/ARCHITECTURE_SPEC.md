@@ -1,10 +1,11 @@
 # Architecture Specification
 
-**Status:** modular monolith; refactor Items 1–11 deployed and merged. Item 12
-is the final review package; see its
+**Status:** modular monolith; all approved backend refactor items are implemented,
+owner-approved and deployed. Item 12 closes the plan; see its
 [verification report](refactor/FINAL_VERIFICATION.md).
 
-**Current refactor base:** Item 11 merge `c90289d` (2026-11-02).
+**Final implementation:** approved source `39e15a6`, based on Item 11 merge
+`c90289d`; deployed on 2026-11-02. Release metadata is in the final report.
 
 **Scope:** current code, interfaces, persistence contracts, and known backlog
 

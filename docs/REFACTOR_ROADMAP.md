@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–11 deployed and merged; item 12 implemented for PR review.**
+**Status: all approved roadmap items implemented, owner-approved and deployed.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
@@ -36,8 +36,9 @@ typing, architecture guards and the independent CI coverage gates.
 Item 11 was approved, deployed and merged in PR #71. The
 [Item 12 final verification report](refactor/FINAL_VERIFICATION.md) records the
 compatibility evidence, final cleanup and remaining limitations. Item 12 is the
-last item in this approved plan; its review, deployment and merge remain pending.
-Frontend restructuring is separate future work.
+last item in this approved plan, approved and deployed in PR #72 on 2026-11-02.
+Its release record closes this backend refactor. Frontend restructuring and the
+reported Spotify rate-limit exhaustion remain separately scoped future work.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
