@@ -3,7 +3,6 @@
 from datetime import datetime as datetime
 from pathlib import Path
 from typing import Protocol
-from typing import cast
 
 from spotipy import Spotify as LegacySpotify
 
@@ -274,7 +273,7 @@ async def _read_lastfm_liked(
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid liked-track data for {artist.artist}."
         )
-    return cast(set[str], raw)
+    return raw
 
 
 def _track_artist_data(raw: object) -> tuple[tuple[str, str], ...]:

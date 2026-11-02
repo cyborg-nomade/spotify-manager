@@ -75,12 +75,37 @@ known-first-party = ["spotify_manager"]
 [tool.mypy]
 python_version = "3.14"
 plugins = ["pydantic.mypy"]
-ignore_missing_imports = true
+ignore_missing_imports = false
 disallow_untyped_defs = true
+warn_redundant_casts = true
 # tests/ mirror the package layout (tests/loaders_savers, ...); these flags let
 # mypy resolve both without the "duplicate module" / "found twice" errors.
 explicit_package_bases = true
 namespace_packages = true
+
+# These installed SDKs do not publish type information. Keep their dynamic
+# values at concrete integration and compatibility edges.
+[[tool.mypy.overrides]]
+module = ["spotipy.*", "pyuca.*"]
+ignore_missing_imports = true
+
+# The default package check must protect the business layers as strictly as the
+# focused recipes, including Any accidentally inherited from an untyped import.
+[[tool.mypy.overrides]]
+module = ["spotify_manager.domain.*", "spotify_manager.application.*"]
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+implicit_reexport = false
+strict_equality = true
+extra_checks = true
+disallow_any_explicit = true
+disallow_any_unimported = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

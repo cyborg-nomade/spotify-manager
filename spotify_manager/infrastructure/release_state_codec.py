@@ -89,9 +89,10 @@ def active_artists(active: ReleaseState) -> tuple[RankedArtist, ...]:
     if not isinstance(raw_artists, list):
         raise ReleaseCheckStateError("The active release-check ranking is invalid.")
     try:
-        return tuple(
-            RankedArtist(**cast(ConstructorFields, raw)) for raw in raw_artists
-        )
+        artists = []
+        for raw in raw_artists:
+            artists.append(RankedArtist(**cast(ConstructorFields, raw)))
+        return tuple(artists)
     except (TypeError, ValueError) as exc:
         raise ReleaseCheckStateError(
             "The active release-check ranking is invalid."

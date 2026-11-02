@@ -273,7 +273,7 @@ class ReviewInteraction:
 
     Args:
         output: Original visible progress and action messages.
-        progress: Original optional position/total callback.
+        progress: Original optional position/total progress resource.
         track: Original optional tied-track prompt.
         release: Original optional release prompt with decline availability.
     """

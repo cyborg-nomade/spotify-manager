@@ -1,9 +1,10 @@
 # Architecture Specification
 
-**Status:** modular monolith; refactor Items 1–7a deployed, Item 8 native transport
-prepared for review. Async application/interface activation remains Item 9.
+**Status:** modular monolith; refactor Items 1–10 deployed and merged. Item 11
+strict typing and architecture/CI enforcement is prepared for review; see its
+[verification guide](refactor/TYPING_AND_ARCHITECTURE.md).
 
-**Baseline:** Item 7 merge `7fe292c` (2026-10-03); Item 7a on `codex/refactor-07a-direct-use-cases`.
+**Current refactor base:** Item 10 merge `3cb2f78` (2026-10-30).
 
 **Scope:** current code, interfaces, persistence contracts, and known backlog
 
@@ -26,7 +27,7 @@ state and canonical mirror snapshots.
 flowchart LR
     U[Operator] --> CLI[Typer CLI]
     U --> WEB[Static web cockpit]
-    WEB --> API[FastAPI + threaded jobs]
+    WEB --> API[FastAPI + async jobs]
     CLI --> R[Application workflows and domain policies]
     API --> R
     R <--> SP[Spotify Web API]
@@ -57,7 +58,8 @@ datasets as production, so their durable state is shared.
 | `spotify_manager/domain/` | Pure listening and selection policies. |
 | `spotify_manager/bootstrap/` | Explicit concrete dependency construction at the original resource scope. |
 | `spotify_manager/routines/` | Public compatibility entries and concrete SDK/file/validation helpers with retained contracts. |
-| `spotify_manager/client/` | Rotating Spotipy client and read-only Last.fm client. |
+| `spotify_manager/infrastructure/spotify_async/` | Pooled native HTTPX transport, endpoint calls, credential coordination and retry profiles. |
+| `spotify_manager/client/` | Retained rotating Spotipy compatibility client and read-only Last.fm client. |
 | `spotify_manager/core/state/` | Central state document, namespace service, validation, optimistic concurrency, editing, and export. |
 | `spotify_manager/core/library_data/` | Canonical artifact manifest, integrity checks, hydrate/publish service, and conflict handling. |
 | `spotify_manager/infrastructure/` | Concrete Spotify/history/catalog/file adapters plus local JSON and Hugging Face persistence. |

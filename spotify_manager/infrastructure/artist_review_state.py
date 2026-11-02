@@ -33,10 +33,11 @@ def validate_state(raw: object) -> dict[str, object]:
     if not isinstance(raw, dict) or raw.get("version") != 1:
         raise ArtistReviewError("Artist-review state is invalid.")
     completed = raw.get("completed_artist_ids")
-    if not isinstance(completed, list) or not all(
-        isinstance(item, str) for item in completed
-    ):
+    if not isinstance(completed, list):
         raise ArtistReviewError("Artist-review state is invalid.")
+    for item in completed:
+        if not isinstance(item, str):
+            raise ArtistReviewError("Artist-review state is invalid.")
     if not isinstance(raw.get("pending_unfollows"), dict) or not isinstance(
         raw.get("pending_queue_moves"), dict
     ):

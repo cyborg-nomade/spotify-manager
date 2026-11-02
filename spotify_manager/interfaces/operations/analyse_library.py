@@ -101,7 +101,7 @@ async def analyse_library_async_routine(
     checkpoint = await load_or_create_checkpoint(analysis_storage(), paths)
     session = analysis_session(
         paths,
-        cast(Checkpoint, checkpoint),
+        checkpoint,
         progress=progress_callback,
         cancel_check=cancel_check,
     )
@@ -146,7 +146,7 @@ async def analyse_library_sync_routine(
     checkpoint = await load_or_create_checkpoint(analysis_storage(), paths)
     session = analysis_session(
         paths,
-        cast(Checkpoint, checkpoint),
+        checkpoint,
         progress=progress_callback,
         cancel_check=cancel_check,
         spotify=sp,
@@ -207,7 +207,7 @@ async def refresh_live_library_mirrors_routine(
     )
     session = analysis_session(
         paths,
-        cast(Checkpoint, checkpoint),
+        checkpoint,
         progress=progress_callback,
         cancel_check=cancel_check,
         spotify=sp,
@@ -273,7 +273,7 @@ async def refresh_live_library_resource_routine(
     )
     session = analysis_session(
         paths,
-        cast(Checkpoint, checkpoint),
+        checkpoint,
         progress=progress_callback,
         cancel_check=cancel_check,
         spotify=sp,

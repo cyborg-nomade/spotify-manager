@@ -188,9 +188,9 @@ class QueuePlaylists:
             (unlucky_ones, "UNLUCKY_ONES_PLAYLIST"),
         )
         try:
-            parsed = tuple(
-                new_wine.parse_playlist_id(value, setting) for value, setting in values
-            )
+            parsed = []
+            for value, setting in values:
+                parsed.append(new_wine.parse_playlist_id(value, setting))
         except new_wine.NewWineConfigError as exc:
             raise QueueConfigError(str(exc)) from exc
         return cls(*parsed)

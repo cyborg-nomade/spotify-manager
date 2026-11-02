@@ -22,6 +22,7 @@ NETWORK_EVENTS = {
     "socket.sendto",
 }
 FILE_EVENTS = {"open", "os.remove", "os.rename", "os.mkdir", "os.rmdir"}
+TERMINAL_VARIABLES = {"GITHUB_ACTIONS", "FORCE_COLOR", "PY_COLORS", "COLORTERM"}
 ENV_PREFIXES = (
     "SPOTIFY_MANAGER_",
     "SPOTIPY_",
@@ -55,6 +56,8 @@ def _synthetic_environment(temporary: Path) -> dict[str, str]:
         "LIMIT": "50",
         "LASTFM_API_KEY": "test-lastfm-key",
         "LASTFM_USERNAME": "test-listener",
+        "TERM": "dumb",
+        "NO_COLOR": "1",
         "SPOTIFY_MANAGER_STATE_BACKEND": "local",
         "SPOTIFY_MANAGER_STATE_LOCAL_PATH": str(temporary / "state.json"),
         "SPOTIFY_MANAGER_DATA_BACKEND": "local",
@@ -73,7 +76,11 @@ def isolate_environment(patch: pytest.MonkeyPatch, temporary: Path) -> None:
     from spotify_manager.settings import Settings
 
     for key in os.environ:
-        if key.lower() in Settings.model_fields or key.startswith(ENV_PREFIXES):
+        if (
+            key.lower() in Settings.model_fields
+            or key.startswith(ENV_PREFIXES)
+            or key in TERMINAL_VARIABLES
+        ):
             patch.delenv(key)
     for key, value in _synthetic_environment(temporary).items():
         patch.setenv(key, value)

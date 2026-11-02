@@ -1,5 +1,6 @@
 """Coordinate New Wine planning, ordered execution and resumable cellar refill."""
 
+from collections import Counter
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
@@ -54,11 +55,11 @@ class NewWineDependencies:
         access: Playlist, library, namespace, audit and refill integrations.
         observations: Fresh per-run catalog and liked-status cache.
         cellar: Named ordered Wine Cellar refill stage.
-        choose: Original release selection callback.
-        endpoint: Optional original endpoint selection callback.
+        choose: Original release selection interaction.
+        endpoint: Optional original endpoint selection interaction.
         presentation: Original planning and effect messages.
         clock: Original UTC clock for run and progress timestamps.
-        progress: Optional progress/cancellation callback.
+        progress: Optional progress/cancellation resource.
     """
 
     access: NewWineAccess
@@ -78,7 +79,7 @@ async def flush_new_wine(
 
     Args:
         options: Existing destinations and invocation modes.
-        dependencies: Run-owned integrations and operator callbacks.
+        dependencies: Run-owned integrations and operator interactions.
 
     Returns:
         Original summary including pause, resume and optional refill results.
@@ -229,7 +230,7 @@ class NewWineRun:
 
     Args:
         options: Original invocation settings.
-        dependencies: Explicit outer integrations and callbacks.
+        dependencies: Explicit outer integrations and interactions.
         execution: Ordered effect executor and membership projections.
         planner: Operator choices and observation policy.
         state: Complete mutable namespace.
@@ -337,19 +338,16 @@ class NewWineRun:
         await self.dependencies.access.save(self.state)
 
     def _summary(self, refill: CellarRefillSummary | None) -> FlushSummary:
+        actions = Counter(result.action for result in self.results)
         return FlushSummary(
             run_id=self.run_id,
             total=len(self.entries),
             processed=len(self.results),
-            advanced=sum(result.action == "advance" for result in self.results),
-            dropped=sum(result.action == "drop" for result in self.results),
-            sent_to_sauvignon=sum(
-                result.action == "sauvignon" for result in self.results
-            ),
-            completed_singles=sum(
-                result.action == "complete single" for result in self.results
-            ),
-            skipped=sum(result.action == "skip" for result in self.results),
+            advanced=actions["advance"],
+            dropped=actions["drop"],
+            sent_to_sauvignon=actions["sauvignon"],
+            completed_singles=actions["complete single"],
+            skipped=actions["skip"],
             albums_unsaved=sum(result.album_unsaved for result in self.results),
             paused=self.paused,
             dry_run=self.options.dry_run,

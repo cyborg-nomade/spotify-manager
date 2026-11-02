@@ -68,11 +68,11 @@ class RecoveryRun:
     Args:
         library: Existing observation, mutation, and audit boundaries.
         presentation: Existing message delivery.
-        state: Completed-work state and its persistence callback.
+        state: Completed-work state and its checkpoint resource.
         dry_run: Preview without remote or durable writes.
         clock: Original per-album audit timestamp source.
         today: Date source read only when the observed release date is nonempty.
-        progress: Optional completion/cancellation callback.
+        progress: Optional completion/cancellation resource.
         completed: Prior completed records included in the input.
         total: Progress denominator, respecting the original limit semantics.
 
@@ -188,7 +188,7 @@ class RecoveryRun:
             Original immutable result counts.
 
         Raises:
-            RuntimeError: An integration or callback interrupts execution.
+            RuntimeError: An integration or interaction interrupts execution.
             ValueError: A response contains more albums than requested.
         """
         self._notify_progress()
@@ -233,13 +233,13 @@ async def recover_albums(
         today: Per-album date source for nonempty release dates.
         dry_run: Preview without remote or durable writes.
         limit: Original slice limit, including zero and negative values.
-        progress: Optional completion and cancellation callback.
+        progress: Optional completion and cancellation resource.
 
     Returns:
         Counts for work completed in this invocation.
 
     Raises:
-        RuntimeError: An integration or callback interrupts execution.
+        RuntimeError: An integration or interaction interrupts execution.
         ValueError: Metadata batch size or stored input is invalid.
     """
     records, state = await library.load()

@@ -119,11 +119,11 @@ def namespace_editor_schema(name: str) -> StateEditorNamespace | None:
 def _path_segments(path: str) -> tuple[str, ...]:
     if not path.startswith("/"):
         raise StateDocumentError(f"State editor path must begin with '/': {path}")
-    return tuple(
-        segment.replace("~1", "/").replace("~0", "~")
-        for segment in path[1:].split("/")
-        if segment
-    )
+    segments = []
+    for segment in path[1:].split("/"):
+        if segment:
+            segments.append(segment.replace("~1", "/").replace("~0", "~"))
+    return tuple(segments)
 
 
 def _matching_values(
@@ -152,10 +152,10 @@ def _matching_values(
 
 
 def _values_by_path(value: object, path: str) -> dict[str, object]:
-    return {
-        "/".join(resolved): matched
-        for resolved, matched in _matching_values(value, _path_segments(path))
-    }
+    values = {}
+    for resolved, matched in _matching_values(value, _path_segments(path)):
+        values["/".join(resolved)] = matched
+    return values
 
 
 def validate_namespace_editor_change(

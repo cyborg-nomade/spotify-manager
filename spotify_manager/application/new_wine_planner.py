@@ -52,13 +52,13 @@ class SourceObservations:
 
 @dataclass
 class WinePlanner:
-    """Own one run's observations, choice callbacks and endpoint checkpoints.
+    """Own one run's observations, choice interactions and endpoint checkpoints.
 
     Args:
         observations: Run-scoped catalog and membership cache.
         progress: Original persisted source streak records.
-        choose: Existing release-choice callback.
-        endpoint_reader: Optional endpoint callback, required when mode is active.
+        choose: Existing release-choice interaction.
+        endpoint_reader: Optional endpoint interaction, required when mode is active.
         endpoint_mode: Whether to ask for album/EP endpoints.
         dry_run: Whether skip results describe a preview.
         execution: Named effect stage owning accepted endpoint checkpoints.

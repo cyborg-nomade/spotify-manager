@@ -49,7 +49,7 @@ async def resolve_composer_route(
         source_track_id: Marker recorded only when accepting a new route.
         owned_playlists: Original owned-playlist observations.
         excluded_playlist_ids: Review queues that must not become composer routes.
-        choose: Existing choice callback, including skip and quit responses.
+        choose: Existing choice interaction, including skip and quit responses.
         clock: Original UTC clock, read only when accepting a new route.
 
     Returns:

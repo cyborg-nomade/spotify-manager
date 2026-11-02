@@ -8,6 +8,7 @@ import argparse
 import ast
 import json
 import re
+from difflib import unified_diff
 from pathlib import Path
 from typing import cast
 
@@ -131,12 +132,26 @@ def compare_interfaces(candidate: Path, baseline: Path = BASELINE) -> int:
                 path
             ), ROUTES
         else:
-            assert (candidate / path.name).read_bytes() == path.read_bytes(), path.name
+            _assert_same_artifact(candidate / path.name, path)
         checked += 1
     assert _endpoint_contracts(candidate / ENDPOINTS) == _endpoint_contracts(
         baseline / ENDPOINTS
     ), ENDPOINTS
     return checked + 1
+
+
+def _assert_same_artifact(candidate: Path, baseline: Path) -> None:
+    actual = candidate.read_bytes()
+    expected = baseline.read_bytes()
+    if actual == expected:
+        return
+    changes = unified_diff(
+        expected.decode("utf-8").splitlines(keepends=True),
+        actual.decode("utf-8").splitlines(keepends=True),
+        fromfile=f"baseline/{baseline.name}",
+        tofile=f"candidate/{candidate.name}",
+    )
+    raise AssertionError(f"{baseline.name}\n" + "".join(changes))
 
 
 def main() -> None:

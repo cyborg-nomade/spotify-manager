@@ -1,0 +1,94 @@
+name: Backend quality
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typing-and-architecture:
+    name: Typing and architecture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.14"
+          python-version: "3.14"
+          enable-cache: true
+      - name: Install locked development dependencies
+        run: uv sync --locked --dev
+      - name: Lint and formatting
+        run: |
+          uv run --locked ruff check spotify_manager tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+          uv run --locked ruff format --check spotify_manager tests/architecture docs/refactor/capture_baseline.py docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+      - name: Package and automation typing
+        run: uv run --locked mypy spotify_manager .github/scripts/nightly_refresh.py docs/refactor/capture_baseline.py
+      - name: Strict business and native-adapter typing
+        run: >-
+          uv run --locked mypy --strict
+          spotify_manager/domain spotify_manager/application
+          spotify_manager/infrastructure/spotify_async
+          spotify_manager/bootstrap/spotify_async.py
+          spotify_manager/client/events.py
+          spotify_manager/infrastructure/catalog_reads.py
+          spotify_manager/infrastructure/lookup_catalog.py
+          spotify_manager/infrastructure/spotify_payloads.py
+          docs/refactor/cli_capture.py docs/refactor/check_interfaces.py
+          tests/domain tests/application tests/spotify_async
+          tests/read_efficiency tests/architecture tests/test_refactor_interfaces.py
+      - name: Dependency direction, direct calls and quality guard tests
+        run: >-
+          uv run --locked pytest -q
+          tests/architecture tests/bootstrap
+          tests/domain/test_dependencies.py
+          tests/application/test_application_dependencies.py
+          tests/routines/test_private_routine_dependencies.py
+      - name: Frozen CLI, API and frontend contracts
+        run: |
+          uv run --locked python docs/refactor/capture_baseline.py --write --output build/interfaces
+          uv run --locked python docs/refactor/check_interfaces.py build/interfaces
+
+  tests-and-coverage:
+    name: Tests and independent coverage floors
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.14"
+          python-version: "3.14"
+          enable-cache: true
+      - name: Install locked development dependencies
+        run: uv sync --locked --dev
+      - name: Randomized offline compatibility suite
+        run: >-
+          uv run --locked pytest tests --random-order --show-capture=no
+          --junitxml=build/reports/tests.xml
+          --cov=spotify_manager --cov-branch
+          --cov-report=term-missing --cov-report=json:build/reports/coverage.json
+      - name: Enforce statement and branch coverage separately
+        run: uv run --locked python -m tests.architecture.coverage_gate build/reports/coverage.json
+      - name: Retain synthetic test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: backend-quality-reports
+          path: build/reports/
+          if-no-files-found: warn
+          retention-days: 14

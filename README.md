@@ -1481,10 +1481,12 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `just lint` | Run Ruff lint and formatting checks. |
 | `just lint-ruff` | Run only the Ruff linter. |
 | `just lint-ruff-format` | Run only the Ruff formatting check. |
-| `just lint-mypy` | Type-check the package. |
+| `just lint-mypy` | Type-check the package and automation; domain/application settings are strict by default. |
+| `just lint-inner` | Strictly type-check business rules, native adapters and their tests. |
+| `just test-architecture` | Check inward dependencies, cycles, direct calls and the quality guards. |
 | `just lint-audit` | Audit dependencies with `pip-audit`. |
-| `just test` | Run lint plus the randomized test suite with coverage. |
-| `just ci-test` | Run lint and tests with a JUnit report. Set `PYTEST_REPORT_PATH` to override `test_report.xml`. |
+| `just test` | Run lint and randomized tests with independent statement/branch coverage floors. |
+| `just ci-test` | Also run package/strict typing and emit JUnit. `PYTEST_REPORT_PATH` overrides `test_report.xml`; `COVERAGE_REPORT_PATH` overrides `build/reports/coverage.json`. |
 | `just clean` | Remove build, bytecode, test, and coverage artifacts. |
 | `just clean-build` | Remove package build artifacts. |
 | `just clean-pyc` | Remove Python bytecode and editor backup files. |

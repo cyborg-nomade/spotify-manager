@@ -1,5 +1,7 @@
 """Stable public entry points for legacy export comparison and conversion."""
 
+from typing import cast
+
 from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
@@ -82,19 +84,23 @@ async def async_restore_your_library_from_file(sp: Spotify) -> None:
 
 
 async def _analyse_removed(sp: Spotify, identifier: str) -> object:
-    return (await sp.current_user_saved_albums_contains([identifier]))[0]
+    response = await sp.current_user_saved_albums_contains([identifier])
+    return cast(list[bool], response)[0]
 
 
 async def _analyse_added(sp: Spotify, identifier: str) -> object:
-    return (await sp.current_user_saved_albums_contains([identifier]))[0]
+    response = await sp.current_user_saved_albums_contains([identifier])
+    return cast(list[bool], response)[0]
 
 
 async def _contains_removed(sp: Spotify, identifier: str) -> object:
-    return (await sp.current_user_saved_albums_contains([identifier]))[0]
+    response = await sp.current_user_saved_albums_contains([identifier])
+    return cast(list[bool], response)[0]
 
 
 async def _contains_added(sp: Spotify, identifier: str) -> object:
-    return (await sp.current_user_saved_albums_contains([identifier]))[0]
+    response = await sp.current_user_saved_albums_contains([identifier])
+    return cast(list[bool], response)[0]
 
 
 def compare_your_library_and_all_albums() -> None:

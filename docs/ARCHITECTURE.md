@@ -387,15 +387,18 @@ Install the locked environment, then use the existing quality gates:
 ```console
 just install
 just format
-just test
-just lint-mypy
+just ci-test
 just lint-audit
 ```
 
-`just test` runs Ruff and the randomized pytest suite with package coverage.
-The configured coverage floor is 90 percent. Tests are organized by the same
-layers as the package, with additional CLI, API job, auth, and web integration
-coverage at `tests/` root.
+`just ci-test` runs Ruff, package/automation typing, strict business/native typing
+and the randomized suite with branch instrumentation. Statement/branch floors
+are checked separately: 95%/90% package-wide and 98%/95% for each business layer.
+`just test` runs lint and the same full-suite coverage gates; `just test-architecture`
+checks dependency direction, cycles, direct calls and the quality guards.
+See the [enforcement guide](refactor/TYPING_AND_ARCHITECTURE.md) for the exact
+boundaries and CI checks. Tests mirror the package layers, with additional CLI,
+API job, authentication and web integration coverage at `tests/` root.
 
 ### Adding or changing a routine
 

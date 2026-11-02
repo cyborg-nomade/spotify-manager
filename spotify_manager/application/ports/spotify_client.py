@@ -1,12 +1,11 @@
 """Typed async SDK boundary retaining permissive external Spotify payloads.
 
-The return boundary deliberately accepts unvalidated JSON. Existing endpoint
-parsers own validation, including malformed and null responses; narrowing it
-here would change their original error semantics.
+Raw results remain opaque objects until the concrete endpoint parser names the
+fields it consumes. Existing parsers retain ownership of malformed and null
+responses; these annotations add no validation, coercion or copying.
 """
 
 from collections.abc import Sequence
-from typing import Any
 from typing import Protocol
 
 from spotify_manager.application.ports.spotify_async import QueryValue
@@ -15,7 +14,9 @@ from spotify_manager.application.ports.spotify_async import QueryValue
 class SpotifyClient(Protocol):
     """Await the inventoried Spotify endpoints without choosing business policy."""
 
-    async def get(self, path: str, query: dict[str, QueryValue] | None = None) -> Any:
+    async def get(
+        self, path: str, query: dict[str, QueryValue] | None = None
+    ) -> object:
         """Await one explicit GET operation.
 
         Args:
@@ -32,7 +33,7 @@ class SpotifyClient(Protocol):
         path: str,
         payload: object = None,
         query: dict[str, QueryValue] | None = None,
-    ) -> Any:
+    ) -> object:
         """Await one explicit POST operation.
 
         Args:
@@ -50,7 +51,7 @@ class SpotifyClient(Protocol):
         path: str,
         payload: object = None,
         query: dict[str, QueryValue] | None = None,
-    ) -> Any:
+    ) -> object:
         """Await one explicit PUT operation.
 
         Args:
@@ -68,7 +69,7 @@ class SpotifyClient(Protocol):
         path: str,
         payload: object = None,
         query: dict[str, QueryValue] | None = None,
-    ) -> Any:
+    ) -> object:
         """Await one explicit DELETE operation.
 
         Args:
@@ -81,7 +82,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def album(self, album_id: str, market: str | None = None) -> Any:
+    async def album(self, album_id: str, market: str | None = None) -> object:
         """Await the original album endpoint contract.
 
         Args:
@@ -95,7 +96,7 @@ class SpotifyClient(Protocol):
 
     async def album_tracks(
         self, album_id: str, limit: int = 50, offset: int = 0, market: str | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original album tracks endpoint contract.
 
         Args:
@@ -109,7 +110,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def albums(self, albums: Sequence[str], market: str | None = None) -> Any:
+    async def albums(self, albums: Sequence[str], market: str | None = None) -> object:
         """Await the original albums endpoint contract.
 
         Args:
@@ -121,7 +122,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def artist(self, artist_id: str) -> Any:
+    async def artist(self, artist_id: str) -> object:
         """Await the original artist endpoint contract.
 
         Args:
@@ -140,7 +141,7 @@ class SpotifyClient(Protocol):
         country: str | None = None,
         limit: int = 20,
         offset: int = 0,
-    ) -> Any:
+    ) -> object:
         """Await the original artist albums endpoint contract.
 
         Args:
@@ -156,7 +157,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def artist_top_tracks(self, artist_id: str, country: str = "US") -> Any:
+    async def artist_top_tracks(self, artist_id: str, country: str = "US") -> object:
         """Await the original artist top tracks endpoint contract.
 
         Args:
@@ -168,7 +169,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def current_user(self) -> Any:
+    async def current_user(self) -> object:
         """Await the original current user endpoint contract.
 
         Returns:
@@ -178,7 +179,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_followed_artists(
         self, limit: int = 20, after: str | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user followed artists endpoint contract.
 
         Args:
@@ -192,7 +193,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_following_artists(
         self, ids: Sequence[str] | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user following artists endpoint contract.
 
         Args:
@@ -203,7 +204,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def current_user_playlists(self, limit: int = 50, offset: int = 0) -> Any:
+    async def current_user_playlists(self, limit: int = 50, offset: int = 0) -> object:
         """Await the original current user playlists endpoint contract.
 
         Args:
@@ -217,7 +218,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_saved_albums(
         self, limit: int = 20, offset: int = 0, market: str | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user saved albums endpoint contract.
 
         Args:
@@ -230,7 +231,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def current_user_saved_albums_add(self, albums: Sequence[str] = ()) -> Any:
+    async def current_user_saved_albums_add(self, albums: Sequence[str] = ()) -> object:
         """Await the original current user saved albums add endpoint contract.
 
         Args:
@@ -243,7 +244,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_saved_albums_contains(
         self, albums: Sequence[str] = ()
-    ) -> Any:
+    ) -> object:
         """Await the original current user saved albums contains endpoint contract.
 
         Args:
@@ -254,7 +255,9 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def current_user_saved_albums_delete(self, albums: Sequence[str] = ()) -> Any:
+    async def current_user_saved_albums_delete(
+        self, albums: Sequence[str] = ()
+    ) -> object:
         """Await the original current user saved albums delete endpoint contract.
 
         Args:
@@ -267,7 +270,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_saved_tracks(
         self, limit: int = 20, offset: int = 0, market: str | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user saved tracks endpoint contract.
 
         Args:
@@ -282,7 +285,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_saved_tracks_add(
         self, tracks: Sequence[str] | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user saved tracks add endpoint contract.
 
         Args:
@@ -295,7 +298,7 @@ class SpotifyClient(Protocol):
 
     async def current_user_saved_tracks_contains(
         self, tracks: Sequence[str] | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original current user saved tracks contains endpoint contract.
 
         Args:
@@ -306,7 +309,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def next(self, result: object) -> Any:
+    async def next(self, result: object) -> object:
         """Await the original next endpoint contract.
 
         Args:
@@ -319,7 +322,7 @@ class SpotifyClient(Protocol):
 
     async def playlist_add_items(
         self, playlist_id: str, items: Sequence[str], position: int | None = None
-    ) -> Any:
+    ) -> object:
         """Await the original playlist add items endpoint contract.
 
         Args:
@@ -339,7 +342,7 @@ class SpotifyClient(Protocol):
         offset: int = 0,
         type: str = "track",  # noqa: A002 - Preserve the SDK keyword.
         market: str | None = None,
-    ) -> Any:
+    ) -> object:
         """Await the original search endpoint contract.
 
         Args:
@@ -354,7 +357,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def track(self, track_id: str, market: str | None = None) -> Any:
+    async def track(self, track_id: str, market: str | None = None) -> object:
         """Await the original track endpoint contract.
 
         Args:
@@ -366,7 +369,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def tracks(self, tracks: Sequence[str], market: str | None = None) -> Any:
+    async def tracks(self, tracks: Sequence[str], market: str | None = None) -> object:
         """Await the original tracks endpoint contract.
 
         Args:
@@ -378,7 +381,7 @@ class SpotifyClient(Protocol):
         """
         ...
 
-    async def user_follow_artists(self, ids: Sequence[str] = ()) -> Any:
+    async def user_follow_artists(self, ids: Sequence[str] = ()) -> object:
         """Await the original user follow artists endpoint contract.
 
         Args:
@@ -396,7 +399,7 @@ class SpotifyClient(Protocol):
         public: bool = True,
         collaborative: bool = False,
         description: str = "",
-    ) -> Any:
+    ) -> object:
         """Await the original user playlist create endpoint contract.
 
         Args:
@@ -417,7 +420,7 @@ class SpotifyClient(Protocol):
         args: dict[str, QueryValue] | None = None,
         payload: object = None,
         **kwargs: QueryValue,
-    ) -> Any:
+    ) -> object:
         """Retain the SDK raw GET parameter convention at the adapter edge.
 
         Args:
@@ -437,7 +440,7 @@ class SpotifyClient(Protocol):
         args: dict[str, QueryValue] | None = None,
         payload: object = None,
         **kwargs: QueryValue,
-    ) -> Any:
+    ) -> object:
         """Retain the SDK raw POST parameter convention at the adapter edge.
 
         Args:
@@ -457,7 +460,7 @@ class SpotifyClient(Protocol):
         args: dict[str, QueryValue] | None = None,
         payload: object = None,
         **kwargs: QueryValue,
-    ) -> Any:
+    ) -> object:
         """Retain the SDK raw PUT parameter convention at the adapter edge.
 
         Args:
@@ -477,7 +480,7 @@ class SpotifyClient(Protocol):
         args: dict[str, QueryValue] | None = None,
         payload: object = None,
         **kwargs: QueryValue,
-    ) -> Any:
+    ) -> object:
         """Retain the SDK raw DELETE parameter convention at the adapter edge.
 
         Args:

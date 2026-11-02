@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -15,7 +16,7 @@ from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.application.something_old_values import SomethingOldError
 from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
 from tests.support.discography_boundaries import history_outcome
-from tests.support.discography_run import FIXTURE
+from tests.support.discography_run import HISTORY_INPUT_PATH
 from tests.support.discography_run import cases
 from tests.support.discography_run import historical
 from tests.support.palace_history import HistoryInputs
@@ -26,10 +27,24 @@ def _cutoff() -> date:
     return date(2025, 12, 31)
 
 
-async def _outcome(profile: str, second: int) -> object:
+async def test_history_reader_receives_the_supplied_path(tmp_path: Path) -> None:
+    """Keep path forwarding covered independently of the fixed historical input.
+
+    Args:
+        tmp_path: Arbitrary fake history input, never read from disk.
+    """
+    path = tmp_path / "custom-history"
+    outcome = await _outcome("normal", 1, path)
+    assert isinstance(outcome, dict)
+    assert ["history", str(path)] in outcome["trace"]
+
+
+async def _outcome(
+    profile: str, second: int, path: Path = HISTORY_INPUT_PATH
+) -> object:
     edge = HistoryReads(profile, second)
     owner = DiscographyHistory(
-        HistoryInputs(edge, FIXTURE.with_name("history"), _cutoff()),
+        HistoryInputs(edge, path, _cutoff()),
         edge,
         date(2007, 11, 27),
     )

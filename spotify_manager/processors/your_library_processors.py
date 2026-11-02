@@ -1,5 +1,7 @@
 """Data processors for your library file."""
 
+from typing import cast
+
 from spotipy import Spotify as LegacySpotify
 
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
@@ -19,7 +21,8 @@ async def async_is_in_library_artist(sp: Spotify, artist: YourLibraryArtist) -> 
     Returns:
         The original first membership value without added validation.
     """
-    return (await sp.current_user_following_artists([artist.spotify_id]))[0]
+    response = await sp.current_user_following_artists([artist.spotify_id])
+    return cast(list[bool], response)[0]
 
 
 async def async_is_in_library_track(sp: Spotify, track: YourLibraryTrack) -> bool:
@@ -32,7 +35,8 @@ async def async_is_in_library_track(sp: Spotify, track: YourLibraryTrack) -> boo
     Returns:
         The original first membership value without added validation.
     """
-    return (await sp.current_user_saved_tracks_contains([track.spotify_id]))[0]
+    response = await sp.current_user_saved_tracks_contains([track.spotify_id])
+    return cast(list[bool], response)[0]
 
 
 async def async_save_to_library_artist(sp: Spotify, artist: YourLibraryArtist) -> None:

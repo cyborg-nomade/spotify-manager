@@ -116,15 +116,21 @@ class _Selection:
             return
         self._remember(candidate, mapped, track)
 
+    def _already_selected(self, track: CatalogTrack) -> bool:
+        if track.spotify_id in self.playlist.track_ids:
+            return True
+        for selected in self.pending:
+            if selected.spotify_id == track.spotify_id:
+                return True
+        return False
+
     def _remember(
         self,
         candidate: DormantArtist,
         mapped: SpotifyArtistCandidate,
         track: CatalogTrack,
     ) -> None:
-        if track.spotify_id in self.playlist.track_ids or any(
-            selected.spotify_id == track.spotify_id for selected in self.pending
-        ):
+        if self._already_selected(track):
             self.represented.add(candidate.key)
             return
         self.pending.append(track)

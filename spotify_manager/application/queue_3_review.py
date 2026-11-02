@@ -134,7 +134,7 @@ class Queue3Review:
         execution: Saved-plan executor and library reconciliation.
         observations: Run-scoped catalogs and works playlist observations.
         owned: Original owned playlists used to revalidate composer routes.
-        choose_composer: Optional original composer selection callback.
+        choose_composer: Optional original composer selection interaction.
         audit: Original transition audit boundary.
         presentation: Existing progress and stale-plan messages.
     """
