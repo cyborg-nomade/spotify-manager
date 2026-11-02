@@ -17,7 +17,8 @@ owner's request for colocated routes and small typed inputs.
 [Item 9 execution](ASYNC_EXECUTION.md) was approved, deployed and merged in PR #69.
 [Item 10 independent reads](INDEPENDENT_READS.md) was approved, deployed and merged
 in PR #70. [Item 11 typing and architecture enforcement](TYPING_AND_ARCHITECTURE.md)
-is implemented for review.
+was approved, deployed and merged in PR #71. [Item 12 final verification](FINAL_VERIFICATION.md)
+is implemented for review and is the last item in the approved roadmap.
 Frontend source restructuring is
 reserved for a future targeted refactor.
 

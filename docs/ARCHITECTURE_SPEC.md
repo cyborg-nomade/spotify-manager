@@ -1,10 +1,10 @@
 # Architecture Specification
 
-**Status:** modular monolith; refactor Items 1–10 deployed and merged. Item 11
-strict typing and architecture/CI enforcement is prepared for review; see its
-[verification guide](refactor/TYPING_AND_ARCHITECTURE.md).
+**Status:** modular monolith; refactor Items 1–11 deployed and merged. Item 12
+is the final review package; see its
+[verification report](refactor/FINAL_VERIFICATION.md).
 
-**Current refactor base:** Item 10 merge `3cb2f78` (2026-10-30).
+**Current refactor base:** Item 11 merge `c90289d` (2026-11-02).
 
 **Scope:** current code, interfaces, persistence contracts, and known backlog
 
@@ -75,8 +75,10 @@ presenters render returned values. Public routine/processor forwarding entries
 remain available to external callers and are skipped by normal CLI/HTTP execution.
 The [family request and return map](refactor/CALL_PATH_SIMPLIFICATION.md) and
 [named retained helpers](refactor/RETAINED_LEGACY_HELPERS.md) explain these paths.
-Native async transport remains the next roadmap item; frontend source
-restructuring is a separate future refactor.
+Native async execution owns pooled clients at the CLI/web lifetime boundary.
+Only proven independent catalog batches overlap; dependent pages, choices,
+mutations and checkpoints retain their order. Frontend source restructuring is
+a separate future refactor.
 
 ### Routine modules
 
@@ -96,7 +98,7 @@ restructuring is a separate future refactor.
 ### CLI
 
 The installed entry point is `spotify-manager`; every public command has a
-same-named `just` recipe. The 43 commands cover:
+same-named `just` recipe. The 44 commands cover:
 
 - state and data operations: `state-*`, `library-data-*`, export upload, token
   refresh, and scrobble refresh;
@@ -118,7 +120,8 @@ wraps the same app with `X-App-Password` authentication and static pages.
 authenticate with `X-Automation-Token`. OpenAPI at `/docs` and `/openapi.json`
 is authoritative for parameters and response fields.
 
-The code currently exposes 119 pure API routes plus seven web-wrapper routes:
+The code exposes 115 application API routes and four framework routes, plus
+seven web-wrapper routes (126 registrations in the wrapped application):
 
 | Family | Working endpoints |
 | --- | --- |
@@ -132,7 +135,7 @@ The code currently exposes 119 pure API routes plus seven web-wrapper routes:
 | Playlist jobs | `flush-queue`, `flush-new-kids`, `flush-queue-2`, `flush-queue-3`, `flush-new-wine`, `flush-slow-listening`, `flush-requeue-for-a-dream`, `fill-palace-of-memory` |
 | Planning/history jobs | `check-new-releases`, `plan-discographies`, `update-scrobble-history`, `import-queue-3-previous-year` |
 | Genre Reveal | `GET /genre-reveal`, state/source endpoints, and `POST /genre-reveal/run-next` |
-| Legacy synchronous commands | `POST /library/refresh`, monthly routines, total-album update, export restoration, comparison, conversion, and artist count |
+| Legacy request/response commands | `POST /library/refresh`, monthly routines, total-album update, export restoration, comparison, conversion, and artist count |
 
 Long operations follow a common protocol where supported:
 
@@ -251,9 +254,10 @@ copies are replaceable unless explicitly published through a core service.
   fallback.
 - Interactive routines add replacement tracks before removing current markers,
   check membership for idempotency, and persist at safe boundaries.
-- Web jobs are in-memory threads. Browser reload recovery works while the
-  process lives; durable routine namespaces support restart/resume where the
-  routine implements it.
+- Web jobs are in-memory async tasks owned by the lifespan's `ExecutionRuntime`.
+  Browser reload recovery works while the process lives; durable routine
+  namespaces support restart/resume where the routine implements it. Blocking
+  storage, terminal and SDK compatibility operations use bounded worker resources.
 - Audit logs are JSONL. They are operational evidence, not replayable event
   sourcing.
 - Nightly GitHub Actions run the scrobble update and three Spotify mirror jobs
@@ -267,11 +271,15 @@ Runtime requirements are Python 3.14, `uv`, Spotify developer credentials,
 optional alternate Spotify apps, Last.fm credentials for history routines, and
 Hub credentials for shared production state/data. `just` is the supported task
 facade. Core dependencies are Spotipy, FastAPI/Uvicorn, Typer/Rich, Pydantic 2,
-Requests, Unidecode, PyUCA, and `huggingface_hub`.
+HTTPX, Requests, Unidecode, PyUCA, and `huggingface_hub`.
 
-Current quality gates are Ruff, mypy with typed-function enforcement,
-randomized pytest, dependency audit, and a 90% package coverage floor. The last
-verified suite contained **1,087 passing tests** at **90.12% coverage**.
+Quality gates include Ruff, default strict business typing, focused strict
+adapter/tool typing, dependency and direct-call guards, frozen public contracts,
+randomized offline pytest and built-wheel inspection. Statement and branch
+minimums are checked separately: **95% / 90% package-wide**, and **98% / 95%**
+for each of domain and application. The [final report](refactor/FINAL_VERIFICATION.md)
+records measured results and targeted mutation evidence. Dependency audit remains
+a separate developer recipe.
 
 ## 8. Delivery progress
 
@@ -292,16 +300,17 @@ Implemented and deployed capabilities include:
 
 ## 9. Pending backlog
 
-There are **no open GitHub issues or pull requests** as of this baseline. The
-following are untracked architectural backlog inferred from current constraints,
-not promised product work:
+The following are follow-up candidates outside the approved backend refactor,
+not promised product work or fixes silently included in this release:
 
-1. **Decompose interface monoliths.** `api.py`, `main.py`, and `index.html` are
-   large; split them by feature while retaining routines as the behavioral
-   source of truth.
+1. **Target the frontend separately.** Split `index.html` by feature with its own
+   browser interaction evidence. Backend interfaces now call named application
+   stages and fixed domain rules directly; public route declarations stay visible
+   beside their endpoints in `api.py`.
 2. **Replace the wide job envelope.** `BlastJobResult` mixes every routine's
    optional fields. Introduce a common job header plus discriminated,
-   routine-specific result schemas.
+   routine-specific result schemas. This changes the frozen public schema and
+   requires a separately approved compatibility/migration plan.
 3. **Durable job observability.** In-memory job handles and the latest 250 log
    lines disappear on Space restart. Persist compact job metadata/log cursors or
    reconstruct them from audit logs.
