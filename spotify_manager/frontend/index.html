@@ -745,9 +745,13 @@
               <div class="signal-file-name"><span class="source-light lastfm"></span><span>lastfmstats-man-et-arms.json</span><span class="source-tag">Last.fm</span></div>
               <span class="server-file-date" data-server-file-date="lastfmstats-man-et-arms.json">Checking…</span>
               <div class="signal-file-command">
-                <label class="inline"><input type="checkbox" id="scrobbleHistoryDryRun" checked />Dry run</label>
+                <div class="mode-switch" role="group" aria-label="Last.fm history refresh mode">
+                  <button class="active" data-action="mirrorMode" data-resource="history" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-resource="history" data-mirror-mode="full" aria-pressed="false">Full</button>
+                </div>
                 <div class="analysis-actions">
                   <button class="primary" data-action="startScrobbleHistory">Sync</button>
+                  <button class="danger cancel" data-action="cancelScrobbleHistory" hidden title="Stop history refresh">×</button>
                 </div>
               </div>
             </div>
@@ -4119,7 +4123,14 @@
     scrobbleHistoryJob = job;
     var out = document.getElementById("scrobbleHistoryProgress");
     var start = document.querySelector('[data-action="startScrobbleHistory"]');
-    document.getElementById("scrobbleHistoryDryRun").checked = Boolean(job.dry_run);
+    var active = isAnalysisActive(job.status);
+    var cancel = document.querySelector('[data-action="cancelScrobbleHistory"]');
+    setMirrorMode("history", job.history_full_rebuild ? "full" : "incremental");
+    document.querySelectorAll('[data-action="mirrorMode"][data-resource="history"]').forEach(function (item) {
+      item.disabled = active;
+    });
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
 
     var counts = "";
     if (typeof job.history_scrobbles === "number") {
@@ -4166,7 +4177,7 @@
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
-    if (isAnalysisActive(job.status)) {
+    if (active) {
       if (!start.disabled) setBusy(start, true, "Updating...");
     } else {
       setBusy(start, false);
@@ -4182,7 +4193,7 @@
       } else if (job.status === "completed") {
         showToast("Scrobble history update finished", "ok");
         loadServerFilesStatus();
-      } else {
+      } else if (job.status !== "cancelled" && job.status !== "paused") {
         showToast("Scrobble history update " + job.status, "err");
       }
     } catch (e) {
@@ -5392,11 +5403,11 @@
       }
     },
     async startScrobbleHistory(btn) {
-      var dryRun = document.getElementById("scrobbleHistoryDryRun").checked;
       var out = document.getElementById("scrobbleHistoryProgress");
-      if (!dryRun && !confirm("Update the canonical Last.fm scrobble history?")) return;
+      var mode = document.querySelector('[data-action="mirrorMode"][data-resource="history"].active');
       var q = new URLSearchParams();
-      q.set("dry_run", dryRun ? "true" : "false");
+      q.set("dry_run", "false");
+      q.set("full_rebuild", mode && mode.dataset.mirrorMode === "full" ? "true" : "false");
       setBusy(btn, true, "Starting...");
       try {
         var job = await api(
@@ -5416,6 +5427,21 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start scrobble history update", "err");
+      }
+    },
+
+    async cancelScrobbleHistory(btn) {
+      if (!scrobbleHistoryJob || !scrobbleHistoryJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/update-scrobble-history-jobs/" + scrobbleHistoryJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderScrobbleHistoryJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop scrobble history update", "err");
       }
     },
 

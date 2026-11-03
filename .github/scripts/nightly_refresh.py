@@ -146,7 +146,7 @@ def _decode_response(raw: bytes) -> object:
 
 
 def scrobble_rebuild_due(now: datetime) -> bool:
-    """Select original Berlin monthly and New Year rebuild dates.
+    """Select the annual history rebuild override using the Berlin date.
 
     Args:
         now: Original caller-owned instant.
@@ -355,7 +355,10 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--full-rebuild",
         action="store_true",
-        help="Rebuild Spotify mirrors completely instead of merging recent changes.",
+        help=(
+            "Rebuild Last.fm history and Spotify mirrors "
+            "instead of merging recent changes."
+        ),
     )
     parser.add_argument(
         "--scheduled",

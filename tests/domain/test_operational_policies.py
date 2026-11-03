@@ -223,14 +223,16 @@ def test_original_maintenance_calendar(
     [
         ("2026-12-31T23:00:00+00:00", True),
         ("2026-12-31T22:59:59+00:00", False),
-        ("2026-10-04T00:30:00+02:00", True),
+        ("2026-10-04T00:30:00+02:00", False),
         ("2026-10-11T00:30:00+02:00", False),
-        ("2026-11-01T00:30:00+01:00", True),
+        ("2026-11-01T00:30:00+01:00", False),
         ("2026-11-07T00:30:00+01:00", False),
     ],
 )
-def test_original_rebuild_dates(instant: str, expected: bool) -> None:
-    """Retain New Year and first-Sunday qualification in local time.
+def test_annual_history_override_uses_the_berlin_date(
+    instant: str, expected: bool
+) -> None:
+    """Keep New Year independent while weekly Full selection follows run mode.
 
     Args:
         instant: Original observation time.

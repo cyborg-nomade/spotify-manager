@@ -133,12 +133,13 @@ automatically. Dataset commit history is the durable backup chain.
 
 `.github/workflows/nightly-library-refresh.yml` uses free GitHub Actions hosted
 runners to wake the private Space and update Last.fm history, albums, tracks,
-and artists sequentially. Incremental refreshes run Sunday-Friday at 22:17 UTC;
-Saturday's 22:37 UTC run fully rebuilds all three Spotify mirrors. Both remain
-inside the 23:00-05:00 Europe/Berlin window, accounting for daylight saving
-time, and delayed scheduled starts after 05:00 are skipped. A rate-limit pause
-or deadline stop retains checkpoints for the next compatible run. Space restarts
-are detected and resumed through the same API endpoints used by the cockpit.
+and artists sequentially. Primary Recent runs are Monday-Saturday at 00:17
+Europe/Berlin; Sunday's 00:37 run fully rebuilds all four sources. Early probes
+help compensate for delayed GitHub scheduling and exit unless they arrive inside
+the 22:00-05:00 maintenance window. Berlin daylight-saving transitions and the
+05:00 deadline are respected. Spotify mirror rate limits wait and retry
+automatically; deadline stops retain accepted checkpoints. Space rebuilds can
+reset container-local scan progress, while durable publications remain intact.
 
 Incremental artist refreshes retain the current mirror and live-verify new
 `YourLibrary.json` candidates in batches. Full rebuilds first try Spotify's
@@ -378,10 +379,12 @@ just update-scrobble-history
 Dry-run mode fetches and merges the live delta only in memory. It does not
 rewrite the export, create a backup or audit record, or change Spotify.
 
-The web card below Something Old runs the same updater as a reconnectable
-background job. It starts in dry-run mode, shows the export and merge counts,
-streams Last.fm retry and update logs, and restores an active job after a page
-reload. A successful real update also displays the server-side backup path.
+The Data Signal Board runs the updater as a reconnectable background job.
+Recent is selected by default and merges newer scrobbles; Full rebuilds history
+from the API. Sync applies the selected mode without a dry-run checkbox.
+The card shows counts and logs, restores the running mode after reload, and
+offers cancellation while active. Replacements display their server-side backup
+path. CLI and API dry-run options remain available.
 
 ```text
 POST /commands/update-scrobble-history?dry_run=true
@@ -1584,11 +1587,11 @@ active jobs, and cancel through `/commands/new-year-jobs` and
 `/commands/new-year-jobs/{job_id}[/cancel]`. History-only rebuilds use
 `POST /commands/update-scrobble-history?dry_run=false&full_rebuild=true`.
 
-The existing nightly GitHub Actions workflow selects a full Last.fm rebuild on
-the **first Sunday of each month** and **January 1**, using the Berlin run date.
-Other nights keep incremental scrobble refreshes. Spotify's weekly full-refresh
-schedule remains independent. The retrospective itself is started manually from
-the New Year's Routines panel after the year has ended.
+The nightly GitHub Actions workflow selects Recent or Full for Last.fm together
+with the Spotify mirrors: weekly Full runs rebuild all four sources. **January 1**
+also forces a complete Last.fm rebuild, using the Berlin run date. The
+retrospective itself is started manually from the New Year's Routines panel
+after the year has ended.
 
 A rebuild fetches a fixed API time range, checks pagination totals, backs up the
 old export, and replaces it atomically before publishing through library-data.
