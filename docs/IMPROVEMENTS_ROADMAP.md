@@ -80,6 +80,10 @@ from a failed or never-completed refresh. Verify Actions after merge.
 
 ## Item 3: improve the Blast from the Past panel layout
 
+**Status:** implemented and verified on `codex/improvements-03-blast-panel-layout`;
+awaiting owner PR review before deployment.
+Details: [implementation and review guide](improvements/03_BLAST_PANEL_LAYOUT.md).
+
 Put Count/Cap and its input on the first row, Dry run / Run / cancellation on a
 middle row, and the existing Artists controls and progress below. Keep the change
 focused on HTML/CSS and preserve current action and element bindings.

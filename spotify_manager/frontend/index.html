@@ -469,9 +469,19 @@
   .macro-grid .card::before, .independent-module::before { left: 5px; }
   .macro-grid .card::after, .independent-module::after { right: 5px; }
   #blastCard .panel-strip > h2 { flex-basis: 100%; min-width: 100%; }
+  #blastCard .blast-target-row, #blastCard .blast-run-row,
   #blastCard .blast-artist-row {
-    order: 20; display: flex; flex: 1 0 100%; align-items: center;
+    display: flex; flex: 1 0 100%; align-items: center;
     justify-content: flex-end; gap: 6px; min-width: 0;
+  }
+  #blastCard .blast-target-row .mode-switch { flex: 0 0 auto; }
+  #blastCard .blast-target-row .blast-control {
+    display: flex; align-items: center; gap: 5px; min-width: 0; margin: 0;
+  }
+  #blastCard .blast-target-row label { margin: 0; }
+  #blastCard .blast-target-row input { flex: 0 0 70px; width: 70px; }
+  #blastCard .blast-run-row > .inline, #blastCard .blast-artist-row > .inline {
+    margin: 0;
   }
   .settings-trigger {
     flex: 0 0 var(--control-half); width: var(--control-half); min-width: var(--control-half);
@@ -602,7 +612,7 @@
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
-    #blastCard .blast-control input { width: 56px; }
+    #blastCard .blast-control input { flex-basis: 56px; width: 56px; }
     .state-dialog-header { align-items: flex-start; flex-wrap: wrap; }
     .state-dialog-heading { width: 100%; }
     #stateNamespaceSelect { width: auto; flex: 1 1 auto; }
@@ -779,26 +789,30 @@
       <div class="macro-grid recovery-grid">
     <section class="card" id="blastCard">
       <h2>A blast from the past</h2>
-      <div class="mode-switch" role="group" aria-label="Playlist target mode">
-        <button class="active" data-action="blastMode" data-blast-mode="count" aria-pressed="true">Count</button>
-        <button data-action="blastMode" data-blast-mode="maximum" aria-pressed="false">Cap</button>
+      <div class="blast-target-row">
+        <div class="mode-switch" role="group" aria-label="Playlist target mode">
+          <button class="active" data-action="blastMode" data-blast-mode="count" aria-pressed="true">Count</button>
+          <button data-action="blastMode" data-blast-mode="maximum" aria-pressed="false">Cap</button>
+        </div>
+        <div class="blast-control" id="blastCountControl">
+          <label for="blastCount">Tracks to process</label>
+          <input id="blastCount" type="number" min="1" step="1" value="10" inputmode="numeric" />
+        </div>
+        <div class="blast-control" id="blastMaximumControl" hidden>
+          <label for="blastMaximum">Maximum playlist length</label>
+          <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
+        </div>
       </div>
-      <div class="blast-control" id="blastCountControl">
-        <label for="blastCount">Tracks to process</label>
-        <input id="blastCount" type="number" min="1" step="1" value="10" inputmode="numeric" />
-      </div>
-      <div class="blast-control" id="blastMaximumControl" hidden>
-        <label for="blastMaximum">Maximum playlist length</label>
-        <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
-      </div>
-      <label class="inline">
-        <input type="checkbox" id="blastDryRun" checked />
-        Dry run
-      </label>
-      <div class="analysis-actions">
-        <button class="primary" data-action="startBlast">Run</button>
-        <button class="danger cancel" data-action="cancelBlast" hidden
-          title="Stop routine" aria-label="Stop A blast from the past">×</button>
+      <div class="blast-run-row">
+        <label class="inline">
+          <input type="checkbox" id="blastDryRun" checked />
+          Dry run
+        </label>
+        <div class="analysis-actions">
+          <button class="primary" data-action="startBlast">Run</button>
+          <button class="danger cancel" data-action="cancelBlast" hidden
+            title="Stop routine" aria-label="Stop A blast from the past">×</button>
+        </div>
       </div>
       <div class="blast-artist-row">
         <label class="inline">
@@ -1412,15 +1426,16 @@
 
     document.querySelectorAll(".panel-strip").forEach(function (strip) {
       var terminal = strip.querySelector(":scope > .terminal-trigger");
-      var command = Array.from(strip.children).find(function (child) {
+      var commandRow = strip.querySelector(":scope > .blast-run-row") || strip;
+      var command = Array.from(commandRow.children).find(function (child) {
         return (
           child.classList.contains("btns") ||
           child.classList.contains("analysis-actions")
         );
       });
       if (terminal && command) {
-        strip.appendChild(terminal);
-        strip.appendChild(command);
+        commandRow.appendChild(terminal);
+        commandRow.appendChild(command);
       }
     });
 
