@@ -11,9 +11,8 @@ on:
     # Primary incremental runs: Monday-Saturday at 00:17 Berlin.
     - cron: "17 0 * * 1-6"
       timezone: "Europe/Berlin"
-    # Last.fm also fully rebuilds on the first Sunday monthly and January 1.
-    # The automation client selects this from the Berlin run date.
-    # Primary weekly full rebuild: Sunday at 00:37 Berlin.
+    # All four sources share Recent/Full modes; Last.fm also rebuilds January 1.
+    # Primary weekly full rebuild for all sources: Sunday at 00:37 Berlin.
     - cron: "37 0 * * 0"
       timezone: "Europe/Berlin"
   workflow_dispatch:
@@ -24,7 +23,7 @@ on:
         default: false
         type: boolean
       full_rebuild:
-        description: Fully rebuild all Spotify mirrors
+        description: Fully rebuild Last.fm history and all Spotify mirrors
         required: false
         default: false
         type: boolean

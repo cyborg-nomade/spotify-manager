@@ -63,6 +63,10 @@ approval and deployment; development checks use isolated data and state.
 
 ## Item 2: align the signal board and nightly refresh modes
 
+**Status:** implemented and verified on `codex/improvements-02-signal-board-sync`;
+awaiting owner PR review before deployment.
+Details: [implementation and release guide](improvements/02_SIGNAL_BOARD_SYNC.md).
+
 Give Last.fm the same Recent / Full controls as the Spotify files. Remove its
 dry-run checkbox from the board while retaining useful CLI/API preview support.
 Recent performs incremental history synchronization; Full rebuilds history.

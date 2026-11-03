@@ -595,8 +595,13 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.palace_results" in response.text
     assert "job.palace_album_refresh" in response.text
     assert "restoreActivePalaceOfMemoryJobs();" in response.text
-    assert 'id="scrobbleHistoryDryRun" checked' in response.text
+    assert "scrobbleHistoryDryRun" not in response.text
+    assert 'aria-label="Last.fm history refresh mode"' in response.text
+    assert 'data-resource="history" data-mirror-mode="incremental"' in response.text
+    assert 'data-resource="history" data-mirror-mode="full"' in response.text
     assert 'data-action="startScrobbleHistory"' in response.text
+    assert 'data-action="cancelScrobbleHistory"' in response.text
+    assert 'setMirrorMode("history", job.history_full_rebuild' in response.text
     assert '"/commands/update-scrobble-history-jobs/"' in response.text
     assert "job.history_export_scrobbles" in response.text
     assert "job.history_legacy_scrobbles_added" in response.text

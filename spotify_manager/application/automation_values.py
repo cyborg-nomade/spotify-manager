@@ -69,18 +69,18 @@ class JobSpec:
 def refresh_jobs(
     *, full_rebuild: bool, scrobble_rebuild: bool = False
 ) -> tuple[JobSpec, ...]:
-    """Build the original history-first four-job request manifest.
+    """Build a history-first manifest with matching Recent or Full selections.
 
     Args:
-        full_rebuild: Original independent Spotify mirror rebuild mode.
-        scrobble_rebuild: Original independent history rebuild mode.
+        full_rebuild: Rebuild Last.fm history and all Spotify mirrors completely.
+        scrobble_rebuild: Also rebuild history during a Recent run, for New Year.
 
     Returns:
         Original ordered commands, query parameters and status/cancel routes.
     """
     rebuild = str(full_rebuild).lower()
     start = "/commands/update-scrobble-history?dry_run=false"
-    if scrobble_rebuild:
+    if full_rebuild or scrobble_rebuild:
         start += "&full_rebuild=true"
     jobs = [
         JobSpec(

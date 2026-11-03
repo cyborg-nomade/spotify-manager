@@ -8,19 +8,17 @@ from datetime import tzinfo
 
 
 def scrobble_rebuild_due(now: datetime, timezone: tzinfo) -> bool:
-    """Select January 1 and the first Sunday of each Berlin calendar month.
+    """Select the January 1 history override independently of the run mode.
 
     Args:
         now: Caller-owned original instant.
         timezone: Original local maintenance timezone.
 
     Returns:
-        Original calendar decision or UTC boundary.
+        Whether the Berlin date requires the annual history rebuild.
     """
     local = now.astimezone(timezone)
-    return (local.month == 1 and local.day == 1) or (
-        local.weekday() == 6 and local.day <= 7
-    )
+    return local.month == 1 and local.day == 1
 
 
 def maintenance_deadline(now: datetime, timezone: tzinfo) -> datetime:

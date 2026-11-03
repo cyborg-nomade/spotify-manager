@@ -142,9 +142,11 @@ Changing a secret restarts the Space, but routine state remains in the dataset.
 
 ## Nightly refresh schedule
 
-`.github/workflows/nightly-library-refresh.yml` starts daily at 22:17 UTC,
-which is 23:17 in Berlin winter time and 00:17 in summer time. The client uses
-the Europe/Berlin timezone for its hard 05:00 deadline. It runs these jobs
+`.github/workflows/nightly-library-refresh.yml` schedules primary Recent runs
+Monday-Saturday at 00:17 Europe/Berlin and a Full run Sunday at 00:37.
+Earlier probes compensate for GitHub delays and exit unless they arrive within
+22:00-05:00 Berlin. The client uses the same timezone for its hard 05:00 deadline.
+All four sources follow the selected Recent/Full mode. It runs these jobs
 sequentially:
 
 1. update Last.fm scrobble history;
@@ -339,12 +341,14 @@ secrets restarts the Space. Verify startup hydration and `/state/summary` throug
 the authenticated cockpit. Local `hf auth whoami` can refresh the local OAuth
 login, but does not change Space secrets.
 
-### Monthly and New Year history rebuilds
+### Weekly and New Year history rebuilds
 
-The nightly automation client requests a complete Last.fm API rebuild on the
-first Sunday of each month and January 1 (Europe/Berlin). On those dates it does
-not use the generic artifact-freshness shortcut, since a recent incremental
-refresh is not evidence of a full rebuild. It also waits for an incompatible
+The nightly automation client's weekly Full run requests a complete Last.fm API
+rebuild together with the three Spotify rebuilds. Manual `full_rebuild` dispatches
+do the same. January 1 (Europe/Berlin) additionally forces a Last.fm rebuild
+independently of Spotify mode and bypasses the generic artifact-freshness shortcut.
+Ordinary scheduled runs retain their all-artifact duplicate-trigger check.
+The client also waits for an incompatible
 incremental/dry-run history job rather than treating that job as the rebuild.
 Deploy the new API code before activating the updated Actions client. The
 annual retrospective remains a manual, dry-run-enabled cockpit operation.

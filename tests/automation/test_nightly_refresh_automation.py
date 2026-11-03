@@ -264,8 +264,12 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
     stage.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "stale_filename", ["artists_total.json", "lastfmstats-man-et-arms.json"]
+)
 def test_stale_artifact_does_not_suppress_scheduled_refresh(
     nightly: ModuleType,
+    stale_filename: str,
 ) -> None:
     files = [
         {
@@ -273,7 +277,7 @@ def test_stale_artifact_does_not_suppress_scheduled_refresh(
             "exists": True,
             "updated_at": (
                 "2026-08-28T19:59:00+00:00"
-                if filename == "artists_total.json"
+                if filename == stale_filename
                 else "2026-08-29T00:30:00+00:00"
             ),
         }
@@ -337,13 +341,22 @@ def test_workflow_schedules_weekend_full_rebuild() -> None:
     [
         ("2026-12-31T23:00:00+00:00", True),
         ("2026-12-31T22:59:59+00:00", False),
-        ("2026-10-04T00:30:00+02:00", True),
+        ("2026-10-04T00:30:00+02:00", False),
         ("2026-10-11T00:30:00+02:00", False),
-        ("2026-11-01T00:30:00+01:00", True),
+        ("2026-11-01T00:30:00+01:00", False),
         ("2026-11-07T00:30:00+01:00", False),
     ],
 )
-def test_monthly_and_new_year_scrobble_rebuild_dates(nightly, timestamp, expected):
+def test_new_year_scrobble_rebuild_override(
+    nightly: ModuleType, timestamp: str, expected: bool
+) -> None:
+    """Select the annual override without a separate monthly history schedule.
+
+    Args:
+        nightly: Loaded automation entry point.
+        timestamp: Calendar instant, including Berlin New Year's boundary.
+        expected: Whether a history-only override is required.
+    """
     assert nightly.scrobble_rebuild_due(datetime.fromisoformat(timestamp)) is expected
 
 
