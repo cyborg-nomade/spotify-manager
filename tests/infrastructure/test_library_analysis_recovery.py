@@ -18,7 +18,6 @@ from spotify_manager.infrastructure import library_analysis_backups as backups
 from spotify_manager.infrastructure.library_analysis_errors import AnalysisFailure
 from spotify_manager.infrastructure.library_analysis_restore import restore_library_sync
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
-from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from tests.application.library_analysis_memory import AnalysisMemory
 from tests.application.library_analysis_memory import memory_session
 
@@ -87,11 +86,11 @@ def _error(status: int | None) -> SpotifyException:
     return SpotifyException(status, -1, "original failure")
 
 
-@pytest.mark.parametrize("status", [None, 403, 429])
+@pytest.mark.parametrize("status", [None, 403])
 async def test_nontransient_failures_keep_type_cause_and_skip_retry(
     tmp_path: Path, status: int | None
 ) -> None:
-    """Preserve original nontransient and rate-limit translation without waiting.
+    """Preserve nontransient failure translation without waiting.
 
     Args:
         tmp_path: Original independent output family.
@@ -111,12 +110,70 @@ async def test_nontransient_failures_keep_type_cause_and_skip_retry(
         10,
         100,
     )
-    expected = SpotifyRateLimitError if status == 429 else LibrarySyncError
-    with pytest.raises(expected) as observed:
+    with pytest.raises(LibrarySyncError) as observed:
         await _read(retry, script)
     assert observed.value.__cause__ is failure
     assert script.notices == []
     assert memory.effects == []
+
+
+@pytest.mark.parametrize("interactive", [False, True])
+async def test_repeated_rate_limits_retry_the_same_request_until_success(
+    tmp_path: Path, interactive: bool
+) -> None:
+    """Wait through repeated cooldowns independently of transient attempt limits.
+
+    Args:
+        tmp_path: Isolated checkpoint and audit paths.
+        interactive: Whether a web-style cancellable wait is supplied.
+    """
+    memory = AnalysisMemory()
+    session = await memory_session(memory, tmp_path)
+    failures = []
+    expected = []
+    for index, delay in enumerate((90, 7200, 3, 1), start=1):
+        failures.append(
+            SpotifyException(429, -1, "limited", headers={"Retry-After": str(delay)})
+        )
+        expected.append(RetryNotice(429, "reading facts", index, delay))
+    script = RetryScript(deque([*failures, "accepted"]))
+    retry = LibraryRetry(
+        session.paths,
+        session.checkpoint,
+        session.files,
+        memory,
+        script if interactive else None,
+        script,
+        10,
+        100,
+    )
+    assert await _read(retry, script, maximum=1) == "accepted"
+    assert script.notices == (expected if interactive else [])
+    assert script.delays == ([] if interactive else [90, 7200, 3, 1])
+    events = [name for name, _value in memory.effects]
+    assert events == ["rate_limit_retry_scheduled", "echo"] * 4
+
+
+async def test_rate_limit_without_header_uses_increasing_fallback_wait(
+    tmp_path: Path,
+) -> None:
+    """Keep malformed and absent deadlines from causing immediate retries.
+
+    Args:
+        tmp_path: Isolated checkpoint and audit paths.
+    """
+    memory = AnalysisMemory()
+    session = await memory_session(memory, tmp_path)
+    malformed = SpotifyException(429, -1, "limited", headers={"Retry-After": "later"})
+    script = RetryScript(deque([_error(429), malformed, "accepted"]))
+    retry = LibraryRetry(
+        session.paths, session.checkpoint, session.files, memory, script, script, 0, 0
+    )
+    assert await _read(retry, script) == "accepted"
+    assert script.notices == [
+        RetryNotice(429, "reading facts", 1, 60),
+        RetryNotice(429, "reading facts", 2, 120),
+    ]
 
 
 async def test_server_attempt_limit_keeps_last_failure_and_accepted_retry(
@@ -216,7 +273,9 @@ async def test_default_retry_wait_observes_zero_sleep_and_shared_failure(
     ]
 
 
-@pytest.mark.parametrize("failure", [_error(500), RequestsConnectionError("reset")])
+@pytest.mark.parametrize(
+    "failure", [_error(429), _error(500), RequestsConnectionError("reset")]
+)
 async def test_retry_wait_cancellation_retains_original_error_cause(
     tmp_path: Path, failure: BaseException
 ) -> None:

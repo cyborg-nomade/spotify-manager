@@ -185,6 +185,26 @@ def test_poll_job_cancels_at_the_deadline(nightly: ModuleType) -> None:
     assert client.calls == [("POST", spec.cancel_path.format(job_id="job"))]
 
 
+def test_poll_job_keeps_following_automatic_rate_limit_retries(
+    nightly: ModuleType,
+) -> None:
+    """Keep the artist sync active through repeated cooldowns until completion.
+
+    Args:
+        nightly: Loaded automation entry point with isolated external resources.
+    """
+    client = FakeClient(
+        [
+            {"status": "waiting", "detail": "Spotify rate limit reached; retry 1"},
+            {"status": "running", "detail": "Retrying Spotify request"},
+            {"status": "waiting", "detail": "Spotify rate limit reached; retry 2"},
+            {"status": "completed", "detail": "Analysis completed"},
+        ]
+    )
+    assert nightly.poll_job(client, nightly.JOBS[3], "artists") == "completed"
+    assert client.sleeps == [nightly.POLL_SECONDS] * 3
+
+
 def test_nightly_refresh_stops_cleanly_after_a_rate_limit(
     nightly: ModuleType,
     mocker: MockerFixture,

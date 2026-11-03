@@ -1,5 +1,6 @@
 """Observe each explicit analysis callback, channel and presentation boundary."""
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from dataclasses import field
@@ -173,7 +174,7 @@ def test_echo_keeps_original_empty_detail_behavior() -> None:
     assert _messages(worker) == [""]
 
 
-@pytest.mark.parametrize("http_status", [None, 500])
+@pytest.mark.parametrize("http_status", [None, 429, 500])
 @pytest.mark.parametrize("cancelled", [False, True])
 async def test_retry_wait_owns_its_signal_and_original_resume(
     http_status: int | None, cancelled: bool
@@ -188,9 +189,12 @@ async def test_retry_wait_owns_its_signal_and_original_resume(
     if cancelled:
         worker.job.cancel_event.set()
     notice = analysis.RetryNotice(http_status, "loading tracks", 2, 0)
-    failure = (
-        "Spotify connection interrupted" if http_status is None else "Spotify HTTP 500"
-    )
+    failures = {
+        None: "Spotify connection interrupted",
+        500: "Spotify HTTP 500",
+        429: "Spotify rate limit reached; retrying automatically",
+    }
+    failure = failures[http_status]
     assert (await worker.wait(notice)) is not cancelled
     assert worker.job.result.retry_at is None
     assert _messages(worker)[0] == (
@@ -203,6 +207,26 @@ async def test_retry_wait_owns_its_signal_and_original_resume(
         return
     assert worker.job.result.status == "running"
     assert _messages(worker)[1] == "Retrying Spotify request now."
+
+
+async def test_rate_limit_wait_remains_visible_and_cancels_before_deadline() -> None:
+    """Expose the cooldown while a real signal can interrupt a long wait."""
+    worker = _worker()
+    task = asyncio.create_task(
+        worker.wait(analysis.RetryNotice(429, "reading artists", 1, 3600))
+    )
+    try:
+        await asyncio.sleep(0)
+        assert worker.job.result.status == "waiting"
+        assert worker.job.result.retry_at == "2026-09-24T01:00:00+00:00"
+        assert "retrying automatically" in worker.job.result.detail
+        assert not task.done()
+    finally:
+        worker.job.cancel_event.set()
+        resumed = await task
+    assert resumed is False
+    assert worker.job.result.retry_at is None
+    assert len(_messages(worker)) == 1
 
 
 @dataclass

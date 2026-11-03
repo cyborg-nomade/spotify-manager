@@ -140,6 +140,22 @@ def retry_delay(base: int, maximum: int, attempt: int) -> int:
     return min(maximum, base * (1 << exponent))
 
 
+def rate_limit_delay(reported: int | None, attempt: int) -> int:
+    """Respect Spotify's cooldown or back off when it supplies no deadline.
+
+    Args:
+        reported: Parsed Retry-After seconds, when available.
+        attempt: One-based rate-limit retry number for this request.
+
+    Returns:
+        At least one second, or a missing-header backoff from one to 15 minutes.
+        A reported cooldown is never capped by the transient retry maximum.
+    """
+    if reported is None:
+        return retry_delay(60, 900, attempt)
+    return max(1, reported)
+
+
 def verification_candidates[T: LibraryIdentity](
     existing: list[T],
     export: list[T],

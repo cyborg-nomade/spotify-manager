@@ -688,24 +688,24 @@ async def test_live_analysis_can_quit_cleanly_during_server_retry(
     assert events[-1]["event"] == "run_paused"
 
 
-async def test_live_analysis_resumes_from_last_saved_page_after_rate_limit(
+async def test_live_analysis_resumes_after_cancelling_a_rate_limit_wait(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "sync")
     tracks = [track(f"t{index:02}") for index in range(12)]
     first = FakeSpotify(tracks=tracks, track_rate_limit_offset=10)
 
-    with pytest.raises(analyse_library.SpotifyRateLimitError) as exc_info:
+    with pytest.raises(analyse_library.LibraryAnalysisCancelledError):
         (
             analyse_library.analyse_library_sync_routine(
                 first,
                 paths=paths,
                 retry_base_seconds=0,
                 retry_max_seconds=0,
+                retry_wait=RetryDecision(False),
             )
         )
 
-    assert exc_info.value.retry_after_seconds == 90
     checkpoint = json.loads(paths.checkpoint.read_text())
     assert checkpoint["resources"]["albums"]["status"] == "complete"
     assert checkpoint["resources"]["tracks"]["offset"] == 10

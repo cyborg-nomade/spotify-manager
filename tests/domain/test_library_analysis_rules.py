@@ -7,6 +7,31 @@ import pytest
 from spotify_manager.domain import library_analysis as rules
 
 
+@pytest.mark.parametrize(
+    ("reported", "attempt", "expected"),
+    [
+        (None, 1, 60),
+        (None, 2, 120),
+        (None, 20, 900),
+        (0, 1, 1),
+        (-1, 1, 1),
+        (90, 1, 90),
+        (86400, 5, 86400),
+    ],
+)
+def test_rate_limit_delay_honors_cooldowns_without_busy_retries(
+    reported: int | None, attempt: int, expected: int
+) -> None:
+    """Keep reported deadlines uncapped and bound missing-header backoff.
+
+    Args:
+        reported: Spotify cooldown, including absent and zero values.
+        attempt: Consecutive rate-limit observation number.
+        expected: Minimum safe wait in seconds.
+    """
+    assert rules.rate_limit_delay(reported, attempt) == expected
+
+
 @dataclass(frozen=True)
 class LibraryItem:
     """Supply original identity/name facts without importing file models.

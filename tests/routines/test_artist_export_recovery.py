@@ -25,6 +25,7 @@ from tests.routines.test_analyse_library import artist
 from tests.routines.test_analyse_library import ids
 from tests.routines.test_analyse_library import paths_for
 from tests.support.runtime_resources import CancellationFlag
+from tests.support.runtime_resources import RetryDecision
 
 
 @dataclass(frozen=True)
@@ -44,13 +45,17 @@ class ArtistRefresh:
     cached: Path
 
     def run(
-        self, full: bool = False, cancellation: CancellationFlag | None = None
+        self,
+        full: bool = False,
+        cancellation: CancellationFlag | None = None,
+        retry: RetryDecision | None = None,
     ) -> LibrarySyncSummary:
         """Run the public synchronous entry with isolated external resources.
 
         Args:
             full: Whether to discover and verify the complete artist set.
             cancellation: Optional fixed operator cancellation response.
+            retry: Optional recorded cooldown decision, without wall-clock waits.
 
         Returns:
             The complete refresh summary after durable publication.
@@ -61,6 +66,7 @@ class ArtistRefresh:
             paths=self.paths,
             full_rebuild=full,
             cancel_check=cancellation,
+            retry_wait=retry,
             retry_base_seconds=0,
             retry_max_seconds=0,
         )
@@ -145,6 +151,56 @@ def test_recovered_export_reaches_durable_publication(
     status = refresh.service.statuses()[2]
     assert status.name == "artists" and status.exists and status.local_current
     assert refresh.paths.your_library.read_text().startswith("version https://git-lfs")
+
+
+@pytest.mark.parametrize("full", [False, True])
+def test_artist_refresh_waits_through_repeated_rate_limits_before_publication(
+    refresh: ArtistRefresh, full: bool
+) -> None:
+    """Finish the same recent/full refresh after several follow-status cooldowns.
+
+    Args:
+        refresh: Isolated routine and real durable-data service.
+        full: Whether every candidate must be verified live.
+    """
+    refresh.catalog.artist_errors = [502] if full else []
+    refresh.catalog.artist_contains_errors = [429, 429, 429, 429]
+    notices: list[analyse_library.RetryNotice] = []
+    revision = refresh.service.snapshot().revision
+    summary = refresh.run(full, retry=RetryDecision(True, notices))
+    expected = {"new"} if full else {"old", "new"}
+    assert set(ids(refresh.paths.artists_total)) == expected
+    assert summary.resources[0].current == len(expected)
+    assert refresh.service.snapshot().revision != revision
+    cooldowns = []
+    for notice in notices:
+        if notice.http_status == 429:
+            cooldowns.append(notice.delay_seconds)
+    assert cooldowns == [60, 120, 240, 480]
+    assert (
+        refresh.catalog.artist_contains_calls
+        == [refresh.catalog.artist_contains_calls[0]] * 5
+    )
+
+
+def test_cancelled_artist_cooldown_preserves_mirror_and_resumes_checkpoint(
+    refresh: ArtistRefresh,
+) -> None:
+    """Stop without publication, then reuse accepted candidates on the next run.
+
+    Args:
+        refresh: Isolated routine and real durable-data service.
+    """
+    refresh.catalog.artist_contains_errors = [429]
+    revision = refresh.service.snapshot().revision
+    with pytest.raises(LibraryAnalysisCancelledError):
+        refresh.run(retry=RetryDecision(False))
+    assert ids(refresh.paths.artists_total) == ["old"]
+    assert refresh.service.snapshot().revision == revision
+    refresh.cached.unlink()
+    refresh.run()
+    assert set(ids(refresh.paths.artists_total)) == {"old", "new"}
+    assert refresh.service.snapshot().revision != revision
 
 
 def test_failed_source_recovery_preserves_last_durable_artist_mirror(

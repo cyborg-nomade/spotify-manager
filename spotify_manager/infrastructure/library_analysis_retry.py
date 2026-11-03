@@ -12,12 +12,12 @@ from spotify_manager.application.library_analysis_values import Echo
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import Sleep
 from spotify_manager.application.retry_attempts import RetryAttempts
+from spotify_manager.domain.library_analysis import rate_limit_delay
 from spotify_manager.domain.library_analysis import retry_delay
 from spotify_manager.domain.library_analysis_values import LibraryAnalysisCancelledError
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
 from spotify_manager.domain.library_analysis_values import RetryNotice
 from spotify_manager.domain.library_analysis_values import RetryWait
-from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
 
 
@@ -79,6 +79,25 @@ class LibraryRetry:
         )
         await self._wait(notice, error)
 
+    async def _rate_limit_wait(
+        self, error: SpotifyException, attempt: int, description: str
+    ) -> None:
+        delay = rate_limit_delay(get_retry_after_seconds(error), attempt)
+        notice = RetryNotice(429, description, attempt, delay)
+        await self.files.event(
+            self.paths,
+            str(self.checkpoint["run_id"]),
+            "rate_limit_retry_scheduled",
+            operation=description,
+            attempt=attempt,
+            delay_seconds=delay,
+        )
+        self.output.echo(
+            f"Spotify rate limit reached while {description}; "
+            f"retrying automatically in {delay} seconds (attempt {attempt})."
+        )
+        await self._wait(notice, error)
+
     async def _transport_wait(
         self,
         error: RequestsConnectionError | RequestsTimeout,
@@ -120,8 +139,6 @@ async def _default_wait(delay: int, sleep: Sleep) -> bool:
 
 
 def _validate_spotify_failure(error: SpotifyException, description: str) -> None:
-    if error.http_status == 429:
-        raise SpotifyRateLimitError(get_retry_after_seconds(error)) from error
     if error.http_status is None or not 500 <= error.http_status <= 599:
         raise LibrarySyncError(
             f"Spotify request failed while {description} "
@@ -161,12 +178,14 @@ class LibraryAttemptPolicy:
         description: Original operation label.
         maximum: Original optional maximum attempts.
         failures: Shared server and transport failure count.
+        rate_limits: Independent cooldown count, without a retry limit.
     """
 
     retry: LibraryRetry
     description: str
     maximum: int | None
     failures: int = 0
+    rate_limits: int = 0
 
     def start(self) -> None:
         """Begin the original request without an additional observation."""
@@ -184,10 +203,7 @@ class LibraryAttemptPolicy:
             Whether another original attempt is permitted.
         """
         if isinstance(error, SpotifyException):
-            _validate_spotify_failure(error, self.description)
-            self.failures += 1
-            _check_server_attempt(error, self.failures, self.description, self.maximum)
-            await self.retry._server_wait(error, self.failures, self.description)
+            await self._spotify_failure(error)
             return True
         if isinstance(error, (RequestsConnectionError, RequestsTimeout)):
             self.failures += 1
@@ -197,3 +213,13 @@ class LibraryAttemptPolicy:
             await self.retry._transport_wait(error, self.failures, self.description)
             return True
         return False
+
+    async def _spotify_failure(self, error: SpotifyException) -> None:
+        if error.http_status == 429:
+            self.rate_limits += 1
+            await self.retry._rate_limit_wait(error, self.rate_limits, self.description)
+            return
+        _validate_spotify_failure(error, self.description)
+        self.failures += 1
+        _check_server_attempt(error, self.failures, self.description, self.maximum)
+        await self.retry._server_wait(error, self.failures, self.description)

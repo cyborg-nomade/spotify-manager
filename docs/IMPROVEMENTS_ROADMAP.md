@@ -35,8 +35,10 @@ validation, state implications, rollback procedure, and outstanding release chec
 
 ## Item 1: restore reliable artist synchronization
 
-**Status:** implemented and verified on `codex/improvements-01-artist-sync`;
-awaiting owner PR review before deployment and merge.
+**Status:** source recovery approved and deployed; Recent publication verified.
+Full verification exposed repeated Spotify cooldowns. The owner requested
+automatic retries on 2026-11-03; that extension is implemented on
+`codex/improvements-01-artist-sync` and awaits review before deployment and merge.
 
 The [investigation and review guide](improvements/01_ARTIST_SYNC.md) records the
 confirmed packaged Git LFS pointer, recovery boundary, verification, and rollout.
@@ -47,6 +49,9 @@ publication. Establish the failure history and source-export packaging behavior.
 Fix the cause while preserving the complete available candidate set and the last
 valid mirror on failure. An incomplete refresh must not become a successful
 publication. Distinguish completed refreshes from maintenance-window pauses.
+During Spotify rate limits, wait for the reported cooldown and retry the same
+request automatically, including repeated limits. Keep waiting jobs cancellable
+and respect scheduled maintenance deadlines.
 
 **Acceptance:** recent and full modes produce validated output and retain durable
 publication. Regression checks cover the observed failure, incomplete upstream
