@@ -1,9 +1,8 @@
 # Item 1: recover the packaged artist source export
 
-**Status:** source recovery approved and deployed; Recent publication verified.
-Automatic cooldown retries are approved and deployed. Runtime identity and
-health are verified; the owner's live Full verification remains pending before
-merge and cleanup.
+**Status:** approved, deployed, and verified. Recent and Full publication checks
+passed, including the owner's successful live Full run with automatic retries.
+**Release:** [PR #73](https://github.com/cyborg-nomade/spotify-manager/pull/73).
 **Branch:** `codex/improvements-01-artist-sync`.
 **Roadmap:** [routine improvements, Item 1](../IMPROVEMENTS_ROADMAP.md#item-1-restore-reliable-artist-synchronization).
 
@@ -75,7 +74,8 @@ The owner approved the source-recovery PR, which was deployed at Space revision
 published 37,910 artists (+24) at `2026-11-03T09:38:40.506387Z`.
 The owner's subsequent Full test resumed correctly from checkpoints, but repeated
 Spotify rate limits required repeated manual restarts. On 2026-11-03 the owner
-requested automatic retries for these pauses. Full publication remains unverified.
+requested automatic retries for these pauses. After deploying the approved
+extension, the owner's Full run completed and its durable publication was verified.
 
 This extension deliberately changes the previous terminal 429 pause behavior for
 library analysis and Spotify mirror refreshes, in web, CLI, and scheduled runs:
@@ -165,8 +165,15 @@ verified authentication, state, all four artifacts, and no active jobs across 20
 endpoints. The [postflight](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41626497596)
 checks the same authenticated surfaces after deployment.
 
-The owner prefers to perform live checks. Start the artists Full sync in the
-deployed app and confirm actual completion/publication before merge and cleanup.
+The owner completed the live Full artist sync successfully. Its pinned durable
+data revision is `868cccecae08954771c17a68bdb3293384e88528`; the artist artifact
+was published at `2026-11-03T14:07:51.246431Z` (15:07 Berlin). Schema, byte length,
+SHA-256, nonempty content, and unique artist identities were verified. It contains
+37,851 artists: 13 additions and 72 removals relative to the 37,910-artist Recent
+result, following Full mode's live follow-status verification. Other artifacts
+and shared routine state remained unchanged. The approved Space revision remains
+running and healthy. Both Recent and Full release checks are complete.
+
 Container rebuilds may reset local scan staging; the previously published mirror
 remains valid while the new Full scan runs. During a cooldown, leave the job
 waiting; the server retries automatically even with the browser closed.

@@ -35,11 +35,13 @@ validation, state implications, rollback procedure, and outstanding release chec
 
 ## Item 1: restore reliable artist synchronization
 
-**Status:** source recovery approved and deployed; Recent publication verified.
+**Status:** implemented, approved, deployed, and verified in Recent and Full modes.
 Full verification exposed repeated Spotify cooldowns. The owner requested
 automatic retries on 2026-11-03 and approved the extension. It is deployed at
 Space revision `7137ec9b36a5e532ed24073bdcfc3a939b4098d2`.
-The owner's live Full verification remains pending before merge and cleanup.
+The owner's Full run completed successfully and its durable publication was
+verified: 37,851 unique artists at `2026-11-03T14:07:51.246431Z`.
+Release: [PR #73](https://github.com/cyborg-nomade/spotify-manager/pull/73).
 
 The [investigation and review guide](improvements/01_ARTIST_SYNC.md) records the
 confirmed packaged Git LFS pointer, recovery boundary, verification, and rollout.
