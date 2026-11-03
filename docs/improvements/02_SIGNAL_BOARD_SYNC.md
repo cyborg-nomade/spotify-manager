@@ -1,6 +1,8 @@
 # Item 2: align Last.fm and Spotify sync modes
 
-**Status:** implemented and verified; awaiting owner PR review before deployment.
+**Status:** implemented, verified, and owner-approved on 2026-11-03.
+**Release record:** [PR #74](https://github.com/cyborg-nomade/spotify-manager/pull/74)
+records deployment verification, the post-merge Actions check, and cleanup.
 **Branch:** `codex/improvements-02-signal-board-sync`.
 **Roadmap:** [Item 2](../IMPROVEMENTS_ROADMAP.md#item-2-align-the-signal-board-and-nightly-refresh-modes).
 
@@ -55,8 +57,9 @@ missing/stale artifact metadata does not qualify as a fresh duplicate.
 
 ## Verification and review
 
-Use the isolated preview at <http://127.0.0.1:8767/?review=item02>; unlock with
-`signal-board-review`. Its state and canonical data stores are temporary local
+Review used <http://127.0.0.1:8767/?review=item02>, unlocked with
+`signal-board-review`. This temporary server is stopped during release cleanup.
+Its state and canonical data stores are temporary local
 copies. Last.fm Sync performs account reads and writes only to the isolated
 canonical store; it does not mutate Spotify playlists.
 
@@ -95,7 +98,7 @@ Completed gates:
 
 ## Release and rollback
 
-Wait for owner approval before deployment or merge. Deploy the explicit changed
+The owner approved PR #74. Deploy the explicit changed
 application files to Hugging Face with active-job and shared-artifact safeguards
 from [DEPLOY.md](../../DEPLOY.md). No operational data or secrets belong in the
 code upload. Verify runtime identity, authentication, source metadata, and job
