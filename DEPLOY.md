@@ -154,12 +154,20 @@ sequentially:
 
 The odd start minute avoids GitHub's busiest scheduling boundary. The workflow
 reconnects to an existing matching job after overlap, retries Space wake-up and
-gateway failures, and resumes analysis checkpoints after a Space restart. A
-Spotify rate-limit pause ends the run successfully so the next night can
-continue. At the deadline it requests cancellation at the next durable
+gateway failures, and resumes available analysis checkpoints. Spotify mirror
+refreshes wait for reported rate-limit cooldowns and retry automatically, including
+repeated limits. The waiting job remains active and cancellable; the browser can
+reconnect after a reload. If Spotify omits a usable deadline, retries back off
+from one to 15 minutes. At the maintenance deadline the workflow requests
+cancellation at the next durable
 boundary. GitHub's `workflow_dispatch` entry provides a manual Run workflow
 button without changing the schedule; select `check_only` to verify access and
 all four durable artifacts without starting a refresh.
+
+Analysis checkpoints remain container-local. A Space rebuild can reset partial
+scan progress; the last published durable mirror is preserved until the next
+complete refresh publishes its result. Other routines retain their existing
+rate-limit policies.
 
 ## Deploying an update
 

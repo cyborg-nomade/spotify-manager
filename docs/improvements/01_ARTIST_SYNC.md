@@ -1,8 +1,9 @@
 # Item 1: recover the packaged artist source export
 
 **Status:** source recovery approved and deployed; Recent publication verified.
-Automatic cooldown retries requested during Full verification are implemented
-and awaiting review before deployment.
+Automatic cooldown retries are approved and deployed. Runtime identity and
+health are verified; the owner's live Full verification remains pending before
+merge and cleanup.
 **Branch:** `codex/improvements-01-artist-sync`.
 **Roadmap:** [routine improvements, Item 1](../IMPROVEMENTS_ROADMAP.md#item-1-restore-reliable-artist-synchronization).
 
@@ -151,8 +152,26 @@ the configured account and its existing rate limits.
 
 ## Release and rollback
 
-The source-recovery changes have approval and are deployed. The new automatic
-retry extension requires review before deployment. Preserve shared state/data
+The owner approved both source recovery and the automatic retry extension.
+The extension's approved runtime source is `1bf2d43c9e509435b85d80a95194864468808a47`;
+Space revision `7137ec9b36a5e532ed24073bdcfc3a939b4098d2` runs that code.
+All seven Item 1 runtime blobs match the approved source, `/health` returns OK,
+and state/data dataset revisions remained unchanged through deployment:
+`e39d578b241927975cbf1e4557e690531b558fe0` and
+`b21bd2b43fbfaeffd56a7ff3e88b598e7a6ef441`, respectively.
+The [approved runtime CI](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41624499354)
+passed. The [fresh preflight](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41626253173)
+verified authentication, state, all four artifacts, and no active jobs across 20
+endpoints. The [postflight](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41626497596)
+checks the same authenticated surfaces after deployment.
+
+The owner prefers to perform live checks. Start the artists Full sync in the
+deployed app and confirm actual completion/publication before merge and cleanup.
+Container rebuilds may reset local scan staging; the previously published mirror
+remains valid while the new Full scan runs. During a cooldown, leave the job
+waiting; the server retries automatically even with the browser closed.
+
+For subsequent deployment or rollback, preserve shared state/data
 revisions and active job safeguards from [DEPLOY.md](../../DEPLOY.md).
 Deploy only the changed bootstrap
 and storage modules plus the new source-recovery module, analysis domain rules

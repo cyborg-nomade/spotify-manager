@@ -37,8 +37,9 @@ validation, state implications, rollback procedure, and outstanding release chec
 
 **Status:** source recovery approved and deployed; Recent publication verified.
 Full verification exposed repeated Spotify cooldowns. The owner requested
-automatic retries on 2026-11-03; that extension is implemented on
-`codex/improvements-01-artist-sync` and awaits review before deployment and merge.
+automatic retries on 2026-11-03 and approved the extension. It is deployed at
+Space revision `7137ec9b36a5e532ed24073bdcfc3a939b4098d2`.
+The owner's live Full verification remains pending before merge and cleanup.
 
 The [investigation and review guide](improvements/01_ARTIST_SYNC.md) records the
 confirmed packaged Git LFS pointer, recovery boundary, verification, and rollout.
