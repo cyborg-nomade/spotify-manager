@@ -1,6 +1,9 @@
 """Bind original file seams and synchronous Spotify reads for library analysis."""
 
 import asyncio
+import os
+from collections.abc import Mapping
+from pathlib import Path
 
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
@@ -18,7 +21,9 @@ from spotify_manager.infrastructure.library_analysis_catalog import (
 )
 from spotify_manager.infrastructure.library_analysis_publication import AnalysisBackups
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
+from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.space_library_export import SpaceLibraryExport
 
 
 def analysis_files() -> AsyncAnalysisStorage:
@@ -27,7 +32,31 @@ def analysis_files() -> AsyncAnalysisStorage:
     Returns:
         Invocation dependencies preserving caller substitutions.
     """
-    return AsyncAnalysisStorage()
+    recovery = configured_export_recovery(os.environ)
+    return AsyncAnalysisStorage(AnalysisStorage(recovery))
+
+
+def configured_export_recovery(
+    environment: Mapping[str, str],
+) -> SpaceLibraryExport | None:
+    """Bind packaged export recovery only inside a Hugging Face Space.
+
+    Args:
+        environment: Invocation environment with existing Hub credential aliases.
+
+    Returns:
+        Source recovery scoped to the packaged path and Space, or None locally.
+    """
+    repo = environment.get("SPACE_ID")
+    if not repo:
+        return None
+    token = (
+        environment.get("SPOTIFY_MANAGER_DATA_TOKEN")
+        or environment.get("SPOTIFY_MANAGER_STATE_TOKEN")
+        or environment.get("HF_TOKEN")
+    )
+    path = Path(__file__).resolve().parents[1] / "files" / "YourLibrary.json"
+    return SpaceLibraryExport(path, repo, token)
 
 
 def analysis_publication() -> AnalysisPublication:
