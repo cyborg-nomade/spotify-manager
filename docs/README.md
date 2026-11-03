@@ -54,6 +54,10 @@ All roadmap items are implemented, owner-approved and deployed. The
 [Item 12 final verification report](refactor/FINAL_VERIFICATION.md) closes the
 backend plan with the release record, evidence and remaining limitations.
 
+The [approved improvements roadmap](IMPROVEMENTS_ROADMAP.md) follows the completed
+refactor with separately reviewed routine changes. It retains the architecture,
+engineering rules, and per-item release workflow.
+
 ### Operating the Hugging Face Space
 
 1. Read [Data and state](DATA_AND_STATE.md), especially the state ownership

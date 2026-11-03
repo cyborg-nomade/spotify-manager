@@ -313,6 +313,8 @@ class AnalysisWorker:
 
 
 def _retry_failure(notice: analysis.RetryNotice) -> str:
+    if notice.http_status == 429:
+        return "Spotify rate limit reached; retrying automatically"
     if notice.http_status is None:
         return "Spotify connection interrupted"
     return f"Spotify HTTP {notice.http_status}"

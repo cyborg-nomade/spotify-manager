@@ -1,6 +1,7 @@
 """Filesystem storage for analysis arrays, staging, checkpoints and audit."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -9,13 +10,22 @@ from pydantic import BaseModel
 
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.bootstrap.library_data import publish_managed_path
+from spotify_manager.domain.library_analysis_values import LibrarySyncError
 from spotify_manager.infrastructure import library_analysis_files as files
+from spotify_manager.infrastructure.space_library_export import SpaceLibraryExport
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 
 
+@dataclass(frozen=True)
 class AnalysisStorage:
-    """Persist analysis facts with the existing formats and publication order."""
+    """Persist analysis facts with the existing formats and publication order.
+
+    Args:
+        export_recovery: Optional packaged source recovery configured for a Space.
+    """
+
+    export_recovery: SpaceLibraryExport | None = None
 
     def read(self, path: Path, default: object | None = None) -> object:
         """Read permissive JSON.
@@ -101,8 +111,16 @@ class AnalysisStorage:
 
         Returns:
             Validated export.
+
+        Raises:
+            LibrarySyncError: The source or its exact-content recovery is invalid.
         """
-        return files.load_your_library(paths, storage=self)
+        try:
+            return files.load_your_library(paths, storage=self)
+        except LibrarySyncError as exc:
+            if self.export_recovery is None:
+                raise
+            return self.export_recovery.recover(paths.your_library, exc)
 
     def clock(self) -> str:
         """Observe UTC time.

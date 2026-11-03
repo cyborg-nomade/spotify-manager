@@ -74,13 +74,13 @@ OFFSET_RECONCILIATION_STABLE_PAGES = {
 
 @dataclass(frozen=True)
 class RetryNotice:
-    """One scheduled retry after a transient Spotify failure.
+    """One scheduled retry after a Spotify cooldown or transient failure.
 
     Args:
         http_status: Original transient status or none for transport failures.
         operation: Original visible request description.
         attempt: Original one-based attempt.
-        delay_seconds: Original capped scheduled wait.
+        delay_seconds: Scheduled wait, including an uncapped Spotify cooldown.
     """
 
     http_status: int | None
