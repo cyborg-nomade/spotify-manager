@@ -1,6 +1,8 @@
 # Item 3: separate the Blast panel controls
 
-**Status:** implemented and verified; awaiting owner PR review before deployment.
+**Status:** implemented, verified, and owner-approved on 2026-11-03.
+**Release record:** [PR #75](https://github.com/cyborg-nomade/spotify-manager/pull/75)
+records deployment verification, merge, and cleanup.
 **Branch:** `codex/improvements-03-blast-panel-layout`.
 **Roadmap:** [Item 3](../IMPROVEMENTS_ROADMAP.md#item-3-improve-the-blast-from-the-past-panel-layout).
 
@@ -31,7 +33,8 @@ new test framework is included.
 
 ## Verification and review
 
-Preview: <http://127.0.0.1:8767/?review=item03>.
+Review used <http://127.0.0.1:8767/?review=item03>.
+This temporary server is stopped during release cleanup.
 Unlock with `blast-layout-review` (any nonempty text works at loopback).
 The preview uses temporary local state/data stores. Both dry-run defaults remain
 checked. Review can focus on layout; separate synthetic API transport checks
@@ -72,11 +75,11 @@ Completed gates:
   work. Other 15 panels retain their terminal/command placement.
 - Both isolated servers pass health/authentication, four-source availability,
   and 20 idle-job checks. The review HTML matches this branch exactly.
-- No production refresh, workflow dispatch, or account operation was started.
+- Development checks made no live Spotify, Last.fm, or Random.org requests.
 
 ## Release and rollback
 
-Wait for owner PR approval before deployment or merge. Deploy only the changed
+The owner approved PR #75. Deploy only the changed
 `spotify_manager/frontend/index.html` from the approved commit to Hugging Face,
 using the active-job and independent state/data safeguards in [DEPLOY.md](../../DEPLOY.md).
 No operational files or secrets belong in the code upload.
