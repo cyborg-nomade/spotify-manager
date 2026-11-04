@@ -717,6 +717,9 @@ def _cancel_simple_playlist_job(
         job.result.status = "cancelling"
         job.result.detail = detail
         _append_blast_log_locked(job, detail)
+        if job.result.track_match_pending_choice is not None:
+            job.choice_event.set()
+        job.result.track_match_pending_choice = None
         job.cancel_event.set()
         return _blast_job_snapshot(job)
 

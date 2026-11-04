@@ -415,7 +415,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "A blast from the past queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -564,7 +565,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Dormant-artist recovery queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -712,7 +714,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Daily Mind Radio queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -859,7 +862,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Found Art queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1008,7 +1012,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Sauvignon album discovery queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1160,7 +1165,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Queue artist discovery queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1318,7 +1324,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Queue flush queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1471,7 +1478,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "New Kids flush queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1622,7 +1630,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Queue 2 flush queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1774,7 +1783,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Queue 3 flush queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -1922,7 +1932,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Previous-year Queue 3 import queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2070,7 +2081,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "New Wine flush queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2221,7 +2233,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Slow Listening flush queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2368,7 +2381,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Something Old queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2517,7 +2531,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "New-release check queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2669,7 +2684,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Discography planning queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2821,7 +2837,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Requeue for a Dream queued in dry-run mode."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -2968,7 +2985,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Palace of Memory queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -3117,7 +3135,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Palace alphabetical cursor adjustment to 50 queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -3266,7 +3285,8 @@
             "timestamp": "2026-09-24T12:00:00+00:00",
             "message": "Last.fm scrobble history update queued."
           }
-        ]
+        ],
+        "track_match_pending_choice": null
       },
       "launches": [
         {
@@ -3408,7 +3428,8 @@
         "palace_album_refresh": null,
         "palace_results": [],
         "retry_at": null,
-        "logs": []
+        "logs": [],
+        "track_match_pending_choice": null
       },
       "launches": [
         {

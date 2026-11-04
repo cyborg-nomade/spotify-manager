@@ -1510,6 +1510,16 @@
             ],
             "title": "Total"
           },
+          "track_match_pending_choice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackMatchPendingChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "week_start": {
             "anyOf": [
               {
@@ -4372,6 +4382,89 @@
         "title": "SomethingOldTrackResult",
         "type": "object"
       },
+      "TrackMatchChoiceRequest": {
+        "description": "Select a track ID or submit an empty choice for no match.",
+        "properties": {
+          "choice": {
+            "title": "Choice",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "choice"
+        ],
+        "title": "TrackMatchChoiceRequest",
+        "type": "object"
+      },
+      "TrackMatchOption": {
+        "description": "One unfiltered Spotify search result available for explicit selection.",
+        "properties": {
+          "album": {
+            "title": "Album",
+            "type": "string"
+          },
+          "artists": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Artists",
+            "type": "array"
+          },
+          "spotify_id": {
+            "title": "Spotify Id",
+            "type": "string"
+          },
+          "track": {
+            "title": "Track",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spotify_id",
+          "track",
+          "artists",
+          "album",
+          "url"
+        ],
+        "title": "TrackMatchOption",
+        "type": "object"
+      },
+      "TrackMatchPendingChoice": {
+        "description": "One historical play awaiting a selection, rejection or cancellation.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/TrackMatchOption"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "scrobble": {
+            "title": "Scrobble",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "scrobble",
+          "candidates"
+        ],
+        "title": "TrackMatchPendingChoice",
+        "type": "object"
+      },
       "TrackScrobbleStatus": {
         "description": "Most recent Last.fm play for one Spotify track.",
         "properties": {
@@ -5093,6 +5186,56 @@
         "summary": "Cmd Cancel Blast Job"
       }
     },
+    "/commands/blast-from-the-past-jobs/{job_id}/choice": {
+      "post": {
+        "description": "Select a manual Spotify track match or explicitly reject all results.",
+        "operationId": "cmd_choose_blast_track_commands_blast_from_the_past_jobs__job_id__choice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Blast Track"
+      }
+    },
     "/commands/check-new-releases": {
       "post": {
         "description": "Start a reconnectable release check for Last.fm's top artists.",
@@ -5570,6 +5713,56 @@
           }
         },
         "summary": "Cmd Cancel Daily Mind Radio Job"
+      }
+    },
+    "/commands/daily-mind-radio-jobs/{job_id}/choice": {
+      "post": {
+        "description": "Select a manual Spotify track match or explicitly reject all results.",
+        "operationId": "cmd_choose_daily_mind_radio_track_commands_daily_mind_radio_jobs__job_id__choice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Daily Mind Radio Track"
       }
     },
     "/commands/fill-palace-of-memory": {

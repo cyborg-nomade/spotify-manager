@@ -31,6 +31,7 @@ from spotify_manager.application.historical_values import (
 from spotify_manager.application.historical_values import (
     SpotifyTrackMatch as SpotifyTrackMatch,
 )
+from spotify_manager.application.manual_track_matching import TrackMatchInteraction
 from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.historical_playlists import blast_playlist
@@ -134,6 +135,7 @@ async def add_blast_from_past_to_spotify(
     retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
+    interaction: TrackMatchInteraction | None = None,
 ) -> BlastFromPastSpotifySummary:
     """Select, resolve, and append a blast-from-the-past batch to Spotify.
 
@@ -148,6 +150,7 @@ async def add_blast_from_past_to_spotify(
         progress_callback: Optional progress presenter.
         retry_call: Original retry policy.
         cancel_check: Optional cancellation predicate.
+        interaction: Optional manual track choice owner.
         dry_run: Suppress writes while retaining resolved added actions.
 
     Returns:
@@ -166,5 +169,6 @@ async def add_blast_from_past_to_spotify(
         progress_callback,
         retry_call,
         cancel_check,
+        interaction,
     )
     return await configured.run(playlist_id, count, max_playlist_length, dry_run)

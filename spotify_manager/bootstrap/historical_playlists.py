@@ -10,6 +10,8 @@ from spotify_manager.application.historical_playlists import HistoricalPlaylistE
 from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
+from spotify_manager.application.manual_track_matching import ManualTrackMatching
+from spotify_manager.application.manual_track_matching import TrackMatchInteraction
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
@@ -19,6 +21,7 @@ from spotify_manager.infrastructure.legacy.historical_inputs import (
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalPlaylist,
 )
+from spotify_manager.infrastructure.manual_track_catalog import SpotifyManualTracks
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
 
@@ -29,12 +32,13 @@ def _effects(
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
+    interaction: TrackMatchInteraction | None = None,
 ) -> HistoricalPlaylistEffects:
 
     adapter = LegacyHistoricalPlaylist(sp, playlist_id, retry, cancel)
     return HistoricalPlaylistEffects(
         adapter,
-        historical_resolution(sp, progress, retry, cancel),
+        historical_resolution(sp, progress, retry, cancel, interaction),
         HistoricalCancellation(cancel),
         OptionalMessages(progress),
     )
@@ -95,6 +99,7 @@ def blast_playlist(
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
+    interaction: TrackMatchInteraction | None = None,
 ) -> BlastPlaylist:
     """Construct the invocation dependencies without executing the use case.
 
@@ -107,13 +112,14 @@ def blast_playlist(
         progress: Optional presenter.
         retry: Original retry policy.
         cancel: Optional cancellation predicate.
+        interaction: Optional manual track choice owner.
 
     Returns:
         The configured application dependencies or workflow.
     """
     selection = blast_selection(path, today, random, progress)
     workflow = BlastPlaylist(
-        _effects(sp, playlist_id, progress, retry, cancel), selection
+        _effects(sp, playlist_id, progress, retry, cancel, interaction), selection
     )
     return workflow
 
@@ -127,6 +133,7 @@ def anniversary_playlist(
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
+    interaction: TrackMatchInteraction | None = None,
 ) -> AnniversaryPlaylist:
     """Construct the invocation dependencies without executing the use case.
 
@@ -139,13 +146,14 @@ def anniversary_playlist(
         progress: Optional presenter.
         retry: Original retry policy.
         cancel: Optional cancellation predicate.
+        interaction: Optional manual track choice owner.
 
     Returns:
         The configured application dependencies or workflow.
     """
     selection = anniversary_selection(path, today, random, progress)
     workflow = AnniversaryPlaylist(
-        _effects(sp, playlist_id, progress, retry, cancel), selection
+        _effects(sp, playlist_id, progress, retry, cancel, interaction), selection
     )
     return workflow
 
@@ -155,6 +163,7 @@ def historical_resolution(
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
+    interaction: TrackMatchInteraction | None = None,
 ) -> HistoricalResolution:
     """Construct the invocation dependencies without executing the use case.
 
@@ -163,6 +172,7 @@ def historical_resolution(
         progress: Optional presenter.
         retry: Existing caller retry policy.
         cancel: Optional cancellation predicate.
+        interaction: Optional manual track choice owner.
 
     Returns:
         The configured application dependencies or workflow.
@@ -172,10 +182,18 @@ def historical_resolution(
     )
 
     adapter = LegacyHistoricalMatches(sp, retry, cancel)
+    manual = None
+    if interaction is not None:
+        manual = ManualTrackMatching(
+            SpotifyManualTracks(sp, retry, HistoricalCancellation(cancel)),
+            interaction,
+            HistoricalCancellation(cancel),
+        )
     workflow = HistoricalResolution(
         adapter,
         HistoricalCancellation(cancel),
         OptionalMessages(progress),
+        manual,
     )
     return workflow
 

@@ -17,6 +17,7 @@ from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.formatting import scrobble_date
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.track_matching import CliTrackMatching
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import blast_from_past_artists as dormant
 from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
@@ -86,6 +87,7 @@ class HistoricalCLI:
                     count=effective_count,
                     max_playlist_length=max_playlist_length,
                     progress_callback=StatusOutput(status),
+                    interaction=CliTrackMatching(self.display, console, status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:
@@ -227,6 +229,7 @@ class HistoricalCLI:
                     (await self.runtime.client()),
                     playlist_id,
                     progress_callback=StatusOutput(status),
+                    interaction=CliTrackMatching(self.display, console, status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:

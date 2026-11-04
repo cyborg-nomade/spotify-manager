@@ -10,7 +10,7 @@ from spotify_manager.domain.titles import without_sliding_qualifiers
 
 @dataclass(frozen=True)
 class SpotifyTrackMatch:
-    """One observed track that passed artist and track qualification.
+    """One observed Spotify track, automatically qualified or explicitly selected.
 
     Args:
         spotify_id: Existing track identity.

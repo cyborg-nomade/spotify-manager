@@ -9,6 +9,7 @@ from spotify_manager.application.historical_values import (
 from spotify_manager.application.historical_values import (
     DailyMindRadioSpotifySummary as DailyMindRadioSpotifySummary,
 )
+from spotify_manager.application.manual_track_matching import TrackMatchInteraction
 from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.historical_playlists import anniversary_playlist
@@ -60,6 +61,7 @@ async def add_daily_mind_radio_to_spotify(
     retry_call: blast_from_past.RetryCall = NO_RETRY,
     cancel_check: blast_from_past.CancelCheck | None = None,
     dry_run: bool = False,
+    interaction: TrackMatchInteraction | None = None,
 ) -> DailyMindRadioSpotifySummary:
     """Select anniversary scrobbles and append their Spotify matches.
 
@@ -72,6 +74,7 @@ async def add_daily_mind_radio_to_spotify(
         progress_callback: Optional progress presenter.
         retry_call: Original retry policy.
         cancel_check: Optional cancellation predicate.
+        interaction: Optional manual track choice owner.
         dry_run: Suppress remote writes while retaining resolution decisions.
 
     Returns:
@@ -90,5 +93,6 @@ async def add_daily_mind_radio_to_spotify(
         progress_callback,
         retry_call,
         cancel_check,
+        interaction,
     )
     return await configured.run(playlist_id, dry_run)

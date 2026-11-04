@@ -17,6 +17,7 @@ from spotify_manager.interfaces.http.presenters.collections import date_strings
 from spotify_manager.interfaces.http.presenters.historical import (
     blast_selection_results,
 )
+from spotify_manager.interfaces.http.track_matching import WebTrackMatching
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
 from spotify_manager.interfaces.operations import (
@@ -104,6 +105,7 @@ class DailyMindRadioWorker:
             retry_call=PlaylistRetry(self.job, self),
             cancel_check=self.job.cancel_event,
             dry_run=self.dry_run,
+            interaction=WebTrackMatching(self.context, self.job),
         )
         return summary
 
@@ -150,6 +152,7 @@ class DailyMindRadioWorker:
     def _finish(self) -> None:
         self.events.restore()
         with self.context.lock:
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
