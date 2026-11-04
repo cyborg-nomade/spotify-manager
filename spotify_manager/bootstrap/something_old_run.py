@@ -2,11 +2,20 @@
 
 from spotify_manager.application.golden_selection import GoldenLastfmSelection
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.application.something_old_history import SomethingOldChoiceHistory
 from spotify_manager.application.something_old_run import SomethingOld
 from spotify_manager.bootstrap import manual_matching
 from spotify_manager.bootstrap.history import history_refresh
+from spotify_manager.bootstrap.state import get_state_service
+from spotify_manager.infrastructure.async_state import AsyncRoutineState
 from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
 from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld
+from spotify_manager.infrastructure.something_old_choice_schema import (
+    SomethingOldChoiceDefinition,
+)
+from spotify_manager.infrastructure.something_old_choice_storage import (
+    SomethingOldChoiceStorage,
+)
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -53,4 +62,19 @@ def something_old(
             legacy.blast_from_past.ALBUM_MATCH_THRESHOLD,
             manual_matching.tracks(spotify, callbacks.matching, callbacks.retry_call),
         ),
+        _choice_history(spotify, callbacks, resources),
+        callbacks.history_reader,
     )
+
+
+def _choice_history(
+    spotify: Spotify, callbacks: SomethingOldCallbacks, resources: SomethingOldResources
+) -> SomethingOldChoiceHistory:
+    service = resources.state_service or get_state_service()
+    namespace = service.namespace(
+        "something_old_choices", SomethingOldChoiceDefinition()
+    )
+    access = SomethingOldChoiceStorage(
+        AsyncRoutineState(namespace), resources.log_path, spotify, callbacks.retry_call
+    )
+    return SomethingOldChoiceHistory(access, callbacks.cancellation)

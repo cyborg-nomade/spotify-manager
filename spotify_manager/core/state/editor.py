@@ -101,6 +101,14 @@ STATE_EDITOR_SCHEMA: dict[str, Any] = {
             "label": "Slow Listening",
             "rules": [_readonly("/version"), _readonly("/active_run")],
         },
+        "something_old_choices": {
+            "label": "Something Old choice history",
+            "rules": [
+                _readonly("/version"),
+                _readonly("/choices"),
+                _readonly("/pending"),
+            ],
+        },
     },
 }
 

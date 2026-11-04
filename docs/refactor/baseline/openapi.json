@@ -4395,6 +4395,24 @@
             "title": "Kind",
             "type": "string"
           },
+          "previous_choice_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Choice Summary"
+          },
+          "previous_modes": {
+            "items": {
+              "$ref": "#/components/schemas/SomethingOldPreviousMode"
+            },
+            "title": "Previous Modes",
+            "type": "array"
+          },
           "releases": {
             "items": {
               "$ref": "#/components/schemas/SomethingOldReleaseOption"
@@ -4425,6 +4443,73 @@
           "average_scrobble_date"
         ],
         "title": "SomethingOldPendingChoice",
+        "type": "object"
+      },
+      "SomethingOldPreviousMode": {
+        "description": "Recorded completed use of one available Something Old selection mode.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_chosen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Chosen At"
+          },
+          "mode": {
+            "enum": [
+              "lastfm_top_tracks",
+              "spotify_top_tracks",
+              "album"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "enum": [
+                  "applied",
+                  "audit",
+                  "recovered"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance"
+          },
+          "release_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Name"
+          }
+        },
+        "required": [
+          "mode",
+          "count",
+          "label"
+        ],
+        "title": "SomethingOldPreviousMode",
         "type": "object"
       },
       "SomethingOldRankingEntry": {

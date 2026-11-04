@@ -104,5 +104,13 @@
       "version": 1
     },
     "validator": "spotify_manager.routines.slow_listening.validate_state"
+  },
+  "something_old_choices": {
+    "default": {
+      "choices": {},
+      "pending": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.infrastructure.something_old_choice_schema.SomethingOldChoiceDefinition.validate"
   }
 }

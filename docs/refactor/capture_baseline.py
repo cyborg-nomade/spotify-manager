@@ -542,8 +542,8 @@ def _state_defaults(definitions: dict[str, StateDefinition]) -> dict[str, object
 def retained_validator_name(definition: StateDefinition) -> str:
     """Locate the original format validator behind its named state adapter.
 
-    This capture records format identity, rather than the adapter method name.
-    The state-default contract and its frozen expected bytes remain unchanged.
+    Legacy definitions retain their original validator identity. New formats
+    without a preceding legacy validator name their concrete definition method.
 
     Args:
         definition: Named namespace format used by normal HTTP execution.
@@ -554,6 +554,15 @@ def retained_validator_name(definition: StateDefinition) -> str:
     Raises:
         ValueError: The adapter no longer binds an explicit original validator.
     """
+    from spotify_manager.infrastructure.something_old_choice_schema import (
+        SomethingOldChoiceDefinition,
+    )
+
+    if isinstance(definition, SomethingOldChoiceDefinition):
+        return (
+            "spotify_manager.infrastructure.something_old_choice_schema."
+            "SomethingOldChoiceDefinition.validate"
+        )
     source = textwrap.dedent(inspect.getsource(definition.validate))
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ImportFrom) and node.module:

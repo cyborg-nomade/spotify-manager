@@ -7,7 +7,9 @@ from typing import cast
 from spotify_manager.application.golden_selection import GoldenLastfmSelection
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.ports.something_old_history import HistoryModeReader
 from spotify_manager.application.something_old_effects import SomethingOldEffects
+from spotify_manager.application.something_old_history import SomethingOldChoiceHistory
 from spotify_manager.application.something_old_values import SomethingOldError
 from spotify_manager.application.something_old_values import SomethingOldSummary
 from spotify_manager.application.something_old_values import SummaryAction
@@ -92,6 +94,8 @@ class SomethingOld:
         username: Original expected canonical history account.
         minimum_plays: Original configured eligibility threshold for error text.
         lastfm: Optional named Last.fm selection stage for composed invocations.
+        choices: Optional durable completed-choice evidence and recovery stage.
+        history_reader: Optional mode prompt showing prior completed choices.
     """
 
     effects: SomethingOldEffects
@@ -99,6 +103,8 @@ class SomethingOld:
     username: str | None
     minimum_plays: int = 50
     lastfm: GoldenLastfmSelection | None = None
+    choices: SomethingOldChoiceHistory | None = None
+    history_reader: HistoryModeReader | None = None
 
     async def run(self, playlist: str, preview: bool) -> SomethingOldSummary:
         """Refresh and select only after the original destination-empty check.
@@ -117,6 +123,8 @@ class SomethingOld:
         now = self.effects.clock()
         self.effects.progress("Checking whether Something Old is empty")
         size = await self.effects.playlist_length(False)
+        if self.choices is not None:
+            await self.choices.load(playlist, preview)
         if size:
             return _nonempty(now, playlist, size, preview)
         history = await self.history.run(self.username, preview, False, now)
@@ -136,7 +144,7 @@ class SomethingOld:
         self, facts: _OldFacts, mapped: SpotifyArtistCandidate
     ) -> SomethingOldSummary:
         artist = facts.ranking[0]
-        raw_mode = await self.effects.mode(artist, mapped)
+        raw_mode = await self._mode(artist, mapped)
         if raw_mode == "quit":
             return _summary(facts, "cancelled", mapped)
         if raw_mode not in {"lastfm_top_tracks", "spotify_top_tracks", "album"}:
@@ -148,7 +156,6 @@ class SomethingOld:
             return _summary(facts, "cancelled", mapped, mode)
         if not tracks and self.lastfm is not None:
             return await self._unmatched(facts, mapped, mode)
-        await self._append(tracks, facts.preview)
         summary = _summary(
             facts,
             "would add" if facts.preview else "added",
@@ -157,9 +164,19 @@ class SomethingOld:
             release,
             tracks,
         )
+        await self._append(summary)
         if not facts.preview:
             await self.effects.audit(summary)
         return summary
+
+    async def _mode(
+        self, artist: GoldenOldieArtist, mapped: SpotifyArtistCandidate
+    ) -> str:
+        if self.choices is None or self.history_reader is None:
+            return await self.effects.mode(artist, mapped)
+        return await self.history_reader.choose_mode_with_history(
+            artist, mapped, self.choices.previous(mapped.spotify_id)
+        )
 
     async def _tracks(
         self,
@@ -173,8 +190,8 @@ class SomethingOld:
             return None, (await self.effects.spotify_tracks(mapped))
         return await self.effects.album_tracks(artist, mapped)
 
-    async def _append(self, tracks: tuple[SelectedTrack, ...], preview: bool) -> None:
-        if preview:
+    async def _append(self, summary: SomethingOldSummary) -> None:
+        if summary.dry_run:
             return
         self.effects.progress("Rechecking the empty playlist before adding")
         if await self.effects.playlist_length(True):
@@ -182,7 +199,11 @@ class SomethingOld:
                 "Something Old changed while the selection was being prepared; "
                 "nothing was added."
             )
-        await self.effects.append(tracks)
+        if self.choices is not None and summary.tracks:
+            await self.choices.begin(summary)
+        await self.effects.append(summary.tracks)
+        if self.choices is not None and summary.tracks:
+            await self.choices.complete(summary)
 
     async def _lastfm_tracks(
         self, artist: GoldenOldieArtist

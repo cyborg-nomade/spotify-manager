@@ -1023,5 +1023,10 @@
     "owner": "spotify_manager.infrastructure.spotify_compat.LegacyOffsetReader.read",
     "function": "self._read",
     "reason": "Read the SDK endpoint captured at scan construction on a bounded worker, retaining that exact override throughout retries and draining it before releasing capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.something_old_choice_storage.SomethingOldChoiceStorage.audit_choices",
+    "function": "read_choice_audit",
+    "reason": "Read the complete legacy choice audit through the bounded file-I/O thread edge; asyncio.to_thread requires this concrete reader and capacity remains held until it finishes."
   }
 ]

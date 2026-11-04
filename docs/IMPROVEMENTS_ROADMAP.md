@@ -162,6 +162,11 @@ changed during the prompt have explicit tested outcomes.
 
 ## Item 8: show previous Something Old choices
 
+**Status:** implemented and verified; awaiting owner review on
+`codex/item08-something-old-choice-history`. The
+[implementation and review guide](improvements/08_SOMETHING_OLD_CHOICE_HISTORY.md)
+records stable artist identities, accepted-effect recovery and isolated previews.
+
 Record successful applied selections by stable artist identity, mode, and date.
 Show prior modes and the most recent choice beside the three selection options
 in web and CLI. Recover available audit history with provenance. Previews and

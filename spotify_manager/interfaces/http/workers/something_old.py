@@ -15,6 +15,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.domain.something_old_history import PreviousMode
 from spotify_manager.infrastructure.lastfm_async import (
     AsyncLastFmClient as LastFmClient,
 )
@@ -35,6 +36,9 @@ from spotify_manager.interfaces.http.models.something_old import (
 )
 from spotify_manager.interfaces.http.models.something_old import SomethingOldTrackResult
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.something_old import (
+    previous_mode_results,
+)
 from spotify_manager.interfaces.http.presenters.something_old import scrobble_date
 from spotify_manager.interfaces.http.presenters.something_old import (
     something_old_track_result as _something_old_track_result,
@@ -49,6 +53,9 @@ from spotify_manager.interfaces.operations import (
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
 from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.presenters.something_old_history import (
+    latest_choice_label,
+)
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -182,6 +189,24 @@ class SomethingOldWorker:
         Returns:
             The original accepted routine callback result.
         """
+        return await self.choose_mode_with_history(artist, spotify_artist, ())
+
+    async def choose_mode_with_history(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        spotify_artist: something_old.SpotifyArtistCandidate,
+        previous: tuple[PreviousMode, ...],
+    ) -> str:
+        """Show recorded choices while keeping the current source decision explicit.
+
+        Args:
+            artist: Current historical artist.
+            spotify_artist: Accepted stable Spotify identity.
+            previous: Completed mode usage for that exact identity.
+
+        Returns:
+            Explicit current source choice or quit.
+        """
         with self.context.lock:
             self.job.result.something_old_artist = artist.artist
             self.job.result.something_old_average_scrobble_date = scrobble_date(
@@ -195,6 +220,8 @@ class SomethingOldWorker:
                 scrobbles=artist.scrobbles,
                 average_scrobble_date=scrobble_date(artist.average_scrobble_ms),
                 spotify_artist=spotify_artist.name,
+                previous_modes=previous_mode_results(previous),
+                previous_choice_summary=latest_choice_label(previous),
             ),
             f"Choose what to add for {artist.artist}.",
         )
@@ -281,6 +308,8 @@ class SomethingOldWorker:
                 artist_choice_reader=self,
                 progress_callback=self,
                 retry_call=self,
+                history_reader=self,
+                cancellation=self,
             ),
             SomethingOldResources(),
         )
@@ -408,6 +437,15 @@ class SomethingOldWorker:
             self.job.result.detail = "Applying Something Old choice"
             self.context.append(self.job, f"Something Old choice received: {choice}.")
             return choice
+
+    def check(self) -> None:
+        """Respect cancellation before and after the durable pre-append intent.
+
+        Raises:
+            RuntimeError: The current job has been cancelled.
+        """
+        if self.job.cancel_event.is_set():
+            raise _SomethingOldJobCancelledError
 
     def _something_old_artist_options(
         self, candidates: tuple[something_old.SpotifyArtistCandidate, ...]

@@ -183,6 +183,7 @@
   .new-wine-option-meta { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; font-weight: 500; }
   .track-match-options button { width: 100%; font-variant-caps: normal; overflow-wrap: anywhere; }
   .track-match-options .new-wine-option-meta { color: inherit; }
+  #somethingOldCard .new-wine-options .new-wine-option-meta { color: inherit; }
   .track-match-options a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   #requeueForADreamCard .new-wine-choice a { color: var(--yellow); }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
@@ -3402,6 +3403,12 @@
     var start = document.querySelector('[data-action="startSomethingOld"]');
     var cancel = document.querySelector('[data-action="cancelSomethingOld"]');
     document.getElementById("somethingOldDryRun").checked = Boolean(job.dry_run);
+    document.getElementById("somethingOldDryRun").disabled = isAnalysisActive(job.status);
+    var currentChoice = job.something_old_pending_choice;
+    var choiceIdentity = currentChoice && job.status === "waiting"
+      ? job.job_id + "|" + JSON.stringify(currentChoice) : "";
+    if (choiceIdentity && out.dataset.somethingOldChoice === choiceIdentity) return;
+    out.dataset.somethingOldChoice = choiceIdentity;
 
     var history = "";
     if (typeof job.history_scrobbles === "number" && job.something_old_action) {
@@ -3458,16 +3465,22 @@
             ' followers · ' + esc(candidate.spotify_id) + '</span></button>';
         }).join("");
       } else if (choice.kind === "mode") {
+        if (choice.previous_choice_summary) {
+          context += '<div class="blast-selection-meta">' + esc(choice.previous_choice_summary) + '</div>';
+        }
         options =
           '<button class="ghost" data-action="somethingOldChoice" data-choice="lastfm_top_tracks">' +
             '<span class="new-wine-option-name">Last.fm top tracks</span>' +
-            '<span class="new-wine-option-meta">Up to 10 most-scrobbled tracks</span></button>' +
+            '<span class="new-wine-option-meta">Up to 10 most-scrobbled tracks</span>' +
+            somethingOldHistoryLabel(choice, "lastfm_top_tracks") + '</button>' +
           '<button class="ghost" data-action="somethingOldChoice" data-choice="spotify_top_tracks">' +
             '<span class="new-wine-option-name">Spotify popular tracks</span>' +
-            '<span class="new-wine-option-meta">Up to 10 current top tracks</span></button>' +
+            '<span class="new-wine-option-meta">Up to 10 current top tracks</span>' +
+            somethingOldHistoryLabel(choice, "spotify_top_tracks") + '</button>' +
           '<button class="ghost" data-action="somethingOldChoice" data-choice="album">' +
             '<span class="new-wine-option-name">Album or EP</span>' +
-            '<span class="new-wine-option-meta">Choose one complete studio release</span></button>';
+            '<span class="new-wine-option-meta">Choose one complete studio release</span>' +
+            somethingOldHistoryLabel(choice, "album") + '</button>';
       } else if (choice.kind === "album") {
         options = (choice.releases || []).map(function (release) {
           var edition = release.saved ? "saved" : (release.plain ? "plain" : "other");
@@ -3549,6 +3562,11 @@
       setBusy(document.querySelector('[data-action="startSomethingOld"]'), false);
       showToast("Could not read Something Old progress", "err");
     }
+  }
+
+  function somethingOldHistoryLabel(choice, mode) {
+    var previous = (choice.previous_modes || []).find(function (entry) { return entry.mode === mode; });
+    return previous ? '<span class="new-wine-option-meta">' + esc(previous.label) + '</span>' : "";
   }
 
   async function restoreActiveSomethingOldJobs() {
