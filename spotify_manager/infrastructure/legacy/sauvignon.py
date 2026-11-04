@@ -1,6 +1,8 @@
 """Bind Sauvignon effects to the existing catalog, history and storage seams."""
 
 import asyncio
+from collections.abc import Iterator
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +58,17 @@ class LegacySauvignon:
     def prepare(self) -> None:
         """Resolve retry truthiness at the original post-validation boundary."""
         self.retry = self.requested_retry or NoRetry()
+
+    def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
+        """Use the request policy resolved after invocation validation.
+
+        Args:
+            description: Manual catalog request description.
+
+        Returns:
+            Attempts from the same policy as automatic catalog reads.
+        """
+        return self.retry.attempts(description)
 
     async def refresh(
         self, generated_at: datetime, dry_run: bool

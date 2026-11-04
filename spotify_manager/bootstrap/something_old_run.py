@@ -1,8 +1,11 @@
 """Compose Something Old's workflow with original caller-owned boundary inputs."""
 
+from spotify_manager.application.golden_selection import GoldenLastfmSelection
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.something_old_run import SomethingOld
+from spotify_manager.bootstrap import manual_matching
 from spotify_manager.bootstrap.history import history_refresh
+from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
 from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
@@ -41,5 +44,13 @@ def something_old(
         None,
     )
     return SomethingOld(
-        edge, history, options.expected_username, legacy.MIN_ARTIST_SCROBBLES
+        edge,
+        history,
+        options.expected_username,
+        legacy.MIN_ARTIST_SCROBBLES,
+        GoldenLastfmSelection(
+            GoldenCatalog(spotify, callbacks.retry_call),
+            legacy.blast_from_past.ALBUM_MATCH_THRESHOLD,
+            manual_matching.tracks(spotify, callbacks.matching, callbacks.retry_call),
+        ),
     )

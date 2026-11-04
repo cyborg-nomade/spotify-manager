@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from spotify_manager.application.manual_track_matching import ManualTrackMatching
 from spotify_manager.application.ports.history import HistoricalMatches
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
@@ -21,12 +22,14 @@ class RecommendationResolution:
         progress: Original progress presenter.
         batch_size: Original observation batch size.
         multiplier: Original candidate search limit multiplier.
+        manual: Optional explicit fallback for unresolved candidates.
     """
 
     catalog: HistoricalMatches
     progress: Messages
     batch_size: int = 10
     multiplier: int = 10
+    manual: ManualTrackMatching | None = None
 
     async def run(
         self,
@@ -59,7 +62,7 @@ class RecommendationResolution:
             groups = await self._search(batch, start, maximum, selection)
             self.progress.echo("Checking candidates against Spotify Liked Songs")
             liked_ids = await self.catalog.liked(groups)
-            self._project(batch, groups, liked_ids, selection)
+            await self._project(batch, groups, liked_ids, selection)
         return tuple(selection.results), tuple(selection.pending)
 
     async def _search(
@@ -79,7 +82,7 @@ class RecommendationResolution:
             groups.append(await self.catalog.search(play))
         return groups
 
-    def _project(
+    async def _project(
         self,
         candidates: tuple[FoundArtCandidate, ...],
         groups: list[tuple[SpotifyTrackMatch, ...]],
@@ -87,5 +90,24 @@ class RecommendationResolution:
         selection: RecommendationSelection,
     ) -> None:
         for candidate, matches in zip(candidates, groups, strict=True):
+            if (
+                not matches
+                and self.manual is not None
+                and not selection.skips_search(candidate)
+                and len(selection.pending) < selection.count
+            ):
+                matches, observed = await self._manual(candidate)
+                liked_ids.update(observed)
             if not selection.observe(candidate, matches, liked_ids):
                 break
+
+    async def _manual(
+        self, candidate: FoundArtCandidate
+    ) -> tuple[tuple[SpotifyTrackMatch, ...], set[str]]:
+        assert self.manual is not None
+        chosen = await self.manual.run(
+            Scrobble(candidate.track, candidate.artist, "", 0)
+        )
+        matches = (chosen,) if chosen is not None else ()
+        liked = await self.catalog.liked([matches]) if matches else set()
+        return matches, liked

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 
@@ -73,9 +74,11 @@ class PalaceCallbacks:
         retry_call: Retry call.
         progress_callback: Progress callback.
         output: Echo.
+        matching: Optional manual catalog matching owner.
     """
 
     random_index_reader: RandomIndexReader = RANDOM_INDEXES
     retry_call: RetryCall | None = None
     progress_callback: ProgressCallback | None = None
     output: Echo = STANDARD_OUTPUT
+    matching: CatalogMatchInteraction | None = None

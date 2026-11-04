@@ -9,6 +9,7 @@ from rich.status import Status
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
@@ -20,6 +21,7 @@ from spotify_manager.interfaces.cli.history import present_history_summary
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.cli.terminal import TerminalPrompt
+from spotify_manager.interfaces.cli.track_matching import CliCatalogMatching
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
@@ -219,10 +221,13 @@ class SomethingOldCLI:
             present_history_summary(console, summary.history_refresh)
         if summary.ranking_preview:
             self._show_golden_ranking(console, summary)
-        if summary.action == "cancelled":
-            console.print(
-                "Something Old was cancelled; Spotify was unchanged.", style="yellow"
+        if summary.action in {"cancelled", "no match"}:
+            message = (
+                "Something Old was cancelled; Spotify was unchanged."
+                if summary.action == "cancelled"
+                else "No Last.fm tracks were matched; Spotify was unchanged."
             )
+            console.print(message, style="yellow")
             return
         self._show_selected_tracks(console, summary)
         if summary.dry_run:
@@ -279,6 +284,11 @@ class SomethingOldCLI:
                         dry_run=dry_run,
                     ),
                     SomethingOldCallbacks(
+                        matching=CliCatalogMatching(
+                            self.display,
+                            self._something_old_console,
+                            self._something_old_status,
+                        ),
                         mode_reader=SomethingOldInteraction(self),
                         album_choice_reader=SomethingOldInteraction(self),
                         artist_choice_reader=SomethingOldInteraction(self),
@@ -288,6 +298,7 @@ class SomethingOldCLI:
                 )
         except (
             something_old.SomethingOldError,
+            BlastFromPastCancelledError,
             scrobble_history.ScrobbleHistoryError,
             LastFmError,
         ) as exc:
@@ -341,6 +352,7 @@ class SomethingOldCLI:
     def _report_something_old_something_old_failure(
         self,
         exc: something_old.SomethingOldError
+        | BlastFromPastCancelledError
         | scrobble_history.ScrobbleHistoryError
         | LastFmError,
     ) -> Never:

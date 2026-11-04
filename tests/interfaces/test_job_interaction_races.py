@@ -112,7 +112,137 @@ def _submit_daily_match(job_id: str) -> api.BlastJobResult:
     )
 
 
+def _found_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="found_art",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Title", candidates=[], kind="track"
+        ),
+    )
+
+
+def _submit_found_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_found_art(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
+def _annual_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="new_year",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Title", candidates=[], kind="album"
+        ),
+    )
+
+
+def _submit_annual_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_new_year_match(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
+def _sauvignon_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="fill_sauvignon_from_lastfm",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Title", candidates=[], kind="album"
+        ),
+    )
+
+
+def _submit_sauvignon_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_sauvignon_match(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
+def _old_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="something_old",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Title", candidates=[], kind="track"
+        ),
+    )
+
+
+def _submit_old_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_something_old_match(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
+def _palace_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="fill_palace_of_memory",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Title", candidates=[], kind="album"
+        ),
+    )
+
+
+def _submit_palace_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_palace_match(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
 INTERACTIONS = (
+    Interaction(
+        "found_art",
+        "track_match_pending_choice",
+        _found_match_view,
+        _submit_found_match,
+        api.cmd_cancel_found_art_job,
+        "",
+        None,
+    ),
+    Interaction(
+        "new_year",
+        "track_match_pending_choice",
+        _annual_match_view,
+        _submit_annual_match,
+        api.cmd_cancel_new_year_job,
+        "",
+        None,
+    ),
+    Interaction(
+        "fill_sauvignon_from_lastfm",
+        "track_match_pending_choice",
+        _sauvignon_match_view,
+        _submit_sauvignon_match,
+        api.cmd_cancel_sauvignon_job,
+        "",
+        None,
+    ),
+    Interaction(
+        "something_old",
+        "track_match_pending_choice",
+        _old_match_view,
+        _submit_old_match,
+        api.cmd_cancel_something_old_job,
+        "",
+        None,
+    ),
+    Interaction(
+        "fill_palace_of_memory",
+        "track_match_pending_choice",
+        _palace_match_view,
+        _submit_palace_match,
+        api.cmd_cancel_palace_of_memory_job,
+        "",
+        None,
+    ),
     Interaction(
         "blast_from_the_past",
         "track_match_pending_choice",

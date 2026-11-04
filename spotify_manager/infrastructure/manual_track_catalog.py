@@ -12,7 +12,15 @@ from spotify_manager.domain.history_matching import name_similarity
 from spotify_manager.infrastructure.history_matching_records import artist_names
 
 
-def _query(scrobble: Scrobble) -> str:
+def search_text(scrobble: Scrobble) -> str:
+    """Join the available historical catalog text without field filters.
+
+    Args:
+        scrobble: Historical artist, track and album display text.
+
+    Returns:
+        Nonempty reference parts separated by spaces.
+    """
     parts = []
     for part in (scrobble.artist, scrobble.track, scrobble.album):
         if part and part.strip():
@@ -93,7 +101,7 @@ class SpotifyManualTracks:
             BlastFromPastCancelledError: Cancellation is requested.
         """
         self.cancellation.check()
-        query = _query(scrobble)
+        query = search_text(scrobble)
         for attempt in self.retry.attempts(
             "searching Spotify for a manual track match"
         ):

@@ -3,7 +3,10 @@
 from dataclasses import dataclass
 from dataclasses import field
 
+from spotify_manager.application.manual_album_matching import ManualAlbumMatching
 from spotify_manager.application.palace_effects import PalaceEffects
+from spotify_manager.domain.history import Scrobble
+from spotify_manager.domain.history_matching import name_similarity
 from spotify_manager.domain.palace_albums import preferred_saved
 from spotify_manager.domain.palace_values import HistoricalAlbumSelection
 from spotify_manager.domain.palace_values import PalaceAlbumResult
@@ -21,12 +24,14 @@ class PalacePlanning:
         saved: Original complete refreshed canonical mirror.
         threshold: Original saved-edition qualification threshold.
         cache: Original run-scoped resolved first tracks by release identity.
+        manual: Optional explicit album matching stage.
     """
 
     effects: PalaceEffects
     saved: tuple[YourLibraryAlbum, ...]
     threshold: float = 0.9
     cache: dict[str, SpotifyFirstTrack] = field(default_factory=dict)
+    manual: ManualAlbumMatching | None = None
 
     async def alphabetical(
         self, albums: tuple[YourLibraryAlbum, ...]
@@ -100,7 +105,21 @@ class PalacePlanning:
         saved = preferred_saved(album.artist, album.album, self.saved, self.threshold)
         if saved is not None:
             return saved
-        return await self.effects.search(album.artist, album.album)
+        mapped = await self.effects.search(album.artist, album.album)
+        if mapped is not None or self.manual is None:
+            return mapped
+        chosen = await self.manual.run(Scrobble("", album.artist, album.album, 0))
+        if chosen is None:
+            return None
+        saved_member = any(item.spotify_id == chosen.spotify_id for item in self.saved)
+        return SpotifyAlbum(
+            chosen.spotify_id,
+            chosen.uri,
+            ", ".join(chosen.artists),
+            chosen.album,
+            saved_member,
+            name_similarity(album.album, chosen.album),
+        )
 
     async def _track(self, album: SpotifyAlbum | None) -> SpotifyFirstTrack | None:
         if album is None:

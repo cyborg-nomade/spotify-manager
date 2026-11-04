@@ -146,6 +146,37 @@ def _audit(environment: FoundArtEnvironment) -> dict[str, object]:
     return cast(dict[str, object], json.loads(environment.audit.read_text()))
 
 
+@pytest.mark.parametrize("choice", ["manual", "", None])
+def test_found_art_worker_can_select_reject_or_cancel_manual_match(
+    found_art_environment: FoundArtEnvironment, choice: str | None
+) -> None:
+    """Exercise shared matching through real recommendation gathering and effects.
+
+    Args:
+        found_art_environment: Real worker and isolated external services.
+        choice: Accepted identity, explicit rejection, or cancellation.
+    """
+    environment = found_art_environment
+    query = blast.spotify_search_query(blast.Scrobble("New Song", "New", "", 0))
+    environment.spotify.search_results[query] = []
+    environment.spotify.search_results["New New Song"] = [
+        spotify_track("manual", "Alternative title", "Different artist")
+    ]
+    job = environment.http.post("/commands/found-art", params={"count": 1}).json()
+    path = f"/commands/found-art-jobs/{job['job_id']}"
+    pending = _wait(environment.http, "found-art", job["job_id"], "waiting")
+    request = pending["track_match_pending_choice"]["request_id"]
+    endpoint = "/cancel" if choice is None else "/match"
+    response = environment.http.post(
+        path + endpoint, json={"request_id": request, "choice": choice}
+    )
+    assert response.status_code == 200, response.text
+    status = "cancelled" if choice is None else "completed"
+    result = _wait(environment.http, "found-art", job["job_id"], status)
+    assert result["track_match_pending_choice"] is None
+    assert bool(environment.spotify.posts) is (choice == "manual")
+
+
 def _accepted_count(environment: FoundArtEnvironment) -> int:
     results = cast(list[dict[str, object]], _audit(environment)["results"])
     return sum(result["action"] == "added" for result in results)

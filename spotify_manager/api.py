@@ -821,6 +821,45 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
 
 
 @app.api_route(
+    "/commands/found-art-jobs/{job_id}/match",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify match or explicitly reject all results.",
+)
+def cmd_choose_found_art(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit an explicit catalog match for the current pending request.
+
+    Args:
+        job_id: Reconnectable routine job identity.
+        request: Offered candidate identity or explicit no match.
+
+    Returns:
+        Detached updated job state.
+    """
+    return submit_track_match(job_id, "found_art", request)
+
+
+@app.api_route(
+    "/commands/found-art-jobs/{job_id}/cancel",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Cancel Found Art at its next safe boundary.",
+)
+def cmd_cancel_found_art_job(job_id: str) -> BlastJobResult:
+    """Cancel a pending Found Art matching interaction or its next safe stage.
+
+    Args:
+        job_id: Reconnectable Found Art job identity.
+
+    Returns:
+        Detached updated job state.
+    """
+    return found_art_http.cmd_cancel_found_art_job(job_id)
+
+
+@app.api_route(
     "/commands/fill-sauvignon-from-lastfm",
     methods=["POST"],
     response_model=BlastJobResult,
@@ -903,6 +942,27 @@ def cmd_choose_sauvignon_album(
         A detached view of the registered job.
     """
     return sauvignon_http.cmd_choose_sauvignon_album(job_id, request)
+
+
+@app.api_route(
+    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/match",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify match or explicitly reject all results.",
+)
+def cmd_choose_sauvignon_match(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit an explicit catalog match for the current pending request.
+
+    Args:
+        job_id: Reconnectable routine job identity.
+        request: Offered candidate identity or explicit no match.
+
+    Returns:
+        Detached updated job state.
+    """
+    return submit_track_match(job_id, "fill_sauvignon_from_lastfm", request)
 
 
 @app.api_route(
@@ -1673,6 +1733,27 @@ def cmd_choose_something_old(
 
 
 @app.api_route(
+    "/commands/something-old-jobs/{job_id}/match",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify match or explicitly reject all results.",
+)
+def cmd_choose_something_old_match(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit an explicit catalog match for the current pending request.
+
+    Args:
+        job_id: Reconnectable routine job identity.
+        request: Offered candidate identity or explicit no match.
+
+    Returns:
+        Detached updated job state.
+    """
+    return submit_track_match(job_id, "something_old", request)
+
+
+@app.api_route(
     "/commands/something-old-jobs/{job_id}/cancel",
     methods=["POST"],
     response_model=BlastJobResult,
@@ -2058,6 +2139,27 @@ def cmd_palace_of_memory_job(job_id: str) -> BlastJobResult:
 
 
 @app.api_route(
+    "/commands/fill-palace-of-memory-jobs/{job_id}/match",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify match or explicitly reject all results.",
+)
+def cmd_choose_palace_match(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit an explicit catalog match for the current pending request.
+
+    Args:
+        job_id: Reconnectable routine job identity.
+        request: Offered candidate identity or explicit no match.
+
+    Returns:
+        Detached updated job state.
+    """
+    return submit_track_match(job_id, "fill_palace_of_memory", request)
+
+
+@app.api_route(
     "/commands/fill-palace-of-memory-jobs/{job_id}/cancel",
     methods=["POST"],
     response_model=BlastJobResult,
@@ -2354,6 +2456,27 @@ def cmd_new_year_job(job_id: str) -> BlastJobResult:
         A detached view of the registered job.
     """
     return new_year_http.cmd_new_year_job(job_id)
+
+
+@app.api_route(
+    "/commands/new-year-jobs/{job_id}/match",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify match or explicitly reject all results.",
+)
+def cmd_choose_new_year_match(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit an explicit catalog match for the current pending request.
+
+    Args:
+        job_id: Reconnectable routine job identity.
+        request: Offered candidate identity or explicit no match.
+
+    Returns:
+        Detached updated job state.
+    """
+    return submit_track_match(job_id, "new_year", request)
 
 
 @app.api_route(

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.golden_selection import GoldenLastfmSelection
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.something_old_effects import SomethingOldEffects
@@ -90,12 +91,14 @@ class SomethingOld:
         history: Named complete canonical history or historical-selection stage.
         username: Original expected canonical history account.
         minimum_plays: Original configured eligibility threshold for error text.
+        lastfm: Optional named Last.fm selection stage for composed invocations.
     """
 
     effects: SomethingOldEffects
     history: HistoryRefresh
     username: str | None
     minimum_plays: int = 50
+    lastfm: GoldenLastfmSelection | None = None
 
     async def run(self, playlist: str, preview: bool) -> SomethingOldSummary:
         """Refresh and select only after the original destination-empty check.
@@ -143,6 +146,8 @@ class SomethingOld:
         release, tracks = await self._tracks(mode, artist, mapped)
         if mode == "album" and release is None:
             return _summary(facts, "cancelled", mapped, mode)
+        if not tracks and self.lastfm is not None:
+            return await self._unmatched(facts, mapped, mode)
         await self._append(tracks, facts.preview)
         summary = _summary(
             facts,
@@ -163,7 +168,7 @@ class SomethingOld:
         mapped: SpotifyArtistCandidate,
     ) -> tuple[DiscographyRelease | None, tuple[SelectedTrack, ...]]:
         if mode == "lastfm_top_tracks":
-            return None, (await self.effects.lastfm_tracks(artist))
+            return None, await self._lastfm_tracks(artist)
         if mode == "spotify_top_tracks":
             return None, (await self.effects.spotify_tracks(mapped))
         return await self.effects.album_tracks(artist, mapped)
@@ -178,3 +183,21 @@ class SomethingOld:
                 "nothing was added."
             )
         await self.effects.append(tracks)
+
+    async def _lastfm_tracks(
+        self, artist: GoldenOldieArtist
+    ) -> tuple[SelectedTrack, ...]:
+        if self.lastfm is not None:
+            return await self.lastfm.run(artist)
+        return await self.effects.lastfm_tracks(artist)
+
+    async def _unmatched(
+        self,
+        facts: _OldFacts,
+        mapped: SpotifyArtistCandidate,
+        mode: SelectionMode,
+    ) -> SomethingOldSummary:
+        summary = _summary(facts, "no match", mapped, mode)
+        if not facts.preview:
+            await self.effects.audit(summary)
+        return summary

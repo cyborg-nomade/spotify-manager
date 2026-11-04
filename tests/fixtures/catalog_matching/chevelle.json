@@ -1,0 +1,564 @@
+{
+  "provenance": "Public Spotify search responses observed 2026-11-04; only parser-relevant metadata retained.",
+  "searches": [
+    {
+      "query": "track:\"In Debt to Earth\" artist:\"Chevelle\"",
+      "response": {
+        "tracks": {
+          "items": [
+            {
+              "id": "3EYoNZwkuyJN7JTqt2djEM",
+              "uri": "spotify:track:3EYoNZwkuyJN7JTqt2djEM",
+              "name": "In Debt to the Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "5FT5oo5IM2hBizZisoPKH3",
+                "uri": "spotify:album:5FT5oo5IM2hBizZisoPKH3",
+                "name": "Vena Sera",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2007-04-03",
+                "total_tracks": 12
+              },
+              "popularity": 40
+            },
+            {
+              "id": "5Ivq9qmFUfbs13kv3BvvVV",
+              "uri": "spotify:track:5Ivq9qmFUfbs13kv3BvvVV",
+              "name": "In Debt To The Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "12s1xCgzvkoqPt13X0HrPi",
+                "uri": "spotify:album:12s1xCgzvkoqPt13X0HrPi",
+                "name": "12 Bloody Spies: B-sides and Rarities",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "compilation",
+                "release_date": "2018-10-26",
+                "total_tracks": 12
+              },
+              "popularity": 28
+            }
+          ]
+        }
+      }
+    },
+    {
+      "query": "Chevelle In Debt to Earth",
+      "response": {
+        "tracks": {
+          "items": [
+            {
+              "id": "3EYoNZwkuyJN7JTqt2djEM",
+              "uri": "spotify:track:3EYoNZwkuyJN7JTqt2djEM",
+              "name": "In Debt to the Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "5FT5oo5IM2hBizZisoPKH3",
+                "uri": "spotify:album:5FT5oo5IM2hBizZisoPKH3",
+                "name": "Vena Sera",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2007-04-03",
+                "total_tracks": 12
+              },
+              "popularity": 40
+            },
+            {
+              "id": "5Ivq9qmFUfbs13kv3BvvVV",
+              "uri": "spotify:track:5Ivq9qmFUfbs13kv3BvvVV",
+              "name": "In Debt To The Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "12s1xCgzvkoqPt13X0HrPi",
+                "uri": "spotify:album:12s1xCgzvkoqPt13X0HrPi",
+                "name": "12 Bloody Spies: B-sides and Rarities",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "compilation",
+                "release_date": "2018-10-26",
+                "total_tracks": 12
+              },
+              "popularity": 28
+            },
+            {
+              "id": "0I3AULPVegMXTSSWprUH4s",
+              "uri": "spotify:track:0I3AULPVegMXTSSWprUH4s",
+              "name": "Heart-Shaped Box",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/589tFv4Vf1K27wpf0uWz2j"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/589tFv4Vf1K27wpf0uWz2j",
+                  "id": "589tFv4Vf1K27wpf0uWz2j",
+                  "name": "Dead Sara",
+                  "type": "artist",
+                  "uri": "spotify:artist:589tFv4Vf1K27wpf0uWz2j"
+                }
+              ],
+              "album": {
+                "id": "2lhX2FdJieUKMd9rwD13gF",
+                "uri": "spotify:album:2lhX2FdJieUKMd9rwD13gF",
+                "name": "Heart-Shaped Box",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/589tFv4Vf1K27wpf0uWz2j"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/589tFv4Vf1K27wpf0uWz2j",
+                    "id": "589tFv4Vf1K27wpf0uWz2j",
+                    "name": "Dead Sara",
+                    "type": "artist",
+                    "uri": "spotify:artist:589tFv4Vf1K27wpf0uWz2j"
+                  }
+                ],
+                "album_type": "single",
+                "release_date": "2013-11-12",
+                "total_tracks": 2
+              },
+              "popularity": 49
+            },
+            {
+              "id": "2Bcvh4zypRuH0cCTQzuV6B",
+              "uri": "spotify:track:2Bcvh4zypRuH0cCTQzuV6B",
+              "name": "Don't Fake This",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "481JiVXZYUlTtqlv9ewJXV",
+                "uri": "spotify:album:481JiVXZYUlTtqlv9ewJXV",
+                "name": "Wonder What's Next (Expanded Edition)",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2002",
+                "total_tracks": 15
+              },
+              "popularity": 61
+            },
+            {
+              "id": "412LyfktkgWKEn8kmKiyQe",
+              "uri": "spotify:track:412LyfktkgWKEn8kmKiyQe",
+              "name": "Comfortable Liar",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "481JiVXZYUlTtqlv9ewJXV",
+                "uri": "spotify:album:481JiVXZYUlTtqlv9ewJXV",
+                "name": "Wonder What's Next (Expanded Edition)",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2002",
+                "total_tracks": 15
+              },
+              "popularity": 79
+            },
+            {
+              "id": "5GgfA1Cel00rtzU2mNCuaL",
+              "uri": "spotify:track:5GgfA1Cel00rtzU2mNCuaL",
+              "name": "Heart Shaped Box - Live & Loud",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                  "id": "6olE6TJLqED3rqDCT0FyPh",
+                  "name": "Nirvana",
+                  "type": "artist",
+                  "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                }
+              ],
+              "album": {
+                "id": "4Sdfp3NL90GZoYYwLmhk0H",
+                "uri": "spotify:album:4Sdfp3NL90GZoYYwLmhk0H",
+                "name": "Live And Loud",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                    "id": "6olE6TJLqED3rqDCT0FyPh",
+                    "name": "Nirvana",
+                    "type": "artist",
+                    "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2019-07-26",
+                "total_tracks": 17
+              },
+              "popularity": 37
+            },
+            {
+              "id": "5MoA9NmBrDrf0oHfeRPyWV",
+              "uri": "spotify:track:5MoA9NmBrDrf0oHfeRPyWV",
+              "name": "Heart Shaped Box - Original Steve Albini 1993 Mix",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                  "id": "6olE6TJLqED3rqDCT0FyPh",
+                  "name": "Nirvana",
+                  "type": "artist",
+                  "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                }
+              ],
+              "album": {
+                "id": "6ohX7moZZnF1FwYrli1OJ6",
+                "uri": "spotify:album:6ohX7moZZnF1FwYrli1OJ6",
+                "name": "In Utero (Deluxe Edition)",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                    "id": "6olE6TJLqED3rqDCT0FyPh",
+                    "name": "Nirvana",
+                    "type": "artist",
+                    "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "1993-09-21",
+                "total_tracks": 43
+              },
+              "popularity": 42
+            },
+            {
+              "id": "58KPPL1AdLHMvR2O2PZejr",
+              "uri": "spotify:track:58KPPL1AdLHMvR2O2PZejr",
+              "name": "Jesus of Suburbia",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/7oPftvlwr6VrsViSDV7fJY"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/7oPftvlwr6VrsViSDV7fJY",
+                  "id": "7oPftvlwr6VrsViSDV7fJY",
+                  "name": "Green Day",
+                  "type": "artist",
+                  "uri": "spotify:artist:7oPftvlwr6VrsViSDV7fJY"
+                }
+              ],
+              "album": {
+                "id": "5dN7F9DV0Qg1XRdIgW8rke",
+                "uri": "spotify:album:5dN7F9DV0Qg1XRdIgW8rke",
+                "name": "American Idiot",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/7oPftvlwr6VrsViSDV7fJY"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/7oPftvlwr6VrsViSDV7fJY",
+                    "id": "7oPftvlwr6VrsViSDV7fJY",
+                    "name": "Green Day",
+                    "type": "artist",
+                    "uri": "spotify:artist:7oPftvlwr6VrsViSDV7fJY"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2004-09-21",
+                "total_tracks": 9
+              },
+              "popularity": 72
+            },
+            {
+              "id": "1hbrWgBsUV2SZcWNzdSCkD",
+              "uri": "spotify:track:1hbrWgBsUV2SZcWNzdSCkD",
+              "name": "Heart Shaped Box - 2013 Mix",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                  "id": "6olE6TJLqED3rqDCT0FyPh",
+                  "name": "Nirvana",
+                  "type": "artist",
+                  "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                }
+              ],
+              "album": {
+                "id": "6ohX7moZZnF1FwYrli1OJ6",
+                "uri": "spotify:album:6ohX7moZZnF1FwYrli1OJ6",
+                "name": "In Utero (Deluxe Edition)",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/6olE6TJLqED3rqDCT0FyPh"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/6olE6TJLqED3rqDCT0FyPh",
+                    "id": "6olE6TJLqED3rqDCT0FyPh",
+                    "name": "Nirvana",
+                    "type": "artist",
+                    "uri": "spotify:artist:6olE6TJLqED3rqDCT0FyPh"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "1993-09-21",
+                "total_tracks": 43
+              },
+              "popularity": 38
+            },
+            {
+              "id": "43QlNorMWn7KAfBnMOTmLn",
+              "uri": "spotify:track:43QlNorMWn7KAfBnMOTmLn",
+              "name": "Debil Metal",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/5Q9RKJrjHdfpWVxzv45XTJ"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/5Q9RKJrjHdfpWVxzv45XTJ",
+                  "id": "5Q9RKJrjHdfpWVxzv45XTJ",
+                  "name": "Mamonas Assassinas",
+                  "type": "artist",
+                  "uri": "spotify:artist:5Q9RKJrjHdfpWVxzv45XTJ"
+                }
+              ],
+              "album": {
+                "id": "5Bt5FYi2uicM6ryvNqKUzI",
+                "uri": "spotify:album:5Bt5FYi2uicM6ryvNqKUzI",
+                "name": "Mamonas Assassinas",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/5Q9RKJrjHdfpWVxzv45XTJ"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/5Q9RKJrjHdfpWVxzv45XTJ",
+                    "id": "5Q9RKJrjHdfpWVxzv45XTJ",
+                    "name": "Mamonas Assassinas",
+                    "type": "artist",
+                    "uri": "spotify:artist:5Q9RKJrjHdfpWVxzv45XTJ"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "1995-01-01",
+                "total_tracks": 14
+              },
+              "popularity": 53
+            }
+          ]
+        }
+      }
+    },
+    {
+      "query": "track:\"In Debt to the Earth\" artist:\"Chevelle\"",
+      "response": {
+        "tracks": {
+          "items": [
+            {
+              "id": "3EYoNZwkuyJN7JTqt2djEM",
+              "uri": "spotify:track:3EYoNZwkuyJN7JTqt2djEM",
+              "name": "In Debt to the Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "5FT5oo5IM2hBizZisoPKH3",
+                "uri": "spotify:album:5FT5oo5IM2hBizZisoPKH3",
+                "name": "Vena Sera",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "album",
+                "release_date": "2007-04-03",
+                "total_tracks": 12
+              },
+              "popularity": 40
+            },
+            {
+              "id": "5Ivq9qmFUfbs13kv3BvvVV",
+              "uri": "spotify:track:5Ivq9qmFUfbs13kv3BvvVV",
+              "name": "In Debt To The Earth",
+              "artists": [
+                {
+                  "external_urls": {
+                    "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                  },
+                  "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                  "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                  "name": "Chevelle",
+                  "type": "artist",
+                  "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                }
+              ],
+              "album": {
+                "id": "12s1xCgzvkoqPt13X0HrPi",
+                "uri": "spotify:album:12s1xCgzvkoqPt13X0HrPi",
+                "name": "12 Bloody Spies: B-sides and Rarities",
+                "artists": [
+                  {
+                    "external_urls": {
+                      "spotify": "https://open.spotify.com/artist/56dO9zeHKuU5Gvfc2kxHNw"
+                    },
+                    "href": "https://api.spotify.com/v1/artists/56dO9zeHKuU5Gvfc2kxHNw",
+                    "id": "56dO9zeHKuU5Gvfc2kxHNw",
+                    "name": "Chevelle",
+                    "type": "artist",
+                    "uri": "spotify:artist:56dO9zeHKuU5Gvfc2kxHNw"
+                  }
+                ],
+                "album_type": "compilation",
+                "release_date": "2018-10-26",
+                "total_tracks": 12
+              },
+              "popularity": 28
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

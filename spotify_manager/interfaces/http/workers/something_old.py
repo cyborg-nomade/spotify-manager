@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -38,6 +39,7 @@ from spotify_manager.interfaces.http.presenters.something_old import scrobble_da
 from spotify_manager.interfaces.http.presenters.something_old import (
     something_old_track_result as _something_old_track_result,
 )
+from spotify_manager.interfaces.http.track_matching import WebCatalogMatching
 from spotify_manager.interfaces.http.workers.errors import (
     _SomethingOldJobCancelledError,
 )
@@ -83,7 +85,7 @@ class SomethingOldWorker:
         self._start()
         try:
             summary = await self._execute()
-        except _SomethingOldJobCancelledError:
+        except _SomethingOldJobCancelledError, BlastFromPastCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
             self._rate_limited(exc)
@@ -273,6 +275,7 @@ class SomethingOldWorker:
                 dry_run=self.options.dry_run,
             ),
             SomethingOldCallbacks(
+                matching=WebCatalogMatching(self.context, self.job),
                 mode_reader=self,
                 album_choice_reader=self,
                 artist_choice_reader=self,
@@ -304,6 +307,7 @@ class SomethingOldWorker:
         self.events.restore()
         with self.context.lock:
             self.job.result.something_old_pending_choice = None
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
@@ -484,6 +488,10 @@ class SomethingOldWorker:
             )
         elif summary.action == "cancelled":
             self.job.result.detail = "Something Old was cancelled."
+        elif summary.action == "no match":
+            self.job.result.detail = (
+                "No Last.fm tracks were matched; Spotify was unchanged."
+            )
         elif summary.action == "would add":
             self.job.result.detail = (
                 f"Dry run: would add {len(tracks)} track(s) for "

@@ -78,7 +78,9 @@ def _named_playlist(
 
 
 async def _track(sp: Spotify, item: YearEntry, retry: RetryCall) -> str:
-    return await composition.resolution(sp, retry).track(item)
+    uri = await composition.resolution(sp, retry).track(item)
+    assert uri is not None
+    return uri
 
 
 async def _add_missing(

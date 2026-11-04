@@ -79,10 +79,10 @@ def test_actual_sauvignon_cli_and_restart(
     arguments = ["fill-sauvignon-from-lastfm", "--count", "1", "--seed-count", "1"]
     if preview:
         arguments.append("--dry-run")
-    first = CliRunner().invoke(main.app, arguments)
+    first = CliRunner().invoke(main.app, arguments, input="n\nn\n")
     assert first.exit_code == 0, first.output
     assert "Opening" in first.output and "New Album" in first.output
-    second = CliRunner().invoke(main.app, arguments)
+    second = CliRunner().invoke(main.app, arguments, input="n\nn\n")
     assert second.exit_code == 0, second.output
     assert spotify.posts == (
         []
@@ -97,3 +97,30 @@ def test_actual_sauvignon_cli_and_restart(
     later = cast(list[dict[str, object]], json.loads(records[1])["results"])
     assert [row["action"] for row in later] == (["would add"] if preview else [])
     assert len(json.loads(found_art.DEFAULT_CACHE_PATH.read_text())["entries"]) == 1
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_sauvignon_cli_resolves_recommended_tracks_with_album_choices(
+    monkeypatch: pytest.MonkeyPatch, preview: bool
+) -> None:
+    """Resolve broad track results to albums through the real CLI composition.
+
+    Args:
+        monkeypatch: External client and clock substitutions.
+        preview: Suppress playlist writes while retaining the selection.
+    """
+    spotify = _environment(monkeypatch)
+    spotify.search_results.clear()
+    for artist, title in (("New", "New Song"), ("Liked", "Liked Song")):
+        spotify.search_results[f"{artist} {title}"] = [
+            raw_spotify_track(artist="New", track="Different title")
+        ]
+    arguments = ["fill-sauvignon-from-lastfm", "--count", "1", "--seed-count", "1"]
+    if preview:
+        arguments.append("--dry-run")
+    result = CliRunner().invoke(main.app, arguments, input="1\nn\n")
+    assert result.exit_code == 0, result.output
+    assert "Choose a Spotify album" in result.output
+    assert "https://open.spotify.com/album/album-id" in result.output
+    assert "Opening" in result.output
+    assert bool(spotify.posts) is not preview

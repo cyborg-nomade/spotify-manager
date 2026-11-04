@@ -80,14 +80,14 @@ class AnnualPlanning:
             self.output.echo(
                 f"Top track: {item['artist']} — {item['name']} ({item['scrobbles']})"
             )
-            item["uri"] = await self.resolution.track(item)
+            _record_marker(item, await self.resolution.track(item))
 
     async def _albums(self, items: list[YearEntry]) -> None:
         for item in items:
             self.output.echo(
                 f"Top album: {item['artist']} — {item['name']} ({item['scrobbles']})"
             )
-            item["uri"] = await self.resolution.album_marker(item)
+            _record_marker(item, await self.resolution.album_marker(item))
 
     async def _artists(
         self,
@@ -98,21 +98,39 @@ class AnnualPlanning:
         for item in items:
             self.output.echo(f"Top artist: {item['artist']} ({item['scrobbles']})")
             identity = await self.resolution.artist_identity(item)
+            if identity is None:
+                _record_marker(item, None)
+                continue
             item["artist_id"] = identity
-            marker = existing_primary_marker(memory, identity)
-            item["uri"] = (
+            marker = item.get("uri") or existing_primary_marker(memory, identity)
+            uri = (
                 marker
                 if marker is not None
-                else (await self._marker(item, ranked, identity))
+                else await self._marker(item, ranked, identity)
             )
+            _record_marker(item, uri)
 
     async def _marker(
         self, artist: YearEntry, ranked: list[YearEntry], identity: str
-    ) -> str:
+    ) -> str | None:
         for candidate in ranked:
             if candidate["artist"].casefold() != artist["artist"].casefold():
                 continue
             uri = await self.resolution.track(candidate)
-            if (await self.resolution.catalog.primary(uri)) == identity:
+            if (
+                uri is not None
+                and (await self.resolution.catalog.primary(uri)) == identity
+            ):
                 return uri
+        if self.resolution.manual is not None:
+            return await self.resolution.marker(artist, identity)
         raise NewYearError(f"No primary-artist track for {artist['artist']}.")
+
+
+def _record_marker(item: YearEntry, uri: str | None) -> None:
+    if uri is None:
+        item.pop("uri", None)
+        item["dropped"] = True
+        return
+    item["uri"] = uri
+    item.pop("dropped", None)

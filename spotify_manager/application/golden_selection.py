@@ -1,20 +1,24 @@
 """Coordinate Golden Oldies matching, interactive choices and ordered recipes."""
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Protocol
 
+from spotify_manager.application.manual_track_matching import ManualTrackMatching
 from spotify_manager.application.something_old_values import SomethingOldSpotifyError
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.golden_markers import album_markers
 from spotify_manager.domain.golden_markers import distinct_markers
 from spotify_manager.domain.golden_markers import exact_artists
-from spotify_manager.domain.golden_markers import lastfm_markers
+from spotify_manager.domain.golden_markers import from_match
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_oldies import LastFmTrackStat
 from spotify_manager.domain.golden_selection import SelectedTrack
 from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
+from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
+from spotify_manager.domain.history_matching import preferred_match
 
 
 class ArtistChoice(Protocol):
@@ -138,38 +142,82 @@ async def resolve_artist(
     raise SomethingOldSpotifyError("The selected Spotify artist is invalid.")
 
 
+@dataclass(frozen=True)
+class GoldenLastfmSelection:
+    """Resolve ranked Last.fm titles before retaining distinct accepted markers.
+
+    Args:
+        catalog: Original search and liked-membership observations.
+        album_threshold: Existing automatic album qualification threshold.
+        manual: Optional explicit fallback for unresolved titles.
+    """
+
+    catalog: GoldenMatches
+    album_threshold: float = 0.9
+    manual: ManualTrackMatching | None = None
+
+    async def run(self, artist: GoldenOldieArtist) -> tuple[SelectedTrack, ...]:
+        """Keep automatic preference and explicitly resolve unmatched ranked titles.
+
+        Args:
+            artist: Original historical artist and ranked track statistics.
+
+        Returns:
+            Distinct markers in historical rank order, excluding explicit rejection.
+
+        Raises:
+            SomethingOldSpotifyError: A noninteractive call has no safe matches.
+        """
+        groups = []
+        for title in artist.top_tracks:
+            groups.append(await self.catalog.matches(artist, title))
+        liked = await self.catalog.liked(artist, groups)
+        result = []
+        for title, matches in zip(artist.top_tracks, groups, strict=True):
+            chosen = await self._match(artist, title, matches, liked)
+            if chosen is not None:
+                result.append(from_match(chosen, "Last.fm top tracks", title.scrobbles))
+        selected = distinct_markers(result, len(result))
+        if not selected and self.manual is None:
+            raise SomethingOldSpotifyError(
+                f"None of {artist.artist}'s top Last.fm tracks matched Spotify safely."
+            )
+        return selected
+
+    async def _match(
+        self,
+        artist: GoldenOldieArtist,
+        title: LastFmTrackStat,
+        matches: tuple[SpotifyTrackMatch, ...],
+        liked: set[str],
+    ) -> SpotifyTrackMatch | None:
+        chosen = preferred_match(matches, liked, self.album_threshold)
+        if chosen is not None or self.manual is None:
+            return chosen
+        return await self.manual.run(
+            Scrobble(title.track, artist.artist, "", title.last_scrobbled_ms)
+        )
+
+
 async def select_lastfm(
     artist: GoldenOldieArtist,
     catalog: GoldenMatches,
     album_threshold: float = 0.9,
 ) -> tuple[SelectedTrack, ...]:
-    """Gather every title before the original single live liked-track check.
+    """Retain the noninteractive Last.fm selection compatibility entry.
 
     Args:
-        artist: Original selected history artist and ranked titles.
-        catalog: Named matching and live membership reader.
-        album_threshold: Original qualification threshold.
+        artist: Historical artist and original ranked titles.
+        catalog: Original catalog and membership resource.
+        album_threshold: Existing automatic qualification threshold.
 
     Returns:
-        Original ordered safe distinct markers.
+        Original distinct safe markers.
 
     Raises:
-        SomethingOldSpotifyError: None of the original titles match safely.
+        SomethingOldSpotifyError: No title resolves automatically.
     """
-    groups = []
-    for title in artist.top_tracks:
-        groups.append(await catalog.matches(artist, title))
-    selected = lastfm_markers(
-        artist.top_tracks,
-        tuple(groups),
-        (await catalog.liked(artist, groups)),
-        album_threshold,
-    )
-    if not selected:
-        raise SomethingOldSpotifyError(
-            f"None of {artist.artist}'s top Last.fm tracks matched Spotify safely."
-        )
-    return selected
+    return await GoldenLastfmSelection(catalog, album_threshold).run(artist)
 
 
 def select_popular(

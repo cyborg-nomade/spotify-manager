@@ -8,12 +8,14 @@ import typer
 from rich.console import Console
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.track_matching import CliCatalogMatching
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
@@ -138,8 +140,15 @@ class FoundArtCLI:
                     seed_count=seed_count,
                     dry_run=dry_run,
                     progress_callback=StatusOutput(status),
+                    interaction=CliCatalogMatching(
+                        self.display, self._found_art_console, status
+                    ),
                 )
-        except (found_art.FoundArtError, LastFmError) as exc:
+        except (
+            found_art.FoundArtError,
+            LastFmError,
+            BlastFromPastCancelledError,
+        ) as exc:
             self._report_found_art_found_art_failure(exc)
         except SpotifyException as exc:
             self._report_found_art_spotify_spotify_failure(exc)
@@ -195,7 +204,7 @@ class FoundArtCLI:
         raise typer.Exit(code=1) from exc
 
     def _report_found_art_found_art_failure(
-        self, exc: found_art.FoundArtError | LastFmError
+        self, exc: found_art.FoundArtError | LastFmError | BlastFromPastCancelledError
     ) -> Never:
         self._found_art_console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc

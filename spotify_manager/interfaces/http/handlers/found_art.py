@@ -55,3 +55,17 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     job = jobs.get_blast_job(job_id, command="found_art")
     with jobs._blast_jobs_lock:
         return jobs._blast_job_snapshot(job)
+
+
+def cmd_cancel_found_art_job(job_id: str) -> BlastJobResult:
+    """Stop Found Art at the next matching or accepted-write boundary.
+
+    Args:
+        job_id: Reconnectable routine identity.
+
+    Returns:
+        Detached updated job view.
+    """
+    return jobs._cancel_simple_playlist_job(
+        job_id, command="found_art", detail="Stopping Found Art"
+    )

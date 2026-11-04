@@ -8,6 +8,7 @@ from spotify_manager.application.new_year_membership import RetryCall
 from spotify_manager.application.new_year_sources import named_playlist
 from spotify_manager.application.new_year_values import RetrospectivePlan
 from spotify_manager.application.ports.annual import AnnualChartCatalog
+from spotify_manager.domain.annual_history import accepted_uris
 
 
 type ChartKind = Literal["tracks", "albums"]
@@ -49,7 +50,7 @@ class AnnualCharts:
             async with attempt:
                 response = await self._ensure(name, kind, year)
         playlist = response
-        uris = [item["uri"] for item in plan[kind]]
+        uris = accepted_uris(plan[kind])
         uris = list(dict.fromkeys(uris))
         current = [track.uri for track in (await self.catalog.playlist(playlist))]
         if current != uris:

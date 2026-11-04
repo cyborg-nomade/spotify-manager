@@ -3,6 +3,7 @@
 from spotify_manager.application.palace_run import Palace
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap import manual_matching
 from spotify_manager.bootstrap.palace_history import palace_history
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.infrastructure.legacy.palace_run import LegacyPalace
@@ -52,4 +53,5 @@ def palace(
         legacy.HISTORY_COUNT,
         legacy.ALPHABETICAL_COUNT,
         legacy.ALBUM_MATCH_THRESHOLD,
+        manual_matching.albums(spotify, callbacks.matching, retry),
     )

@@ -85,6 +85,7 @@ async def fill_sauvignon_from_lastfm(
         resources.cache_path,
         resources.log_path,
         options.now,
+        callbacks.matching,
     )
     return await workflow.run(
         options.playlist_id,

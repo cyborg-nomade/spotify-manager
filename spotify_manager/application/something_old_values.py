@@ -12,7 +12,9 @@ from spotify_manager.domain.golden_selection import SelectionMode
 from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
 
 
-type SummaryAction = Literal["playlist not empty", "cancelled", "would add", "added"]
+type SummaryAction = Literal[
+    "playlist not empty", "cancelled", "would add", "added", "no match"
+]
 
 
 class SomethingOldError(RuntimeError):

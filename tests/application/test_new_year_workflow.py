@@ -207,6 +207,18 @@ class MemoryAnnual:
         """
         return await self.edge.artist(cast(Spotify, self.edge), name, None, self.retry)
 
+    async def artist_candidates(self, name: str) -> tuple[SpotifyArtistCandidate, ...]:
+        """Expose the scripted artist result through the new observation-only port.
+
+        Args:
+            name: Original historical display name.
+
+        Returns:
+            The scripted artist or an empty result.
+        """
+        artist = await self.artist(name)
+        return (artist,) if artist is not None else ()
+
     async def primary(self, uri: str) -> object:
         """Supply original retried primary credit facts.
 

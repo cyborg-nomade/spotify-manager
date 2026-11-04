@@ -260,11 +260,11 @@ async def test_zero_batch_size_retains_range_error_before_observations() -> None
     assert memory.events == []
 
 
-def test_projection_requires_one_group_per_candidate() -> None:
+async def test_projection_requires_one_group_per_candidate() -> None:
     """Retain strict zip protection against corrupted batch observations."""
     memory = BatchMemory()
     with pytest.raises(ValueError, match="zip"):
-        memory.workflow()._project(
+        await memory.workflow()._project(
             (_candidate("artist", "song"),),
             [],
             set(),
