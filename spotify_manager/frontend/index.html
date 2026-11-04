@@ -181,6 +181,9 @@
   .new-wine-options button { border-radius: 6px; padding: 10px 12px; text-align: left; }
   .new-wine-option-name { display: block; font-size: .82rem; }
   .new-wine-option-meta { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; font-weight: 500; }
+  .track-match-options button { width: 100%; font-variant-caps: normal; overflow-wrap: anywhere; }
+  .track-match-options .new-wine-option-meta { color: inherit; }
+  .track-match-options a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
@@ -2027,9 +2030,33 @@
     else blastJob = job;
   }
 
+  function trackMatchChoice(kind, job) {
+    var choice = job.track_match_pending_choice;
+    if (!choice) return "";
+    var attributes = 'data-kind="' + esc(kind) + '" data-job-id="' + esc(job.job_id) +
+      '" data-request-id="' + esc(choice.request_id) + '"';
+    var candidates = (choice.candidates || []).map(function (candidate, index) {
+      return '<div class="blast-selection"><button class="ghost new-wine-option" ' +
+        'data-action="trackMatchChoice" ' + attributes + ' data-choice="' + esc(candidate.spotify_id) + '">' +
+        '<span class="new-wine-option-name">' + esc(index + 1) + '. ' + esc(candidate.track) + '</span>' +
+        '<span class="new-wine-option-meta">' + esc((candidate.artists || []).join(", ")) + ' · ' + esc(candidate.album || "(no album)") +
+        '</span></button><a href="' + esc(candidate.url) + '" target="_blank" rel="noopener noreferrer" ' +
+        'aria-label="Open ' + esc(candidate.track) + ' in Spotify">Open in Spotify</a></div>';
+    }).join("");
+    return '<div class="new-wine-choice"><div class="new-wine-choice-title">Choose a Spotify match</div>' +
+      '<div class="playlist-dates">' + esc(choice.scrobble) + '</div><div class="new-wine-options track-match-options">' +
+      (candidates || '<p>Spotify returned no usable track results.</p>') + '</div>' +
+      '<div class="new-wine-controls endpoint-controls"><button class="ghost" data-action="trackMatchChoice" ' + attributes +
+      ' data-choice="">No match</button><button class="danger" data-action="cancelTrackMatch" ' +
+      attributes + '>Cancel routine</button></div></div>';
+  }
+
   function renderPlaylistJob(kind, job) {
     var config = playlistJobConfig(kind);
     var out = document.getElementById(config.progressId);
+    var requestId = job.track_match_pending_choice && job.track_match_pending_choice.request_id;
+    if (requestId && out.dataset.trackMatchRequest === requestId) return;
+    out.dataset.trackMatchRequest = requestId || "";
     var start = document.querySelector('[data-action="' + config.action + '"]');
     var cancel = config.cancelAction
       ? document.querySelector('[data-action="' + config.cancelAction + '"]')
@@ -2156,7 +2183,7 @@
         '<span class="analysis-log-message">Waiting for activity…</span></div>';
     }
     out.innerHTML = '<div class="analysis-state">' + esc(job.detail || job.status) + '</div>' +
-      dateSummary + foundSummary + summary + selections +
+      dateSummary + foundSummary + summary + selections + trackMatchChoice(kind, job) +
       '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
@@ -4530,6 +4557,27 @@
       });
       document.getElementById("queueCountControl").hidden = mode !== "count";
       document.getElementById("queueMaximumControl").hidden = mode !== "maximum";
+    },
+
+    async trackMatchChoice(btn) {
+      var kind = btn.dataset.kind;
+      var config = playlistJobConfig(kind);
+      var group = btn.closest(".new-wine-choice");
+      group.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+      try {
+        var job = await api(config.basePath + "-jobs/" + btn.dataset.jobId + "/choice", {
+          method: "POST",
+          json: { request_id: btn.dataset.requestId, choice: btn.dataset.choice },
+        });
+        renderPlaylistJob(kind, job);
+      } catch (e) {
+        group.querySelectorAll("button").forEach(function (button) { button.disabled = false; });
+        showToast(e.detail || "Could not submit Spotify match", "err");
+      }
+    },
+
+    async cancelTrackMatch(btn) {
+      await cancelPlaylistJob(btn.dataset.kind, btn);
     },
 
     async startBlast(btn) {

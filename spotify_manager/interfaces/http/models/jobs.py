@@ -32,6 +32,7 @@ from .slow_listening import SlowListeningTrackResult
 from .something_old import SomethingOldPendingChoice
 from .something_old import SomethingOldRankingEntry
 from .something_old import SomethingOldTrackResult
+from .track_matching import TrackMatchPendingChoice
 from .wine import NewWinePendingChoice
 from .wine import NewWineRefillResult
 from .wine import NewWineTrackResult
@@ -77,6 +78,7 @@ class BlastJobResult(BaseModel):
     sauvignon_album_candidate_count: int | None = None
     sauvignon_results: list[SauvignonSelectionResult] = Field(default_factory=list)
     sauvignon_pending_choice: SauvignonPendingChoice | None = None
+    track_match_pending_choice: TrackMatchPendingChoice | None = None
     dry_run: bool = False
     no_discovery: bool = False
     choose_album_endpoints: bool = False

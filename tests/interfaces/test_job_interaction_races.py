@@ -10,6 +10,9 @@ from fastapi import HTTPException
 
 from spotify_manager import api
 from spotify_manager.interfaces.http import jobs as http_jobs
+from spotify_manager.interfaces.http.models.track_matching import (
+    TrackMatchPendingChoice,
+)
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,52 @@ def _submit_checklist(job_id: str) -> api.BlastJobResult:
     )
 
 
+def _blast_match_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="blast_from_the_past",
+        status="waiting",
+        track_match_pending_choice=TrackMatchPendingChoice(
+            request_id="current", scrobble="Artist - Song - Album", candidates=[]
+        ),
+    )
+
+
+def _daily_match_view() -> api.BlastJobResult:
+    return _blast_match_view().model_copy(update={"command": "daily_mind_radio"})
+
+
+def _submit_blast_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_blast_track(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
+def _submit_daily_match(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_daily_mind_radio_track(
+        job_id, api.TrackMatchChoiceRequest(request_id="current", choice="")
+    )
+
+
 INTERACTIONS = (
+    Interaction(
+        "blast_from_the_past",
+        "track_match_pending_choice",
+        _blast_match_view,
+        _submit_blast_match,
+        api.cmd_cancel_blast_job,
+        "",
+        None,
+    ),
+    Interaction(
+        "daily_mind_radio",
+        "track_match_pending_choice",
+        _daily_match_view,
+        _submit_daily_match,
+        api.cmd_cancel_daily_mind_radio_job,
+        "",
+        None,
+    ),
     Interaction(
         "fill_queue_from_lastfm",
         "queue_pending_choice",

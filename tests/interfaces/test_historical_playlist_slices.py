@@ -159,3 +159,180 @@ def test_cli_historical_preview_executes_real_selection(
     assert "Random.org timestamp" in result.output
     assert "would add 1" in result.output.lower()
     assert spotify.posts == []
+
+
+def _manual_candidates(spotify: SimulatedSpotify, count: int = 3) -> None:
+    spotify.search_results.clear()
+    spotify.search_results["Artist Song Album"] = [
+        spotify_track(
+            f"manual-{index}",
+            f"Different {index}",
+            "Other artist",
+            "Other album",
+            index,
+        )
+        for index in range(count)
+    ]
+    spotify.liked_ids = {"manual-1"}
+
+
+def _start_manual(http: TestClient, command: str, preview: bool = True) -> str:
+    params: dict[str, bool | int] = {"dry_run": preview}
+    if command == "blast-from-the-past":
+        params["count"] = 1
+    response = http.post(f"/commands/{command}", params=params)
+    assert response.status_code == 202, response.text
+    return str(response.json()["job_id"])
+
+
+def _pending_match(http: TestClient, command: str, job: str) -> dict[str, object]:
+    result = _wait(http, command, job, "waiting")
+    return cast(dict[str, object], result["track_match_pending_choice"])
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_http_manual_selection_preserves_search_order_preview_and_duplicates(
+    historical_http: tuple[TestClient, SimulatedSpotify, str], preview: bool
+) -> None:
+    """Exercise explicit selection through the actual routes, workers and use cases.
+
+    Args:
+        historical_http: Real commands with isolated external observations.
+        preview: Whether accepted changes must remain a preview.
+    """
+    http, spotify, command = historical_http
+    _manual_candidates(spotify)
+    job = _start_manual(http, command, preview)
+    for _index in range(1 if command == "blast-from-the-past" else 2):
+        pending = _pending_match(http, command, job)
+        candidates = cast(list[dict[str, object]], pending["candidates"])
+        assert [item["spotify_id"] for item in candidates] == [
+            "manual-0",
+            "manual-1",
+            "manual-2",
+        ]
+        assert candidates[1]["artists"] == ["Other artist"]
+        assert candidates[1]["url"] == "https://open.spotify.com/track/manual-1"
+        response = http.post(
+            f"/commands/{command}-jobs/{job}/choice",
+            json={"request_id": pending["request_id"], "choice": "manual-1"},
+        )
+        assert response.status_code == 200, response.text
+    result = _wait(http, command, job, "completed")
+    assert result["added"] == 1
+    assert len(spotify.posts) == int(not preview)
+    selections = cast(list[dict[str, object]], result["selections"])
+    assert selections[0]["liked"] is True
+    assert selections[0]["qualifying_matches"] == 0
+    assert [item["action"] for item in selections] == (
+        ["added"]
+        if command == "blast-from-the-past"
+        else ["added", "duplicate selection"]
+    )
+
+
+@pytest.mark.parametrize("count", [0, 10])
+def test_http_manual_rejection_handles_empty_and_ten_results(
+    historical_http: tuple[TestClient, SimulatedSpotify, str], count: int
+) -> None:
+    """Complete the batch after rejecting empty or populated search results.
+
+    Args:
+        historical_http: Real commands with isolated external observations.
+        count: Number of search results returned by the simulated catalog.
+    """
+    http, spotify, command = historical_http
+    _manual_candidates(spotify, count)
+    job = _start_manual(http, command)
+    for _index in range(1 if command == "blast-from-the-past" else 2):
+        pending = _pending_match(http, command, job)
+        assert len(cast(list[object], pending["candidates"])) == count
+        response = http.post(
+            f"/commands/{command}-jobs/{job}/choice",
+            json={"request_id": pending["request_id"], "choice": ""},
+        )
+        assert response.status_code == 200
+    result = _wait(http, command, job, "completed")
+    assert result["added"] == 0
+    assert spotify.posts == []
+
+
+def test_http_matching_reconnect_validation_and_cancellation(
+    historical_http: tuple[TestClient, SimulatedSpotify, str],
+) -> None:
+    """Reconnect to a pending choice and reject stale, invalid and cancelled requests.
+
+    Args:
+        historical_http: Real commands with isolated external observations.
+    """
+    http, spotify, command = historical_http
+    _manual_candidates(spotify)
+    job = _start_manual(http, command, preview=False)
+    pending = _pending_match(http, command, job)
+    active = http.get(f"/commands/{command}-jobs").json()
+    assert active[0]["track_match_pending_choice"] == pending
+    path = f"/commands/{command}-jobs/{job}"
+    assert (
+        http.post(
+            path + "/choice", json={"request_id": "stale", "choice": "manual-0"}
+        ).status_code
+        == 409
+    )
+    assert (
+        http.post(
+            path + "/choice",
+            json={"request_id": pending["request_id"], "choice": "unoffered"},
+        ).status_code
+        == 400
+    )
+    other = (
+        "daily-mind-radio"
+        if command == "blast-from-the-past"
+        else "blast-from-the-past"
+    )
+    assert (
+        http.post(
+            f"/commands/{other}-jobs/{job}/choice",
+            json={"request_id": pending["request_id"], "choice": "manual-0"},
+        ).status_code
+        == 404
+    )
+    assert http.post(path + "/cancel").status_code == 200
+    result = _wait(http, command, job, "cancelled")
+    assert result["track_match_pending_choice"] is None
+    assert (
+        http.post(
+            path + "/choice",
+            json={"request_id": pending["request_id"], "choice": "manual-0"},
+        ).status_code
+        == 409
+    )
+    assert spotify.posts == []
+
+
+@pytest.mark.parametrize(
+    "answer,expected", [("2", "would add 1"), ("n", "would add 0"), ("q", "cancelled")]
+)
+def test_cli_manual_matching_selection_rejection_and_cancellation(
+    historical_http: tuple[TestClient, SimulatedSpotify, str],
+    answer: str,
+    expected: str,
+) -> None:
+    """Exercise real terminal prompts without allowing preview playlist writes.
+
+    Args:
+        historical_http: Real commands with isolated external observations.
+        answer: Scripted explicit decision.
+        expected: Expected terminal completion or cancellation text.
+    """
+    _http, spotify, command = historical_http
+    _manual_candidates(spotify)
+    arguments = [command, "--dry-run"]
+    if command == "blast-from-the-past":
+        arguments.extend(["--count", "1"])
+    result = CliRunner().invoke(main.app, arguments, input=f"{answer}\n{answer}\n")
+    assert result.exit_code == (1 if answer == "q" else 0), result.output
+    assert "Choose a Spotify match" in result.output
+    assert "Other artist" in result.output
+    assert expected in result.output.lower()
+    assert spotify.posts == []

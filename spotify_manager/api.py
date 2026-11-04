@@ -45,6 +45,7 @@ from spotify_manager.interfaces.http.handlers import (
 from spotify_manager.interfaces.http.handlers import something_old as something_old_http
 from spotify_manager.interfaces.http.handlers import state as state_http
 from spotify_manager.interfaces.http.handlers import wine as wine_http
+from spotify_manager.interfaces.http.handlers.track_matching import submit_track_match
 from spotify_manager.interfaces.http.jobs import AnalysisClientDep as AnalysisClientDep
 from spotify_manager.interfaces.http.jobs import ClientDep as ClientDep
 from spotify_manager.interfaces.http.jobs import (
@@ -100,6 +101,9 @@ from spotify_manager.interfaces.http.models.state import (
 )
 from spotify_manager.interfaces.http.models.state import (
     SharedStateSummary as SharedStateSummary,
+)
+from spotify_manager.interfaces.http.models.track_matching import (
+    TrackMatchChoiceRequest,
 )
 from spotify_manager.interfaces.http.models.wine import (
     NewWineChoiceRequest as NewWineChoiceRequest,
@@ -553,6 +557,27 @@ def cmd_blast_job(job_id: str) -> BlastJobResult:
 
 
 @app.api_route(
+    "/commands/blast-from-the-past-jobs/{job_id}/choice",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify track match or explicitly reject all results.",
+)
+def cmd_choose_blast_track(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit the current historical track matching choice.
+
+    Args:
+        job_id: Reconnectable job identity.
+        request: Current request token and selected Spotify ID or no match.
+
+    Returns:
+        Detached updated job view.
+    """
+    return submit_track_match(job_id, "blast_from_the_past", request)
+
+
+@app.api_route(
     "/commands/blast-from-the-past-jobs/{job_id}/cancel",
     methods=["POST"],
     response_model=BlastJobResult,
@@ -699,6 +724,27 @@ def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
         A detached view of the registered job.
     """
     return daily_mind_radio_http.cmd_daily_mind_radio_job(job_id)
+
+
+@app.api_route(
+    "/commands/daily-mind-radio-jobs/{job_id}/choice",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Select a manual Spotify track match or explicitly reject all results.",
+)
+def cmd_choose_daily_mind_radio_track(
+    job_id: str, request: TrackMatchChoiceRequest
+) -> BlastJobResult:
+    """Submit the current historical track matching choice.
+
+    Args:
+        job_id: Reconnectable job identity.
+        request: Current request token and selected Spotify ID or no match.
+
+    Returns:
+        Detached updated job view.
+    """
+    return submit_track_match(job_id, "daily_mind_radio", request)
 
 
 @app.api_route(
