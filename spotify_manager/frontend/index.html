@@ -803,7 +803,7 @@
         </div>
         <div class="blast-control" id="blastMaximumControl" hidden>
           <label for="blastMaximum">Maximum playlist length</label>
-          <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
+          <input id="blastMaximum" type="number" min="1" step="1" value="40" inputmode="numeric" />
         </div>
       </div>
       <div class="blast-run-row">
@@ -858,6 +858,7 @@
         <label for="foundArtCount">Tracks to add</label>
         <input id="foundArtCount" type="number" min="1" step="1" value="20" inputmode="numeric" />
       </div>
+      <label class="inline"><input type="checkbox" id="foundArtDryRun" checked /> Dry run</label>
       <div class="btns">
         <button class="primary" data-action="startFoundArt">Run</button>
         <button class="danger cancel" data-action="cancelFoundArt" hidden title="Stop Found Art">×</button>
@@ -2096,8 +2097,13 @@
       ? document.getElementById("dailyMindRadioDryRun")
       : kind === "blast"
       ? document.getElementById("blastDryRun")
+      : kind === "found"
+      ? document.getElementById("foundArtDryRun")
       : null;
-    if (dryRunControl) dryRunControl.checked = Boolean(job.dry_run);
+    if (dryRunControl) {
+      dryRunControl.checked = Boolean(job.dry_run);
+      if (kind === "found") dryRunControl.disabled = isAnalysisActive(job.status);
+    }
     var summary = "";
     if (typeof job.added === "number" &&
         typeof job.playlist_length_before === "number" &&
@@ -4739,6 +4745,7 @@
 
     async startFoundArt(btn) {
       var input = document.getElementById("foundArtCount");
+      var dryRun = document.getElementById("foundArtDryRun").checked;
       var count = Number(input.value);
       var out = document.getElementById("foundArtProgress");
       if (!Number.isInteger(count) || count < 1) {
@@ -4748,6 +4755,7 @@
       }
       var q = new URLSearchParams();
       q.set("count", String(count));
+      q.set("dry_run", String(dryRun));
       setBusy(btn, true, "Starting…");
       try {
         var job = await api("/commands/found-art?" + q.toString(), { method: "POST" });

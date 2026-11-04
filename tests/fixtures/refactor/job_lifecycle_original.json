@@ -874,7 +874,8 @@
             "playlist",
             "key",
             "user",
-            20
+            20,
+            false
           ],
           "name": "found-art-00000000",
           "daemon": true

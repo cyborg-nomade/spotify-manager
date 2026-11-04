@@ -8,12 +8,15 @@ from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
-async def cmd_found_art(client: Spotify, count: int) -> BlastJobResult:
+async def cmd_found_art(
+    client: Spotify, count: int, dry_run: bool = False
+) -> BlastJobResult:
     """Start a background Found Art recommendation update.
 
     Args:
         client: Original validated client value.
         count: Original validated count value.
+        dry_run: Preview recommendations without Spotify playlist writes.
 
     Returns:
         Original feature response with unchanged fields and validation.
@@ -31,7 +34,9 @@ async def cmd_found_art(client: Spotify, count: int) -> BlastJobResult:
         )
     except found_art.FoundArtConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return await jobs.start_found_art_job(client, playlist_id, api_key, username, count)
+    return await jobs.start_found_art_job(
+        client, playlist_id, api_key, username, count, dry_run
+    )
 
 
 def cmd_active_found_art_jobs() -> list[BlastJobResult]:

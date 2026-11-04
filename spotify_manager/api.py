@@ -773,18 +773,21 @@ def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     description="Start a background Found Art recommendation update.",
 )
 async def cmd_found_art(
-    client: ClientDep, count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT
+    client: ClientDep,
+    count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT,
+    dry_run: bool = False,
 ) -> BlastJobResult:
     """Start a background Found Art recommendation update.
 
     Args:
         client: Authenticated client supplied by the HTTP dependency.
         count: Validated count value.
+        dry_run: Preview recommendations without changing the Spotify playlist.
 
     Returns:
         A detached view of the registered job.
     """
-    return await found_art_http.cmd_found_art(client, count)
+    return await found_art_http.cmd_found_art(client, count, dry_run)
 
 
 @app.api_route(

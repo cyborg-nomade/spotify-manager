@@ -913,6 +913,7 @@ async def _run_found_art_job(
     api_key: str,
     username: str,
     count: int,
+    dry_run: bool = False,
 ) -> None:
     """Execute one Found Art web job and retain its complete trace."""
     await FoundArtWorker(
@@ -922,6 +923,7 @@ async def _run_found_art_job(
         api_key=api_key,
         username=username,
         count=count,
+        dry_run=dry_run,
         connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
         context=_playlist_context(),
     ).run()
@@ -1309,7 +1311,12 @@ async def start_daily_mind_radio_job(
 
 
 async def start_found_art_job(
-    spotify: Spotify, playlist_id: str, api_key: str, username: str, count: int
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    count: int,
+    dry_run: bool = False,
 ) -> BlastJobResult:
     """Start one Found Art job, rejecting another playlist routine.
 
@@ -1319,6 +1326,7 @@ async def start_found_art_job(
         api_key: Configured Last.fm API credential.
         username: Configured Last.fm username.
         count: Requested number of selections.
+        dry_run: Suppress Spotify writes while resolving the complete preview.
 
     Returns:
         Original operation result.
@@ -1328,14 +1336,21 @@ async def start_found_art_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id, command="found_art", requested_count=count
+                job_id=job_id,
+                command="found_art",
+                requested_count=count,
+                dry_run=dry_run,
             )
         )
         _append_blast_log_locked(job, "Found Art queued.")
         register_job(_blast_jobs, job_id, job)
         snapshot = _blast_job_snapshot(job)
     current_execution().jobs.start(
-        (_run_found_art_job(job_id, spotify, playlist_id, api_key, username, count)),
+        (
+            _run_found_art_job(
+                job_id, spotify, playlist_id, api_key, username, count, dry_run
+            )
+        ),
         job.cancel_event,
         f"found-art-{job_id[:8]}",
     )

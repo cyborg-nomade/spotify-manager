@@ -391,6 +391,8 @@ def _success_result(spec: RunnerSpec) -> object:
             playlist_length_before=0,
             playlist_length_after=0,
             added=0,
+            selected=0,
+            dry_run=False,
             week_start=date(2026, 8, 10),
             history_tracks=10,
             history_scrobbles=20,

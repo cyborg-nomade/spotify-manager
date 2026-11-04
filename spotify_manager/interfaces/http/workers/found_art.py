@@ -37,6 +37,7 @@ class FoundArtWorker:
         api_key: Configured Last.fm API credential.
         username: Configured Last.fm username.
         count: Requested number of selections.
+        dry_run: Resolve recommendations without applying Spotify playlist changes.
         connection_failure: Connection failure supplied by the caller.
         job: Mutable job record owned by this worker.
         lastfm: Caller-owned Last.fm client.
@@ -53,6 +54,7 @@ class FoundArtWorker:
     username: str
     count: int
     connection_failure: str
+    dry_run: bool = False
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
     events: SpotifyEvents = field(init=False)
@@ -106,6 +108,7 @@ class FoundArtWorker:
             self.lastfm,
             self.playlist_id,
             count=self.count,
+            dry_run=self.dry_run,
             progress_callback=self,
             interaction=WebCatalogMatching(self.context, self.job),
         )
@@ -118,7 +121,7 @@ class FoundArtWorker:
             self.job.result.requested_count = summary.requested_count
             self.job.result.playlist_length_before = summary.playlist_length_before
             self.job.result.playlist_length_after = summary.playlist_length_after
-            self.job.result.added = summary.added
+            self.job.result.added = summary.selected
             self.job.result.week_start = summary.week_start.isoformat()
             self.job.result.history_tracks = summary.history_tracks
             self.job.result.history_scrobbles = summary.history_scrobbles
@@ -126,7 +129,8 @@ class FoundArtWorker:
             self.job.result.candidate_count = summary.candidate_count
             self.job.result.found_art_results = results
             self.job.result.detail = (
-                f"Added {summary.added} of {summary.requested_count}"
+                f"{'Would add' if summary.dry_run else 'Added'} "
+                f"{summary.selected} of {summary.requested_count}"
                 f" recommendations; playlist {summary.playlist_length_before} -> "
                 f"{summary.playlist_length_after}."
             )

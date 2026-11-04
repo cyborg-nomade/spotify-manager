@@ -7871,6 +7871,16 @@
               "title": "Count",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

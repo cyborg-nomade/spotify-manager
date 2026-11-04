@@ -42,6 +42,15 @@ liked status. Something Old completes with `no match` and no append if every
 ranked title is rejected. Noninteractive compatibility calls retain their
 previous unresolved-item behavior when no interaction owner is supplied.
 
+Owner review also requested two panel changes: Blast's Cap input now defaults to
+40, and Found Art has a checked-by-default Dry run checkbox. Its web request
+passes the selected mode through job registration and the worker to the existing
+recommendation use case. Preview outcomes report proposed additions as **Would
+add**, keep the actual playlist length unchanged, and restore/lock the selected
+mode while reconnecting to an active run. As in its existing CLI preview, local
+recommendation cache and audit updates remain available. Direct API requests
+that omit `dry_run` retain their existing live default.
+
 ## New Year's plan and the Chevelle report
 
 Every unresolved ranked entry can now be explicitly selected or dropped. Dropped
@@ -113,7 +122,7 @@ Account preview: <http://127.0.0.1:8767/?review=item05>.
 Offline review: <http://127.0.0.1:8769/?review=item05>.
 Unlock text: `catalog-matching-review` (any nonempty value works on loopback).
 Both use isolated working files and local state/data stores. Keep Dry run checked
-when using the account preview; Found Art retains its existing live-only web Run.
+when using the account preview, including Found Art.
 The offline environment runs real application stages and HTTP workers against
 synthetic external clients and public Chevelle observations; it makes no live
 Spotify, Last.fm or Random.org requests. Other panels are outside its fixture scope.
@@ -140,16 +149,24 @@ Spotify, Last.fm or Random.org requests. Other panels are outside its fixture sc
 
 Completed verification:
 
-- `just ci-test`: **11,994 passed**, random seed `923107`, 445.64 seconds.
+- Initial implementation `just ci-test`: **11,994 passed**, random seed `923107`,
+  445.64 seconds.
   Package and strict inner typing, Ruff, architecture checks and independent
   statement/branch coverage gates pass. Package coverage is 95%; domain and
   application each clear their 98% statement / 95% branch floors. The existing
   Starlette TestClient deprecation warning remains.
-- **22 focused interface tests** pass after the final completion-message fix.
-  These include real New Year web/CLI selection, dropping and cancellation,
-  Found Art acceptance/rejection/cancellation, Sauvignon CLI album choices in
-  preview/live modes, and Something Old's real all-rejected CLI outcome.
-  Final Ruff and both typing gates pass again.
+- The owner-review extension's full run passed **12,004** tests (seed `96830`,
+  437.71 seconds). Its only failure was an old worker success double missing
+  `selected` and `dry_run`, which the real summary already provides. After adding
+  those two fields without changing assertions, **118 worker and Found Art tests**
+  pass. The captured full-run coverage gate passes, as do package/strict typing
+  and Ruff. GitHub CI checks the complete final PR revision.
+- **143 focused API/interface tests** pass for Found Art's preview/live paths,
+  including manual selection/rejection/cancellation and empty recommendations.
+  **1,253 lifecycle and call-path checks** pass with the explicit preview launch
+  argument. The full suite also covers New Year web/CLI selection, dropping and
+  cancellation, Sauvignon CLI album choices, and Something Old's real all-rejected
+  CLI outcome.
 - **11 public artifacts** match after the intended additive baseline updates.
   `just verify-wheel` verifies **701 packaged Python/frontend files**, **44 CLI
   commands**, **134 wrapped routes**, imports and both entry points.
@@ -167,14 +184,20 @@ Completed verification:
 - Matching lists have no horizontal overflow at 320, 390, 760, 1120 and 1440
   pixels. A 390-pixel album check verifies both options, dates/types, links and
   decision buttons. The saved mobile screenshot shows this interaction.
+- Owner-review browser checks confirm Cap defaults to 40 and Found Art defaults
+  to checked Dry run. A manually selected preview reports **Would add 1** with
+  playlist **0 -> 0**. Reload restores both checked preview and unchecked live
+  modes while keeping the control locked during the job; live cancellation
+  clears the pending prompt. Both updated panels fit at 320 and 390 pixels.
 - Both preview servers pass health checks, serve all **701 identical branch
   runtime files** and the exact frontend, and are idle across all **20** job-list
   endpoints. Browser verification made no live service requests. The Chevelle
   investigation used only the three read-only catalog queries described above.
 
-Intentional
-contract changes are six additive routes, album option schema, additive pending
-fields and their route counts. The Spotify endpoint inventory remains unchanged.
+Intentional contract changes are six additive routes, album option schema,
+additive pending fields and their route counts, and Found Art's optional
+`dry_run` query parameter. Its frozen job-launch observation adds the preview
+flag; all other fields remain intact. The Spotify endpoint inventory is unchanged.
 
 This item introduces no operational data migration or environment changes.
 The annual plan adds an optional explicit-drop flag; old plans remain readable.
