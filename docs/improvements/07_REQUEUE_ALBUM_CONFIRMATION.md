@@ -1,6 +1,9 @@
 # Item 7: confirm the next Requeue album
 
-**Status:** implemented and verified; owner PR review pending.
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04.
+**Release:** [PR #79](https://github.com/cyborg-nomade/spotify-manager/pull/79).
+**Approved runtime:** `f47f99c7af56c987a394066cc87e48f4fbfb31e5`.
+**Space revision:** `4853f3b1d01fabfb957afd3737e98eebd0516e08`.
 **Branch:** `codex/item07-requeue-album-confirmation`.
 **Roadmap:** [Item 7](../IMPROVEMENTS_ROADMAP.md#item-7-confirm-the-next-album-in-requeue-for-a-dream).
 
@@ -141,11 +144,24 @@ Verification on the review branch includes:
   return healthy responses, expose the required choice contract and have **20**
   idle job-list endpoints. Account verification did not start a Spotify job.
 
-Deployment and merge require this item's owner approval under
-[AGENTS.md](../../AGENTS.md). Upload only approved runtime files and preserve
-credentials, operational files and independent state/data publications. Check for
-active jobs before deployment and verify the approved running revision, exact
-frontend, health, authentication and shared artifacts before merge.
+The owner approved PR #79 after testing the local previews on 2026-11-04.
+GitHub [source CI 41888937944](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41888937944)
+passed all **12,088 tests**, random-order seed **904348**, plus typing,
+architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 41890953299](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41890953299)
+and [postflight 41891330110](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41891330110)
+verified automation access, shared state, all four artifacts and no active jobs
+across **20** endpoints. Neither check started a history scan or playlist routine.
+
+Only the **15 approved runtime files** were uploaded, including two new modules,
+with a guarded parent revision and verified prior blobs. All **101 cumulative
+release blobs**, the running Space revision, exact served frontend, startup and
+health were verified. The protected API still requires application authentication.
+State stayed at `ae471c85f97417a46f1076a43c52d10cf3a4b7b2`; canonical data stayed at
+`e70e0a3af6017f702decd5f0d5738944faf01084`. Credentials and unrelated operational
+files were excluded. Remaining release-tracking changes are documentation only;
+merge and cleanup follow [AGENTS.md](../../AGENTS.md).
 
 Rollback restores the preceding runtime/frontend. There is no durable selection
 state to migrate backward; stop or cancel process-local review jobs before
