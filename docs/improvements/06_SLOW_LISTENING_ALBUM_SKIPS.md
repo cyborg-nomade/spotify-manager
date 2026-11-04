@@ -1,6 +1,9 @@
 # Item 6: skip proposed albums in Slow Listening
 
-**Status:** implemented and verified; owner PR approval pending.
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04.
+**Release:** [PR #78](https://github.com/cyborg-nomade/spotify-manager/pull/78).
+**Approved runtime:** `a4a394bcb39b21a28e5922623c1bd6c718fcf32e`.
+**Space revision:** `14abf2f8c13d503e47904a2bedc8d32529ddfdfe`.
 **Branch:** `codex/item06-slow-listening-album-skips`.
 **Roadmap:** [Item 6](../IMPROVEMENTS_ROADMAP.md#item-6-skip-proposed-next-albums-in-slow-listening).
 
@@ -141,11 +144,24 @@ Verification completed on the review branch:
   return healthy responses, expose the new contract and have **20** idle job-list
   endpoints. The offline catalog was reset to its default review configuration.
 
-Deployment and merge require this item's approval under
-[AGENTS.md](../../AGENTS.md). Deploy only approved runtime files, preserving
-credentials, operational files and independent state/data publications. Verify
-active jobs before deployment, then runtime identity, health, served frontend,
-authentication and shared artifacts before merge.
+The owner approved PR #78 after testing the local previews on 2026-11-04.
+GitHub [source CI 41858765766](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41858765766)
+passed all **12,043 tests**, random-order seed **763760**, plus typing,
+architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 41859829072](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41859829072)
+and [postflight 41860574399](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41860574399)
+verified automation access, shared state, all four artifacts and no active jobs
+across **20** endpoints. Neither check started a history scan or playlist routine.
+
+Only the **13 approved runtime files** were uploaded, including one new module,
+with a guarded parent revision and verified prior blobs. All **89 cumulative
+release blobs**, the running Space revision, exact served frontend, startup and
+health were verified. The protected API still requires application authentication.
+State stayed at `ef539c3787fb79002d7c89c2b949f537a24b10dd`; canonical data stayed at
+`c1e34e35323a52cdee71cadff9b4303dc3b7f4a4`. Credentials and unrelated operational
+files were excluded. Remaining release-tracking changes are documentation only;
+merge and cleanup follow [AGENTS.md](../../AGENTS.md).
 
 Rollback restores prior runtime/frontend without reverting unrelated data. An
 older runtime does not understand unplanned active entries with album rejections;

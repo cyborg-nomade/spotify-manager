@@ -131,8 +131,8 @@ applying playlist changes.
 
 ## Item 6: skip proposed next albums in Slow Listening
 
-**Status:** implemented and verified; awaiting owner PR review on
-`codex/item06-slow-listening-album-skips`. The
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04 in
+[PR #78](https://github.com/cyborg-nomade/spotify-manager/pull/78). The
 [implementation and review guide](improvements/06_SLOW_LISTENING_ALBUM_SKIPS.md)
 records the interaction, recovery contract and isolated review environments.
 
