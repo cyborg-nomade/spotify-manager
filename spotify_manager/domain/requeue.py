@@ -1,6 +1,7 @@
 """Pure plans for advancing one Requeue for a Dream playlist marker."""
 
 from dataclasses import dataclass
+from dataclasses import replace
 from typing import Literal
 
 from spotify_manager.domain.catalog import DiscographyRelease
@@ -8,7 +9,7 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 
 
-type RequeueAction = Literal["advance", "drop", "empty", "skip"]
+type RequeueAction = Literal["advance", "drop", "empty", "skip", "cancel"]
 
 
 @dataclass(frozen=True)
@@ -90,4 +91,43 @@ def _advance_plan(
         target,
         release,
         present,
+    )
+
+
+def cancel_transition(playlist: tuple[PlaylistTrack, ...]) -> RequeuePlan:
+    """Leave the original marker unchanged after abandoning album selection.
+
+    Args:
+        playlist: Nonempty source playlist being reviewed.
+
+    Returns:
+        A cancellation with unchanged predicted playlist length.
+    """
+    return RequeuePlan(
+        "cancel",
+        len(playlist),
+        len(playlist),
+        playlist[0],
+        reason="album selection cancelled",
+    )
+
+
+def refresh_transition(
+    plan: RequeuePlan, playlist: tuple[PlaylistTrack, ...]
+) -> RequeuePlan:
+    """Refresh duplicate and count decisions after verifying the unchanged head.
+
+    Args:
+        plan: Accepted advance or completion plan.
+        playlist: Fresh playlist whose source head has already been checked.
+
+    Returns:
+        The same selection with current duplicate observations and counts.
+    """
+    before = len(playlist)
+    if plan.target is None:
+        return replace(plan, before=before, after=before - 1)
+    present = any(track.spotify_id == plan.target.spotify_id for track in playlist)
+    return replace(
+        plan, before=before, after=before - int(present), already_present=present
     )

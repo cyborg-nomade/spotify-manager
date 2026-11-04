@@ -121,6 +121,14 @@ def _requeue_request(http: TestClient, dry_run: bool) -> dict[str, object]:
         completed = http.get(f"/commands/flush-requeue-for-a-dream-jobs/{job_id}")
         assert completed.status_code == 200
         result = dict(completed.json())
+        if result["status"] == "waiting":
+            pending = result["requeue_pending_choice"]
+            assert pending["release_name"] == "Second"
+            accepted = http.post(
+                f"/commands/flush-requeue-for-a-dream-jobs/{job_id}/choice",
+                json={"choice": "accept", "request_id": pending["request_id"]},
+            )
+            assert accepted.status_code == 200
         if result["status"] in {"completed", "failed", "paused", "cancelled"}:
             return result
         sleep(0.01)
@@ -161,7 +169,7 @@ def test_requeue_cli_runs_complete_slice(
     """
     spotify = _configure_requeue(monkeypatch)
     arguments = ["flush-requeue-for-a-dream"] + (["--dry-run"] if dry_run else [])
-    result = CliRunner().invoke(main.app, arguments)
+    result = CliRunner().invoke(main.app, arguments, input="a\n")
     assert result.exit_code == 0, result.output
     assert "Requeue for a Dream" in result.stdout
     assert "First Track" in result.stdout

@@ -1013,7 +1013,7 @@ def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
         (
             "flush_requeue_for_a_dream",
             api.cmd_cancel_requeue_for_a_dream_job,
-            False,
+            True,
         ),
         ("fill_palace_of_memory", api.cmd_cancel_palace_of_memory_job, False),
         (

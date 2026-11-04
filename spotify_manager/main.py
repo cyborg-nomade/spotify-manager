@@ -481,8 +481,9 @@ def _new_year_cli() -> NewYearCLI:
 def _requeue_cli() -> RequeueCLI:
     return RequeueCLI(
         runtime=CommandResources(),
-        create_console=Console,
-        create_table=Table,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
         sleep=INVOCATION_WAIT,
     )
 

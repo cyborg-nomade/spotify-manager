@@ -1,18 +1,21 @@
-"""Apply one Requeue transition through explicit, synchronous dependencies."""
+"""Review and apply one Requeue transition through explicit resources."""
 
 from dataclasses import dataclass
 
 from spotify_manager.application.ports.listening import AuditWriter
 from spotify_manager.application.ports.listening import Clock
 from spotify_manager.application.ports.listening import MessageSink
+from spotify_manager.application.ports.requeue import RequeueAlbumReader
 from spotify_manager.application.ports.requeue import RequeueCatalog
 from spotify_manager.application.ports.requeue import RequeuePlaylists
 from spotify_manager.application.requeue_result import RequeueForADreamChangedError
 from spotify_manager.application.requeue_result import RequeueForADreamSummary
+from spotify_manager.application.requeue_selection import RequeueAlbumSelection
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discography import release_transition
 from spotify_manager.domain.requeue import RequeuePlan
 from spotify_manager.domain.requeue import plan_transition
+from spotify_manager.domain.requeue import refresh_transition
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class RequeueDependencies:
         progress: Optional progress resource, retaining cancellation boundaries.
         audit: Existing completion writer, called after the result timestamp.
         clock: Timestamp source, read only when constructing the final result.
+        album_reader: Optional interactive successor review; absent for legacy callers.
     """
 
     playlists: RequeuePlaylists
@@ -34,6 +38,7 @@ class RequeueDependencies:
     progress: MessageSink | None
     audit: AuditWriter[RequeueForADreamSummary]
     clock: Clock
+    album_reader: RequeueAlbumReader | None = None
 
 
 async def _plan(
@@ -44,6 +49,10 @@ async def _plan(
     source = playlist[0]
     _progress(dependencies, f"Loading {source.primary_artist_name}'s discography")
     discography = await dependencies.catalog.discography(source.primary_artist_id)
+    if dependencies.album_reader is not None:
+        return await RequeueAlbumSelection(
+            dependencies.catalog, dependencies.album_reader, dependencies.progress
+        ).select(playlist, discography)
     current, following = release_transition(source.release.name, discography)
     if following is None:
         return plan_transition(playlist, current, None, ())
@@ -54,13 +63,14 @@ async def _plan(
 
 async def _recheck(
     dependencies: RequeueDependencies, playlist_id: str, source: PlaylistTrack
-) -> None:
+) -> tuple[PlaylistTrack, ...]:
     _progress(dependencies, "Rechecking the playlist head")
     current = await dependencies.playlists.sources(playlist_id)
     if not current or current[0].spotify_id != source.spotify_id:
         raise RequeueForADreamChangedError(
             "Requeue for a Dream changed before the update; nothing was changed."
         )
+    return current
 
 
 async def _replace_marker(
@@ -121,7 +131,7 @@ async def flush_requeue(
         dry_run: Preview without the final recheck, mutations, or audit.
 
     Returns:
-        The original summary shape for empty, skip, drop, or advance outcomes.
+        The existing summary shape, including explicit abandoned-selection results.
 
     Raises:
         RequeueForADreamChangedError: The source head changed before mutation.
@@ -133,10 +143,12 @@ async def flush_requeue(
     plan = await _plan(dependencies, playlist)
     if not dry_run and plan.action in {"advance", "drop"}:
         assert plan.source is not None
-        await _recheck(dependencies, playlist_id, plan.source)
+        fresh = await _recheck(dependencies, playlist_id, plan.source)
+        if dependencies.album_reader is not None:
+            plan = refresh_transition(plan, fresh)
         await _replace_marker(dependencies, playlist_id, plan)
     summary = _summary(dependencies, playlist_id, dry_run, plan)
-    if not dry_run and plan.action != "empty":
+    if not dry_run and plan.action not in {"empty", "cancel"}:
         await dependencies.audit.write(summary)
     return summary
 

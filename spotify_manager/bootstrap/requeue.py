@@ -5,6 +5,7 @@ from pathlib import Path
 from spotify_manager.application.ports.listening import Clock
 from spotify_manager.application.ports.listening import MessageSink
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.requeue import RequeueAlbumReader
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue import RequeueDependencies
 from spotify_manager.bootstrap.listening import requeue_audit
@@ -19,6 +20,7 @@ def requeue_dependencies(
     progress: MessageSink | None,
     log_path: Path,
     clock: Clock,
+    album_reader: RequeueAlbumReader | None = None,
 ) -> RequeueDependencies:
     """Bind the existing integrations to one invocation's explicit dependencies.
 
@@ -29,6 +31,7 @@ def requeue_dependencies(
         progress: Existing progress sink, when enabled.
         log_path: Original audit destination.
         clock: Timestamp source used at the original result boundary.
+        album_reader: Optional successor-album interaction resource.
 
     Returns:
         Dependencies for the complete application use case.
@@ -40,4 +43,5 @@ def requeue_dependencies(
         progress,
         requeue_audit(log_path),
         clock,
+        album_reader,
     )

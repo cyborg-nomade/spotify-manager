@@ -6,14 +6,17 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
+from uuid import uuid4
 
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.retry_attempts import CheckedAttempts
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.models.requeue import RequeuePendingChoice
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.workers.errors import (
     _RequeueForADreamJobCancelledError,
@@ -127,12 +130,15 @@ class RequeueForADreamWorker:
             echo=self,
             progress_callback=self,
             retry_call=self,
+            album_reader=self,
         )
         return summary
 
     def _completed(self, summary: requeue_for_a_dream.RequeueForADreamSummary) -> None:
         with self.context.lock:
-            self.job.result.status = "completed"
+            self.job.result.status = (
+                "cancelled" if summary.action == "cancel" else "completed"
+            )
             self.job.result.requeue_action = summary.action
             self.job.result.requeue_artist = summary.artist
             self.job.result.requeue_source_track = summary.source_track
@@ -154,6 +160,7 @@ class RequeueForADreamWorker:
     def _finish(self) -> None:
         self.events.restore()
         with self.context.lock:
+            self.job.result.requeue_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
@@ -236,7 +243,11 @@ class RequeueForADreamWorker:
             verb = "would drop" if self.dry_run else "dropped"
             self.job.result.detail = (
                 f"{verb.capitalize()} {summary.artist}"
-                f" after the final eligible release."
+                f": {summary.reason or 'last eligible release'}."
+            )
+        elif summary.action == "cancel":
+            self.job.result.detail = (
+                "Album selection cancelled; the current marker was kept."
             )
         elif summary.action == "empty":
             self.job.result.detail = "Requeue for a Dream is empty."
@@ -260,3 +271,64 @@ class RequeueForADreamWorker:
         """
         if self.job.cancel_event.is_set():
             raise _RequeueForADreamJobCancelledError
+
+    async def choose_album(
+        self,
+        source: requeue_for_a_dream.PlaylistTrack,
+        release: requeue_for_a_dream.DiscographyRelease,
+    ) -> str:
+        """Publish a reconnectable album prompt before any playlist effect.
+
+        Args:
+            source: Current playlist marker.
+            release: Proposed eligible successor.
+
+        Returns:
+            Accepted operator action for this particular request.
+        """
+        pending = RequeuePendingChoice(
+            request_id=str(uuid4()),
+            artist=source.primary_artist_name,
+            source_track=source.name,
+            source_release=source.release.name,
+            release_id=release.spotify_id,
+            release_name=release.name,
+            release_type=release.release_type,
+            release_date=release.chronology_date,
+            total_tracks=release.total_tracks,
+        )
+        self._publish_choice(pending)
+        return await await_submission(self.job.choice_event, self)
+
+    def _publish_choice(self, pending: RequeuePendingChoice) -> None:
+        with self.context.lock:
+            self.check()
+            self.job.submitted_choice = None
+            self.job.choice_event.clear()
+            self.job.result.requeue_pending_choice = pending
+            self.job.result.status = "waiting"
+            self.job.result.detail = (
+                f"Choose the next album for {pending.artist}: {pending.release_name}."
+            )
+            self.context.append(self.job, self.job.result.detail)
+
+    def consume(self) -> str | None:
+        """Consume one choice with cancellation taking precedence under the lock.
+
+        Returns:
+            Explicit action, or none while waiting.
+
+        Raises:
+            RuntimeError: The owning job has been cancelled.
+        """
+        with self.context.lock:
+            self.check()
+            choice = self.job.submitted_choice
+            if choice is None:
+                return None
+            self.job.submitted_choice = None
+            self.job.choice_event.clear()
+            self.job.result.requeue_pending_choice = None
+            self.job.result.status = "running"
+            self.context.append(self.job, f"Requeue album choice received: {choice}.")
+            return choice

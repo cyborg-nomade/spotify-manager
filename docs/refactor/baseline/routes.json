@@ -1357,6 +1357,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_requeue_album",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_requeue_album",
+    "path": "/commands/flush-requeue-for-a-dream-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 2067,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.api.cmd_cancel_requeue_for_a_dream_job",
     "include_in_schema": true,
     "methods": [

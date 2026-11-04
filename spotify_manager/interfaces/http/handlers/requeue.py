@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
+from spotify_manager.interfaces.http.models.requeue import RequeueChoiceRequest
 from spotify_manager.interfaces.operations import (
     requeue_for_a_dream as requeue_for_a_dream,
 )
@@ -79,7 +80,43 @@ def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
                 status_code=409, detail="Requeue for a Dream job is not active"
             )
         job.result.status = "cancelling"
+        job.result.requeue_pending_choice = None
         job.result.detail = "Stopping Requeue for a Dream"
         jobs._append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
+        job.choice_event.set()
+        return jobs._blast_job_snapshot(job)
+
+
+def cmd_choose_requeue_album(
+    job_id: str, request: RequeueChoiceRequest
+) -> BlastJobResult:
+    """Submit one decision for the current proposed successor under the job lock.
+
+    Args:
+        job_id: Owning Requeue job identity.
+        request: Explicit decision and the displayed request identity.
+
+    Returns:
+        Detached job state after accepting the submission.
+
+    Raises:
+        HTTPException: The job, pending request or submitted identity is not current.
+    """
+    job = jobs.get_blast_job(job_id, command="flush_requeue_for_a_dream")
+    with jobs._blast_jobs_lock:
+        pending = job.result.requeue_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409, detail="Requeue is not waiting for an album choice"
+            )
+        if request.request_id != pending.request_id:
+            raise HTTPException(
+                status_code=409, detail="Requeue album choice is no longer current"
+            )
+        job.submitted_choice = request.choice
+        job.result.requeue_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Requeue album choice submitted"
+        job.choice_event.set()
         return jobs._blast_job_snapshot(job)

@@ -3,17 +3,19 @@
 from collections.abc import Iterator
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Never
 
 import typer
-from rich.console import Console
-from rich.table import Table
+from rich.status import Status
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.terminal import TerminalPrompt
 from spotify_manager.interfaces.operations import (
     requeue_for_a_dream as requeue_for_a_dream,
 )
@@ -28,16 +30,15 @@ class RequeueCLI:
 
     Args:
         runtime: Lazy client, configuration and shared-service resources.
-        create_console: Interface presentation resource.
-        create_table: Interface presentation resource.
+        display: Terminal rendering and operator prompt constructors.
         sleep: Bounded retry wait supplied by the interface.
     """
 
     runtime: CliResources
 
-    create_console: type[Console]
-    create_table: type[Table]
+    display: ConsoleDisplay
     sleep: Wait
+    _status: Status | None = field(default=None, init=False, repr=False)
 
     async def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
         """Advance the first Requeue for a Dream artist by one release.
@@ -45,7 +46,7 @@ class RequeueCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._flush_requeue_for_a_dream_console = self.create_console()
+        self._flush_requeue_for_a_dream_console = self.display.create_console()
         configuration = await self.runtime.configuration()
         try:
             playlist_id = requeue_for_a_dream.parse_playlist_id(
@@ -54,17 +55,7 @@ class RequeueCLI:
         except requeue_for_a_dream.RequeueForADreamConfigError as exc:
             self._report_flush_requeue_for_a_dream_configuration_failure(exc)
         try:
-            with self._flush_requeue_for_a_dream_console.status(
-                "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
-            ) as status:
-                summary = await requeue_for_a_dream.flush_requeue_for_a_dream(
-                    (await self.runtime.review_client()),
-                    playlist_id,
-                    dry_run=dry_run,
-                    echo=FlushRequeueForADreamInteraction(self),
-                    progress_callback=StatusOutput(status),
-                    retry_call=FlushRequeueForADreamInteraction(self),
-                )
+            summary = await self._execute(playlist_id, dry_run)
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_requeue_for_a_dream_rate_limit(exc)
         except review_album_limits.SpotifyTransientServerError as exc:
@@ -74,6 +65,63 @@ class RequeueCLI:
         except SpotifyException as exc:
             self._report_flush_requeue_for_a_dream_spotify_spotify_failure(exc)
         self._show_flush_requeue_for_a_dream(dry_run, summary)
+
+    async def _execute(
+        self, playlist_id: str, dry_run: bool
+    ) -> requeue_for_a_dream.RequeueForADreamSummary:
+        with self._flush_requeue_for_a_dream_console.status(
+            "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
+        ) as status:
+            self._status = status
+            interaction = FlushRequeueForADreamInteraction(self)
+            return await requeue_for_a_dream.flush_requeue_for_a_dream(
+                await self.runtime.review_client(),
+                playlist_id,
+                dry_run=dry_run,
+                echo=interaction,
+                progress_callback=StatusOutput(status),
+                retry_call=interaction,
+                album_reader=interaction,
+            )
+
+    async def _prompt_album(
+        self,
+        source: requeue_for_a_dream.PlaylistTrack,
+        release: requeue_for_a_dream.DiscographyRelease,
+    ) -> str:
+        if self._status is not None:
+            self._status.stop()
+        try:
+            return await self._read_album(source, release)
+        finally:
+            if self._status is not None:
+                self._status.start()
+
+    async def _read_album(
+        self,
+        source: requeue_for_a_dream.PlaylistTrack,
+        release: requeue_for_a_dream.DiscographyRelease,
+    ) -> str:
+        console = self._flush_requeue_for_a_dream_console
+        console.print(
+            f"Next album for {source.primary_artist_name}: {release.name} "
+            f"({release.release_type}, {release.chronology_date}, "
+            f"{release.total_tracks} tracks).",
+            markup=False,
+        )
+        console.print(f"Current: {source.release.name} · {source.name}", markup=False)
+        console.print(f"https://open.spotify.com/album/{release.spotify_id}")
+        console.print(
+            "Skipping every remaining album completes the artist and removes "
+            "the current marker (preview only in dry run)."
+        )
+        answer = await TerminalPrompt(self.display.prompt).ask(
+            "Accept album (a) / skip album (s) / cancel (c)",
+            choices=["a", "s", "c"],
+            default="c",
+            console=console,
+        )
+        return {"a": "accept", "s": "skip", "c": "cancel"}[answer]
 
     def _flush_requeue_for_a_dream_echo(self, line: str = "") -> None:
         style = "bold green" if line.startswith(("Added", "Removed")) else "cyan"
@@ -136,7 +184,7 @@ class RequeueCLI:
             dry_run: Whether to preview changes using the original routine behavior.
             summary: Completed routine outcome to render.
         """
-        table = self.create_table(title="Requeue for a Dream")
+        table = self.display.create_table(title="Requeue for a Dream")
         table.add_column("Artist")
         table.add_column("Current release")
         table.add_column("Action")
@@ -147,6 +195,7 @@ class RequeueCLI:
             "drop": "would drop" if dry_run else "dropped",
             "empty": "empty",
             "skip": "skipped",
+            "cancel": "cancelled",
         }[summary.action]
         if summary.target_already_present:
             action += " (already present)"
@@ -179,6 +228,22 @@ class FlushRequeueForADreamInteraction:
     """
 
     owner: RequeueCLI
+
+    async def choose_album(
+        self,
+        source: requeue_for_a_dream.PlaylistTrack,
+        release: requeue_for_a_dream.DiscographyRelease,
+    ) -> str:
+        """Ask the operator to accept, skip or cancel this successor proposal.
+
+        Args:
+            source: Unchanged current playlist marker.
+            release: Proposed successor album or EP.
+
+        Returns:
+            Explicit operator decision, with cancellation as the empty-input default.
+        """
+        return await self.owner._prompt_album(source, release)
 
     def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.

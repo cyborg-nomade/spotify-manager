@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from spotify_manager import api
 from spotify_manager.interfaces.http import jobs as http_jobs
+from spotify_manager.interfaces.http.models.requeue import RequeuePendingChoice
 from spotify_manager.interfaces.http.models.track_matching import (
     TrackMatchPendingChoice,
 )
@@ -75,6 +76,31 @@ def _submit_slow_album(job_id: str) -> api.BlastJobResult:
     return api.cmd_choose_slow_listening_track(
         job_id,
         api.SlowListeningChoiceRequest(choice="skip_album", request_id="album-request"),
+    )
+
+
+def _requeue_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="flush_requeue_for_a_dream",
+        status="waiting",
+        requeue_pending_choice=RequeuePendingChoice(
+            request_id="album-request",
+            artist="Artist",
+            source_track="Current",
+            source_release="First",
+            release_id="second",
+            release_name="Second",
+            release_type="Album",
+            release_date="2021",
+            total_tracks=2,
+        ),
+    )
+
+
+def _submit_requeue(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_requeue_album(
+        job_id, api.RequeueChoiceRequest(choice="accept", request_id="album-request")
     )
 
 
@@ -216,6 +242,15 @@ def _submit_palace_match(job_id: str) -> api.BlastJobResult:
 
 
 INTERACTIONS = (
+    Interaction(
+        "flush_requeue_for_a_dream",
+        "requeue_pending_choice",
+        _requeue_view,
+        _submit_requeue,
+        api.cmd_cancel_requeue_for_a_dream_job,
+        "accept",
+        None,
+    ),
     Interaction(
         "found_art",
         "track_match_pending_choice",
