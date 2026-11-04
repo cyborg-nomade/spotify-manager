@@ -694,9 +694,9 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "grid-column: 6 / -1;\n      grid-row: 2 / span 3" in response.text
     assert "grid-column: 1 / span 5;\n      grid-row: 3" in response.text
     assert "grid-column: 1 / span 5;\n      grid-row: 4" in response.text
-    assert "strip.appendChild(terminal);\n        strip.appendChild(command);" in (
-        response.text
-    )
+    assert (
+        "commandRow.appendChild(terminal);\n        commandRow.appendChild(command);"
+    ) in response.text
     assert (
         "command.insertBefore(\n"
         "            terminal,\n"
