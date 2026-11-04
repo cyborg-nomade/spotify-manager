@@ -11,6 +11,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.application.slow_listening import SlowListeningDependencies
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_values import CompletionNotifier
+from spotify_manager.application.slow_listening_values import ReleaseActionReader
 from spotify_manager.application.slow_listening_values import ReleaseOrderReader
 from spotify_manager.application.slow_listening_values import TrackActionReader
 from spotify_manager.core.state.service import StateService
@@ -53,6 +54,7 @@ def slow_listening_dependencies(
     state_service: StateService | None,
     log_path: Path,
     clock: Clock,
+    release_reader: ReleaseActionReader | None = None,
 ) -> SlowListeningDependencies:
     """Construct the invocation dependencies without executing the use case.
 
@@ -69,6 +71,7 @@ def slow_listening_dependencies(
         state_service: Optional explicit shared state service.
         log_path: Original audit destination.
         clock: Original UTC timestamp source.
+        release_reader: Optional next-album choices, including whole-album rejection.
 
     Returns:
         The configured application dependencies or workflow.
@@ -90,5 +93,6 @@ def slow_listening_dependencies(
         SlowListeningPresenter(echo),
         clock,
         progress,
+        release_reader,
     )
     return dependencies

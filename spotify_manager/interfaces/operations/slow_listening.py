@@ -6,9 +6,15 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.application.slow_listening import (
     flush_slow_listening as execute_flush_slow_listening,
 )
+from spotify_manager.application.slow_listening_values import (
+    CHOICE_SKIP_ALBUM as CHOICE_SKIP_ALBUM,
+)
 from spotify_manager.application.slow_listening_values import FlushResult as FlushResult
 from spotify_manager.application.slow_listening_values import (
     FlushSummary as FlushSummary,
+)
+from spotify_manager.application.slow_listening_values import (
+    ReleaseActionReader as ReleaseActionReader,
 )
 from spotify_manager.application.slow_listening_values import (
     SlowListeningCancelledError as SlowListeningCancelledError,
@@ -65,6 +71,7 @@ async def flush_slow_listening(
     state_path: Path = DEFAULT_STATE_PATH,
     state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
+    release_reader: ReleaseActionReader | None = None,
 ) -> FlushSummary:
     """Advance the first two Slow Listening entries through explicit integrations.
 
@@ -81,6 +88,7 @@ async def flush_slow_listening(
         state_path: Original durable namespace location.
         state_service: Optional explicit shared-state service.
         log_path: Original audit destination.
+        release_reader: Optional next-album choices, including whole-album rejection.
 
     Returns:
         Unchanged summary including pause, resume and result fields.
@@ -101,5 +109,6 @@ async def flush_slow_listening(
         state_service,
         log_path,
         _CLOCK_RESOURCE,
+        release_reader,
     )
     return await execute_flush_slow_listening(playlist_id, configured, dry_run=dry_run)

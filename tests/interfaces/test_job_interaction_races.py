@@ -60,6 +60,24 @@ def _order_view() -> api.BlastJobResult:
     )
 
 
+def _slow_album_view() -> api.BlastJobResult:
+    return api.BlastJobResult(
+        job_id="owner",
+        command="flush_slow_listening",
+        status="waiting",
+        slow_listening_pending_choice=api.SlowListeningPendingChoice(
+            kind="release", artist="Artist", request_id="album-request"
+        ),
+    )
+
+
+def _submit_slow_album(job_id: str) -> api.BlastJobResult:
+    return api.cmd_choose_slow_listening_track(
+        job_id,
+        api.SlowListeningChoiceRequest(choice="skip_album", request_id="album-request"),
+    )
+
+
 def _checklist_view() -> api.BlastJobResult:
     return api.BlastJobResult(
         job_id="owner",
@@ -278,6 +296,15 @@ INTERACTIONS = (
         api.cmd_cancel_slow_listening_job,
         "order",
         (),
+    ),
+    Interaction(
+        "flush_slow_listening",
+        "slow_listening_pending_choice",
+        _slow_album_view,
+        _submit_slow_album,
+        api.cmd_cancel_slow_listening_job,
+        "skip_album",
+        None,
     ),
     Interaction(
         "plan_discographies",

@@ -3216,6 +3216,12 @@
   function renderSlowListeningJob(job) {
     slowListeningJob = job;
     var out = document.getElementById("slowListeningProgress");
+    var requestId = job.slow_listening_pending_choice && job.slow_listening_pending_choice.request_id;
+    if (requestId && out.dataset.slowChoiceRequest === requestId) return;
+    out.dataset.slowChoiceRequest = requestId || "";
+    var dryRunControl = document.getElementById("slowListeningDryRun");
+    dryRunControl.checked = Boolean(job.dry_run);
+    dryRunControl.disabled = isAnalysisActive(job.status);
     var start = document.querySelector('[data-action="startSlowListening"]');
     var cancel = document.querySelector('[data-action="cancelSlowListening"]');
     var processed = typeof job.processed === "number" ? job.processed : 0;
@@ -3244,27 +3250,38 @@
         ? '<div class="blast-selection-meta">Skipped candidates: ' +
           esc(item.skipped_candidates.join(", ")) + '</div>'
         : "";
+      var skippedAlbums = (item.skipped_albums || []).length
+        ? '<div class="blast-selection-meta">Skipped albums: ' + esc(item.skipped_albums.join(", ")) + '</div>'
+        : "";
       var reason = item.reason ? ' · ' + esc(item.reason) : "";
       return '<div class="blast-selection slow-listening-result ' + esc(actionClass) + '">' +
         '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
           esc(item.source_track) + '</div>' +
         '<div class="blast-selection-match">' + esc(item.source_release) + target + '</div>' +
-        skippedCandidates +
+        skippedCandidates + skippedAlbums +
         '<div class="blast-selection-meta"><span class="blast-action">' +
           esc(item.action) + '</span>' + reason + '</div></div>';
     }).join("");
     var pending = "";
     var choice = job.slow_listening_pending_choice;
-    if (choice && choice.kind === "track") {
+    var choiceAttributes = choice ? ' data-request-id="' + esc(choice.request_id || "") + '"' : "";
+    if (choice && (choice.kind === "track" || choice.kind === "release")) {
+      var albumProposal = choice.kind === "release";
+      var album = (choice.releases || [])[0];
+      var albumDetails = albumProposal && album
+        ? '<div class="blast-selection-meta">' + esc(album.release_date + " · " + album.total_tracks + " tracks") +
+          ' · <a href="https://open.spotify.com/album/' + esc(album.spotify_id) + '" target="_blank" rel="noopener noreferrer">Open in Spotify</a></div>'
+        : "";
       pending = '<div class="new-wine-choice">' +
-        '<div class="new-wine-choice-title">Next after ' + esc(choice.artist) +
-          ' · ' + esc(choice.source_track) + '</div>' +
+        '<div class="new-wine-choice-title">' + (albumProposal ? 'Next album for ' : 'Next after ') + esc(choice.artist) +
+          (albumProposal ? '' : ' · ' + esc(choice.source_track)) + '</div>' +
         '<div class="blast-selection-match">' + esc(choice.target_track) +
-          ' · ' + esc(choice.target_release) + '</div>' +
+          ' · ' + esc(choice.target_release) + '</div>' + albumDetails +
         '<div class="new-wine-controls">' +
-          '<button class="primary" data-action="slowListeningChoice" data-choice="advance">Add track</button>' +
-          '<button class="ghost" data-action="slowListeningChoice" data-choice="skip">Skip track</button>' +
-          '<button class="ghost" data-action="slowListeningChoice" data-choice="quit">Quit</button>' +
+          '<button class="primary" data-action="slowListeningChoice" data-choice="advance"' + choiceAttributes + '>' + (albumProposal ? 'Accept album' : 'Add track') + '</button>' +
+          '<button class="ghost" data-action="slowListeningChoice" data-choice="skip"' + choiceAttributes + '>Skip track</button>' +
+          (albumProposal ? '<button class="ghost" data-action="slowListeningChoice" data-choice="skip_album"' + choiceAttributes + '>Skip album</button>' : '') +
+          '<button class="ghost" data-action="slowListeningChoice" data-choice="quit"' + choiceAttributes + '>' + (albumProposal ? 'Pause' : 'Quit') + '</button>' +
         '</div></div>';
     } else if (choice && choice.kind === "release_order") {
       var releases = choice.releases || [];
@@ -3289,7 +3306,7 @@
         '<div class="new-wine-choice-title">Order ' + esc(choice.artist) +
           ' releases dated ' + esc(choice.release_date) + '</div>' +
         '<div class="slow-listening-order">' + releaseRows + '</div>' +
-        '<div class="btns"><button class="primary" data-action="submitSlowListeningOrder">' +
+        '<div class="btns"><button class="primary" data-action="submitSlowListeningOrder"' + choiceAttributes + '>' +
           'Use this order</button></div></div>';
     } else if (choice && choice.kind === "completion") {
       pending = '<div class="new-wine-choice">' +
@@ -3297,7 +3314,7 @@
           ' completed Slow Listening</div>' +
         '<div class="blast-selection-match">Add a replacement artist to the playlist, then continue.</div>' +
         '<div class="btns"><button class="primary" data-action="slowListeningChoice" ' +
-          'data-choice="continue">Continue</button></div></div>';
+          'data-choice="continue"' + choiceAttributes + '>Continue</button></div></div>';
     }
     var logRows = (job.logs || []).map(function (entry) {
       var timestamp = new Date(entry.timestamp);
@@ -5255,7 +5272,7 @@
         var job = await api(
           "/commands/flush-slow-listening-jobs/" +
             slowListeningJob.job_id + "/choice",
-          { method: "POST", json: { choice: btn.dataset.choice } }
+          { method: "POST", json: { choice: btn.dataset.choice, request_id: btn.dataset.requestId || null } }
         );
         renderSlowListeningJob(job);
       } catch (e) {
@@ -5290,6 +5307,7 @@
             method: "POST",
             json: {
               choice: "order",
+              request_id: btn.dataset.requestId || null,
               order: ranked.map(function (item) { return item.spotifyId; }),
             },
           }

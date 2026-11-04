@@ -131,6 +131,11 @@ applying playlist changes.
 
 ## Item 6: skip proposed next albums in Slow Listening
 
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04 in
+[PR #78](https://github.com/cyborg-nomade/spotify-manager/pull/78). The
+[implementation and review guide](improvements/06_SLOW_LISTENING_ALBUM_SKIPS.md)
+records the interaction, recovery contract and isolated review environments.
+
 At album transitions, offer accept, skip whole proposed album, and pause.
 Repeated skips propose successive albums until acceptance or exhaustion.
 Preserve within-album progression and release-date tie ordering.

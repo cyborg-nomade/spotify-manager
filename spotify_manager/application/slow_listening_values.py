@@ -11,6 +11,27 @@ from spotify_manager.domain.catalog import ReleaseTrack
 
 type FlushAction = Literal["advance", "complete", "skip"]
 
+CHOICE_SKIP_ALBUM = "skip_album"
+
+
+class ReleaseActionReader(Protocol):
+    """Choose a marker from a proposed next album or reject that whole album."""
+
+    async def choose_release(
+        self, source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
+    ) -> str:
+        """Accept a proposed album, skip its track or album, or pause.
+
+        Args:
+            source: Current playlist marker, retained until a transition is accepted.
+            target: Proposed playable marker in the next album.
+            release: Proposed next studio album or EP.
+
+        Returns:
+            Advance, skip, skip_album or quit.
+        """
+        ...
+
 
 class ReleaseOrderReader(Protocol):
     """Own the operator interaction for order releases."""
@@ -98,6 +119,7 @@ class FlushResult:
         skipped_candidates: Declined candidates encountered while planning.
         reason: Original skip or completion explanation.
         dry_run: Whether this result describes a preview.
+        skipped_albums: Whole proposed releases explicitly rejected in this run.
     """
 
     source_track: str
@@ -109,6 +131,7 @@ class FlushResult:
     skipped_candidates: tuple[str, ...] = ()
     reason: str | None = None
     dry_run: bool = False
+    skipped_albums: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
