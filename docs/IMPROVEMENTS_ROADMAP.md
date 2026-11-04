@@ -93,9 +93,10 @@ with readable controls and sensible keyboard order.
 
 ## Item 4: add manual matching to Blast and Daily Mind Radio
 
-**Status:** implemented and locally verified; awaiting owner review on
-`codex/item04-manual-track-matching`. The [review guide](improvements/04_MANUAL_TRACK_MATCHING.md)
-records behavior, interaction contracts, isolated previews and release checks.
+**Status:** implemented, owner-approved and deployed on 2026-11-04 in
+[PR #76](https://github.com/cyborg-nomade/spotify-manager/pull/76). The
+[review guide](improvements/04_MANUAL_TRACK_MATCHING.md) records behavior,
+interaction contracts, isolated previews and verified release checks.
 
 Keep existing automatic matching policies. When no good automatic match exists,
 use a named application stage to search the available artist, track, and album

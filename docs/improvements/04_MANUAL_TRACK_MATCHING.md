@@ -1,6 +1,8 @@
 # Item 4: manual Spotify matching for historical tracks
 
-**Status:** implemented and locally verified; awaiting owner PR review.
+**Status:** implemented, verified and owner-approved on 2026-11-04.
+**Release:** [PR #76](https://github.com/cyborg-nomade/spotify-manager/pull/76).
+**Approved runtime source:** `033883bb58c381191b5a8cd77db701c06153ef00`.
 **Branch:** `codex/item04-manual-track-matching`.
 **Roadmap:** [Item 4](../IMPROVEMENTS_ROADMAP.md#item-4-add-manual-matching-to-blast-and-daily-mind-radio).
 
@@ -77,12 +79,12 @@ and all other captured artifacts remain unchanged after source-line normalizatio
 
 ## Review and verification
 
-Review the branch at <http://127.0.0.1:8767/?review=item04>, using
+Review used <http://127.0.0.1:8767/?review=item04>, using
 `track-matching-review` to unlock it (any nonempty text works at loopback).
 Its working files and local state/data stores are isolated from production.
 Leave Dry run checked when testing against your Spotify account.
 
-A second environment at <http://127.0.0.1:8769/?review=item04> uses the same real
+A second environment at <http://127.0.0.1:8769/?review=item04> used the same real
 application and job handlers with synthetic Spotify and randomness resources.
 It makes no live account or Random.org requests and is suitable for reviewing
 the interaction without spending Spotify requests. It uses the same unlock text.
@@ -126,14 +128,33 @@ Completed checks:
   and have no active jobs across all 20 reconnectable job-list endpoints.
   Browser verification made no live Spotify, Last.fm or Random.org requests.
 
-GitHub CI and owner review remain release gates. No deployment or merge has
-been performed.
+The owner approved PR #76 on 2026-11-04. GitHub CI run
+[41780321211](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41780321211)
+passed both jobs for the exact approved runtime source. The following release
+tracking changes affect documentation only.
+
+The approved 18 runtime files were deployed to private Space revision
+`3bfbfd05522372a9de8123292dd6261c78c24dca`. The running revision, all 27 runtime
+blobs from Items 1–4, exact served HTML and health endpoint were verified.
+Shared state stayed at `622d1ac69df56633e40288c2345df9e37c1ec8e7`; canonical data
+stayed at `d8c6e548758f1a134c9d2bed65edf1cd2f0e6d60`.
+
+Authenticated preflight
+[41800583689](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41800583689)
+and postflight
+[41800859827](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41800859827)
+verified automation access, shared state, all four durable artifacts and no active
+jobs across 20 endpoints. Neither check started history scans or playlist work.
+Local browser verification and the owner's approval cover the interactive flow.
+The PR release record tracks merge and final cleanup. Temporary review servers
+are stopped during that cleanup.
 
 ## Release and rollback
 
-Deployment and merge await the owner's explicit PR approval, following
-[AGENTS.md](../../AGENTS.md) and [DEPLOY.md](../../DEPLOY.md). Deploy only the
-approved runtime files; preserve operational data, OAuth caches and credentials.
+The owner authorized deployment and merge, following
+[AGENTS.md](../../AGENTS.md) and [DEPLOY.md](../../DEPLOY.md). Only the approved
+runtime files were uploaded; operational data, OAuth caches and credentials were
+preserved.
 Check active jobs before deployment, the running revision and served frontend,
 authentication, shared artifacts, idle endpoints and reconnection afterward.
 
