@@ -8,6 +8,24 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 
 
+class RequeueAlbumReader(Protocol):
+    """Choose whether to accept a proposed successor, skip it or cancel."""
+
+    async def choose_album(
+        self, source: PlaylistTrack, release: DiscographyRelease
+    ) -> str:
+        """Review one eligible album before any playlist effect.
+
+        Args:
+            source: Unchanged current playlist marker.
+            release: Proposed successor studio album or EP.
+
+        Returns:
+            Accept, skip or cancel.
+        """
+        ...
+
+
 class RequeuePlaylists(Protocol):
     """Read complete source markers and execute individual playlist effects."""
 

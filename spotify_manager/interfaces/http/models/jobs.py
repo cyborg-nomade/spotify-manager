@@ -27,6 +27,7 @@ from .recommendations import SauvignonPendingChoice
 from .recommendations import SauvignonSelectionResult
 from .releases import ReleaseCheckPendingChoice
 from .releases import ReleaseCheckResultEntry
+from .requeue import RequeuePendingChoice
 from .slow_listening import SlowListeningPendingChoice
 from .slow_listening import SlowListeningTrackResult
 from .something_old import SomethingOldPendingChoice
@@ -145,6 +146,7 @@ class BlastJobResult(BaseModel):
     discography_results: list[DiscographyArtistResult] = Field(default_factory=list)
     discography_pending_choice: DiscographyPendingChoice | None = None
     requeue_action: str | None = None
+    requeue_pending_choice: RequeuePendingChoice | None = None
     requeue_artist: str | None = None
     requeue_source_track: str | None = None
     requeue_source_release: str | None = None

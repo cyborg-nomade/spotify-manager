@@ -2,6 +2,9 @@
 
 from pathlib import Path as Path
 
+from spotify_manager.application.ports.requeue import (
+    RequeueAlbumReader as RequeueAlbumReader,
+)
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.requeue import flush_requeue as flush_requeue
@@ -14,6 +17,8 @@ from spotify_manager.application.requeue_result import (
 from spotify_manager.application.requeue_result import (
     RequeueForADreamSummary as RequeueForADreamSummary,
 )
+from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
+from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.routines.requeue_for_a_dream import _CLOCK_RESOURCE
 from spotify_manager.routines.requeue_for_a_dream import (
@@ -39,6 +44,7 @@ async def flush_requeue_for_a_dream(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
+    album_reader: RequeueAlbumReader | None = None,
 ) -> RequeueForADreamSummary:
     """Advance the playlist through the application use case.
 
@@ -50,6 +56,7 @@ async def flush_requeue_for_a_dream(
         progress_callback: Optional progress and cancellation boundary.
         retry_call: Existing interface retry policy, or direct execution.
         log_path: Original JSONL audit destination.
+        album_reader: Optional successor review before applying any transition.
 
     Returns:
         The original summary, consumed unchanged by CLI and HTTP presenters.
@@ -67,5 +74,6 @@ async def flush_requeue_for_a_dream(
         progress_callback,
         log_path,
         _CLOCK_RESOURCE,
+        album_reader,
     )
     return await flush_requeue(dependencies, playlist_id, dry_run=dry_run)

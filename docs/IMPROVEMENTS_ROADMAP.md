@@ -147,6 +147,11 @@ without requiring track-by-track rejection of an entire album.
 
 ## Item 7: confirm the next album in Requeue for a Dream
 
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04 in
+[PR #79](https://github.com/cyborg-nomade/spotify-manager/pull/79). The
+[implementation and review guide](improvements/07_REQUEUE_ALBUM_CONFIRMATION.md)
+records successor selection, freshness checks and isolated review environments.
+
 Present each next eligible album before applying a transition. Accept selects it;
 Skip proposes its successor; Cancel leaves the current marker unchanged. Clearly
 present exhaustion and retain the current completion policy. Recheck the live

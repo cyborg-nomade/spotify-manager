@@ -84,6 +84,9 @@ from spotify_manager.interfaces.http.models.releases import (
 from spotify_manager.interfaces.http.models.releases import (
     ReleaseCheckStateSnapshot as ReleaseCheckStateSnapshot,
 )
+from spotify_manager.interfaces.http.models.requeue import (
+    RequeueChoiceRequest as RequeueChoiceRequest,
+)
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningChoiceRequest as SlowListeningChoiceRequest,
 )
@@ -2059,6 +2062,27 @@ def cmd_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
         A detached view of the registered job.
     """
     return requeue_http.cmd_requeue_for_a_dream_job(job_id)
+
+
+@app.api_route(
+    "/commands/flush-requeue-for-a-dream-jobs/{job_id}/choice",
+    methods=["POST"],
+    response_model=BlastJobResult,
+    description="Accept or skip the proposed next album, or cancel selection.",
+)
+def cmd_choose_requeue_album(
+    job_id: str, request: RequeueChoiceRequest
+) -> BlastJobResult:
+    """Submit a decision bound to the displayed Requeue album proposal.
+
+    Args:
+        job_id: Identity of the reconnectable job.
+        request: Current request identity and explicit operator action.
+
+    Returns:
+        Detached job state after accepting this submission.
+    """
+    return requeue_http.cmd_choose_requeue_album(job_id, request)
 
 
 @app.api_route(

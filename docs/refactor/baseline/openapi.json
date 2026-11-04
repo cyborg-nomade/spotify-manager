@@ -1212,6 +1212,16 @@
             ],
             "title": "Requeue Artist"
           },
+          "requeue_pending_choice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequeuePendingChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requeue_source_release": {
             "anyOf": [
               {
@@ -3643,6 +3653,85 @@
           "fingerprint"
         ],
         "title": "ReleaseCheckStateSnapshot",
+        "type": "object"
+      },
+      "RequeueChoiceRequest": {
+        "description": "A decision bound to exactly one displayed successor album.",
+        "properties": {
+          "choice": {
+            "enum": [
+              "accept",
+              "skip",
+              "cancel"
+            ],
+            "title": "Choice",
+            "type": "string"
+          },
+          "request_id": {
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "choice"
+        ],
+        "title": "RequeueChoiceRequest",
+        "type": "object"
+      },
+      "RequeuePendingChoice": {
+        "description": "One eligible successor offered before applying a playlist transition.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "release_date": {
+            "title": "Release Date",
+            "type": "string"
+          },
+          "release_id": {
+            "title": "Release Id",
+            "type": "string"
+          },
+          "release_name": {
+            "title": "Release Name",
+            "type": "string"
+          },
+          "release_type": {
+            "title": "Release Type",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "source_release": {
+            "title": "Source Release",
+            "type": "string"
+          },
+          "source_track": {
+            "title": "Source Track",
+            "type": "string"
+          },
+          "total_tracks": {
+            "title": "Total Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request_id",
+          "artist",
+          "source_track",
+          "source_release",
+          "release_id",
+          "release_name",
+          "release_type",
+          "release_date",
+          "total_tracks"
+        ],
+        "title": "RequeuePendingChoice",
         "type": "object"
       },
       "SauvignonAlbumOption": {
@@ -7690,6 +7779,56 @@
           }
         },
         "summary": "Cmd Cancel Requeue For A Dream Job"
+      }
+    },
+    "/commands/flush-requeue-for-a-dream-jobs/{job_id}/choice": {
+      "post": {
+        "description": "Accept or skip the proposed next album, or cancel selection.",
+        "operationId": "cmd_choose_requeue_album_commands_flush_requeue_for_a_dream_jobs__job_id__choice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Requeue Album"
       }
     },
     "/commands/flush-slow-listening": {

@@ -172,6 +172,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | POST | `/commands/flush-requeue-for-a-dream` | `cmd_flush_requeue_for_a_dream` | True |
 | [ ] | api | GET | `/commands/flush-requeue-for-a-dream-jobs` | `cmd_active_requeue_for_a_dream_jobs` | True |
 | [ ] | api | GET | `/commands/flush-requeue-for-a-dream-jobs/{job_id}` | `cmd_requeue_for_a_dream_job` | True |
+| [ ] | api | POST | `/commands/flush-requeue-for-a-dream-jobs/{job_id}/choice` | `cmd_choose_requeue_album` | True |
 | [ ] | api | POST | `/commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel` | `cmd_cancel_requeue_for_a_dream_job` | True |
 | [ ] | api | POST | `/commands/fill-palace-of-memory` | `cmd_fill_palace_of_memory` | True |
 | [ ] | api | GET | `/commands/fill-palace-of-memory-jobs` | `cmd_active_palace_of_memory_jobs` | True |

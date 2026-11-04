@@ -184,6 +184,7 @@
   .track-match-options button { width: 100%; font-variant-caps: normal; overflow-wrap: anywhere; }
   .track-match-options .new-wine-option-meta { color: inherit; }
   .track-match-options a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
+  #requeueForADreamCard .new-wine-choice a { color: var(--yellow); }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
@@ -3942,6 +3943,11 @@
     var start = document.querySelector('[data-action="startRequeueForADream"]');
     var cancel = document.querySelector('[data-action="cancelRequeueForADream"]');
     document.getElementById("requeueForADreamDryRun").checked = Boolean(job.dry_run);
+    document.getElementById("requeueForADreamDryRun").disabled = isAnalysisActive(job.status);
+    var pending = job.requeue_pending_choice;
+    var requestId = pending && pending.request_id;
+    if (requestId && out.dataset.requeueRequest === requestId) return;
+    out.dataset.requeueRequest = requestId || "";
 
     var transition = "";
     if (job.requeue_action) {
@@ -4005,7 +4011,7 @@
       }
     }
     out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
-      transition + playlist +
+      renderRequeueAlbumChoice(pending, job.dry_run) + transition + playlist +
       '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
@@ -4018,6 +4024,26 @@
     } else {
       setBusy(start, false);
     }
+  }
+
+  function renderRequeueAlbumChoice(choice, dryRun) {
+    if (!choice) return "";
+    var attributes = ' data-request-id="' + esc(choice.request_id) + '"';
+    return '<div class="new-wine-choice">' +
+      '<div class="new-wine-choice-title">Next album for ' + esc(choice.artist) + '</div>' +
+      '<div class="blast-selection-match">' + esc(choice.release_name) + '</div>' +
+      '<div class="blast-selection-meta">' +
+        esc(choice.release_type + ' · ' + choice.release_date + ' · ' + choice.total_tracks + ' tracks') +
+        ' · <a href="https://open.spotify.com/album/' + esc(choice.release_id) +
+        '" target="_blank" rel="noopener noreferrer">Open in Spotify</a></div>' +
+      '<div class="blast-selection-meta">Current: ' + esc(choice.source_release) + ' · ' + esc(choice.source_track) + '</div>' +
+      '<div class="blast-selection-meta">Skipping every remaining album completes this artist; the current marker ' +
+        (dryRun ? 'would be removed in a live run.' : 'will be removed.') + '</div>' +
+      '<div class="new-wine-controls">' +
+        '<button class="primary" data-action="requeueAlbumChoice" data-choice="accept"' + attributes + '>Accept album</button>' +
+        '<button class="ghost" data-action="requeueAlbumChoice" data-choice="skip"' + attributes + '>Skip album</button>' +
+        '<button class="ghost" data-action="requeueAlbumChoice" data-choice="cancel"' + attributes + '>Cancel</button>' +
+      '</div></div>';
   }
 
   async function pollRequeueForADreamJob(jobId) {
@@ -5420,6 +5446,22 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start Requeue for a Dream", "err");
+      }
+    },
+
+    async requeueAlbumChoice(btn) {
+      if (!requeueForADreamJob || !requeueForADreamJob.job_id) return;
+      setBusy(btn, true, "Submitting...");
+      try {
+        var job = await api(
+          "/commands/flush-requeue-for-a-dream-jobs/" + requeueForADreamJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice, request_id: btn.dataset.requestId } }
+        );
+        renderRequeueForADreamJob(job);
+      } catch (e) {
+        showToast(e.detail || "Could not submit the album choice", "err");
+      } finally {
+        setBusy(btn, false);
       }
     },
 

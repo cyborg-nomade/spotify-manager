@@ -30,7 +30,7 @@ class RequeueForADreamSummary:
         recorded_at: Timestamp captured after effects complete.
         playlist_id: Processed playlist identifier.
         dry_run: Whether this was a preview.
-        action: Existing transition kind.
+        action: Transition kind, including cancellation before any playlist effect.
         playlist_length_before: Observed initial playlist length.
         playlist_length_after: Predicted resulting length.
         artist: Source artist display name.
