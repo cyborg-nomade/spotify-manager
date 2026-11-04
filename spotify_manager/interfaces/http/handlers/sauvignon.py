@@ -146,6 +146,9 @@ def cmd_cancel_sauvignon_job(job_id: str) -> BlastJobResult:
             raise HTTPException(
                 status_code=409, detail="Sauvignon discovery job is not active"
             )
+        if job.result.track_match_pending_choice is not None:
+            job.choice_event.set()
+        job.result.track_match_pending_choice = None
         job.result.status = "cancelling"
         job.result.sauvignon_pending_choice = None
         job.result.detail = "Stopping Sauvignon album discovery"

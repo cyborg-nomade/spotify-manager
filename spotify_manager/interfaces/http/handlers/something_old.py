@@ -119,6 +119,9 @@ def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
             raise HTTPException(
                 status_code=409, detail="Something Old job is not active"
             )
+        if job.result.track_match_pending_choice is not None:
+            job.choice_event.set()
+        job.result.track_match_pending_choice = None
         job.result.status = "cancelling"
         job.result.something_old_pending_choice = None
         job.result.detail = "Stopping Something Old"

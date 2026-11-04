@@ -5,6 +5,8 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
+from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.recommendation_candidates import CandidateGathering
@@ -14,6 +16,7 @@ from spotify_manager.application.recommendation_resolution import (
 from spotify_manager.application.recommendation_run import RecommendationRun
 from spotify_manager.application.recommendation_run import RecommendationStages
 from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.bootstrap import manual_matching
 from spotify_manager.infrastructure.legacy.recommendation_matches import (
     LegacyRecommendationMatches,
 )
@@ -76,13 +79,16 @@ def candidate_gathering(
 
 
 def recommendation_resolution(
-    sp: Spotify, progress: legacy.ProgressCallback | None
+    sp: Spotify,
+    progress: legacy.ProgressCallback | None,
+    interaction: CatalogMatchInteraction | None = None,
 ) -> RecommendationResolution:
     """Construct the invocation dependencies without executing the use case.
 
     Args:
         sp: Caller-owned Spotify client.
         progress: Optional original progress presenter.
+        interaction: Optional manual matching owner.
 
     Returns:
         The configured application dependencies or workflow.
@@ -92,6 +98,7 @@ def recommendation_resolution(
         OptionalMessages(progress),
         legacy.SPOTIFY_RESOLUTION_BATCH_SIZE,
         legacy.SPOTIFY_CANDIDATE_MULTIPLIER,
+        manual_matching.tracks(sp, interaction, NO_RETRY),
     )
     return workflow
 
@@ -106,6 +113,7 @@ def recommendation_run(
     log_path: Path,
     now: datetime | None,
     progress: legacy.ProgressCallback | None,
+    interaction: CatalogMatchInteraction | None = None,
 ) -> RecommendationRun:
     """Construct the invocation dependencies without executing the use case.
 
@@ -119,6 +127,7 @@ def recommendation_run(
         log_path: Recommendation audit destination.
         now: Optional effective UTC timestamp.
         progress: Optional original progress observer.
+        interaction: Optional manual matching owner.
 
     Returns:
         The configured application dependencies or workflow.
@@ -140,7 +149,7 @@ def recommendation_run(
         RecommendationStages(
             recommendation_seeds(),
             candidate_gathering(lastfm, cache_path, log_path, None, progress),
-            recommendation_resolution(sp, progress),
+            recommendation_resolution(sp, progress, interaction),
         ),
         RecommendationClock(now),
         BerlinCalendar(),

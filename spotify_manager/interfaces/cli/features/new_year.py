@@ -3,11 +3,15 @@
 from dataclasses import dataclass
 
 from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.output import ConsoleOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.track_matching import CliCatalogMatching
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_year as new_year
 
@@ -46,4 +50,7 @@ class NewYearCLI:
             year=year,
             dry_run=dry_run,
             echo=ConsoleOutput(console),
+            interaction=CliCatalogMatching(
+                ConsoleDisplay(self.create_console, Table, Text), console
+            ),
         )

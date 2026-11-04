@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 
@@ -50,12 +51,14 @@ class SauvignonCallbacks:
         output: Echo.
         progress_callback: Progress callback.
         retry_call: Retry call.
+        matching: Optional manual catalog matching owner.
     """
 
     choice_reader: AlbumChoiceReader | None
     output: Echo = STANDARD_OUTPUT
     progress_callback: ProgressCallback | None = None
     retry_call: RetryCall | None = None
+    matching: CatalogMatchInteraction | None = None
 
 
 @dataclass(frozen=True)

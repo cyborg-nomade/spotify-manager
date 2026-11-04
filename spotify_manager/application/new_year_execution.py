@@ -11,6 +11,7 @@ from spotify_manager.application.new_year_membership import AnnualMembership
 from spotify_manager.application.new_year_values import RetrospectivePlan
 from spotify_manager.application.new_year_values import RetrospectiveRun
 from spotify_manager.application.new_year_values import RetrospectiveState
+from spotify_manager.domain.annual_history import accepted_uris
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,7 @@ class AnnualExecution:
         await checkpoint.complete(step)
 
     async def _artists(self, plan: RetrospectivePlan) -> None:
-        uris = [item["uri"] for item in plan["artists"]]
+        uris = accepted_uris(plan["artists"])
         await self.membership.run(plan["destinations"]["memory"], uris, True)
 
 

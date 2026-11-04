@@ -9,12 +9,14 @@ import typer
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.palace_values import PalaceAlbumResult
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.cli.track_matching import CliCatalogMatching
 from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -75,7 +77,10 @@ class PalaceCLI:
             self._report_fill_palace_of_memory_rate_limit(exc)
         except review_album_limits.SpotifyTransientServerError as exc:
             self._report_fill_palace_of_memory_server_failure(exc)
-        except palace_of_memory.PalaceOfMemoryError as exc:
+        except (
+            palace_of_memory.PalaceOfMemoryError,
+            BlastFromPastCancelledError,
+        ) as exc:
             self._report_fill_palace_of_memory_palace_of_memory_failure(exc)
         except SpotifyException as exc:
             self._report_fill_palace_of_memory_spotify_spotify_failure(exc)
@@ -108,7 +113,7 @@ class PalaceCLI:
         raise typer.Exit(code=0) from exc
 
     def _report_fill_palace_of_memory_palace_of_memory_failure(
-        self, exc: palace_of_memory.PalaceOfMemoryError
+        self, exc: palace_of_memory.PalaceOfMemoryError | BlastFromPastCancelledError
     ) -> Never:
         self._fill_palace_of_memory_console.print(
             str(exc), style="bold red", markup=False
@@ -272,6 +277,9 @@ class PalaceCLI:
                     alphabetical_start=alphabetical_start,
                 ),
                 PalaceCallbacks(
+                    matching=CliCatalogMatching(
+                        self.display, self._fill_palace_of_memory_console, status
+                    ),
                     retry_call=FillPalaceOfMemoryInteraction(self),
                     progress_callback=StatusOutput(status),
                     output=FillPalaceOfMemoryInteraction(self),

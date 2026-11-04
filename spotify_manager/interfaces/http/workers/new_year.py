@@ -10,6 +10,7 @@ from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
+from spotify_manager.interfaces.http.track_matching import WebCatalogMatching
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_year as new_year
@@ -82,6 +83,7 @@ class NewYearWorker:
             echo=self,
             cancel_check=self.job.cancel_event,
             retry_call=PlaylistRetry(self.job, self),
+            interaction=WebCatalogMatching(self.context, self.job),
         )
         with self.context.lock:
             self.job.result.new_year_result = result
@@ -89,6 +91,7 @@ class NewYearWorker:
 
     def _finish(self) -> None:
         with self.context.lock:
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(

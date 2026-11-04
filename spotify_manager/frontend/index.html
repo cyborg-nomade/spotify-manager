@@ -803,7 +803,7 @@
         </div>
         <div class="blast-control" id="blastMaximumControl" hidden>
           <label for="blastMaximum">Maximum playlist length</label>
-          <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
+          <input id="blastMaximum" type="number" min="1" step="1" value="40" inputmode="numeric" />
         </div>
       </div>
       <div class="blast-run-row">
@@ -858,8 +858,10 @@
         <label for="foundArtCount">Tracks to add</label>
         <input id="foundArtCount" type="number" min="1" step="1" value="20" inputmode="numeric" />
       </div>
+      <label class="inline"><input type="checkbox" id="foundArtDryRun" checked /> Dry run</label>
       <div class="btns">
         <button class="primary" data-action="startFoundArt">Run</button>
+        <button class="danger cancel" data-action="cancelFoundArt" hidden title="Stop Found Art">×</button>
       </div>
       <div class="analysis-progress" id="foundArtProgress"></div>
     </section>
@@ -2008,6 +2010,7 @@
       return {
         progressId: "foundArtProgress",
         action: "startFoundArt",
+        cancelAction: "cancelFoundArt",
         basePath: "/commands/found-art",
         command: "found_art",
         finished: "Found Art finished",
@@ -2030,33 +2033,60 @@
     else blastJob = job;
   }
 
+  function matchingJobConfig(kind) {
+    if (kind === "newYear") return { basePath: "/commands/new-year", endpoint: "match" };
+    if (kind === "sauvignon") return { basePath: "/commands/fill-sauvignon-from-lastfm", endpoint: "match" };
+    if (kind === "somethingOld") return { basePath: "/commands/something-old", endpoint: "match" };
+    if (kind === "palace") return { basePath: "/commands/fill-palace-of-memory", endpoint: "match" };
+    var config = playlistJobConfig(kind);
+    config.endpoint = kind === "found" ? "match" : "choice";
+    return config;
+  }
+
+  function renderMatchingJob(kind, job) {
+    if (kind === "newYear") renderNewYearJob(job);
+    else if (kind === "sauvignon") renderSauvignonJob(job);
+    else if (kind === "somethingOld") renderSomethingOldJob(job);
+    else if (kind === "palace") renderPalaceOfMemoryJob(job);
+    else { rememberPlaylistJob(kind, job); renderPlaylistJob(kind, job); }
+  }
+
+  function retainMatchingPrompt(out, job) {
+    var requestId = job.track_match_pending_choice && job.track_match_pending_choice.request_id;
+    if (requestId && out.dataset.trackMatchRequest === requestId) return true;
+    out.dataset.trackMatchRequest = requestId || "";
+    return false;
+  }
+
   function trackMatchChoice(kind, job) {
     var choice = job.track_match_pending_choice;
     if (!choice) return "";
     var attributes = 'data-kind="' + esc(kind) + '" data-job-id="' + esc(job.job_id) +
       '" data-request-id="' + esc(choice.request_id) + '"';
-    var candidates = (choice.candidates || []).map(function (candidate, index) {
+    var albumMode = choice.kind === "album";
+    var options = albumMode ? choice.albums : choice.candidates;
+    var candidates = (options || []).map(function (candidate, index) {
+      var title = albumMode ? candidate.album : candidate.track;
+      var detail = albumMode ? candidate.release_date + " · " + candidate.release_type : candidate.album || "(no album)";
       return '<div class="blast-selection"><button class="ghost new-wine-option" ' +
         'data-action="trackMatchChoice" ' + attributes + ' data-choice="' + esc(candidate.spotify_id) + '">' +
-        '<span class="new-wine-option-name">' + esc(index + 1) + '. ' + esc(candidate.track) + '</span>' +
-        '<span class="new-wine-option-meta">' + esc((candidate.artists || []).join(", ")) + ' · ' + esc(candidate.album || "(no album)") +
+        '<span class="new-wine-option-name">' + esc(index + 1) + '. ' + esc(title) + '</span>' +
+        '<span class="new-wine-option-meta">' + esc((candidate.artists || []).join(", ")) + ' · ' + esc(detail) +
         '</span></button><a href="' + esc(candidate.url) + '" target="_blank" rel="noopener noreferrer" ' +
-        'aria-label="Open ' + esc(candidate.track) + ' in Spotify">Open in Spotify</a></div>';
+        'aria-label="Open ' + esc(title) + ' in Spotify">Open in Spotify</a></div>';
     }).join("");
-    return '<div class="new-wine-choice"><div class="new-wine-choice-title">Choose a Spotify match</div>' +
+    return '<div class="new-wine-choice"><div class="new-wine-choice-title">' + (albumMode ? 'Choose a Spotify album' : 'Choose a Spotify match') + '</div>' +
       '<div class="playlist-dates">' + esc(choice.scrobble) + '</div><div class="new-wine-options track-match-options">' +
-      (candidates || '<p>Spotify returned no usable track results.</p>') + '</div>' +
+      (candidates || '<p>Spotify returned no usable ' + (albumMode ? 'album' : 'track') + ' results.</p>') + '</div>' +
       '<div class="new-wine-controls endpoint-controls"><button class="ghost" data-action="trackMatchChoice" ' + attributes +
-      ' data-choice="">No match</button><button class="danger" data-action="cancelTrackMatch" ' +
+      ' data-choice="">' + (kind === 'newYear' ? 'No match · drop this entry' : 'No match') + '</button><button class="danger" data-action="cancelTrackMatch" ' +
       attributes + '>Cancel routine</button></div></div>';
   }
 
   function renderPlaylistJob(kind, job) {
     var config = playlistJobConfig(kind);
     var out = document.getElementById(config.progressId);
-    var requestId = job.track_match_pending_choice && job.track_match_pending_choice.request_id;
-    if (requestId && out.dataset.trackMatchRequest === requestId) return;
-    out.dataset.trackMatchRequest = requestId || "";
+    if (retainMatchingPrompt(out, job)) return;
     var start = document.querySelector('[data-action="' + config.action + '"]');
     var cancel = config.cancelAction
       ? document.querySelector('[data-action="' + config.cancelAction + '"]')
@@ -2067,8 +2097,13 @@
       ? document.getElementById("dailyMindRadioDryRun")
       : kind === "blast"
       ? document.getElementById("blastDryRun")
+      : kind === "found"
+      ? document.getElementById("foundArtDryRun")
       : null;
-    if (dryRunControl) dryRunControl.checked = Boolean(job.dry_run);
+    if (dryRunControl) {
+      dryRunControl.checked = Boolean(job.dry_run);
+      if (kind === "found") dryRunControl.disabled = isAnalysisActive(job.status);
+    }
     var summary = "";
     if (typeof job.added === "number" &&
         typeof job.playlist_length_before === "number" &&
@@ -2275,6 +2310,8 @@
       ? blastArtistJob
       : kind === "daily"
       ? dailyMindRadioJob
+      : kind === "found"
+      ? foundArtJob
       : blastJob;
     if (!job || !job.job_id || !config.cancelAction) return;
     btn.disabled = true;
@@ -2294,6 +2331,7 @@
   function renderSauvignonJob(job) {
     sauvignonJob = job;
     var out = document.getElementById("sauvignonProgress");
+    if (retainMatchingPrompt(out, job)) return;
     var start = document.querySelector('[data-action="startSauvignon"]');
     var cancel = document.querySelector('[data-action="cancelSauvignon"]');
     document.getElementById("sauvignonDryRun").checked = Boolean(job.dry_run);
@@ -2385,7 +2423,7 @@
     }
     out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
       history + summary + results + pending +
-      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+      trackMatchChoice("sauvignon", job) + '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
@@ -3342,6 +3380,7 @@
   function renderSomethingOldJob(job) {
     somethingOldJob = job;
     var out = document.getElementById("somethingOldProgress");
+    if (retainMatchingPrompt(out, job)) return;
     var start = document.querySelector('[data-action="startSomethingOld"]');
     var cancel = document.querySelector('[data-action="cancelSomethingOld"]');
     document.getElementById("somethingOldDryRun").checked = Boolean(job.dry_run);
@@ -3457,7 +3496,7 @@
     }
     out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
       history + ranking + tracks + pending +
-      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+      trackMatchChoice("somethingOld", job) + '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
@@ -4002,6 +4041,7 @@
   function renderPalaceOfMemoryJob(job) {
     palaceOfMemoryJob = job;
     var out = document.getElementById("palaceOfMemoryProgress");
+    if (retainMatchingPrompt(out, job)) return;
     var start = document.querySelector('[data-action="startPalaceOfMemory"]');
     var setCursor = document.querySelector('[data-action="setPalaceOfMemoryCursor"]');
     var cancel = document.querySelector('[data-action="cancelPalaceOfMemory"]');
@@ -4109,7 +4149,7 @@
     }
     out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
       refresh + cursor + random + selections + playlist +
-      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+      trackMatchChoice("palace", job) + '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
@@ -4260,9 +4300,17 @@
     }
   }
 
+  function annualMarkerLink(item) {
+    var uri = String(item.uri || "");
+    if (uri.indexOf("spotify:track:") !== 0) return "";
+    return ' · <a href="https://open.spotify.com/track/' + esc(uri.slice(14)) +
+      '" target="_blank" rel="noopener noreferrer">Spotify marker</a>';
+  }
+
   function renderNewYearJob(job) {
     newYearJob = job;
     var out = document.getElementById("newYearProgress");
+    if (retainMatchingPrompt(out, job)) return;
     var active = isAnalysisActive(job.status);
     var start = document.querySelector('[data-action="startNewYear"]');
     var cancel = document.querySelector('[data-action="cancelNewYear"]');
@@ -4280,12 +4328,12 @@
       return '<details><summary>Top ' + esc(kind) + ' · ' + esc(result.year) +
         '</summary><ol>' + items.map(function (item) {
           return '<li>' + esc(item.artist) + (kind === "artists" ? "" : ' — ' + esc(item.name)) +
-            ' · ' + esc(item.scrobbles) + ' scrobbles</li>';
+            ' · ' + esc(item.scrobbles) + ' scrobbles' + (item.dropped === true ? ' · dropped (no match)' : annualMarkerLink(item)) + '</li>';
         }).join("") + '</ol></details>';
     }).join("");
     out.innerHTML = '<div class="analysis-state">' +
       esc((job.dry_run ? "Dry run · " : "") + job.status + " · " + (job.detail || "Starting")) +
-      '</div>' + rankings + '<div class="analysis-log" role="log">' +
+      '</div>' + rankings + trackMatchChoice("newYear", job) + '<div class="analysis-log" role="log">' +
       (job.logs || []).map(function (entry) {
         return '<div class="analysis-log-line">' + esc(entry.message) + '</div>';
       }).join("") + '</div>';
@@ -4561,15 +4609,15 @@
 
     async trackMatchChoice(btn) {
       var kind = btn.dataset.kind;
-      var config = playlistJobConfig(kind);
+      var config = matchingJobConfig(kind);
       var group = btn.closest(".new-wine-choice");
       group.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
       try {
-        var job = await api(config.basePath + "-jobs/" + btn.dataset.jobId + "/choice", {
+        var job = await api(config.basePath + "-jobs/" + btn.dataset.jobId + "/" + config.endpoint, {
           method: "POST",
           json: { request_id: btn.dataset.requestId, choice: btn.dataset.choice },
         });
-        renderPlaylistJob(kind, job);
+        renderMatchingJob(kind, job);
       } catch (e) {
         group.querySelectorAll("button").forEach(function (button) { button.disabled = false; });
         showToast(e.detail || "Could not submit Spotify match", "err");
@@ -4577,7 +4625,20 @@
     },
 
     async cancelTrackMatch(btn) {
-      await cancelPlaylistJob(btn.dataset.kind, btn);
+      var kind = btn.dataset.kind;
+      var config = matchingJobConfig(kind);
+      btn.disabled = true;
+      try {
+        var job = await api(config.basePath + "-jobs/" + btn.dataset.jobId + "/cancel", { method: "POST" });
+        renderMatchingJob(kind, job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not cancel matching", "err");
+      }
+    },
+
+    async cancelFoundArt(btn) {
+      await cancelPlaylistJob("found", btn);
     },
 
     async startBlast(btn) {
@@ -4684,6 +4745,7 @@
 
     async startFoundArt(btn) {
       var input = document.getElementById("foundArtCount");
+      var dryRun = document.getElementById("foundArtDryRun").checked;
       var count = Number(input.value);
       var out = document.getElementById("foundArtProgress");
       if (!Number.isInteger(count) || count < 1) {
@@ -4693,6 +4755,7 @@
       }
       var q = new URLSearchParams();
       q.set("count", String(count));
+      q.set("dry_run", String(dryRun));
       setBusy(btn, true, "Starting…");
       try {
         var job = await api("/commands/found-art?" + q.toString(), { method: "POST" });

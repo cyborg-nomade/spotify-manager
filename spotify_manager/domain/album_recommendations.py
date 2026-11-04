@@ -9,6 +9,7 @@ from spotify_manager.domain.discovery_progression import DECORATED_PATTERN
 from spotify_manager.domain.discovery_progression import release_kind
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import normalize_name
+from spotify_manager.domain.manual_matching import ManualAlbumCandidate
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_history import weekly_weighted_rank
 from spotify_manager.domain.releases import release_identity
@@ -341,3 +342,39 @@ def eligible_release_type(raw_type: object, total_tracks: int, name: str) -> str
     if tier != 0 or DECORATED_PATTERN.search(name):
         return None
     return kind
+
+
+def manual_album_option(album: ManualAlbumCandidate) -> SpotifyAlbumOption | None:
+    """Apply Sauvignon release eligibility to an explicitly matched catalog album.
+
+    Args:
+        album: Unfiltered observation accepted by the operator.
+
+    Returns:
+        Eligible album/EP evidence, or none for an excluded release type.
+        An explicit choice supplies full recommendation support without a
+        similarity threshold; history and destination exclusions still apply.
+    """
+    kind = eligible_release_type(album.release_type, album.total_tracks, album.album)
+    if (
+        kind is None
+        or not album.artist_ids
+        or not album.artist_ids[0]
+        or not album.artists
+    ):
+        return None
+    return SpotifyAlbumOption(
+        album.spotify_id,
+        album.uri,
+        album.artist_ids[0],
+        album.artists[0],
+        album.album,
+        kind,
+        album.release_date,
+        album.total_tracks,
+        album.source_track,
+        album.source_track_id,
+        album.search_rank,
+        1.0,
+        None,
+    )

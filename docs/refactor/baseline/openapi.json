@@ -87,6 +87,48 @@
         "title": "AlbumEvaluation",
         "type": "object"
       },
+      "AlbumMatchOption": {
+        "description": "One unfiltered album search result available for explicit selection.",
+        "properties": {
+          "album": {
+            "title": "Album",
+            "type": "string"
+          },
+          "artists": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Artists",
+            "type": "array"
+          },
+          "release_date": {
+            "title": "Release Date",
+            "type": "string"
+          },
+          "release_type": {
+            "title": "Release Type",
+            "type": "string"
+          },
+          "spotify_id": {
+            "title": "Spotify Id",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spotify_id",
+          "album",
+          "artists",
+          "release_type",
+          "release_date",
+          "url"
+        ],
+        "title": "AlbumMatchOption",
+        "type": "object"
+      },
       "AlbumTrackLikedStatus": {
         "description": "Liked status of a single track on an album.",
         "properties": {
@@ -4441,12 +4483,28 @@
       "TrackMatchPendingChoice": {
         "description": "One historical play awaiting a selection, rejection or cancellation.",
         "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumMatchOption"
+            },
+            "title": "Albums",
+            "type": "array"
+          },
           "candidates": {
             "items": {
               "$ref": "#/components/schemas/TrackMatchOption"
             },
             "title": "Candidates",
             "type": "array"
+          },
+          "kind": {
+            "default": "track",
+            "enum": [
+              "track",
+              "album"
+            ],
+            "title": "Kind",
+            "type": "string"
           },
           "request_id": {
             "title": "Request Id",
@@ -5942,6 +6000,56 @@
         "summary": "Cmd Cancel Palace Of Memory Job"
       }
     },
+    "/commands/fill-palace-of-memory-jobs/{job_id}/match": {
+      "post": {
+        "description": "Select a manual Spotify match or explicitly reject all results.",
+        "operationId": "cmd_choose_palace_match_commands_fill_palace_of_memory_jobs__job_id__match_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Palace Match"
+      }
+    },
     "/commands/fill-queue-from-lastfm": {
       "post": {
         "description": "Start reconnectable Last.fm artist discovery for The Queue.",
@@ -6418,6 +6526,56 @@
           }
         },
         "summary": "Cmd Choose Sauvignon Album"
+      }
+    },
+    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/match": {
+      "post": {
+        "description": "Select a manual Spotify match or explicitly reject all results.",
+        "operationId": "cmd_choose_sauvignon_match_commands_fill_sauvignon_from_lastfm_jobs__job_id__match_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Sauvignon Match"
       }
     },
     "/commands/flush-new-kids": {
@@ -7713,6 +7871,16 @@
               "title": "Count",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -7801,6 +7969,96 @@
           }
         },
         "summary": "Cmd Found Art Job"
+      }
+    },
+    "/commands/found-art-jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Cancel Found Art at its next safe boundary.",
+        "operationId": "cmd_cancel_found_art_job_commands_found_art_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Cancel Found Art Job"
+      }
+    },
+    "/commands/found-art-jobs/{job_id}/match": {
+      "post": {
+        "description": "Select a manual Spotify match or explicitly reject all results.",
+        "operationId": "cmd_choose_found_art_commands_found_art_jobs__job_id__match_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Found Art"
       }
     },
     "/commands/import-queue-3-previous-year": {
@@ -8124,6 +8382,56 @@
           }
         },
         "summary": "Cmd Cancel New Year Job"
+      }
+    },
+    "/commands/new-year-jobs/{job_id}/match": {
+      "post": {
+        "description": "Select a manual Spotify match or explicitly reject all results.",
+        "operationId": "cmd_choose_new_year_match_commands_new_year_jobs__job_id__match_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose New Year Match"
       }
     },
     "/commands/plan-discographies": {
@@ -8627,6 +8935,56 @@
           }
         },
         "summary": "Cmd Choose Something Old"
+      }
+    },
+    "/commands/something-old-jobs/{job_id}/match": {
+      "post": {
+        "description": "Select a manual Spotify match or explicitly reject all results.",
+        "operationId": "cmd_choose_something_old_match_commands_something_old_jobs__job_id__match_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackMatchChoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlastJobResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cmd Choose Something Old Match"
       }
     },
     "/commands/update-scrobble-history": {

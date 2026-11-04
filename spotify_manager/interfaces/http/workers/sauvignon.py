@@ -10,6 +10,7 @@ from datetime import timedelta
 from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -30,6 +31,7 @@ from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.recommendations import (
     sauvignon_selection_results,
 )
+from spotify_manager.interfaces.http.track_matching import WebCatalogMatching
 from spotify_manager.interfaces.http.workers.errors import _SauvignonJobCancelledError
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import (
@@ -75,7 +77,7 @@ class SauvignonWorker:
         self._start()
         try:
             summary = await self._execute()
-        except _SauvignonJobCancelledError:
+        except _SauvignonJobCancelledError, BlastFromPastCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
             self._rate_limited(exc)
@@ -206,6 +208,7 @@ class SauvignonWorker:
             self.lastfm,
             self.options,
             SauvignonCallbacks(
+                matching=WebCatalogMatching(self.context, self.job),
                 choice_reader=self,
                 output=self,
                 progress_callback=SauvignonProgress(self),
@@ -254,6 +257,7 @@ class SauvignonWorker:
         self.events.restore()
         with self.context.lock:
             self.job.result.sauvignon_pending_choice = None
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:

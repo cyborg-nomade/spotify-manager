@@ -10,6 +10,7 @@ from typing import cast
 
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.retry_attempts import CheckedAttempts
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
@@ -18,6 +19,7 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.palace import PalaceAlbumRefreshResult
 from spotify_manager.interfaces.http.models.palace import PalaceAlbumSelectionResult
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.track_matching import WebCatalogMatching
 from spotify_manager.interfaces.http.workers.errors import (
     _PalaceOfMemoryJobCancelledError,
 )
@@ -61,7 +63,7 @@ class PalaceOfMemoryWorker:
         self._start()
         try:
             summary = await self._execute()
-        except _PalaceOfMemoryJobCancelledError:
+        except _PalaceOfMemoryJobCancelledError, BlastFromPastCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
             self._rate_limited(exc)
@@ -145,6 +147,7 @@ class PalaceOfMemoryWorker:
                 self.spotify,
                 self.options,
                 PalaceCallbacks(
+                    matching=WebCatalogMatching(self.context, self.job),
                     retry_call=self,
                     progress_callback=self,
                     output=self,
@@ -178,6 +181,7 @@ class PalaceOfMemoryWorker:
     def _finish(self) -> None:
         self.events.restore()
         with self.context.lock:
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:

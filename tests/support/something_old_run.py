@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from spotify_manager.application.golden_selection import AlbumChoice
 from spotify_manager.application.golden_selection import ArtistChoice
+from spotify_manager.application.golden_selection import GoldenLastfmSelection
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
@@ -173,16 +174,12 @@ class OldObservations:
 
     def lastfm_tracks(
         self,
-        spotify: Spotify,
         artist: legacy.GoldenOldieArtist,
-        retry: legacy.RetryCall,
     ) -> tuple[legacy.SelectedTrack, ...]:
         """Observe the original Last.fm track selection seam.
 
         Args:
-            spotify: Original client boundary.
             artist: Original selected history artist.
-            retry: Original retry boundary.
 
         Returns:
             Original selected markers.
@@ -324,8 +321,8 @@ def _patches(edge: OldObservations) -> tuple[tuple[object, str, object], ...]:
         ),
         (legacy, "async_resolve_spotify_artist", AsyncMock(side_effect=edge.resolve)),
         (
-            legacy,
-            "async_select_lastfm_top_tracks",
+            GoldenLastfmSelection,
+            "run",
             AsyncMock(side_effect=edge.lastfm_tracks),
         ),
         (

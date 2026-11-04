@@ -6,12 +6,14 @@ from datetime import datetime
 from pathlib import Path
 
 from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.application.sauvignon_run import SauvignonRun
 from spotify_manager.application.sauvignon_run import SauvignonStages
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
+from spotify_manager.bootstrap import manual_matching
 from spotify_manager.bootstrap.recommendations import candidate_gathering
 from spotify_manager.bootstrap.recommendations import recommendation_seeds
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
@@ -37,13 +39,19 @@ class SauvignonClock:
         return (self.override or legacy.datetime.now(UTC)).astimezone(UTC)
 
 
-def _stages(effects: LegacySauvignon) -> SauvignonStages:
+def _stages(
+    effects: LegacySauvignon, matching: CatalogMatchInteraction | None
+) -> SauvignonStages:
     return SauvignonStages(
         recommendation_seeds(),
         candidate_gathering(
             effects.lastfm, effects.cache_path, None, None, effects.progress
         ),
-        AlbumGathering(effects, OptionalMessages(effects.progress)),
+        AlbumGathering(
+            effects,
+            OptionalMessages(effects.progress),
+            manual_matching.albums(effects.spotify, matching, effects),
+        ),
         AlbumEditionChoice(
             effects.choice_reader, legacy.CHOICE_SKIP, legacy.CHOICE_QUIT
         ),
@@ -63,6 +71,7 @@ def sauvignon_workflow(
     cache_path: Path,
     log_path: Path,
     now: datetime | None,
+    matching: CatalogMatchInteraction | None = None,
 ) -> SauvignonRun:
     """Construct one workflow with invocation-owned clients and callbacks.
 
@@ -79,6 +88,7 @@ def sauvignon_workflow(
         cache_path: Neighborhood cache location.
         log_path: Audit location.
         now: Optional UTC timestamp, observed after validation.
+        matching: Optional manual matching and cancellation owner.
 
     Returns:
         A workflow whose construction performs no observations or effects.
@@ -100,7 +110,7 @@ def sauvignon_workflow(
     )
     return SauvignonRun(
         effects,
-        _stages(effects),
+        _stages(effects, matching),
         SauvignonClock(now),
         BerlinCalendar(),
         OptionalMessages(progress),

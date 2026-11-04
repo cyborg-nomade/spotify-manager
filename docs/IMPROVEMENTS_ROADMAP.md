@@ -111,6 +111,11 @@ results, manual selection, rejection, cancellation, and preview execution.
 
 ## Item 5: extend matching and repair New Year's unresolved-item handling
 
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04 in
+[PR #77](https://github.com/cyborg-nomade/spotify-manager/pull/77). The
+[implementation and review guide](improvements/05_LASTFM_MATCHING.md) records
+the consumer inventory, Chevelle diagnosis, interaction protocol and release rules.
+
 Inventory remaining Last.fm track/album consumers, including Found Art,
 Something Old, and Sauvignon. Integrate the shared fallback where applicable;
 album resolution presents album candidates. New Year's unresolved entries offer

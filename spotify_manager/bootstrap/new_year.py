@@ -1,5 +1,6 @@
 """Compose original synchronous annual clients, state, cancellation and presenters."""
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.application.new_year_charts import AnnualCharts
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.application.new_year_execution import AnnualExecution
@@ -12,6 +13,7 @@ from spotify_manager.application.new_year_run import NewYear
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
+from spotify_manager.bootstrap import manual_matching
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.annual_catalog import LegacyAnnualCatalog
@@ -59,6 +61,7 @@ def compose(
     echo: Messages,
     cancel_check: CancellationState | None,
     caller_retry: RetryCall | None,
+    interaction: CatalogMatchInteraction | None = None,
 ) -> NewYear:
     """Bind original caller resources without performing preflight or external effects.
 
@@ -70,6 +73,7 @@ def compose(
         echo: Original visible presenter.
         cancel_check: Original optional cancellation reader.
         caller_retry: Original optional caller retry.
+        interaction: Optional manual catalog interaction owner.
 
     Returns:
         Original complete synchronous annual retrospective use case.
@@ -99,7 +103,12 @@ def compose(
         ),
         configuration.lastfm_username,
         catalog,
-        AnnualResolution(catalog),
+        AnnualResolution(
+            catalog,
+            manual_matching.tracks(sp, interaction, retry),
+            manual_matching.albums(sp, interaction, retry),
+            echo,
+        ),
         echo,
         legacy.BERLIN,
     )

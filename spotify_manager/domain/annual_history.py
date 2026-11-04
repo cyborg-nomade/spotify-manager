@@ -18,6 +18,7 @@ class YearEntry(TypedDict):
         scrobbles: Original calendar-year play count.
         uri: Original resolved playable marker, when planning has completed.
         artist_id: Original mapped primary artist, when applicable.
+        dropped: Explicit operator rejection; such entries have no playable marker.
     """
 
     artist: str
@@ -25,6 +26,7 @@ class YearEntry(TypedDict):
     scrobbles: int
     uri: NotRequired[str]
     artist_id: NotRequired[str]
+    dropped: NotRequired[bool]
 
 
 def rank_year(
@@ -92,3 +94,34 @@ def _ranked_entries(
         parts = labels[(kind, *key)]
         entries.append({"artist": parts[0], "name": parts[-1], "scrobbles": count})
     return entries
+
+
+def accepted_uris(items: list[YearEntry]) -> list[str]:
+    """Exclude explicitly dropped entries while retaining accepted rank order.
+
+    Args:
+        items: Ranked plan records, including old plans without a dropped field.
+
+    Returns:
+        Accepted marker URIs in plan order.
+
+    Raises:
+        KeyError: An accepted record lacks its required resolved marker.
+    """
+    uris = []
+    for item in items:
+        if not is_dropped(item):
+            uris.append(item["uri"])
+    return uris
+
+
+def is_dropped(item: object) -> bool:
+    """Recognize only explicit boolean rejections, preserving old plan tolerance.
+
+    Args:
+        item: Current or legacy plan entry without introducing schema validation.
+
+    Returns:
+        Whether the entry explicitly records a dropped outcome.
+    """
+    return isinstance(item, dict) and item.get("dropped") is True

@@ -146,6 +146,42 @@ def _audit(environment: FoundArtEnvironment) -> dict[str, object]:
     return cast(dict[str, object], json.loads(environment.audit.read_text()))
 
 
+@pytest.mark.parametrize("choice", ["manual", "", None])
+@pytest.mark.parametrize("preview", [False, True])
+def test_found_art_worker_can_select_reject_or_cancel_manual_match(
+    found_art_environment: FoundArtEnvironment, choice: str | None, preview: bool
+) -> None:
+    """Exercise shared matching through real recommendation gathering and effects.
+
+    Args:
+        found_art_environment: Real worker and isolated external services.
+        choice: Accepted identity, explicit rejection, or cancellation.
+        preview: Resolve the same decisions without Spotify writes.
+    """
+    environment = found_art_environment
+    query = blast.spotify_search_query(blast.Scrobble("New Song", "New", "", 0))
+    environment.spotify.search_results[query] = []
+    environment.spotify.search_results["New New Song"] = [
+        spotify_track("manual", "Alternative title", "Different artist")
+    ]
+    job = environment.http.post(
+        "/commands/found-art", params={"count": 1, "dry_run": preview}
+    ).json()
+    path = f"/commands/found-art-jobs/{job['job_id']}"
+    pending = _wait(environment.http, "found-art", job["job_id"], "waiting")
+    request = pending["track_match_pending_choice"]["request_id"]
+    endpoint = "/cancel" if choice is None else "/match"
+    response = environment.http.post(
+        path + endpoint, json={"request_id": request, "choice": choice}
+    )
+    assert response.status_code == 200, response.text
+    status = "cancelled" if choice is None else "completed"
+    result = _wait(environment.http, "found-art", job["job_id"], status)
+    assert result["track_match_pending_choice"] is None
+    assert result["dry_run"] is preview
+    assert bool(environment.spotify.posts) is (choice == "manual" and not preview)
+
+
 def _accepted_count(environment: FoundArtEnvironment) -> int:
     results = cast(list[dict[str, object]], _audit(environment)["results"])
     return sum(result["action"] == "added" for result in results)
@@ -188,37 +224,47 @@ def test_cli_found_art_preserves_preview_cache_audit_and_live_liked_exclusions(
 
 
 @pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("preview", [False, True])
 def test_http_found_art_runs_real_history_cache_resolution_append_and_audit(
     found_art_environment: FoundArtEnvironment,
     empty: bool,
+    preview: bool,
 ) -> None:
     """Complete actual workers with live liked suppression or empty neighborhoods.
 
     Args:
         found_art_environment: Actual HTTP handlers with isolated external services.
         empty: Supply empty neighborhoods without suppressing their cache checkpoints.
+        preview: Complete a preview without applying Spotify changes.
     """
     environment = found_art_environment
     if empty:
         environment.lastfm.similar.clear()
-    response = environment.http.post("/commands/found-art", params={"count": 1})
+    response = environment.http.post(
+        "/commands/found-art", params={"count": 1, "dry_run": preview}
+    )
     assert response.status_code == 202, response.text
     result = _wait(
         environment.http, "found-art", str(response.json()["job_id"]), "completed"
     )
-    assert result["added"] == result["playlist_length_after"] == int(not empty)
+    assert result["dry_run"] is preview
+    assert result["added"] == int(not empty)
+    assert result["playlist_length_after"] == int(not empty and not preview)
     assert result["playlist_length_before"] == 0 and result["history_tracks"] == 30
     assert result["history_scrobbles"] == 30 and result["candidate_count"] == (
         0 if empty else 2
     )
     assert environment.spotify.posts == (
-        [] if empty else [("playlists/blast/items", {"uris": ["spotify:track:new"]})]
+        []
+        if empty or preview
+        else [("playlists/blast/items", {"uris": ["spotify:track:new"]})]
     )
     assert (
         _cached_seed_count(environment) == len(environment.lastfm.similar_calls) == 30
     )
-    assert _accepted_count(environment) == int(not empty)
-    assert _audit(environment)["dry_run"] is False
+    assert _accepted_count(environment) == int(not empty and not preview)
+    assert _audit(environment)["dry_run"] is preview
+    assert result["detail"].startswith("Would add" if preview else "Added")
 
 
 @pytest.mark.parametrize("preview", [False, True])

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.application.ports.runtime import NoRetry
 
 
@@ -48,6 +49,7 @@ class SomethingOldCallbacks:
         artist_choice_reader: Artist choice reader.
         progress_callback: Progress callback.
         retry_call: Retry call.
+        matching: Optional manual catalog matching owner.
     """
 
     mode_reader: ModeReader
@@ -55,6 +57,7 @@ class SomethingOldCallbacks:
     artist_choice_reader: ArtistChoiceReader | None = None
     progress_callback: ProgressCallback | None = None
     retry_call: RetryCall = NoRetry()
+    matching: CatalogMatchInteraction | None = None
 
 
 @dataclass(frozen=True)

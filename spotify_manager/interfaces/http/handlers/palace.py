@@ -100,6 +100,9 @@ def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
             raise HTTPException(
                 status_code=409, detail="Palace of Memory job is not active"
             )
+        if job.result.track_match_pending_choice is not None:
+            job.choice_event.set()
+        job.result.track_match_pending_choice = None
         job.result.status = "cancelling"
         job.result.detail = "Stopping Palace of Memory"
         jobs._append_blast_log_locked(job, job.result.detail)

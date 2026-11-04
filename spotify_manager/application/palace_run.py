@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 
+from spotify_manager.application.manual_album_matching import ManualAlbumMatching
 from spotify_manager.application.palace_effects import PalaceEffects
 from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_history import PalaceHistory
@@ -51,6 +52,7 @@ class Palace:
         history_count: Configured original historical selection count.
         alphabetical_count: Original configured consecutive selection size.
         match_threshold: Original saved-edition qualification threshold.
+        manual: Optional manual album selection stage.
     """
 
     effects: PalaceEffects
@@ -59,6 +61,7 @@ class Palace:
     history_count: int = 5
     alphabetical_count: int = 5
     match_threshold: float = 0.9
+    manual: ManualAlbumMatching | None = None
 
     async def run(
         self, playlist: str, preview: bool, override: str | None
@@ -79,7 +82,9 @@ class Palace:
         )
         self.effects.progress("Loading Palace of Memory")
         initial = await self.effects.playlist(False)
-        planner = PalacePlanning(self.effects, opened.saved, self.match_threshold)
+        planner = PalacePlanning(
+            self.effects, opened.saved, self.match_threshold, manual=self.manual
+        )
         planned = await planner.alphabetical(opened.alphabetical)
         planned.extend(await planner.historical(historical))
         final, results, pending = await self._execute(planned, initial, preview)

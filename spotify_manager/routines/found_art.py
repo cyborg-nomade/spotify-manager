@@ -508,6 +508,7 @@ async def async_run_found_art(
     from spotify_manager.interfaces.operations.found_art import (
         run_found_art as operation,
     )
+    from spotify_manager.interfaces.requests.found_art import FoundArtResources
 
     return await operation(
         sp,
@@ -517,10 +518,7 @@ async def async_run_found_art(
         max_playlist_length=max_playlist_length,
         seed_count=seed_count,
         dry_run=dry_run,
-        export_path=export_path,
-        recent_path=recent_path,
-        cache_path=cache_path,
-        log_path=log_path,
+        resources=FoundArtResources(export_path, recent_path, cache_path, log_path),
         now=now,
         progress_callback=progress_callback,
     )

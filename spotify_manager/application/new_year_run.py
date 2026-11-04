@@ -13,6 +13,8 @@ from spotify_manager.application.new_year_values import RetrospectivePlan
 from spotify_manager.application.new_year_values import RetrospectiveRun
 from spotify_manager.application.new_year_values import RetrospectiveState
 from spotify_manager.application.queue_3_import import resolve_yearly_playlist
+from spotify_manager.domain.annual_history import YearEntry
+from spotify_manager.domain.annual_history import is_dropped
 
 
 @dataclass(frozen=True)
@@ -92,8 +94,26 @@ class NewYear:
     ) -> dict[str, object]:
         await self.discoveries.run(year + 1, True)
         self.effects.echo(
-            f"Dry run: {len(plan['tracks'])} tracks, {len(plan['albums'])} albums, "
-            f"{len(plan['artists'])} artists and "
+            f"Dry run: {_accepted_count(plan['tracks'])} tracks, "
+            f"{_accepted_count(plan['albums'])} albums, "
+            f"{_accepted_count(plan['artists'])} artists and "
             f"{len(plan['obsessions'])} Obsessions tracks."
         )
+        dropped = _dropped_count(plan)
+        if dropped:
+            self.effects.echo(
+                f"Explicitly dropped {dropped} unresolved entries; "
+                "accepted markers remain in rank order."
+            )
         return {"year": year, "dry_run": True, **run}
+
+
+def _accepted_count(items: list[YearEntry]) -> int:
+    return sum(not is_dropped(item) for item in items)
+
+
+def _dropped_count(plan: RetrospectivePlan) -> int:
+    total = 0
+    for kind in ("tracks", "albums", "artists"):
+        total += len(plan[kind]) - _accepted_count(plan[kind])
+    return total

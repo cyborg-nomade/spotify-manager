@@ -7,6 +7,7 @@ from datetime import UTC
 from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
@@ -20,6 +21,7 @@ from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.recommendations import (
     found_art_selection_results,
 )
+from spotify_manager.interfaces.http.track_matching import WebCatalogMatching
 from spotify_manager.interfaces.operations import found_art as found_art
 
 
@@ -35,6 +37,7 @@ class FoundArtWorker:
         api_key: Configured Last.fm API credential.
         username: Configured Last.fm username.
         count: Requested number of selections.
+        dry_run: Resolve recommendations without applying Spotify playlist changes.
         connection_failure: Connection failure supplied by the caller.
         job: Mutable job record owned by this worker.
         lastfm: Caller-owned Last.fm client.
@@ -51,6 +54,7 @@ class FoundArtWorker:
     username: str
     count: int
     connection_failure: str
+    dry_run: bool = False
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
     events: SpotifyEvents = field(init=False)
@@ -60,6 +64,8 @@ class FoundArtWorker:
         self._start()
         try:
             summary = await self._execute()
+        except BlastFromPastCancelledError as exc:
+            self._cancelled(exc)
         except (found_art.FoundArtError, LastFmError, SpotifyException) as exc:
             self._failed(exc)
         except RequestException:
@@ -77,6 +83,8 @@ class FoundArtWorker:
         Args:
             message: Original routine-supplied message.
         """
+        if self.job.cancel_event.is_set():
+            raise BlastFromPastCancelledError("Found Art was cancelled.")
         with self.context.lock:
             self.job.result.detail = message
             self.context.append(self.job, message)
@@ -100,7 +108,9 @@ class FoundArtWorker:
             self.lastfm,
             self.playlist_id,
             count=self.count,
+            dry_run=self.dry_run,
             progress_callback=self,
+            interaction=WebCatalogMatching(self.context, self.job),
         )
         return summary
 
@@ -111,7 +121,7 @@ class FoundArtWorker:
             self.job.result.requested_count = summary.requested_count
             self.job.result.playlist_length_before = summary.playlist_length_before
             self.job.result.playlist_length_after = summary.playlist_length_after
-            self.job.result.added = summary.added
+            self.job.result.added = summary.selected
             self.job.result.week_start = summary.week_start.isoformat()
             self.job.result.history_tracks = summary.history_tracks
             self.job.result.history_scrobbles = summary.history_scrobbles
@@ -119,7 +129,8 @@ class FoundArtWorker:
             self.job.result.candidate_count = summary.candidate_count
             self.job.result.found_art_results = results
             self.job.result.detail = (
-                f"Added {summary.added} of {summary.requested_count}"
+                f"{'Would add' if summary.dry_run else 'Added'} "
+                f"{summary.selected} of {summary.requested_count}"
                 f" recommendations; playlist {summary.playlist_length_before} -> "
                 f"{summary.playlist_length_after}."
             )
@@ -134,6 +145,7 @@ class FoundArtWorker:
     def _finish(self) -> None:
         self.events.restore()
         with self.context.lock:
+            self.job.result.track_match_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _failed(
@@ -156,3 +168,8 @@ class FoundArtWorker:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected Found Art error: {exc}"
             self.context.append(self.job, self.job.result.detail)
+
+    def _cancelled(self, exc: BlastFromPastCancelledError) -> None:
+        with self.context.lock:
+            self.job.result.status = "cancelled"
+            self.job.result.detail = str(exc)

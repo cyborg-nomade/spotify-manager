@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
@@ -27,6 +28,7 @@ from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.cli.terminal import TerminalPrompt
+from spotify_manager.interfaces.cli.track_matching import CliCatalogMatching
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -266,7 +268,11 @@ class SauvignonCLI:
         raise typer.Exit(code=0) from exc
 
     def _report_fill_sauvignon_from_lastfm_sauvignon_failure(
-        self, exc: sauvignon.SauvignonError | found_art.FoundArtError | LastFmError
+        self,
+        exc: sauvignon.SauvignonError
+        | found_art.FoundArtError
+        | LastFmError
+        | BlastFromPastCancelledError,
     ) -> Never:
         self._fill_sauvignon_from_lastfm_console.print(
             str(exc), style="bold red", markup=False
@@ -376,6 +382,11 @@ class SauvignonCLI:
                         dry_run=dry_run,
                     ),
                     SauvignonCallbacks(
+                        matching=CliCatalogMatching(
+                            self.display,
+                            self._fill_sauvignon_from_lastfm_console,
+                            self._fill_sauvignon_from_lastfm_progress,
+                        ),
                         choice_reader=FillSauvignonFromLastfmInteraction(self),
                         output=FillSauvignonFromLastfmInteraction(self),
                         progress_callback=FillSauvignonFromLastfmInteraction(self),
@@ -387,7 +398,12 @@ class SauvignonCLI:
             self._report_fill_sauvignon_from_lastfm_rate_limit(exc)
         except review_album_limits.SpotifyTransientServerError as exc:
             self._report_fill_sauvignon_from_lastfm_server_failure(exc)
-        except (sauvignon.SauvignonError, found_art.FoundArtError, LastFmError) as exc:
+        except (
+            sauvignon.SauvignonError,
+            found_art.FoundArtError,
+            LastFmError,
+            BlastFromPastCancelledError,
+        ) as exc:
             self._report_fill_sauvignon_from_lastfm_sauvignon_failure(exc)
         except SpotifyException as exc:
             self._report_fill_sauvignon_from_lastfm_spotify_spotify_failure(exc)

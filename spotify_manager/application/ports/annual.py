@@ -56,6 +56,16 @@ class AnnualLookup(Protocol):
             Original mapping or cancellation.
         """
 
+    async def artist_candidates(self, name: str) -> tuple[SpotifyArtistCandidate, ...]:
+        """Read parsed artist observations before exact-name qualification.
+
+        Args:
+            name: Historical display artist.
+
+        Returns:
+            Complete usable artist candidates in search order.
+        """
+
     async def primary(self, uri: str) -> object:
         """Read the original first credit.
 

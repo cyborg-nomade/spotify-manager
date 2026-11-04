@@ -1,5 +1,6 @@
 """Invoke new year use cases for CLI and HTTP features."""
 
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.application.new_year_membership import RetryCall as RetryCall
 from spotify_manager.application.ports.runtime import CancellationState
 from spotify_manager.application.ports.runtime import Messages
@@ -23,6 +24,7 @@ async def run_new_year(
     echo: Messages = STANDARD_OUTPUT,
     cancel_check: CancellationState | None = None,
     retry_call: RetryCall | None = None,
+    interaction: CatalogMatchInteraction | None = None,
 ) -> dict[str, object]:
     """Plan all annual markers, then preview or execute the five checkpointed stages.
 
@@ -36,6 +38,7 @@ async def run_new_year(
         echo: Original visible presenter.
         cancel_check: Original optional cancellation reader.
         retry_call: Original optional caller retry boundary.
+        interaction: Optional manual catalog choice and cancellation owner.
 
     Returns:
         Original wide result retaining stored unknown fields and key overrides.
@@ -45,5 +48,12 @@ async def run_new_year(
         ScrobbleHistoryCancelledError: Original cancellation requests a stop.
     """
     return await composition.compose(
-        sp, lastfm, configuration, state_service, echo, cancel_check, retry_call
+        sp,
+        lastfm,
+        configuration,
+        state_service,
+        echo,
+        cancel_check,
+        retry_call,
+        interaction,
     ).run(year, dry_run)

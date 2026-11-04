@@ -32,9 +32,12 @@ def submit_track_match(
             raise HTTPException(409, "The job is not waiting for a track match")
         if pending.request_id != request.request_id:
             raise HTTPException(409, "This track matching request is no longer current")
-        identifiers = {candidate.spotify_id for candidate in pending.candidates}
+        options = pending.albums if pending.kind == "album" else pending.candidates
+        identifiers = {candidate.spotify_id for candidate in options}
         if request.choice and request.choice not in identifiers:
-            raise HTTPException(400, "Choose an offered Spotify track or No match")
+            raise HTTPException(
+                400, f"Choose an offered Spotify {pending.kind} or No match"
+            )
         job.submitted_choice = request.choice
         job.result.track_match_pending_choice = None
         job.result.status = "running"

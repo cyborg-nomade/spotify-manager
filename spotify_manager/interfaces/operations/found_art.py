@@ -12,6 +12,7 @@ from spotify_manager.application.found_art_values import FoundArtError as FoundA
 from spotify_manager.application.found_art_values import (
     FoundArtSummary as FoundArtSummary,
 )
+from spotify_manager.application.manual_matching import CatalogMatchInteraction
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.recommendations import candidate_gathering
 from spotify_manager.bootstrap.recommendations import recommendation_resolution
@@ -25,6 +26,7 @@ from spotify_manager.domain.recommendation_matching import (
     FoundArtResult as FoundArtResult,
 )
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed as FoundArtSeed
+from spotify_manager.interfaces.requests.found_art import FoundArtResources
 from spotify_manager.routines import blast_from_past as blast_from_past
 from spotify_manager.routines.found_art import DEFAULT_CACHE_PATH as DEFAULT_CACHE_PATH
 from spotify_manager.routines.found_art import DEFAULT_COUNT as DEFAULT_COUNT
@@ -152,12 +154,10 @@ async def run_found_art(
     max_playlist_length: int | None = None,
     seed_count: int = DEFAULT_SEED_COUNT,
     dry_run: bool = False,
-    export_path: Path = DEFAULT_SCROBBLES_PATH,
-    recent_path: Path = DEFAULT_RECENT_PATH,
-    cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
+    resources: FoundArtResources | None = None,
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
+    interaction: CatalogMatchInteraction | None = None,
 ) -> FoundArtSummary:
     """Refresh history, resolve recommendations, append matches and audit the run.
 
@@ -169,12 +169,10 @@ async def run_found_art(
         max_playlist_length: Optional positive capacity, exclusive with count.
         seed_count: Positive requested neighborhood seed count.
         dry_run: Suppress remote appends while retaining preview history and audit.
-        export_path: Original canonical export path.
-        recent_path: Original legacy history delta path.
-        cache_path: Original neighborhood cache destination.
-        log_path: Original audit destination.
+        resources: Canonical history, legacy delta, neighborhood cache and audit paths.
         now: Optional effective UTC timestamp.
         progress_callback: Optional original progress observer.
+        interaction: Optional manual matching and cancellation owner.
 
     Returns:
         Original completed summary after its audit is accepted.
@@ -184,16 +182,18 @@ async def run_found_art(
         FoundArtStateError: History, cache, seed selection or audit is unusable.
         SpotifyTrackResolutionError: Catalog or destination data is unusable.
     """
+    resources = resources or FoundArtResources()
     configured = recommendation_run(
         sp,
         lastfm,
         playlist_id,
-        export_path,
-        recent_path,
-        cache_path,
-        log_path,
+        resources.export_path,
+        resources.recent_path,
+        resources.cache_path,
+        resources.log_path,
         now,
         progress_callback,
+        interaction,
     )
     return await configured.run(
         playlist_id, count, max_playlist_length, seed_count, dry_run

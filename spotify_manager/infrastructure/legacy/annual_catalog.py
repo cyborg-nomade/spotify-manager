@@ -13,6 +13,7 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
+from spotify_manager.infrastructure.golden_records import artist_search
 from spotify_manager.infrastructure.legacy.new_year_resources import AnnualResources
 
 
@@ -91,6 +92,25 @@ class LegacyAnnualSpotify:
         )
 
         return await resolve_spotify_artist(self.sp, name, None, self.retry)
+
+    async def artist_candidates(self, name: str) -> tuple[SpotifyArtistCandidate, ...]:
+        """Observe the original artist query without concealing an application stage.
+
+        Args:
+            name: Historical artist display name.
+
+        Returns:
+            Parsed observations; malformed responses retain their original error.
+        """
+        for attempt in self.retry.attempts(f"searching Spotify for {name}"):
+            async with attempt:
+                response = await self.sp.search(
+                    q=f'artist:"{name.replace(chr(34), " ")}"',
+                    type="artist",
+                    limit=10,
+                    offset=0,
+                )
+        return artist_search(response, name)
 
     async def primary(self, uri: str) -> object:
         """Read the original first credit.
