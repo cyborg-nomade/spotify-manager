@@ -1,6 +1,9 @@
 # Item 5: manual matching across Last.fm consumers
 
-**Status:** implemented and verified; owner PR approval pending.
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04.
+**Release:** [PR #77](https://github.com/cyborg-nomade/spotify-manager/pull/77).
+**Approved runtime source:** `4b6e4a5a68f869e997966da75d731b4b228fc334`.
+**Space revision:** `612bc78e02f7e82b8941988603aacda65674d6a7`.
 **Branch:** `codex/item05-lastfm-manual-matching`.
 **Roadmap:** [Item 5](../IMPROVEMENTS_ROADMAP.md#item-5-extend-matching-and-repair-new-years-unresolved-item-handling).
 
@@ -149,18 +152,12 @@ Spotify, Last.fm or Random.org requests. Other panels are outside its fixture sc
 
 Completed verification:
 
-- Initial implementation `just ci-test`: **11,994 passed**, random seed `923107`,
-  445.64 seconds.
-  Package and strict inner typing, Ruff, architecture checks and independent
-  statement/branch coverage gates pass. Package coverage is 95%; domain and
-  application each clear their 98% statement / 95% branch floors. The existing
-  Starlette TestClient deprecation warning remains.
-- The owner-review extension's full run passed **12,004** tests (seed `96830`,
-  437.71 seconds). Its only failure was an old worker success double missing
-  `selected` and `dry_run`, which the real summary already provides. After adding
-  those two fields without changing assertions, **118 worker and Found Art tests**
-  pass. The captured full-run coverage gate passes, as do package/strict typing
-  and Ruff. GitHub CI checks the complete final PR revision.
+- GitHub CI [41817830259](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41817830259)
+  passes both jobs for the exact approved runtime source: **12,005 tests**, seed
+  `346626`, 779.72 seconds. Package/strict typing, Ruff, architecture, frozen
+  interfaces, packaging and independent coverage gates pass. Package coverage
+  clears its 95% statement / 90% branch floors; domain and application each clear
+  98% / 95%. The existing Starlette TestClient deprecation warning remains.
 - **143 focused API/interface tests** pass for Found Art's preview/live paths,
   including manual selection/rejection/cancellation and empty recommendations.
   **1,253 lifecycle and call-path checks** pass with the explicit preview launch
@@ -204,10 +201,23 @@ The annual plan adds an optional explicit-drop flag; old plans remain readable.
 Existing saved plans are retained rather than rebuilt silently. Local preview
 state and files must never be uploaded to production.
 
-Deployment and merge require this item's owner approval under
-[AGENTS.md](../../AGENTS.md). After approval, check active jobs, deploy only the
-approved runtime files, verify the running revision, served frontend, health,
-authenticated access and shared artifacts, then merge. Rollback restores the
+The owner approved PR #77, including Cap 40 and Found Art's web Dry run, on
+2026-11-04. Authenticated preflight
+[41828165408](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41828165408)
+and postflight
+[41828547440](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41828547440)
+verified automation access, shared state, all four artifacts and no active jobs
+across 20 endpoints. Neither check started history scans or playlist routines.
+
+Only the **58 approved runtime files** were uploaded, including six new modules,
+with a guarded parent revision. All **77 cumulative release blobs**, the running
+Space revision, exact served frontend, health and the new controls were verified.
+State stayed at `622d1ac69df56633e40288c2345df9e37c1ec8e7`; canonical data stayed at
+`d8c6e548758f1a134c9d2bed65edf1cd2f0e6d60`. Credentials and unrelated operational
+files were excluded. The remaining release-tracking changes are documentation
+only; merge and cleanup follow [AGENTS.md](../../AGENTS.md).
+
+Rollback restores the
 previous runtime/frontend while preserving independent data publications and
 annual state. Saved plans containing explicit drops must not be applied by an
 older runtime that does not understand them; finish or retain those plans before

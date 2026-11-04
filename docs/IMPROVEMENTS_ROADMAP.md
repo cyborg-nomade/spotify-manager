@@ -111,8 +111,8 @@ results, manual selection, rejection, cancellation, and preview execution.
 
 ## Item 5: extend matching and repair New Year's unresolved-item handling
 
-**Status:** implemented and verified; owner PR approval pending on
-`codex/item05-lastfm-manual-matching`. The
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-04 in
+[PR #77](https://github.com/cyborg-nomade/spotify-manager/pull/77). The
 [implementation and review guide](improvements/05_LASTFM_MATCHING.md) records
 the consumer inventory, Chevelle diagnosis, interaction protocol and release rules.
 
