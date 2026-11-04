@@ -83,6 +83,10 @@ def cmd_choose_slow_listening_track(
             raise HTTPException(
                 status_code=409, detail="Slow Listening job is not waiting for a choice"
             )
+        if request.request_id is not None and request.request_id != pending.request_id:
+            raise HTTPException(
+                status_code=409, detail="Slow Listening choice is no longer current"
+            )
         submitted_order = _validate_submission(pending, request)
         job.submitted_choice = request.choice
         job.submitted_order = submitted_order
@@ -124,12 +128,14 @@ def _validate_submission(
     pending: SlowListeningPendingChoice, request: SlowListeningChoiceRequest
 ) -> tuple[str, ...] | None:
     submitted_order: tuple[str, ...] | None = None
-    if pending.kind == "track":
+    if pending.kind in {"track", "release"}:
         allowed = {
             slow_listening.CHOICE_ADVANCE,
             slow_listening.CHOICE_SKIP,
             slow_listening.CHOICE_QUIT,
         }
+        if pending.kind == "release":
+            allowed.add(slow_listening.CHOICE_SKIP_ALBUM)
         if request.choice not in allowed or request.order:
             raise HTTPException(status_code=400, detail="track choice is not available")
     elif pending.kind == "release_order":

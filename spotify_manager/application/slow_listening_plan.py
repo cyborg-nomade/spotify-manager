@@ -6,6 +6,8 @@ from dataclasses import field
 from typing import Protocol
 
 from spotify_manager.application.checkpoints import Checkpoint
+from spotify_manager.application.slow_listening_albums import AlbumSelection
+from spotify_manager.application.slow_listening_values import CHOICE_SKIP_ALBUM
 from spotify_manager.application.slow_listening_values import ReleaseOrderReader
 from spotify_manager.application.slow_listening_values import SlowListeningError
 from spotify_manager.application.slow_listening_values import TrackActionReader
@@ -212,6 +214,7 @@ class TrackSelection:
         skipped_ids: Previously declined track IDs, updated on new declines.
         skipped: Named history and checkpoint ownership for newly declined IDs.
         skipped_labels: Visible labels accumulated during this scan.
+        albums: Optional next-album decisions and durable whole-album rejections.
     """
 
     source: PlaylistTrack
@@ -222,6 +225,7 @@ class TrackSelection:
     skipped_ids: set[str]
     skipped: SkippedTracks
     skipped_labels: list[str] = field(default_factory=list)
+    albums: AlbumSelection | None = None
 
     async def plan(self) -> dict[str, object] | None:
         """Find the next accepted track or retain an explicit skip/completion plan.
@@ -243,11 +247,15 @@ class TrackSelection:
             return _skip(
                 release, "current track could not be mapped to the preferred edition"
             )
-        return await self._scan(release, tracks, index + 1)
+        plan = await self._scan(release, tracks, index + 1)
+        if plan is not None and self.albums is not None and self.albums.declined:
+            plan["skipped_albums"] = list(self.albums.declined.values())
+        return plan
 
     async def _scan(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...], index: int
     ) -> dict[str, object] | None:
+        current_release_id = release.spotify_id
         while True:
             release, tracks, index, terminal = await self._boundary(
                 release, tracks, index
@@ -255,12 +263,13 @@ class TrackSelection:
             if terminal is not None:
                 return terminal
             target = tracks[index]
-            choice = await self._choice(target, release)
+            proposed = release.spotify_id != current_release_id
+            choice = await self._choice(target, release, proposed)
             if choice == "quit":
                 return None
             if choice == "advance":
                 return self._advance(target, release)
-            index += 1
+            index = len(tracks) if choice == CHOICE_SKIP_ALBUM else index + 1
 
     async def _boundary(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...], index: int
@@ -269,7 +278,7 @@ class TrackSelection:
     ]:
         if index < len(tracks):
             return release, tracks, index, None
-        following = await self.ordering.following(release, self.discography)
+        following = await self._following(release)
         if following is None:
             return release, tracks, index, self._complete(release)
         tracks = await self.observations.release_tracks(following)
@@ -277,12 +286,31 @@ class TrackSelection:
             return following, tracks, 0, self._empty_release(following)
         return following, tracks, 0, None
 
-    async def _choice(self, target: ReleaseTrack, release: DiscographyRelease) -> str:
+    async def _following(
+        self, release: DiscographyRelease
+    ) -> DiscographyRelease | None:
+        following = await self.ordering.following(release, self.discography)
+        while following is not None and self.albums is not None:
+            if following.spotify_id not in self.albums.declined:
+                return following
+            following = await self.ordering.following(following, self.discography)
+        return following
+
+    async def _choice(
+        self, target: ReleaseTrack, release: DiscographyRelease, proposed: bool
+    ) -> str:
         label = f"{target.name} ({release.name})"
         if target.spotify_id in self.skipped_ids:
             self.skipped_labels.append(label)
             return "skip"
-        choice = await self.choose.choose_track(self.source, target, release)
+        choice = await self._read_choice(target, release, proposed)
+        if (
+            choice == CHOICE_SKIP_ALBUM
+            and proposed
+            and self.albums is not None
+            and self.albums.choose is not None
+        ):
+            return choice
         if choice == "quit" or choice == "advance":
             return choice
         if choice != "skip":
@@ -293,6 +321,15 @@ class TrackSelection:
         await self.skipped.remember(target.spotify_id)
         self.skipped_labels.append(label)
         return choice
+
+    async def _read_choice(
+        self, target: ReleaseTrack, release: DiscographyRelease, proposed: bool
+    ) -> str:
+        if proposed and self.albums is not None:
+            choice = await self.albums.run(self.source, target, release)
+            if choice is not None:
+                return choice
+        return await self.choose.choose_track(self.source, target, release)
 
     def _advance(
         self, target: ReleaseTrack, release: DiscographyRelease
@@ -311,6 +348,8 @@ class TrackSelection:
             if self.skipped_labels
             else "last track of the last studio release"
         )
+        if self.albums is not None and self.albums.declined:
+            reason = "all remaining studio albums or tracks were skipped"
         return {
             "action": "complete",
             "target": None,

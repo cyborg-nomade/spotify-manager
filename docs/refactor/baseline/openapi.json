@@ -3987,6 +3987,17 @@
             },
             "title": "Order",
             "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
@@ -4005,6 +4016,7 @@
           "kind": {
             "enum": [
               "track",
+              "release",
               "release_order",
               "completion"
             ],
@@ -4028,6 +4040,17 @@
             },
             "title": "Releases",
             "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           },
           "source_release": {
             "anyOf": [
@@ -4146,6 +4169,13 @@
               }
             ],
             "title": "Reason"
+          },
+          "skipped_albums": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped Albums",
+            "type": "array"
           },
           "skipped_candidates": {
             "items": {

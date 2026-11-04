@@ -112,6 +112,7 @@ def result_from_plan(
         skipped_candidates=_labels(plan.get("skipped_candidates")),
         reason=str(plan["reason"]) if plan.get("reason") else None,
         dry_run=dry_run,
+        skipped_albums=_labels(plan.get("skipped_albums")),
     )
 
 

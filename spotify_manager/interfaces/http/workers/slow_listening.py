@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
+from uuid import uuid4
 
 from spotipy.exceptions import SpotifyException
 
@@ -115,6 +116,7 @@ class SlowListeningWorker:
         Returns:
             The original accepted routine callback result.
         """
+        pending.request_id = str(uuid4())
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SlowListeningJobCancelledError
@@ -156,6 +158,37 @@ class SlowListeningWorker:
                 f"Add {target.name} ({target_release.name}) after "
                 f"{source.primary_artist_name} - {source.name}?"
             ),
+        )
+        return choice
+
+    async def choose_release(
+        self,
+        source: new_wine.PlaylistTrack,
+        target: new_wine.ReleaseTrack,
+        release: slow_listening.DiscographyRelease,
+    ) -> str:
+        """Offer an accepted marker, individual track skip, whole-album skip or pause.
+
+        Args:
+            source: Current marker retained while reviewing proposed albums.
+            target: Proposed marker in the next album.
+            release: Proposed next studio edition.
+
+        Returns:
+            Validated action submitted for this particular prompt.
+        """
+        choice, _order = await self.wait_for_submission(
+            SlowListeningPendingChoice(
+                kind="release",
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                source_release=source.release.name,
+                target_track=target.name,
+                target_release=release.name,
+                release_date=release.release_date,
+                releases=self._slow_listening_release_options((release,)),
+            ),
+            f"Choose the next album for {source.primary_artist_name}: {release.name}.",
         )
         return choice
 
@@ -256,6 +289,7 @@ class SlowListeningWorker:
             order_reader=self,
             completion_notifier=self,
             action_reader=self,
+            release_reader=self,
             dry_run=self.dry_run,
             echo=self,
             progress_callback=self,
@@ -276,7 +310,9 @@ class SlowListeningWorker:
             self.job.result.slow_listening_pending_choice = None
             if summary.paused:
                 self.job.result.detail = (
-                    "Slow Listening flush paused. Progress was saved."
+                    "Slow Listening dry run paused; preview decisions were not saved."
+                    if summary.dry_run
+                    else "Slow Listening flush paused. Progress was saved."
                 )
             else:
                 self.job.result.detail = (

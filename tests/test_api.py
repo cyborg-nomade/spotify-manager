@@ -4886,6 +4886,8 @@ class SlowListeningWebJobHandlesAllInteractiveChoicesScenario:
 
         Raises:
             AssertionError: An original response or accepted-effect contract differs."""
+        request_id = track_waiting["slow_listening_pending_choice"]["request_id"]
+        assert isinstance(request_id, str) and request_id
         assert track_waiting["slow_listening_pending_choice"] == {
             "kind": "track",
             "artist": "Artist",
@@ -4895,6 +4897,7 @@ class SlowListeningWebJobHandlesAllInteractiveChoicesScenario:
             "target_release": "First Release",
             "release_date": None,
             "releases": [],
+            "request_id": request_id,
         }
         assert [
             job["job_id"]
@@ -4934,6 +4937,7 @@ class SlowListeningWebJobHandlesAllInteractiveChoicesScenario:
         assert completed["slow_listening_results"][0]["skipped_candidates"] == [
             "Skipped Track (Source Album)"
         ]
+        assert completed["slow_listening_results"][0]["skipped_albums"] == []
         assert any(
             entry["message"] == "Slow Listening choices applied"
             for entry in completed["logs"]

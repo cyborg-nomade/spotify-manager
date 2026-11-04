@@ -114,6 +114,40 @@ class SlowListeningCLI:
             if progress is not None:
                 progress.start()
 
+    async def _prompt_next_album(
+        self,
+        source: new_wine.PlaylistTrack,
+        target: new_wine.ReleaseTrack,
+        release: slow_listening.DiscographyRelease,
+    ) -> str:
+        progress = self._flush_slow_listening_progress_ref
+        console = self._flush_slow_listening_console
+        if progress is not None:
+            progress.stop()
+        try:
+            console.print(
+                f"Next album for {source.primary_artist_name}: {release.name} "
+                f"({release.release_date}, {release.total_tracks} tracks). "
+                f"Start with {target.name}.",
+                markup=False,
+            )
+            console.print(f"https://open.spotify.com/album/{release.spotify_id}")
+            answer = await TerminalPrompt(self.display.prompt).ask(
+                "Accept album (a) / skip track (s) / skip album (r) / pause (q)",
+                choices=["a", "s", "r", "q"],
+                default="a",
+                console=console,
+            )
+            return {
+                "a": "advance",
+                "s": "skip",
+                "r": slow_listening.CHOICE_SKIP_ALBUM,
+                "q": "quit",
+            }[answer]
+        finally:
+            if progress is not None:
+                progress.start()
+
     async def _acknowledge_slow_listening_completion(
         self,
         console: Console,
@@ -186,6 +220,7 @@ class SlowListeningCLI:
                     order_reader=FlushSlowListeningInteraction(self),
                     completion_notifier=FlushSlowListeningInteraction(self),
                     action_reader=FlushSlowListeningInteraction(self),
+                    release_reader=FlushSlowListeningInteraction(self),
                     dry_run=dry_run,
                     echo=FlushSlowListeningInteraction(self),
                     progress_callback=FlushSlowListeningInteraction(self),
@@ -358,6 +393,10 @@ class SlowListeningCLI:
         table.add_column("Next")
         action_styles = {"advance": "green", "complete": "bold cyan", "skip": "yellow"}
         for result in summary.results:
+            if result.skipped_albums:
+                self._flush_slow_listening_console.print(
+                    "Skipped albums: " + ", ".join(result.skipped_albums), markup=False
+                )
             action = str(result.action)
             if result.skipped_candidates:
                 count = len(result.skipped_candidates)
@@ -520,6 +559,24 @@ class FlushSlowListeningInteraction:
             Original operator response.
         """
         return await self.owner._acknowledge_completion(source)
+
+    async def choose_release(
+        self,
+        source: new_wine.PlaylistTrack,
+        target: new_wine.ReleaseTrack,
+        release: slow_listening.DiscographyRelease,
+    ) -> str:
+        """Present only proposed next albums with the whole-album skip option.
+
+        Args:
+            source: Current playlist marker.
+            target: Proposed next marker.
+            release: Proposed next studio release.
+
+        Returns:
+            Explicit accept, track skip, album skip or pause action.
+        """
+        return await self.owner._prompt_next_album(source, target, release)
 
     async def choose_track(
         self,

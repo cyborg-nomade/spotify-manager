@@ -21,7 +21,7 @@ class SlowListeningReleaseOption(BaseModel):
 class SlowListeningPendingChoice(BaseModel):
     """Current Slow Listening interaction exposed to the web client."""
 
-    kind: Literal["track", "release_order", "completion"]
+    kind: Literal["track", "release", "release_order", "completion"]
     artist: str
     source_track: str | None = None
     source_release: str | None = None
@@ -29,6 +29,7 @@ class SlowListeningPendingChoice(BaseModel):
     target_release: str | None = None
     release_date: str | None = None
     releases: list[SlowListeningReleaseOption] = Field(default_factory=list)
+    request_id: str | None = None
 
 
 class SlowListeningTrackResult(BaseModel):
@@ -42,6 +43,7 @@ class SlowListeningTrackResult(BaseModel):
     target_release: str | None = None
     skipped_candidates: list[str] = Field(default_factory=list)
     reason: str | None = None
+    skipped_albums: list[str] = Field(default_factory=list)
 
 
 class SlowListeningChoiceRequest(BaseModel):
@@ -49,3 +51,4 @@ class SlowListeningChoiceRequest(BaseModel):
 
     choice: str
     order: list[str] = Field(default_factory=list)
+    request_id: str | None = None

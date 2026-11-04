@@ -10,6 +10,8 @@ from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.ports.slow_listening import SlowListeningAccess
 from spotify_manager.application.ports.slow_listening import SlowListeningPresentation
+from spotify_manager.application.slow_listening_albums import AlbumSelection
+from spotify_manager.application.slow_listening_albums import album_skips
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.application.slow_listening_plan import SkippedTracks
 from spotify_manager.application.slow_listening_plan import StudioObservations
@@ -22,6 +24,7 @@ from spotify_manager.application.slow_listening_state import track_from_record
 from spotify_manager.application.slow_listening_values import CompletionNotifier
 from spotify_manager.application.slow_listening_values import FlushResult
 from spotify_manager.application.slow_listening_values import FlushSummary
+from spotify_manager.application.slow_listening_values import ReleaseActionReader
 from spotify_manager.application.slow_listening_values import ReleaseOrderReader
 from spotify_manager.application.slow_listening_values import SlowListeningStateError
 from spotify_manager.application.slow_listening_values import TrackActionReader
@@ -43,6 +46,7 @@ class SlowListeningDependencies:
         presentation: Existing output messages.
         clock: Clock read at the original run creation and completion boundaries.
         progress: Optional cancellation/progress resource.
+        release_choice: Optional next-album selection and whole-album rejection.
     """
 
     access: SlowListeningAccess
@@ -53,6 +57,7 @@ class SlowListeningDependencies:
     presentation: SlowListeningPresentation
     clock: Clock
     progress: ReviewProgress | None = None
+    release_choice: ReleaseActionReader | None = None
 
 
 def new_run(
@@ -266,8 +271,17 @@ class SlowListeningRun:
             self.dependencies.choose,
             set(skipped),
             SkippedTracks(skipped, checkpoint),
+            albums=self._album_selection(entry, checkpoint),
         )
         return await selection.plan()
+
+    def _album_selection(
+        self, entry: dict[str, object], checkpoint: NamespaceCheckpoint
+    ) -> AlbumSelection | None:
+        reader = self.dependencies.release_choice
+        if reader is None and "skipped_albums" not in entry:
+            return None
+        return AlbumSelection(reader, album_skips(entry), checkpoint)
 
     async def _save(self) -> None:
         if not self.dry_run:

@@ -131,6 +131,11 @@ applying playlist changes.
 
 ## Item 6: skip proposed next albums in Slow Listening
 
+**Status:** implemented and verified; awaiting owner PR review on
+`codex/item06-slow-listening-album-skips`. The
+[implementation and review guide](improvements/06_SLOW_LISTENING_ALBUM_SKIPS.md)
+records the interaction, recovery contract and isolated review environments.
+
 At album transitions, offer accept, skip whole proposed album, and pause.
 Repeated skips propose successive albums until acceptance or exhaustion.
 Preserve within-album progression and release-date tie ordering.

@@ -27,6 +27,7 @@ def slow_listening_track_result(
         target_track=result.target_track,
         target_release=result.target_release,
         skipped_candidates=list(result.skipped_candidates),
+        skipped_albums=list(result.skipped_albums),
         reason=result.reason,
     )
 
