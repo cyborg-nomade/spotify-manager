@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from dataclasses import field
 
+from spotify_manager.application.ports.new_kids_plans import ReleasePlanSubmission
 from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
@@ -35,6 +36,7 @@ class PlaylistJob:
         submitted_choice: Accepted choice token awaiting worker consumption.
         submitted_order: Accepted ordered release IDs awaiting consumption.
         submitted_references: Discography album links awaiting resolution.
+        submitted_plan: Complete accepted ordered New Kids plan or control.
     """
 
     result: BlastJobResult
@@ -44,3 +46,4 @@ class PlaylistJob:
     submitted_choice: str | None = None
     submitted_order: tuple[str, ...] | None = None
     submitted_references: tuple[str, ...] | None = None
+    submitted_plan: ReleasePlanSubmission | None = None

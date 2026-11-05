@@ -7,11 +7,15 @@ from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
 from typing import Literal
+from uuid import uuid4
 
 from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.new_kids_plan_selection import ReleasePlanStoppedError
+from spotify_manager.application.ports.new_kids_plans import ReleasePlanDraft
+from spotify_manager.application.ports.new_kids_plans import ReleasePlanSubmission
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
@@ -83,7 +87,7 @@ class NewKidsWorker:
         self._start()
         try:
             summary = await self._execute()
-        except _NewKidsJobCancelledError:
+        except _NewKidsJobCancelledError, ReleasePlanStoppedError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
             self._rate_limited(exc)
@@ -165,6 +169,51 @@ class NewKidsWorker:
         if await self.job.cancel_event.wait(seconds):
             raise _NewKidsJobCancelledError
 
+    async def choose_plan(self, draft: ReleasePlanDraft) -> ReleasePlanSubmission:
+        """Publish an ordered editor and await its atomic typed submission.
+
+        Args:
+            draft: Complete catalogue and transfer context.
+
+        Returns:
+            Ordered plan or an explicit skip/quit decision.
+        """
+        with self.context.lock:
+            if self.job.cancel_event.is_set():
+                raise _NewKidsJobCancelledError
+            self.job.submitted_plan = None
+            self.job.choice_event.clear()
+            self.job.result.new_kids_pending_choice = NewKidsPendingChoice(
+                kind="release_plan",
+                request_id=uuid4().hex,
+                artist=draft.artist,
+                queue_album=draft.queue_album,
+                notice=draft.notice,
+                releases=self._new_kids_release_options(draft.releases),
+            )
+            self.job.result.status = "waiting"
+            self.job.result.detail = f"Choose a release plan for {draft.artist}"
+            self.context.append(self.job, self.job.result.detail)
+        return await await_submission(self.job.choice_event, PlanResponse(self))
+
+    def consume_plan(self) -> ReleasePlanSubmission | None:
+        """Consume a complete editor response while observing cancellation.
+
+        Returns:
+            Accepted ordered decision, or None until submitted.
+        """
+        with self.context.lock:
+            if self.job.cancel_event.is_set():
+                raise _NewKidsJobCancelledError
+            answer = self.job.submitted_plan
+            if answer is None:
+                return None
+            self.job.submitted_plan = None
+            self.job.choice_event.clear()
+            self.job.result.new_kids_pending_choice = None
+            self.job.result.status = "running"
+            return answer
+
     def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
@@ -210,12 +259,13 @@ class NewKidsWorker:
                 log_path=new_kids.DEFAULT_QUEUE_2_LOG_PATH,
                 lastfm=self.lastfm,
                 lastfm_username=lastfm_username,
+                plan_reader=self,
             )
             return await new_kids.flush_queue_2(
                 self.spotify, options, interaction, resources
             )
         resources = DiscoveryResources(
-            lastfm=self.lastfm, lastfm_username=lastfm_username
+            lastfm=self.lastfm, lastfm_username=lastfm_username, plan_reader=self
         )
         return await new_kids.flush_new_kids(
             self.spotify, options, interaction, resources
@@ -448,3 +498,22 @@ class NewKidsWorker:
         """Clear the original retry timestamp after a successful operation."""
         with self.context.lock:
             self.job.result.retry_at = None
+
+
+@dataclass(frozen=True)
+class PlanResponse:
+    """Own the typed consumer for one job's ordered plan editor.
+
+    Args:
+        worker: Invocation owning its signals, lock and accepted response.
+    """
+
+    worker: NewKidsWorker
+
+    def consume(self) -> ReleasePlanSubmission | None:
+        """Read one complete response.
+
+        Returns:
+            Ordered plan or None while waiting.
+        """
+        return self.worker.consume_plan()

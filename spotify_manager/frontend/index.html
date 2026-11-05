@@ -189,6 +189,14 @@
   #newWineCard .new-wine-choice a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   #discographyCard a { color: var(--yellow); }
   .discography-links { display: block; width: 100%; min-height: 70px; margin: 8px 0; resize: vertical; font: inherit; }
+  .new-kids-plan { min-width: 0; }
+  .new-kids-plan .plan-filters, .new-kids-plan .plan-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .new-kids-plan .plan-catalogue { max-height: 320px; overflow-y: auto; }
+  .new-kids-plan .plan-release, .new-kids-plan li { padding: 8px 0; overflow-wrap: anywhere; }
+  .new-kids-plan .plan-release button, .new-kids-plan li button { width: auto; min-width: 36px; margin: 4px 4px 0 0; }
+  .new-kids-plan .plan-release[hidden] { display: none; }
+  .new-kids-plan .plan-order { padding-left: 24px; }
+  .new-kids-plan .plan-order:empty::after { content: "Add releases below, then arrange their listening order."; }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
@@ -2660,6 +2668,105 @@
     }
   }
 
+  function renderReleasePlan(choice, kind) {
+    var catalogue = (choice.releases || []).map(function (release) {
+      var optional = release.release_type !== "Album" && release.release_type !== "EP";
+      return '<div class="plan-release" data-release-id="' + esc(release.spotify_id) +
+        '" data-release-name="' + esc(release.name) + '" data-release-type="' + esc(release.release_type) + '"' +
+        (optional ? ' hidden' : '') + '><div>' + esc(release.name) + '</div><div class="playlist-dates">' +
+        esc(release.release_type) + ' · ' + esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks' +
+        (release.saved ? ' · saved' : '') + '</div><button class="ghost" data-action="editNewKidsPlan" data-operation="add" data-id="' +
+        esc(release.spotify_id) + '">Add to plan</button></div>';
+    }).join("");
+    var filters = ["Single", "Compilation", "Live"].map(function (type) {
+      return '<label><input type="checkbox" data-plan-filter="' + type + '"> ' + type + ' releases</label>';
+    }).join("");
+    return '<div class="new-wine-choice new-kids-plan" data-new-kids-plan="' + esc(choice.request_id) +
+      '" data-kind="' + esc(kind) + '" data-selection="[]"><div class="new-wine-choice-title">' +
+      esc(choice.artist) + ' · choose a four-release plan</div><div class="playlist-dates">Queue 2 album: ' +
+      esc(choice.queue_album || "Unknown") + '. Choose it explicitly to include it. Listening starts at the first selected release.</div>' +
+      (choice.notice ? '<div role="status">' + esc(choice.notice) + '</div>' : '') +
+      '<ol class="plan-order" aria-label="Listening order"></ol><div class="plan-count">0 / 4 selected</div>' +
+      '<div class="plan-filters">' + filters + '</div><div class="plan-catalogue">' + (catalogue || 'No releases found.') + '</div>' +
+      '<label><input type="checkbox" data-plan-short> Confirm a shorter plan (1–3 releases)</label>' +
+      '<div class="plan-controls"><button data-action="submitNewKidsPlan" data-choice="plan_select" disabled>Use this plan</button>' +
+      '<button class="ghost" data-action="submitNewKidsPlan" data-choice="__skip__">Skip transfer</button>' +
+      '<button class="danger" data-action="submitNewKidsPlan" data-choice="__quit__">Quit</button></div></div>';
+  }
+
+  function updateReleasePlan(editor) {
+    var selected = JSON.parse(editor.dataset.selection);
+    var names = {};
+    editor.querySelectorAll('[data-release-id]').forEach(function (row) {
+      names[row.dataset.releaseId] = row.dataset.releaseName;
+      row.querySelector('button').disabled = selected.length >= 4 || selected.indexOf(row.dataset.releaseId) !== -1;
+      var filter = Array.from(editor.querySelectorAll('[data-plan-filter]')).find(function (input) {
+        return input.dataset.planFilter === row.dataset.releaseType;
+      });
+      row.hidden = Boolean(filter && !filter.checked);
+    });
+    editor.querySelector('.plan-order').innerHTML = selected.map(function (id, index) {
+      return '<li>' + esc(names[id]) + '<div>' + ['up', 'down', 'remove'].map(function (operation) {
+        var disabled = (operation === 'up' && index === 0) || (operation === 'down' && index === selected.length - 1);
+        var label = operation === 'up' ? 'Move up' : (operation === 'down' ? 'Move down' : 'Remove');
+        return '<button class="ghost" data-action="editNewKidsPlan" data-operation="' + operation + '" data-id="' +
+          esc(id) + '" aria-label="' + label + ' ' + esc(names[id]) + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>';
+      }).join('') + '</div></li>';
+    }).join('');
+    editor.querySelector('.plan-count').textContent = selected.length + ' / 4 selected';
+    editor.querySelector('[data-choice="plan_select"]').disabled = !selected.length ||
+      (selected.length < 4 && !editor.querySelector('[data-plan-short]').checked);
+  }
+
+  function editReleasePlan(btn) {
+    var editor = btn.closest('[data-new-kids-plan]');
+    var selected = JSON.parse(editor.dataset.selection);
+    var index = selected.indexOf(btn.dataset.id);
+    var operation = btn.dataset.operation;
+    if (operation === 'add' && index === -1 && selected.length < 4) selected.push(btn.dataset.id);
+    if (operation === 'remove' && index !== -1) selected.splice(index, 1);
+    var next = index + (operation === 'up' ? -1 : 1);
+    if ((operation === 'up' || operation === 'down') && index !== -1 && next >= 0 && next < selected.length) {
+      selected[index] = selected[next]; selected[next] = btn.dataset.id;
+    }
+    editor.dataset.selection = JSON.stringify(selected);
+    updateReleasePlan(editor);
+    var focusButton = Array.from(editor.querySelectorAll('[data-action="editNewKidsPlan"]')).find(function (candidate) {
+      return candidate.dataset.id === btn.dataset.id && candidate.dataset.operation === operation && !candidate.disabled;
+    });
+    if (!focusButton) {
+      focusButton = Array.from(editor.querySelectorAll('[data-action="editNewKidsPlan"]')).find(function (candidate) {
+        return candidate.dataset.id === btn.dataset.id && !candidate.disabled;
+      });
+    }
+    if (focusButton) focusButton.focus({ preventScroll: true });
+  }
+
+  async function submitReleasePlan(btn) {
+    var editor = btn.closest('[data-new-kids-plan]');
+    var kind = editor.dataset.kind;
+    var currentJob = kind === 'queue2' ? queue2Job : newKidsJob;
+    var route = kind === 'queue2' ? 'flush-queue-2' : 'flush-new-kids';
+    var buttons = editor.querySelectorAll('button');
+    buttons.forEach(function (button) { button.disabled = true; });
+    try {
+      var job = await api('/commands/' + route + '-jobs/' + currentJob.job_id + '/choice', {
+        method: 'POST', json: { choice: btn.dataset.choice, release_ids: JSON.parse(editor.dataset.selection),
+          confirm_short: editor.querySelector('[data-plan-short]').checked, request_id: editor.dataset.newKidsPlan }
+      });
+      renderAlbumDiscoveryJob(kind, job);
+    } catch (e) {
+      buttons.forEach(function (button) { button.disabled = false; });
+      updateReleasePlan(editor);
+      showToast(e.detail || 'Could not submit release plan', 'err');
+    }
+  }
+
+  document.addEventListener('change', function (event) {
+    if (!event.target.matches('[data-plan-filter], [data-plan-short]')) return;
+    updateReleasePlan(event.target.closest('[data-new-kids-plan]'));
+  });
+
   function renderAlbumDiscoveryJob(kind, job) {
     var isQueue2 = kind === "queue2";
     var progressId = isQueue2 ? "queue2Progress" : "newKidsProgress";
@@ -2749,7 +2856,9 @@
           }).join("") + '</div>'
       : "";
     var pending = "";
-    if (job.new_kids_pending_choice) {
+    if (job.new_kids_pending_choice && job.new_kids_pending_choice.kind === "release_plan") {
+      pending = renderReleasePlan(job.new_kids_pending_choice, kind);
+    } else if (job.new_kids_pending_choice) {
       var releaseButtons = (job.new_kids_pending_choice.releases || []).map(function (release) {
         var rank = typeof release.popularity === "number"
           ? "popularity " + release.popularity
@@ -2789,9 +2898,16 @@
       var retryDate = new Date(job.retry_at);
       if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
     }
+    var retainedEditor = out.querySelector('[data-new-kids-plan]');
+    var retainedFocus = retainedEditor && retainedEditor.contains(document.activeElement) ? document.activeElement : null;
     out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count + '</div>' +
       meter + summary + resultRows + transfers + pending +
       '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    var newEditor = out.querySelector('[data-new-kids-plan]');
+    if (retainedEditor && newEditor && retainedEditor.dataset.newKidsPlan === newEditor.dataset.newKidsPlan) {
+      newEditor.replaceWith(retainedEditor);
+      if (retainedFocus) retainedFocus.focus({ preventScroll: true });
+    }
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
@@ -4622,6 +4738,8 @@
   }
 
   var actions = {
+    editNewKidsPlan(btn) { editReleasePlan(btn); },
+    async submitNewKidsPlan(btn) { return submitReleasePlan(btn); },
     async openSharedState(btn) {
       setBusy(btn, true, "Loading state…");
       try {

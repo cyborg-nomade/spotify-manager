@@ -11,6 +11,7 @@ from rich.progress import Progress
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.new_kids_plan_selection import ReleasePlanStoppedError
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
@@ -25,6 +26,7 @@ from spotify_manager.infrastructure.lastfm_async import (
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.new_kids_plans import NewKidsPlanCLI
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.cli.terminal import TerminalPrompt
@@ -585,9 +587,20 @@ class DiscoveryCLI:
                     ),
                     FlushNewKidsInteraction(self),
                     resources=DiscoveryResources(
-                        lastfm=lastfm_client, lastfm_username=lastfm_username
+                        lastfm=lastfm_client,
+                        lastfm_username=lastfm_username,
+                        plan_reader=NewKidsPlanCLI(
+                            self._flush_new_kids_console,
+                            self._flush_new_kids_progress_ref,
+                            self.display,
+                        ),
                     ),
                 )
+        except ReleasePlanStoppedError:
+            self._flush_new_kids_console.print(
+                "Plan selection stopped; accepted progress was retained."
+            )
+            raise typer.Exit(code=0) from None
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_new_kids_rate_limit(exc, dry_run)
         except review_album_limits.SpotifyTransientServerError as exc:
@@ -661,8 +674,18 @@ class DiscoveryCLI:
                         log_path=new_kids.DEFAULT_QUEUE_2_LOG_PATH,
                         lastfm=lastfm_client,
                         lastfm_username=lastfm_username,
+                        plan_reader=NewKidsPlanCLI(
+                            self._flush_queue_2_console,
+                            self._flush_queue_2_progress_ref,
+                            self.display,
+                        ),
                     ),
                 )
+        except ReleasePlanStoppedError:
+            self._flush_queue_2_console.print(
+                "Plan selection stopped; accepted progress was retained."
+            )
+            raise typer.Exit(code=0) from None
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_queue_2_rate_limit(exc, dry_run)
         except review_album_limits.SpotifyTransientServerError as exc:
