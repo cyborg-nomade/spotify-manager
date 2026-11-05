@@ -59,7 +59,7 @@ class DiscographyLinkSpotify(FakeSpotify):
         self.artist_releases = {
             "artist": artist_releases("artist", 8),
             "beta": artist_releases("beta", 2),
-            "cedar": artist_releases("cedar", 8),
+            "cedar": artist_releases("cedar", 9),
         }
         other = raw_release(
             SECOND_LINK, "Unlisted live record", release_date="2011", artist_id="guest"

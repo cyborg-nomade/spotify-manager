@@ -24,6 +24,7 @@ from tests.support.discography_link_spotify import FIRST_LINK
 from tests.support.discography_link_spotify import MISSING_LINK
 from tests.support.discography_link_spotify import SECOND_LINK
 from tests.support.discography_link_spotify import DiscographyLinkSpotify
+from tests.support.discography_link_spotify import artist_releases
 
 
 @pytest.fixture
@@ -102,6 +103,68 @@ def _submit(
     return http.post(
         f"/commands/plan-discographies-jobs/{job}/choice", json=body
     ).status_code
+
+
+def _accept_defaults(http: TestClient, job: str, pending: dict[str, object]) -> None:
+    request = DiscographyChoiceRequest(
+        choice="select", release_ids=cast(list[str], pending["default_release_ids"])
+    )
+    assert _submit(http, job, pending, request) == 200
+
+
+def test_oversized_default_discography_is_not_prompted(
+    discography_http: tuple[TestClient, DiscographyLinkSpotify],
+) -> None:
+    """Skip seven defaults when only two weekly slots remain.
+
+    Args:
+        discography_http: Actual routes and mutable synthetic catalogues.
+    """
+    http, spotify = discography_http
+    spotify.artist_releases["beta"] = artist_releases("beta", 7)
+    spotify.artist_releases["cedar"] = artist_releases("cedar", 2)
+    job = _start(http)
+    _accept_defaults(http, job, _pending(http, job))
+    filler = _pending(http, job)
+    assert filler["artist"] == "Cedar" and filler["remaining_slots"] == 2
+    _accept_defaults(http, job, filler)
+    result = _wait(http, job, "completed")
+    assert result["discography_total_releases"] == 10
+    assert spotify.mutations == [] and spotify.album_calls == []
+
+
+def test_eligible_artist_additions_continue_to_next_multiple_of_ten(
+    discography_http: tuple[TestClient, DiscographyLinkSpotify],
+) -> None:
+    """An eligible two-record artist can grow the plan from ten to twenty.
+
+    Args:
+        discography_http: Actual routes, review worker and synthetic albums.
+    """
+    http, spotify = discography_http
+    job = _start(http)
+    _accept_defaults(http, job, _pending(http, job))
+    filler = _pending(http, job)
+    assert filler["artist"] == "Beta" and filler["remaining_slots"] == 2
+    request = DiscographyChoiceRequest(
+        choice="add",
+        release_ids=cast(list[str], filler["default_release_ids"]),
+        album_references=[FIRST_LINK],
+    )
+    assert _submit(http, job, filler, request) == 200
+    _accept_defaults(http, job, _pending(http, job))
+    extended = _pending(http, job)
+    assert extended["artist"] == "Cedar" and extended["remaining_slots"] == 9
+    _accept_defaults(http, job, extended)
+    result = _wait(http, job, "completed")
+    assert (
+        result["discography_total_releases"],
+        result["discography_days"],
+        result["discography_open_slots"],
+    ) == (20, 10, 0)
+    artists = cast(list[dict[str, object]], result["discography_results"])
+    assert FIRST_LINK in cast(list[str], artists[1]["release_ids"])
+    assert spotify.mutations == [] and spotify.album_calls == [FIRST_LINK]
 
 
 @pytest.mark.parametrize("preview", [False, True])

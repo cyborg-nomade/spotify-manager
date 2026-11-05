@@ -129,6 +129,7 @@ class DiscographyCLI:
             console.print(
                 f"{draft.remaining} release slots remain in this week.", markup=False
             )
+        console.print("Extra albums can extend the plan to the next multiple of 10.")
         for notice in draft.notices:
             console.print(notice, markup=False)
 

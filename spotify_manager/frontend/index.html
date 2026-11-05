@@ -3907,7 +3907,7 @@
         ? '<div class="playlist-dates">' +
           (typeof choice.remaining_slots === "number" ? esc(choice.remaining_slots) +
             (choice.remaining_slots === 1 ? ' release slot remains in this week. ' : ' release slots remain in this week. ') : '') +
-          'Add album links before confirming this artist.</div>' +
+          'Add album links before confirming this artist. Extra albums can extend the plan to the next multiple of 10.</div>' +
           (choice.notices || []).map(function (notice) {
             return '<div class="playlist-dates" role="status">' + esc(notice) + '</div>';
           }).join('') +

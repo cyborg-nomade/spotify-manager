@@ -37,19 +37,21 @@ without applying markers or priority changes.
 
 ## Packing and final authority
 
-Artist review now precedes the default-count size shortcut in composed web and
-CLI runs. Empty catalogues, zero-default catalogues and artists whose fetched
-defaults exceed the remaining slots are still offered for editing. Packing uses
-the actual confirmed selection count. For example, eight fetched records plus
-two linked records fill a ten-release week. A nine-release selection leaves one
-slot, and an artist with two defaults can be reduced to one during review.
+After the first artist, the previous default-count eligibility check runs before
+review: an artist must have at least one default release and no more defaults
+than the remaining weekly slots. With two slots free, a seven-record discography
+is skipped without prompting. Empty and zero-default filler catalogues are also
+skipped. The original first-artist policy is unchanged, including the opportunity
+to add links when that first catalogue is empty.
 
 The prompt shows remaining slots and the current selected count/listening days.
-If a reviewed selection exceeds the remaining capacity, the planner reports it
-and considers the next artist. It retains the reviewed choice in its existing
-per-artist cache. Declined artists are not offered repeatedly. The original first
-artist, queue rotation, chronological ties, marker grouping and packing policy
-remain intact.
+An eligible artist's confirmed selection is accepted in full, including extra
+albums that exceed those slots. Packing then continues toward the next multiple
+of ten. For example, eight records followed by an eligible two-record artist with
+one addition make eleven; the planner looks for nine more records to reach twenty.
+Previously oversized artists can become eligible against this new capacity.
+Declined artists are not offered repeatedly. Queue rotation, chronological ties
+and marker grouping remain intact.
 
 Preview performs the full review and packing without playlist removals or state
 writes. A live run still requires the separate final Remove artists / Keep markers
@@ -97,7 +99,7 @@ run** checked in the account preview. This item has not been deployed.
 
 The offline demo uses actual routes, workers, application stages and persistence
 with synthetic Spotify observations. It starts with Artist's eight default
-records in Newfoundland, Beta's two records in Memory Lane and Cedar's eight in
+records in Newfoundland, Beta's two records in Memory Lane and Cedar's nine in
 Requeue. Queue 3 also contains an Artist marker. Synthetic Spotify links are not
 real listening links. Other routines are outside the fixture's scope.
 
@@ -111,19 +113,27 @@ not-an-album
 spotify:album:xxxxxxxxxxxxxxxxxxxxxx
 ```
 
-1. Plan with Dry run checked. Uncheck Record 1, paste the references and Add albums.
+1. Plan with Dry run checked. Keep the eight defaults checked, paste the references
+   and Add albums.
    The deluxe edition and unlisted record should appear with credits. The duplicate
    should reuse its row; invalid and unavailable inputs should have clear feedback.
-2. Check that Record 1 stays unchecked and nine releases are selected. Type in
+2. Check that ten releases are selected. Type in
    the link field or tab between controls; polling should retain edits and focus.
    Reload after posting additions: the same draft and checked state should return.
-3. Use selected releases. Beta should be offered despite its two defaults and the
-   single remaining slot. Uncheck one, then confirm. The final plan should have
-   two artists, ten releases and five listening days, with the exact linked IDs
-   in its Spotify links.
-4. Start again and Quit, or use the panel's stop control. Planning should report
+3. Use selected releases. The final plan should have one artist, ten releases and
+   five listening days, with the exact linked IDs in its Spotify links.
+4. Start again and accept Artist's eight defaults without additions. Beta should
+   be offered for the two remaining slots. Add just the first reference above,
+   keep all three releases selected and confirm. Cedar should then be offered
+   for nine remaining slots. Accept its defaults: the final plan should have
+   three artists, twenty releases and ten listening days.
+5. To check the original eligibility filter, start again and deselect one of
+   Artist's eight defaults. After confirming seven records, Beta's two fit; after
+   confirming those, Cedar's nine cannot fit the single remaining slot and should
+   be skipped without prompting. The final plan has nine releases and one open slot.
+6. Start again and Quit, or use the panel's stop control. Planning should report
    cancellation. A new invocation should start with the original unedited options.
-5. Optional: test live final Keep markers only in the offline demo. Final Remove
+7. Optional: test live final Keep markers only in the offline demo. Final Remove
    artists affects only its simulated source markers and isolated local priority
    and audit files. Automated checks verify the exact source/Queue 3 removals and
    linked IDs in the successful audit.
@@ -133,22 +143,27 @@ files must never be uploaded to production.
 
 ## Verification and release
 
-`just ci-test` passes **12,332 tests**, random-order seed **186850**, in 456.73
+`just ci-test` passes **12,338 tests**, random-order seed **869866**, in 473.76
 seconds, with **95.47%** aggregate coverage and independent domain/application
 floors passing. Ruff, package typing (718 files), strict typing (472 files),
-architecture, dependency, lifecycle and public-interface gates pass. The **79
+architecture, dependency, lifecycle and public-interface gates pass. The **85
 focused checks** cover references, metadata, exact editions, failure categories,
-empty/oversized catalogues, packing, cancellation and actual HTTP/CLI flows.
-Another **201 domain/architecture checks** verify the final pure parser and
-dependency boundaries. No frozen effect recording was changed.
+first-artist additions, skipped empty/oversized fillers, packing through twenty
+and thirty releases, cancellation and actual HTTP/CLI flows. A further **87
+planning and interface checks** include the original frozen planning sequences.
+No frozen effect recording was changed.
 
 All 11 public artifacts verify; only the four additive OpenAPI models change.
 Wheel verification passes for 718 exact packaged Python/frontend files, 44
-commands, 135 wrapped routes and both entry points. Browser checks verify mixed
-link outcomes, duplicate reuse, retained edits, reload, keyboard focus, exact
-final links, packing, both cancellation controls and 320/390/1120 px layouts.
-There is no horizontal overflow; the temporary viewport override was reset.
-Preview leaves shared-state bytes unchanged. Final process restarts preserve the
+commands, 135 wrapped routes and both entry points. The updated browser check
+confirms eight initial records, two eligible defaults with an added exact edition,
+reload retaining all three selections, and nine further records completing twenty
+releases over ten days. The exact linked ID survives in the final result; there
+are no browser console errors. The temporary viewport override was reset.
+Earlier Item 10 browser checks cover mixed link outcomes, duplicate reuse,
+unchecked editions, polling/focus, both cancellation controls and responsive
+layouts. The correction changes packing and explanatory text, without CSS changes.
+Preview leaves shared-state bytes unchanged. Both process restarts preserve the
 exact state bytes in both environments. Both healthy review servers match all
 718 branch files and have 20 idle job-list endpoints.
 

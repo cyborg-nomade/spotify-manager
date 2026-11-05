@@ -165,7 +165,7 @@ class DiscographyPlanning:
                 continue
             if remaining is not None and not (await self._fits(candidate, remaining)):
                 continue
-            releases = await self._choose(candidate)
+            releases = await self._choose(candidate, remaining)
             if not releases:
                 self.declined.add(candidate.spotify_id)
                 continue
@@ -220,15 +220,5 @@ class DiscographyPlanning:
         return releases
 
     async def _fits(self, candidate: QueueArtist, remaining: int) -> bool:
-        if self.reads.review is not None:
-            releases = await self._choose(candidate, remaining)
-            if not releases:
-                self.declined.add(candidate.spotify_id)
-            if len(releases) > remaining:
-                self.reads.progress.echo(
-                    f"{candidate.name}: {len(releases)} selected releases exceed "
-                    f"the {remaining} remaining slots; checking the next artist."
-                )
-            return 0 < len(releases) <= remaining
         defaults = sum(release.default for release in (await self._catalog(candidate)))
         return 0 < defaults <= remaining

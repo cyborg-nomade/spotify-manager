@@ -205,8 +205,10 @@ records exact-edition selection, packing, validation and isolated previews.
 Before confirming an artist's releases, allow multiple Spotify album links/URIs.
 Resolve and display metadata; allow explicit inclusion outside the fetched
 catalogue. Preserve selected edition IDs, deduplicate appropriately, and
-recalculate release counts and weekly packing after additions. Ensure early size
-checks do not bypass the new interaction.
+recalculate release counts and weekly packing after additions. Preserve the
+previous default-count eligibility check before prompting artists to fill the
+remaining slots. Accept eligible artists' additions in full and continue toward
+the next multiple of ten when necessary; keep the first-artist policy unchanged.
 
 **Acceptance:** additional links, duplicates, alternate editions, unavailable
 albums, and invalid references have clear outcomes. The final plan retains the
