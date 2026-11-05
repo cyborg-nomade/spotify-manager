@@ -1,6 +1,7 @@
 # Item 12: migrate existing New Kids artists
 
-**Status:** implemented and verified; owner review pending.
+**Status:** owner-approved, deployed and verified on 2026-11-05 in
+[PR #84](https://github.com/cyborg-nomade/spotify-manager/pull/84).
 **Branch:** `codex/item12-new-kids-plan-migration`.
 **Roadmap:** [Item 12](../IMPROVEMENTS_ROADMAP.md#item-12-migrate-existing-new-kids-artists).
 
@@ -102,7 +103,8 @@ remain unchanged. No dependency, namespace version or new endpoint is needed.
 - Unlock text: `plan-migration-review`.
 
 Both environments use isolated local state, mirrors, history and durable data.
-The agent does not start account routines. The offline fixture begins with one
+The agent did not start account routines. The owned review servers were retired
+after approval and idle-job verification; their files remain local. The offline fixture began with one
 unplanned existing artist at **Second studio · track 1**, an empty Queue 2 and a
 catalogue with studios, an EP and optional categories. Other routines are outside
 the fixture's scope. Its simulated remote changes persist across server restart.
@@ -148,8 +150,26 @@ server. State and synthetic remote bytes survived unchanged. A later run started
 Third studio without another prompt or duplicate append. The initial fixture was
 restored, and all verification artifacts remain private local files.
 
-Deployment and merge wait for owner approval. Preview files, synthetic data and
-credentials are excluded from the pull request and release.
+The owner approved PR #84 after reviewing the migration.
+[Source CI 42059032105](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42059032105)
+passed all **12,427 tests**, seed **359262**, in **827.63 seconds**, with **95.38%**
+aggregate coverage and independent statement/branch floors passing. Typing,
+architecture, lifecycle, interface and packaging gates passed as well.
+
+Authenticated [preflight 42061353134](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42061353134)
+and [postflight 42061762313](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42061762313)
+verified automation access, shared state, all four canonical artifacts and no
+active jobs across **20** routine endpoints. Neither started a routine.
+
+Only the **16 approved runtime files**, including four new modules, were uploaded
+with the prior Space revision and prior-file hashes guarded. Space revision
+`58d0f81328b40fa26a4d8d8f999cc11eb9e1713d` is running; all **164 cumulative release
+blobs**, exact served frontend, startup and health were verified. Shared state
+stayed at `45f409930215adf29d185b769453b337dc478eca`; canonical data stayed at
+`96c1caba1f8e6c5dadccd677cc2f1b03bed957d1`. Preview/synthetic data, credentials and
+operational files were excluded. The [conclusion](FINAL_VERIFICATION.md) closes
+all 12 approved improvements. Documentation recording the release and conclusion
+is explicitly authorized by the owner.
 
 Rollback must preserve the backup, accepted plans, active review entries and
 completed remote effects. Stop New Kids/Queue 2 before rolling back to a runtime

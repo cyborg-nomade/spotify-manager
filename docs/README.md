@@ -56,7 +56,10 @@ backend plan with the release record, evidence and remaining limitations.
 
 The [approved improvements roadmap](IMPROVEMENTS_ROADMAP.md) follows the completed
 refactor with separately reviewed routine changes. It retains the architecture,
-engineering rules, and per-item release workflow.
+engineering rules, and per-item release workflow. All 12 improvement items
+are now owner-approved, deployed and verified; the
+[improvements conclusion](improvements/FINAL_VERIFICATION.md) records the delivered
+behavior, final release and operational handoff.
 
 ### Operating the Hugging Face Space
 

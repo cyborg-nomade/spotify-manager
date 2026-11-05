@@ -4,6 +4,10 @@
 starting implementation. Deployment and merge require approval of each item's
 pull request. The completed [refactor roadmap](REFACTOR_ROADMAP.md) remains closed.
 
+**Completed:** 2026-11-05. All 12 items are implemented, owner-approved, deployed
+and verified. The [final verification and conclusion](improvements/FINAL_VERIFICATION.md)
+records delivered behavior, release evidence and the operational handoff.
+
 ## Engineering and release rules
 
 Follow [AGENTS.md](../AGENTS.md), the [architecture](ARCHITECTURE.md), and
@@ -239,8 +243,9 @@ or catalogue changes cannot silently replace a chosen release.
 
 ## Item 12: migrate existing New Kids artists
 
-**Status:** implemented and verified on `codex/item12-new-kids-plan-migration`;
-owner review pending. See the [migration guide](improvements/12_NEW_KIDS_PLAN_MIGRATION.md).
+**Status:** owner-approved, deployed and verified on 2026-11-05 in
+[PR #84](https://github.com/cyborg-nomade/spotify-manager/pull/84). See the
+[migration guide](improvements/12_NEW_KIDS_PLAN_MIGRATION.md).
 
 Prompt existing artists without a plan to choose and order one. Include the
 current album at its chosen position; earlier plan entries count as completed.
