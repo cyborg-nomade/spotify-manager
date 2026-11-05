@@ -1,6 +1,7 @@
 # Item 9: New Wine order and Wine Cellar confirmation
 
-**Status:** implemented and verified; awaiting owner PR review.
+**Status:** owner-approved, deployed and verified on 2026-11-05 in
+[PR #81](https://github.com/cyborg-nomade/spotify-manager/pull/81).
 **Branch:** `codex/item09-new-wine-order-and-transfers`.
 **Roadmap:** [Item 9](../IMPROVEMENTS_ROADMAP.md#item-9-order-new-wine-replacements-and-confirm-cellar-transfers).
 
@@ -108,8 +109,9 @@ default pause flag and null proposal metadata.
 Account preview: <http://127.0.0.1:8767/?review=item09>.
 Offline demo: <http://127.0.0.1:8769/?review=item09>.
 Unlock text: `wine-review` (any nonempty value works on loopback).
-Both use isolated local state, data publications and working files. Keep **Dry
-run** checked in the account preview; this item has not been deployed.
+Both used isolated local state, data publications and working files. During
+review, Dry run stayed checked in the account preview. These review servers were
+stopped after approval and deployment.
 
 The offline demo runs actual routes, workers, application stages and persistence
 with synthetic Spotify observations. New Wine starts with Amber finishing,
@@ -155,10 +157,26 @@ A real offline process restart preserves exact state/remote bytes, ordered
 markers and skipped progress, then accepts the following artist without replay.
 The temporary viewport override was reset.
 
-Deployment and merge await owner approval under [AGENTS.md](../../AGENTS.md).
-Before deployment verify source CI, no active production jobs and the current
-state/data revisions; upload only approved runtime files. Verify the deployed
-revision, frontend, health, authentication and independent artifacts before merge.
+The owner approved PR #81 after testing on 2026-11-05. GitHub
+[source CI 41987822821](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41987822821)
+passed all **12,250 tests**, random-order seed **144909**, plus typing,
+architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 41992960415](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41992960415)
+and [postflight 41993894946](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41993894946)
+verified automation access, shared state, all four artifacts and no active jobs
+across **20** endpoints. Neither check started a routine or history scan.
+
+Only the **15 approved runtime files**, including two new modules, were uploaded
+with a guarded parent revision and verified prior blobs. Space revision
+`3da0020034b1d0c2807a3e8703195b94a10092e5` is running; all **126 cumulative release
+blobs**, exact served frontend, startup, health and protected authentication were
+verified. State stayed at `45f409930215adf29d185b769453b337dc478eca`; canonical data
+stayed at `96c1caba1f8e6c5dadccd677cc2f1b03bed957d1`. Credentials, operational files
+and all preview/synthetic state were excluded. Both owned review servers were
+stopped after verifying their 20 idle endpoints; local data and operator stashes
+were preserved. Remaining release tracking is documentation only; merge and
+branch cleanup follow [AGENTS.md](../../AGENTS.md).
 
 Rollback restores the prior runtime while preserving completed playlist effects
 and shared state/data. An older runtime ignores the new skip list and resumes its

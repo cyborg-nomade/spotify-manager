@@ -178,8 +178,8 @@ correct artist, and has tested recovery after accepted effects.
 
 ## Item 9: order New Wine replacements and confirm cellar transfers
 
-**Status:** implemented and verified; awaiting owner review on
-`codex/item09-new-wine-order-and-transfers`. The
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-05 in
+[PR #81](https://github.com/cyborg-nomade/spotify-manager/pull/81). The
 [implementation and review guide](improvements/09_NEW_WINE_ORDER_AND_TRANSFERS.md)
 records deferred execution, durable skips and isolated review environments.
 
