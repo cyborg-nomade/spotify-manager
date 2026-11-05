@@ -162,6 +162,11 @@ changed during the prompt have explicit tested outcomes.
 
 ## Item 8: show previous Something Old choices
 
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-05 in
+[PR #80](https://github.com/cyborg-nomade/spotify-manager/pull/80). The
+[implementation and review guide](improvements/08_SOMETHING_OLD_CHOICE_HISTORY.md)
+records stable artist identities, accepted-effect recovery and isolated previews.
+
 Record successful applied selections by stable artist identity, mode, and date.
 Show prior modes and the most recent choice beside the three selection options
 in web and CLI. Recover available audit history with provenance. Previews and

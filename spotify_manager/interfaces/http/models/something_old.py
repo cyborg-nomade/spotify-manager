@@ -27,6 +27,17 @@ class SomethingOldReleaseOption(BaseModel):
     plain: bool
 
 
+class SomethingOldPreviousMode(BaseModel):
+    """Recorded completed use of one available Something Old selection mode."""
+
+    mode: Literal["lastfm_top_tracks", "spotify_top_tracks", "album"]
+    count: int
+    label: str
+    last_chosen_at: str | None = None
+    release_name: str | None = None
+    provenance: Literal["applied", "audit", "recovered"] | None = None
+
+
 class SomethingOldPendingChoice(BaseModel):
     """Current Something Old interaction exposed to the web client."""
 
@@ -37,6 +48,8 @@ class SomethingOldPendingChoice(BaseModel):
     spotify_artist: str | None = None
     artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
     releases: list[SomethingOldReleaseOption] = Field(default_factory=list)
+    previous_modes: list[SomethingOldPreviousMode] = Field(default_factory=list)
+    previous_choice_summary: str | None = None
 
 
 class SomethingOldRankingEntry(BaseModel):

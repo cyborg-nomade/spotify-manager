@@ -15,6 +15,8 @@ from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_cli
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_selection import SelectedTrack
+from spotify_manager.domain.something_old_history import PreviousMode
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.formatting import scrobble_date
 from spotify_manager.interfaces.cli.history import present_history_summary
@@ -26,6 +28,12 @@ from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
 from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.presenters.something_old_history import (
+    latest_choice_label,
+)
+from spotify_manager.interfaces.presenters.something_old_history import (
+    mode_history_label,
+)
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -103,6 +111,7 @@ class SomethingOldCLI:
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
         status: Status,
+        previous: tuple[PreviousMode, ...] = (),
     ) -> str:
         """Prompt for Last.fm tracks, Spotify tracks, or one album/EP.
 
@@ -111,6 +120,7 @@ class SomethingOldCLI:
             artist: Artist supplied by the caller.
             spotify_artist: Spotify artist supplied by the caller.
             status: Status supplied by the caller.
+            previous: Completed choices for the accepted Spotify artist.
 
         Returns:
             The original value selected or formatted by this adapter.
@@ -123,14 +133,8 @@ class SomethingOldCLI:
                 f"{scrobble_date(artist.average_scrobble_ms)} · Spotify: "
                 f"{spotify_artist.name}"
             )
-            table = self.display.create_table(title="Something Old selection")
-            table.add_column("#", justify="right")
-            table.add_column("Source")
-            table.add_column("What will be added")
-            table.add_row("1", "Last.fm", "Up to 10 most-scrobbled tracks")
-            table.add_row("2", "Spotify", "Up to 10 current popular tracks")
-            table.add_row("3", "Catalog", "One complete studio album or EP")
-            console.print(table)
+            console.print(latest_choice_label(previous), markup=False)
+            console.print(self._mode_table(previous))
             response = await TerminalPrompt(self.display.prompt).ask(
                 "Selection or (q)uit",
                 choices=["1", "2", "3", "q"],
@@ -145,6 +149,33 @@ class SomethingOldCLI:
             }[response]
         finally:
             status.start()
+
+    def _mode_table(self, previous: tuple[PreviousMode, ...]) -> Table:
+        by_mode = {entry.mode: entry for entry in previous}
+        table = self.display.create_table(title="Something Old selection")
+        table.add_column("#", justify="right")
+        table.add_column("Source")
+        table.add_column("What will be added")
+        table.add_column("Previously chosen")
+        table.add_row(
+            "1",
+            "Last.fm",
+            "Up to 10 most-scrobbled tracks",
+            mode_history_label(by_mode.get("lastfm_top_tracks")),
+        )
+        table.add_row(
+            "2",
+            "Spotify",
+            "Up to 10 current popular tracks",
+            mode_history_label(by_mode.get("spotify_top_tracks")),
+        )
+        table.add_row(
+            "3",
+            "Catalog",
+            "One complete studio album or EP",
+            mode_history_label(by_mode.get("album")),
+        )
+        return table
 
     async def _prompt_something_old_album(
         self,
@@ -290,6 +321,8 @@ class SomethingOldCLI:
                             self._something_old_status,
                         ),
                         mode_reader=SomethingOldInteraction(self),
+                        history_reader=SomethingOldInteraction(self),
+                        cancellation=SomethingOldInteraction(self),
                         album_choice_reader=SomethingOldInteraction(self),
                         artist_choice_reader=SomethingOldInteraction(self),
                         progress_callback=StatusOutput(self._something_old_status),
@@ -326,12 +359,14 @@ class SomethingOldCLI:
         self,
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
+        previous: tuple[PreviousMode, ...] = (),
     ) -> str:
         return await self._prompt_something_old_mode(
             self._something_old_console,
             artist,
             spotify_artist,
             self._something_old_status,
+            previous,
         )
 
     async def _something_old_ask_something_old_album(
@@ -458,6 +493,34 @@ class SomethingOldInteraction:
     """
 
     owner: SomethingOldCLI
+
+    def check(self) -> None:
+        """Keep terminal interruption effective across the new intent checkpoint.
+
+        Raises:
+            RuntimeError: The terminal invocation has been interrupted.
+        """
+        check_cli_interruption()
+
+    async def choose_mode_with_history(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        spotify_artist: something_old.SpotifyArtistCandidate,
+        previous: tuple[PreviousMode, ...],
+    ) -> str:
+        """Present recorded mode use before asking for this run's explicit choice.
+
+        Args:
+            artist: Current historical artist.
+            spotify_artist: Accepted stable Spotify artist.
+            previous: Completed choices for that identity.
+
+        Returns:
+            Explicit current mode or quit.
+        """
+        return await self.owner._something_old_ask_something_old_mode(
+            artist, spotify_artist, previous
+        )
 
     async def choose_mode(
         self,

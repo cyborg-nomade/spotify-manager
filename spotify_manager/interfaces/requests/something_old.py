@@ -7,12 +7,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from spotify_manager.application.manual_matching import CatalogMatchInteraction
+from spotify_manager.application.ports.runtime import Cancellation
 from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.something_old_history import HistoryModeReader
 
 
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from spotify_manager.core.state.service import StateService
     from spotify_manager.routines.something_old import AlbumChoiceReader
     from spotify_manager.routines.something_old import ArtistChoiceReader
     from spotify_manager.routines.something_old import ModeReader
@@ -50,6 +53,8 @@ class SomethingOldCallbacks:
         progress_callback: Progress callback.
         retry_call: Retry call.
         matching: Optional manual catalog matching owner.
+        history_reader: Optional mode interaction showing recorded prior selections.
+        cancellation: Optional cancellation at the new pre-append history checkpoint.
     """
 
     mode_reader: ModeReader
@@ -58,6 +63,8 @@ class SomethingOldCallbacks:
     progress_callback: ProgressCallback | None = None
     retry_call: RetryCall = NoRetry()
     matching: CatalogMatchInteraction | None = None
+    history_reader: HistoryModeReader | None = None
+    cancellation: Cancellation | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,7 @@ class SomethingOldResources:
         backup_dir: Backup dir.
         history_log_path: History log path.
         log_path: Log path.
+        state_service: Optional explicit shared history authority.
     """
 
     export_path: Path = FILES_DIR / "lastfmstats-man-et-arms.json"
@@ -77,3 +85,4 @@ class SomethingOldResources:
     backup_dir: Path = FILES_DIR / "lastfm_history_backups"
     history_log_path: Path = FILES_DIR / "scrobble_history_update_log.jsonl"
     log_path: Path = FILES_DIR / "something_old_log.jsonl"
+    state_service: StateService | None = None

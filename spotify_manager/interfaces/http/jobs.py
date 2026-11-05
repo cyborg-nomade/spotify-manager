@@ -85,6 +85,9 @@ from spotify_manager.infrastructure.routine_state_codecs import (
 from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
+from spotify_manager.infrastructure.something_old_choice_schema import (
+    SomethingOldChoiceDefinition,
+)
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
@@ -499,6 +502,7 @@ STATE_NAMESPACE_DEFINITIONS: dict[str, StateDefinition] = {
     "review_album_limits": ReviewAlbumLimitsStateCodec(),
     "review_artists": ReviewArtistsStateCodec(),
     "slow_listening": SlowListeningStateCodec(),
+    "something_old_choices": SomethingOldChoiceDefinition(),
 }
 
 _AnalysisJob = AnalysisJob
