@@ -197,8 +197,7 @@ order, and transfer choices preserve capacity and duplicate handling.
 
 ## Item 10: add album links to Discographies
 
-**Status:** implemented and verified; awaiting owner review on
-`codex/item10-discography-album-links`. The
+**Status:** owner-approved, deployed and verified on 2026-11-05 in PR #82. The
 [implementation and review guide](improvements/10_DISCOGRAPHY_ALBUM_LINKS.md)
 records exact-edition selection, packing, validation and isolated previews.
 

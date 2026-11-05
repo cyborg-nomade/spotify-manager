@@ -1,6 +1,6 @@
 # Item 10: add album links to Discographies
 
-**Status:** implemented and verified; awaiting owner PR review.
+**Status:** owner-approved, deployed and verified on 2026-11-05 in PR #82.
 **Branch:** `codex/item10-discography-album-links`.
 **Roadmap:** [Item 10](../IMPROVEMENTS_ROADMAP.md#item-10-add-album-links-to-discographies).
 
@@ -94,8 +94,9 @@ Successfully applied plans already retain the exact release records in audits.
 Account preview: <http://127.0.0.1:8767/?review=item10>.
 Offline demo: <http://127.0.0.1:8769/?review=item10>.
 Unlock text: `discography-review` (any nonempty text works on loopback).
-Both use isolated local state, data publications and working files. Keep **Dry
-run** checked in the account preview. This item has not been deployed.
+Both used isolated local state, data publications and working files. These owned
+review servers were stopped after approval and deployment; their files remain
+local. The approved runtime is now deployed.
 
 The offline demo uses actual routes, workers, application stages and persistence
 with synthetic Spotify observations. It starts with Artist's eight default
@@ -167,10 +168,26 @@ Preview leaves shared-state bytes unchanged. Both process restarts preserve the
 exact state bytes in both environments. Both healthy review servers match all
 718 branch files and have 20 idle job-list endpoints.
 
-Deployment and merge await owner approval under [AGENTS.md](../../AGENTS.md).
-Verify source CI and idle production jobs, preserve current shared state/data,
-and upload only approved runtime files. Verify deployed revision, exact frontend,
-startup, health, authentication and independent artifacts before merging.
+The owner approved PR #82 after reviewing the restored eligibility filter.
+[Source CI 42032119290](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42032119290)
+passed all **12,338 tests**, random-order seed **84510**, in 868.53 seconds, plus
+typing, architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 42033257887](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42033257887)
+and [postflight 42034797170](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42034797170)
+verified automation access, shared state, all four data artifacts and no active
+jobs across **20** routine endpoints. Neither check started a routine.
+
+Only the **16 approved runtime files**, including four new modules, were uploaded
+with a guarded parent revision and verified prior blobs. Space revision
+`27d182c1bceee4600b3eed42c848c5a982cbc3a0` is running; all **141 cumulative release
+blobs**, exact served frontend, startup, health and protected authentication were
+verified. State stayed at `45f409930215adf29d185b769453b337dc478eca`; canonical data
+stayed at `96c1caba1f8e6c5dadccd677cc2f1b03bed957d1`. Credentials, operational files
+and all preview/synthetic state were excluded. Both owned review servers were
+stopped after verifying their 20 idle endpoints. Local data and operator stashes
+were preserved. Remaining release tracking is documentation only; merge and
+branch cleanup follow [AGENTS.md](../../AGENTS.md).
 
 Rollback restores the preceding runtime/frontend. Cancel process-local planning
 jobs first; unconfirmed drafts can be planned again. Retain already completed
