@@ -89,6 +89,7 @@ def cmd_choose_discography(
         _validate_submission(pending, request)
         job.submitted_choice = request.choice
         job.submitted_order = tuple(request.release_ids)
+        job.submitted_references = tuple(request.album_references)
         job.result.discography_pending_choice = None
         job.result.status = "running"
         job.result.detail = "Discography choice submitted"
@@ -124,6 +125,15 @@ def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
 def _validate_submission(
     pending: DiscographyPendingChoice, request: DiscographyChoiceRequest
 ) -> None:
+    if request.request_id != pending.request_id:
+        raise HTTPException(status_code=409, detail="Discography proposal changed")
+    if pending.kind == "release_review":
+        _validate_review_submission(pending, request)
+        return
+    if request.album_references:
+        raise HTTPException(
+            status_code=400, detail="Album links are not available here"
+        )
     if pending.kind == "artist":
         available = set(option_ids(pending.artist_candidates))
         if request.choice not in available | {"quit"}:
@@ -148,4 +158,33 @@ def _validate_submission(
     elif request.choice not in {"apply", "keep", "quit"}:
         raise HTTPException(
             status_code=400, detail="final discography choice is not available"
+        )
+
+
+def _validate_review_submission(
+    pending: DiscographyPendingChoice, request: DiscographyChoiceRequest
+) -> None:
+    if request.choice not in {"add", "select", "none", "quit"}:
+        raise HTTPException(
+            status_code=400, detail="release review choice is not available"
+        )
+    if request.album_references and request.choice != "add":
+        raise HTTPException(
+            status_code=400, detail="Album links require the Add action"
+        )
+    if request.choice in {"none", "quit"}:
+        return
+    available = set(option_ids(pending.releases))
+    selected = set(request.release_ids)
+    if len(selected) != len(request.release_ids) or not selected.issubset(available):
+        raise HTTPException(
+            status_code=400, detail="selected releases are not available"
+        )
+    if request.choice == "select" and not selected:
+        raise HTTPException(
+            status_code=400, detail="Choose releases or use No releases"
+        )
+    if request.choice == "add" and not request.album_references:
+        raise HTTPException(
+            status_code=400, detail="Enter one or more Spotify album links"
         )

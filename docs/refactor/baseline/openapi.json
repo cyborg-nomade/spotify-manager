@@ -1742,6 +1742,13 @@
             "title": "Queue",
             "type": "string"
           },
+          "release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Release Ids",
+            "type": "array"
+          },
           "release_names": {
             "items": {
               "type": "string"
@@ -1771,6 +1778,13 @@
       "DiscographyChoiceRequest": {
         "description": "One release checklist, final approval, or cancellation response.",
         "properties": {
+          "album_references": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Album References",
+            "type": "array"
+          },
           "choice": {
             "title": "Choice",
             "type": "string"
@@ -1781,6 +1795,17 @@
             },
             "title": "Release Ids",
             "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
@@ -1821,10 +1846,18 @@
             "enum": [
               "artist",
               "releases",
+              "release_review",
               "confirm"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "notices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notices",
+            "type": "array"
           },
           "queue": {
             "anyOf": [
@@ -1843,6 +1876,28 @@
             },
             "title": "Releases",
             "type": "array"
+          },
+          "remaining_slots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Slots"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
@@ -1854,8 +1909,20 @@
       "DiscographyReleaseOption": {
         "description": "One canonical release offered in a discography checklist.",
         "properties": {
+          "artists": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Artists",
+            "type": "array"
+          },
           "default": {
             "title": "Default",
+            "type": "boolean"
+          },
+          "linked": {
+            "default": false,
+            "title": "Linked",
             "type": "boolean"
           },
           "name": {

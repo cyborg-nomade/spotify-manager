@@ -15,6 +15,7 @@ from spotify_manager.application.discography_values import (
 from spotify_manager.application.discography_values import (
     DiscographyRunSummary as DiscographyRunSummary,
 )
+from spotify_manager.application.ports.discography_review import DiscographyReviewReader
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.service import StateService as StateService
@@ -71,6 +72,7 @@ async def build_discography_plan(
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
     state_service: StateService | None = None,
+    review_reader: DiscographyReviewReader | None = None,
 ) -> DiscographyPlan:
     """Build the next round-week batch without changing Spotify or state.
 
@@ -87,6 +89,7 @@ async def build_discography_plan(
         progress_callback: Original progress callback boundary.
         state_path: Original state path boundary.
         state_service: Original state service boundary.
+        review_reader: Optional explicit editable artist-checklist resource.
 
     Returns:
         Original complete compatible result.
@@ -104,6 +107,7 @@ async def build_discography_plan(
         progress_callback,
         state_path,
         state_service,
+        review_reader,
     ).run()
 
 

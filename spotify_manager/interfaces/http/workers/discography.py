@@ -6,11 +6,16 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
+from typing import cast
+from uuid import uuid4
 
 from requests.exceptions import RequestException
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.ports.discography_review import ReleaseReviewAction
+from spotify_manager.application.ports.discography_review import ReleaseReviewDraft
+from spotify_manager.application.ports.discography_review import ReleaseReviewSubmission
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
@@ -23,6 +28,9 @@ from spotify_manager.interfaces.http.models.something_old import (
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.discography import (
     discography_artist_results,
+)
+from spotify_manager.interfaces.http.presenters.discography import (
+    discography_review_options,
 )
 from spotify_manager.interfaces.http.workers.errors import _DiscographyJobCancelledError
 from spotify_manager.interfaces.operations import discography as discography
@@ -63,7 +71,7 @@ class DiscographyWorker:
         self._start()
         try:
             await self._execute()
-        except _DiscographyJobCancelledError:
+        except _DiscographyJobCancelledError, discography.DiscographyCancelledError:
             self._cancelled()
         except review_album_limits.SpotifyRateLimitError as exc:
             self._rate_limited(exc)
@@ -100,17 +108,55 @@ class DiscographyWorker:
         Returns:
             The original accepted routine callback result.
         """
+        self._publish_choice(pending, detail)
+        return await await_submission(self.job.choice_event, self)
+
+    def _publish_choice(self, pending: DiscographyPendingChoice, detail: str) -> None:
         with self.context.lock:
-            if self.job.cancel_event.is_set():
-                raise _DiscographyJobCancelledError
+            self.check()
             self.job.submitted_choice = None
             self.job.submitted_order = None
+            self.job.submitted_references = None
             self.job.choice_event.clear()
             self.job.result.discography_pending_choice = pending
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await await_submission(self.job.choice_event, self)
+
+    async def review_releases(
+        self, draft: ReleaseReviewDraft
+    ) -> ReleaseReviewSubmission:
+        """Present one editable checklist with exact-edition album additions.
+
+        Args:
+            draft: Current options, selections, packing context and link feedback.
+
+        Returns:
+            Submission belonging to this exact draft proposal.
+        """
+        pending = DiscographyPendingChoice(
+            kind="release_review",
+            request_id=uuid4().hex,
+            artist=draft.artist.name,
+            queue=discography.QUEUE_LABELS[draft.artist.queue],
+            releases=discography_review_options(draft),
+            default_release_ids=list(draft.selected_ids),
+            remaining_slots=draft.remaining,
+            notices=list(draft.notices),
+        )
+        self._publish_choice(pending, f"Review the releases for {draft.artist.name}.")
+        return await await_submission(
+            self.job.choice_event, ReleaseReviewResponse(self)
+        )
+
+    def check(self) -> None:
+        """Stop when the owning planning job has been cancelled.
+
+        Raises:
+            _DiscographyJobCancelledError: This job's cancellation was requested.
+        """
+        if self.job.cancel_event.is_set():
+            raise _DiscographyJobCancelledError
 
     async def select_releases(
         self,
@@ -224,6 +270,7 @@ class DiscographyWorker:
             historical_artist_choice_reader=self,
             retry_call=self,
             progress_callback=DiscographyProgress(self),
+            review_reader=self,
         )
         self._present_plan(plan)
         await self._complete_or_apply_plan(plan)
@@ -330,6 +377,34 @@ class DiscographyWorker:
             )
         return entries
 
+    def consume_review(self) -> ReleaseReviewSubmission | None:
+        """Consume one complete edit atomically under this job's lock.
+
+        Returns:
+            Submitted decision, or None while waiting.
+
+        Raises:
+            _DiscographyJobCancelledError: Cancellation won consumption.
+        """
+        with self.context.lock:
+            self.check()
+            choice = self.job.submitted_choice
+            if choice is None:
+                return None
+            answer = ReleaseReviewSubmission(
+                cast(ReleaseReviewAction, choice),
+                self.job.submitted_order or (),
+                self.job.submitted_references or (),
+            )
+            self.job.submitted_choice = None
+            self.job.submitted_order = None
+            self.job.submitted_references = None
+            self.job.choice_event.clear()
+            self.job.result.discography_pending_choice = None
+            self.job.result.status = "running"
+            self.job.result.detail = "Updating discography release review"
+            return answer
+
     def _something_old_artist_options(
         self, candidates: tuple[something_old.SpotifyArtistCandidate, ...]
     ) -> list[SomethingOldArtistOption]:
@@ -420,6 +495,25 @@ class DiscographyWorker:
             if release.default:
                 identifiers.append(release.spotify_id)
         return identifiers
+
+
+@dataclass(frozen=True)
+class ReleaseReviewResponse:
+    """Own the typed consumer for this job's editable artist checklist.
+
+    Args:
+        worker: Job owning the lock, signals and complete submitted edit.
+    """
+
+    worker: DiscographyWorker
+
+    def consume(self) -> ReleaseReviewSubmission | None:
+        """Consume this exact review's accepted decision.
+
+        Returns:
+            Complete edit or None while waiting.
+        """
+        return self.worker.consume_review()
 
 
 @dataclass(frozen=True)

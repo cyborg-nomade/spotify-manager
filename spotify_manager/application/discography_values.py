@@ -21,6 +21,10 @@ class DiscographyCancelledError(DiscographyError):
     """Raised when release selection is cancelled."""
 
 
+class DiscographyAlbumError(DiscographyError):
+    """One explicit album cannot be added; the artist draft remains editable."""
+
+
 @dataclass(frozen=True)
 class DiscographyRunSummary:
     """Outcome of applying a confirmed discography plan.
