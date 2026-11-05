@@ -162,8 +162,8 @@ changed during the prompt have explicit tested outcomes.
 
 ## Item 8: show previous Something Old choices
 
-**Status:** implemented and verified; awaiting owner review on
-`codex/item08-something-old-choice-history`. The
+**Status:** implemented, owner-approved, deployed and verified on 2026-11-05 in
+[PR #80](https://github.com/cyborg-nomade/spotify-manager/pull/80). The
 [implementation and review guide](improvements/08_SOMETHING_OLD_CHOICE_HISTORY.md)
 records stable artist identities, accepted-effect recovery and isolated previews.
 

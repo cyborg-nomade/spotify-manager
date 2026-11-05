@@ -1,6 +1,7 @@
 # Item 8: previous Something Old choices
 
-**Status:** implemented and verified; awaiting owner PR review.
+**Status:** owner-approved, deployed and verified on 2026-11-05 in
+[PR #80](https://github.com/cyborg-nomade/spotify-manager/pull/80).
 **Branch:** `codex/item08-something-old-choice-history`.
 **Roadmap:** [Item 8](../IMPROVEMENTS_ROADMAP.md#item-8-show-previous-something-old-choices).
 
@@ -171,12 +172,26 @@ Both isolated review runtimes match all 712 Python/frontend files on the branch,
 pass health and contract checks, and have no active jobs across all 20 job-list
 endpoints after verification.
 
-Deployment and merge require this item's owner approval under
-[AGENTS.md](../../AGENTS.md). Upload only approved runtime files, preserving
-credentials, operational files and independent shared state/data publications.
-Check active jobs before deployment and verify the running revision, exact
-frontend, health, authentication, shared artifacts and new namespace definition
-before merging. Never upload preview state or synthetic audit/history files.
+The owner approved PR #80 after testing on 2026-11-05. GitHub
+[source CI 41909178559](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41909178559)
+passed all **12,170 tests**, random-order seed **64524**, plus typing,
+architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 41981684998](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41981684998)
+and [postflight 41981895891](https://github.com/cyborg-nomade/spotify-manager/actions/runs/41981895891)
+verified automation access, shared state, all four artifacts and no active jobs
+across **20** endpoints. Neither check started a routine or history scan.
+
+Only the **18 approved runtime files**, including eight new modules, were uploaded
+with a guarded parent revision and verified prior blobs. Space revision
+`4ff6afb8b99438baf8f48519da71cc76c660235e` is running; all **112 cumulative release
+blobs**, exact served frontend, startup, health and protected authentication were
+verified. State stayed at `45f409930215adf29d185b769453b337dc478eca`; canonical data
+stayed at `96c1caba1f8e6c5dadccd677cc2f1b03bed957d1`. Credentials, operational files
+and all preview/synthetic state were excluded. Both owned review servers were
+stopped after verifying their 20 idle endpoints; their local data and operator
+stashes were preserved. Remaining release tracking is documentation only;
+merge and branch cleanup follow [AGENTS.md](../../AGENTS.md).
 
 Rollback restores the preceding runtime/frontend while retaining the new
 namespace and all completed playlist effects. Cancel active jobs before replacing
