@@ -322,7 +322,14 @@ def _project_composer_routes(run: dict[str, object], state: dict[str, object]) -
             continue
         plan = entry["plan"]
         route = routes.get(entry.get("artist_id"))
-        if not plan.get("composer_playlist_id") or not isinstance(route, dict):
+        if not isinstance(route, dict):
+            continue
+        artists = state.get("artists")
+        progress = (
+            artists.get(entry.get("artist_id")) if isinstance(artists, dict) else None
+        )
+        planned = isinstance(progress, dict) and "release_plan" in progress
+        if not plan.get("composer_playlist_id") and not planned:
             continue
         target = track_from_record(plan.get("target"))
         if target is None:

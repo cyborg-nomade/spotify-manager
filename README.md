@@ -31,7 +31,8 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | [Documentation index](docs/README.md) | Reading paths and project glossary. |
 | [Architecture specification](docs/ARCHITECTURE_SPEC.md) | Concise current modules, APIs, schemas, delivery status, and backlog. |
 | [Approved refactor roadmap](docs/REFACTOR_ROADMAP.md) | Behavior-preserving Clean Architecture migration, test gates, and delivery workflow. |
-| [Approved improvements roadmap](docs/IMPROVEMENTS_ROADMAP.md) | Routine behavior changes, acceptance criteria, and per-item release workflow. |
+| [Completed improvements roadmap](docs/IMPROVEMENTS_ROADMAP.md) | All 12 released routine improvements, acceptance criteria, and release workflow. |
+| [Improvements conclusion](docs/improvements/FINAL_VERIFICATION.md) | Delivered behavior, final verification, release evidence, and operational handoff. |
 | [Follow a request through the layers](docs/refactor/CALL_PATH_SIMPLIFICATION.md) | Feature entry points, named use cases, domain policies and result presenters for every family. |
 | [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
 | [Configuration](docs/CONFIGURATION.md) | Requirements, installation, Spotify OAuth, every environment variable, and local execution. |
@@ -827,44 +828,51 @@ namespace; recommendations and exact flush outcomes are appended to
 ### `flush-new-kids`
 
 Fills *New Kids on the Block* to 10 tracks from the top of *The Queue 2*,
-then advances every artist represented at the start of the run exactly once.
-Configure `NEW_KIDS_ON_THE_BLOCK_PLAYLIST`, `THE_QUEUE_2_PLAYLIST`,
+then advances each existing, accepted artist once. Configure
+`NEW_KIDS_ON_THE_BLOCK_PLAYLIST`, `THE_QUEUE_2_PLAYLIST`,
 `GREAT_DISCOVERIES_2026_PLAYLIST`, `UNLUCKY_ONES_PLAYLIST`, and
-`DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST` with Spotify URLs, URIs, or ids. A Queue 2
-marker is removed only after its track has been added successfully to New Kids.
+`DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST` with Spotify URLs, URIs, or ids.
 
-Within a selected release, tracks follow Spotify disc and track order and must
-credit the reviewed artist first. Three consecutive live-unliked tracks jump to
-the first later liked track, when one exists; otherwise the release ends. At a
-release boundary, the CLI applies the usual live 50% rule and saves or unsaves
-the release accordingly, then prompts for the next release. Spotify album
-popularity ranks the choices, with the artist's top-track albums as a fallback.
-Albums and EPs are offered first; only after that tier is exhausted are singles,
-live releases, and compilations offered in that order.
+Before transferring a new artist, choose up to four distinct releases in listening
+order. Studio albums and EPs appear first; singles, compilations and live releases
+can be shown independently. A shorter plan requires explicit confirmation. The
+Queue 2 album counts only if selected. The accepted plan is saved before transfer;
+the first chosen release starts at its first playable primary-artist track. The
+source is removed only after the destination is secured, and the new marker stays
+on that first track until the next invocation.
 
-Classical-composer progression is enabled only by an owned works playlist whose
-name begins with the exact `[CD]` prefix and then contains the composer's full
-name or an unambiguous surname. Surname-only matching permits generic catalog
-words such as `complete`, `chronological`, and `works`, but rejects titles that
-contain another person's name. Unprefixed playlists always remain ordinary
-playlists, even when their names contain the artist's full name. A matched
-works playlist is followed in its stored Spotify order for 40 tracks.
+At a fresh run, existing artists without a plan are prompted to migrate before
+transfers or advancement. Their current album is included and can be placed
+anywhere in the order. Earlier entries count as completed; listening continues
+from the track already in the playlist. Accepted migrations are saved separately
+after a one-time namespace backup, so quitting or restarting does not lose earlier
+choices. Skip defers that artist for this invocation. Saved active runs resume
+before migration begins. Uncertain current editions require an explicit choice
+and uniquely identified track. See the [migration guide](docs/improvements/12_NEW_KIDS_PLAN_MIGRATION.md)
+for the full interaction and recovery contract.
 
-Release progress comes from the canonical Last.fm history rather than an
-internal counter. Before planning either a real or dry run, the command fetches
-the live Last.fm delta and persists it in the shared canonical history. A
-release counts during the active calendar year only after at least three
-distinct tracks and every currently liked track on the release have been
-scrobbled. Once four releases satisfy that rule, the entire canonical
-primary-artist discography is checked live. Artists with at least one liked
-track reach the current year's *Great Discoveries* and *Newfoundland* when they
-have at least 18 liked tracks, 3 saved releases of any kind, every album saved,
-or every track liked. EPs, singles, live releases, and compilations neither
+Within a chosen release, tracks follow Spotify disc and track order and must
+credit that release's primary artist first. Three consecutive live-unliked tracks
+jump to the first later liked track when one exists; otherwise the release ends.
+At a release boundary, the usual live 50% rule saves or unsaves the completed
+release, then progression starts the next exact release in the saved order.
+Scrobbles cannot skip, reorder or finish a plan. Missing pinned releases stop for
+resolution rather than silently substituting another edition. Existing logical
+composer routes retain their identity and performer markers.
+
+The shared canonical Last.fm history is still refreshed before real and dry runs,
+but does not determine planned New Kids progression. After the last chosen release,
+the canonical primary-artist discography is assessed live. Artists with at least
+one liked track reach the current year's *Great Discoveries* and *Newfoundland*
+when they have at least 18 liked tracks, 3 saved releases of any kind, every album
+saved, or every track liked. EPs, singles, live releases and compilations neither
 count toward nor block the every-album condition. Other artists with likes are
-added to *Unlucky Ones* using their
-most popular liked track and then unfollowed. Artists with no liked tracks are
-simply unfollowed. The promotion marker is the first primary-artist track of the
-earliest eligible release.
+added to *Unlucky Ones* using their most popular liked track and then unfollowed.
+Artists with no liked tracks are simply unfollowed. The promotion marker is the
+first primary-artist track of the earliest eligible release.
+
+Custom Python selectors without the explicit editor retain the legacy history
+and composer-choice behavior; standard web/CLI execution uses the plans above.
 
 Preview the run without changing Spotify or durable progress:
 
@@ -881,8 +889,8 @@ just flush-new-kids
 ```
 
 Real runs use the shared `new_kids` namespace to resume active playlist
-mutations and unliked-track streaks after interruption; it does not record the
-played-release count. The routine reads
+mutations, accepted release plans, migration backups and unliked-track streaks
+after interruption. The routine reads
 `spotify_manager/files/lastfmstats-man-et-arms.json` after refreshing its live
 delta. Decisions and mutations are appended to
 `spotify_manager/files/new_kids_log.jsonl`. Beginning in 2027, the routine
@@ -891,8 +899,8 @@ namespace. Spotify's API cannot place playlists in folders, so a new yearly
 playlist must be moved into the desired folder manually.
 
 The web card appears in *Discovery Tracks* immediately above New Wine. It
-defaults to dry-run mode, renders popularity and fallback ranking in each
-release choice, retains live logs behind the terminal control, and reconnects
+defaults to dry-run mode, provides the ordered plan editor and optional release
+categories, retains live logs behind the terminal control, and reconnects
 to an active run after a page reload:
 
 ```text
@@ -906,14 +914,19 @@ POST /commands/flush-new-kids-jobs/{job_id}/cancel
 ### `flush-queue-2`
 
 Fills *New Kids on the Block* to 10 tracks from the top of *The Queue 2*, then
-advances the first 10 artists still in Queue 2 once. The track and release
-rules are the same as `flush-new-kids`: only primary-artist tracks are used,
-three consecutive unliked tracks jump to the next later liked track when one
-exists, release boundaries apply the live 50% library decision, and the next
-ranked release is chosen interactively.
+advances the first 10 artists still in Queue 2 once. Transfers use the same
+explicit New Kids plan editor described above. Existing New Kids artists
+migrate only when running New Kids.
 
-Played-release progress is shared with New Kids through the current calendar
-year in `spotify_manager/files/lastfmstats-man-et-arms.json`. Queue 2 refreshes
+Artists remaining in Queue 2 retain ranked release choices and the existing
+primary-artist track rules: three consecutive unliked tracks jump to the next
+later liked track when available, and release boundaries apply the live 50%
+library decision before an interactive ranked-release choice.
+
+Artists remaining in Queue 2 use current-calendar-year played-release evidence
+in `spotify_manager/files/lastfmstats-man-et-arms.json`; transferred artists use
+their explicit New Kids plans. A Queue 2 release counts after at least three
+distinct tracks and all currently liked tracks have been scrobbled. Queue 2 refreshes
 and persists the live Last.fm delta before touching either playlist. An artist
 with two releases satisfying the scrobble rule therefore continues with release
 three instead of restarting. Queue 2 has its own resumable active-run checkpoint
@@ -927,6 +940,14 @@ artists reach the current year's *Great Discoveries* and *Newfoundland*;
 artists with likes that do not qualify reach *Unlucky Ones* and are unfollowed,
 while artists without likes are simply unfollowed. The special 1200-track cap
 mode is intentionally not part of this command yet.
+
+Classical-composer progression in Queue 2 requires an owned works playlist whose
+name begins with the exact `[CD]` prefix and contains the composer's full name or
+an unambiguous surname. Surname-only matching permits generic catalogue words
+such as `complete`, `chronological` and `works`, but rejects another person's
+name. Unprefixed playlists remain ordinary playlists. A matched works playlist
+is followed in stored Spotify order for 40 tracks. Existing composer routes
+remain attached to their logical artist when New Kids plans are migrated.
 
 Preview the next daily run:
 

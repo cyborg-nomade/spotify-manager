@@ -12,6 +12,10 @@ from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.discovery_review import DiscoveryReview
 from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_execution import NewKidsExecution
+from spotify_manager.application.new_kids_migration import NewKidsPlanMigration
+from spotify_manager.application.new_kids_migration_selection import (
+    NewKidsMigrationSelection,
+)
 from spotify_manager.application.new_kids_plan_selection import NewKidsPlanSelection
 from spotify_manager.application.new_kids_plan_transfers import (
     PlannedDiscoveryTransfers,
@@ -39,6 +43,9 @@ from spotify_manager.infrastructure.legacy.discovery_execution import (
 )
 from spotify_manager.infrastructure.legacy.discovery_execution import (
     LegacyDiscoveryQueue,
+)
+from spotify_manager.infrastructure.new_kids_migration_catalog import (
+    NewKidsMigrationCatalog,
 )
 from spotify_manager.interfaces.operations.discovery_inputs import ReviewInputs
 from spotify_manager.interfaces.presenters.new_kids import NewKidsPresenter
@@ -205,6 +212,39 @@ def review_execution(
     )
 
 
+def plan_migration(
+    client: Spotify,
+    inputs: ReviewInputs,
+    options: DiscoveryOptions,
+    resources: DiscoveryResources,
+    mode: DiscoveryReviewMode,
+    echo: Messages,
+    clock: Clock,
+) -> NewKidsPlanMigration | None:
+    """Compose existing-artist migration only for fresh standard New Kids runs.
+
+    Args:
+        client: Invocation-owned Spotify client.
+        inputs: Accepted namespace and retry resources.
+        options: Configured execution mode.
+        resources: Optional explicit plan editor.
+        mode: Existing review identity; Queue 2 does not migrate New Kids markers.
+        echo: Existing output boundary.
+        clock: Existing invocation clock.
+
+    Returns:
+        Named migration stage, or None for Queue 2 and compatibility selectors.
+    """
+    if resources.plan_reader is None or mode.active_key != "active_run":
+        return None
+    selection = NewKidsMigrationSelection(
+        NewKidsMigrationCatalog(client, inputs.retry), resources.plan_reader
+    )
+    return NewKidsPlanMigration(
+        selection, inputs.state_access, inputs.state, clock, echo, options.dry_run
+    )
+
+
 def great_discoveries(
     client: Spotify,
     retry: RetryCall,
@@ -365,4 +405,5 @@ def review_run(
         mode.fill_from_queue,
         options.dry_run,
         clock,
+        plan_migration(client, inputs, options, resources, mode, echo, clock),
     )

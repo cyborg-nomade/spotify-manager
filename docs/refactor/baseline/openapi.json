@@ -2129,10 +2129,26 @@
             "title": "Choice",
             "type": "string"
           },
+          "confirm_current": {
+            "default": false,
+            "title": "Confirm Current",
+            "type": "boolean"
+          },
           "confirm_short": {
             "default": false,
             "title": "Confirm Short",
             "type": "boolean"
+          },
+          "current_release_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Release Id"
           },
           "release_ids": {
             "items": {
@@ -2190,6 +2206,28 @@
             "title": "Artist",
             "type": "string"
           },
+          "current_release_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Release Id"
+          },
+          "current_track": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Track"
+          },
           "kind": {
             "default": "release",
             "enum": [
@@ -2198,6 +2236,11 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "migration": {
+            "default": false,
+            "title": "Migration",
+            "type": "boolean"
           },
           "notice": {
             "anyOf": [
@@ -2238,6 +2281,13 @@
               }
             ],
             "title": "Request Id"
+          },
+          "selected_release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Selected Release Ids",
+            "type": "array"
           }
         },
         "required": [

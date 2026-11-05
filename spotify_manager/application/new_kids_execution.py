@@ -184,9 +184,11 @@ class NewKidsExecution:
         pinned = progress.get("release_plan")
         if isinstance(pinned, dict) and "release_plan_position" in transition.plan:
             pinned["position"] = transition.plan["release_plan_position"]
+        if isinstance(pinned, dict):
+            progress.pop("release_plan_marker", None)
         routes = self.state.get("composer_routes")
-        if not isinstance(routes, dict) or not transition.plan.get(
-            "composer_playlist_id"
+        if not isinstance(routes, dict) or not (
+            transition.plan.get("composer_playlist_id") or isinstance(pinned, dict)
         ):
             return
         route = routes.get(artist_id)

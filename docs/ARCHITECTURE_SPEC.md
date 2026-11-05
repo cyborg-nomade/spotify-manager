@@ -7,6 +7,10 @@ owner-approved and deployed. Item 12 closes the plan; see its
 **Final implementation:** approved source `39e15a6`, based on Item 11 merge
 `c90289d`; deployed on 2026-11-02. Release metadata is in the final report.
 
+**Routine improvements:** all 12 subsequent roadmap items are owner-approved,
+deployed and verified. See the [conclusion](improvements/FINAL_VERIFICATION.md)
+for their release record and the final New Kids plan/migration contracts.
+
 **Scope:** current code, interfaces, persistence contracts, and known backlog
 
 ## 1. Purpose and constraints

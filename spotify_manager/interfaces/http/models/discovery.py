@@ -28,6 +28,10 @@ class NewKidsPendingChoice(BaseModel):
     request_id: str | None = None
     queue_album: str | None = None
     notice: str | None = None
+    migration: bool = False
+    current_release_id: str | None = None
+    current_track: str | None = None
+    selected_release_ids: list[str] = Field(default_factory=list)
 
 
 class NewKidsTrackResult(BaseModel):
@@ -66,6 +70,9 @@ class NewKidsChoiceRequest(BaseModel):
     release_ids: list[str] = Field(default_factory=list)
     confirm_short: bool = False
     request_id: str | None = None
+
+    current_release_id: str | None = None
+    confirm_current: bool = False
 
 
 class Queue3ReleaseOption(BaseModel):

@@ -56,7 +56,10 @@ backend plan with the release record, evidence and remaining limitations.
 
 The [approved improvements roadmap](IMPROVEMENTS_ROADMAP.md) follows the completed
 refactor with separately reviewed routine changes. It retains the architecture,
-engineering rules, and per-item release workflow.
+engineering rules, and per-item release workflow. All 12 improvement items
+are now owner-approved, deployed and verified; the
+[improvements conclusion](improvements/FINAL_VERIFICATION.md) records the delivered
+behavior, final release and operational handoff.
 
 ### Operating the Hugging Face Space
 
@@ -73,6 +76,8 @@ engineering rules, and per-item release workflow.
 | [`README.md`](../README.md) | Users and operators | Quick start and detailed CLI routine reference. |
 | [`ARCHITECTURE_SPEC.md`](ARCHITECTURE_SPEC.md) | Maintainers and reviewers | Concise current-state specification: modules, APIs, schemas, progress, and backlog. |
 | [`REFACTOR_ROADMAP.md`](REFACTOR_ROADMAP.md) | Maintainers and reviewers | Approved refactor sequence, behavior-preservation tests, and delivery workflow. |
+| [`IMPROVEMENTS_ROADMAP.md`](IMPROVEMENTS_ROADMAP.md) | Maintainers and reviewers | Completed 12-item routine improvements roadmap and per-item release guides. |
+| [`improvements/FINAL_VERIFICATION.md`](improvements/FINAL_VERIFICATION.md) | Operators and maintainers | Improvements conclusion, final release evidence, and operational handoff. |
 | [`refactor/CHARACTERIZATION.md`](refactor/CHARACTERIZATION.md) | Maintainers and reviewers | Offline effect traces, fault injection, test isolation, and migration regression checks. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Maintainers | System context, layers, execution paths, integrations, and extension points. |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | Users and operators | Dependencies, credentials, settings, local authentication, and startup commands. |

@@ -1,6 +1,7 @@
 """Real web transfers and subsequent saved-plan progression over isolated state."""
 
 from collections.abc import Iterator
+from copy import deepcopy
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
@@ -232,3 +233,169 @@ def test_cli_runs_the_ordered_editor_with_real_transfer_stage(
     assert result.exit_code == 0, result.output
     assert "Confirm" in result.output and "1 Queue 2 transfers" in result.output
     assert spotify.mutations == []
+
+
+def _existing(spotify: NewKidsPlanSpotify, alias: bool = False) -> None:
+    marker = deepcopy(spotify.release_tracks["b" * 22][1])
+    if alias:
+        marker.update(id="legacy-marker", uri="spotify:track:legacy-marker")
+    spotify.playlists["new"] = [marker]
+    spotify.playlists["queue"] = []
+
+
+def _migrate(
+    http: TestClient,
+    job: str,
+    pending: dict[str, object],
+    resolved: str | None = None,
+    confirmed: bool = False,
+) -> int:
+    return http.post(
+        f"/commands/flush-new-kids-jobs/{job}/choice",
+        json={
+            "choice": "plan_select",
+            "release_ids": [key * 22 for key in "abcd"],
+            "request_id": pending["request_id"],
+            "current_release_id": resolved,
+            "confirm_current": confirmed,
+        },
+    ).status_code
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_existing_artist_migration_resumes_at_current_playlist_track(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify], preview: bool
+) -> None:
+    """The current second album counts, and its last track advances to album three.
+
+    Args:
+        plan_http: Actual jobs and shared namespace.
+        preview: Whether saved progress and playlist effects are suppressed.
+    """
+    http, spotify = plan_http
+    _existing(spotify)
+    access = new_kids._state_access(new_kids.DEFAULT_STATE_PATH, None)
+    before = access.load()
+    job = _start(http, preview=preview)
+    pending = _pending(http, job)
+    assert pending["migration"] is True
+    assert pending["current_release_id"] == "b" * 22
+    assert pending["selected_release_ids"] == ["b" * 22]
+    assert _migrate(http, job, pending) == 200
+    result = _wait(http, job, "completed")
+    rows = cast(list[dict[str, object]], result["new_kids_results"])
+    assert rows[0]["source_track"] == "Second studio · track 2"
+    assert (
+        rows[0]["target_release"] == "Third studio" and rows[0]["release_number"] == 3
+    )
+    state = access.load()
+    if preview:
+        assert state == before and spotify.mutations == []
+        return
+    assert spotify.playlists["new"][0]["id"] == "c" * 20 + "00"
+    backup = cast(dict[str, object], state["release_plan_migration_backup"])
+    assert backup["namespace"] == before
+    _wait(http, _start(http), "completed")
+    assert spotify.playlists["new"][0]["id"] == "c" * 20 + "01"
+
+
+def test_migration_cannot_omit_current_album_and_skip_does_not_fall_back(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify],
+) -> None:
+    """An unaccepted migration cannot trigger old scrobble-driven progression.
+
+    Args:
+        plan_http: Actual locked submissions and worker.
+    """
+    http, spotify = plan_http
+    _existing(spotify)
+    job = _start(http)
+    pending = _pending(http, job)
+    assert _choose(http, job, pending, [key * 22 for key in "acde"]) == 400
+    response = http.post(
+        f"/commands/flush-new-kids-jobs/{job}/choice",
+        json={"choice": "__skip__", "request_id": pending["request_id"]},
+    )
+    assert response.status_code == 200
+    result = _wait(http, job, "completed")
+    assert result["new_kids_results"] == [] and spotify.mutations == []
+
+
+@pytest.mark.parametrize("edition_suffix", ["", " - Remastered"])
+def test_migration_requires_explicit_resolution_of_title_only_marker(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify], edition_suffix: str
+) -> None:
+    """A current edition is not guessed from matching album or track titles.
+
+    Args:
+        plan_http: Actual pending editor and migration stage.
+        edition_suffix: Edition qualifier normalized by the confirmed mapping.
+    """
+    http, spotify = plan_http
+    _existing(spotify, True)
+    spotify.playlists["new"][0]["name"] += edition_suffix
+    job = _start(http)
+    pending = _pending(http, job)
+    assert pending["current_release_id"] is None
+    assert _migrate(http, job, pending, "b" * 22) == 400
+    assert _migrate(http, job, pending, "b" * 22, True) == 200
+    _wait(http, job, "completed")
+    assert spotify.playlists["new"][0]["id"] == "c" * 20 + "00"
+
+
+def test_cli_migration_uses_current_album_in_explicit_order(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify],
+) -> None:
+    """The terminal migration accepts a reordered plan without resetting the track.
+
+    Args:
+        plan_http: Actual command dependencies and isolated namespace.
+    """
+    _http, spotify = plan_http
+    _existing(spotify)
+    result = CliRunner().invoke(
+        main.app, ["flush-new-kids", "--dry-run"], input="2,1,3,4\nyes\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert "Current album" in result.output and "Would migrate" in result.output
+    assert spotify.mutations == []
+
+
+@pytest.mark.parametrize("composer", [False, True])
+def test_migration_advances_within_album_and_retains_logical_route(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify], composer: bool
+) -> None:
+    """Migration starts at the live track and acknowledges its route once.
+
+    Args:
+        plan_http: Actual job execution and durable namespace.
+        composer: Whether a performer marker belongs to a logical composer.
+    """
+    http, spotify = plan_http
+    _existing(spotify)
+    spotify.playlists["new"] = [deepcopy(spotify.release_tracks["b" * 22][0])]
+    access = new_kids._state_access(new_kids.DEFAULT_STATE_PATH, None)
+    state = access.load()
+    if composer:
+        records = spotify.artist_releases.pop("artist")
+        for record in records:
+            record["artists"] = [{"id": "composer", "name": "Composer"}]
+        spotify.artist_releases["composer"] = records
+        state["composer_routes"] = {
+            "composer": {"artist_name": "Composer", "current_track_id": "b" * 20 + "00"}
+        }
+        access.save(state)
+    job = _start(http)
+    pending = _pending(http, job)
+    assert spotify.mutations == []
+    assert pending["artist"] == ("Composer" if composer else "Artist")
+    assert _migrate(http, job, pending) == 200
+    _wait(http, job, "completed")
+    assert spotify.playlists["new"][0]["id"] == "b" * 20 + "01"
+    saved = access.load()
+    artists = cast(dict[str, dict[str, object]], saved["artists"])
+    progress = artists["composer" if composer else "artist"]
+    assert "release_plan_marker" not in progress
+    if composer:
+        routes = cast(dict[str, dict[str, object]], saved["composer_routes"])
+        assert routes["composer"]["current_track_id"] == "b" * 20 + "01"

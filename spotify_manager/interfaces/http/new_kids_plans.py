@@ -47,4 +47,25 @@ def _submission(
         validate_plan_ids(identifiers, available, request.confirm_short)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return ReleasePlanSubmission("select", identifiers, request.confirm_short)
+    _validate_current(pending, request)
+    return ReleasePlanSubmission(
+        "select",
+        identifiers,
+        request.confirm_short,
+        request.current_release_id,
+        request.confirm_current,
+    )
+
+
+def _validate_current(
+    pending: NewKidsPendingChoice, request: NewKidsChoiceRequest
+) -> None:
+    if not pending.migration:
+        return
+    current = pending.current_release_id or request.current_release_id
+    if pending.current_release_id and request.current_release_id not in {None, current}:
+        raise HTTPException(400, "Keep the identified current album in the plan.")
+    if not current or current not in request.release_ids:
+        raise HTTPException(400, "The plan must include the current album.")
+    if pending.current_release_id is None and not request.confirm_current:
+        raise HTTPException(400, "Confirm which edition contains the current track.")

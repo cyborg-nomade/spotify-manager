@@ -116,9 +116,18 @@ def _wait(http: TestClient, command: str, job: str, status: str) -> dict[str, ob
 
 
 def _choose(http: TestClient, command: str, job: str, choice: str) -> None:
-    response = http.post(
-        f"/commands/{command}-jobs/{job}/choice", json={"choice": choice}
-    )
+    payload: dict[str, object] = {"choice": choice}
+    if command == "flush-new-kids":
+        waiting = _wait(http, command, job, "waiting")
+        pending = cast(dict[str, object], waiting["new_kids_pending_choice"])
+        assert pending["migration"] is True
+        payload = {
+            "choice": "plan_select",
+            "release_ids": ["current", choice],
+            "confirm_short": True,
+            "request_id": pending["request_id"],
+        }
+    response = http.post(f"/commands/{command}-jobs/{job}/choice", json=payload)
     assert response.status_code == 200, response.text
 
 
@@ -142,7 +151,8 @@ def test_http_choices_reach_real_planning_and_effects(
     pending = cast(dict[str, object], waiting["new_kids_pending_choice"])
     assert pending["artist"] == "Artist"
     invalid = http.post(
-        f"/commands/{command}-jobs/{job}/choice", json={"choice": "missing"}
+        f"/commands/{command}-jobs/{job}/choice",
+        json={"choice": "missing", "request_id": pending.get("request_id")},
     )
     assert invalid.status_code == 400
     _choose(http, command, job, "following")
@@ -189,7 +199,8 @@ def test_cli_choice_executes_actual_discovery_preview(
     _http, spotify = discovery_http
     if command == "flush-queue-2":
         _queue_review(spotify)
-    result = CliRunner().invoke(main.app, [command, "--dry-run"], input="1\n")
+    answers = "1,2\nyes\n" if command == "flush-new-kids" else "1\n"
+    result = CliRunner().invoke(main.app, [command, "--dry-run"], input=answers)
     assert result.exit_code == 0, result.output
     assert "Target" in result.output and "Would add" in result.output
     assert spotify.mutations == []
