@@ -76,6 +76,8 @@ behavior, final release and operational handoff.
 | [`README.md`](../README.md) | Users and operators | Quick start and detailed CLI routine reference. |
 | [`ARCHITECTURE_SPEC.md`](ARCHITECTURE_SPEC.md) | Maintainers and reviewers | Concise current-state specification: modules, APIs, schemas, progress, and backlog. |
 | [`REFACTOR_ROADMAP.md`](REFACTOR_ROADMAP.md) | Maintainers and reviewers | Approved refactor sequence, behavior-preservation tests, and delivery workflow. |
+| [`IMPROVEMENTS_ROADMAP.md`](IMPROVEMENTS_ROADMAP.md) | Maintainers and reviewers | Completed 12-item routine improvements roadmap and per-item release guides. |
+| [`improvements/FINAL_VERIFICATION.md`](improvements/FINAL_VERIFICATION.md) | Operators and maintainers | Improvements conclusion, final release evidence, and operational handoff. |
 | [`refactor/CHARACTERIZATION.md`](refactor/CHARACTERIZATION.md) | Maintainers and reviewers | Offline effect traces, fault injection, test isolation, and migration regression checks. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Maintainers | System context, layers, execution paths, integrations, and extension points. |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | Users and operators | Dependencies, credentials, settings, local authentication, and startup commands. |
