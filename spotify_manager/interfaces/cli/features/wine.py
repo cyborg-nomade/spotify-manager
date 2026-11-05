@@ -14,6 +14,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.new_wine_values import FlushResult
+from spotify_manager.application.ports.cellar_review import TransferChoice
 from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
 from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
@@ -47,6 +48,38 @@ class WineCLI:
     progress_display: ProgressDisplay
     display: ConsoleDisplay
     sleep: Wait
+
+    async def _prompt_cellar_transfer(
+        self, source: new_wine.PlaylistTrack, liked: int | None, albums: int | None
+    ) -> TransferChoice:
+        progress = self._flush_new_wine_progress_ref
+        if progress is not None:
+            progress.stop()
+        try:
+            self._flush_new_wine_console.print(
+                f"Wine Cellar → New Wine: {source.primary_artist_name} · "
+                f"{source.release.name} · {source.name}",
+                style="bold",
+            )
+            self._flush_new_wine_console.print(
+                f"Liked tracks: {liked if liked is not None else 'not counted'}; "
+                f"saved albums: {albums if albums is not None else 'not counted'}"
+            )
+            response = await TerminalPrompt(self.display.prompt).ask(
+                "[a]ccept transfer / [s]kip this run / [q]uit",
+                choices=["a", "s", "q"],
+                default="s",
+                console=self._flush_new_wine_console,
+            )
+            answers: dict[str, TransferChoice] = {
+                "a": "accept",
+                "s": "skip",
+                "q": "quit",
+            }
+            return answers[response]
+        finally:
+            if progress is not None:
+                progress.start()
 
     async def _prompt_new_wine_release_choice(
         self,
@@ -182,6 +215,7 @@ class WineCLI:
                         output=FlushNewWineInteraction(self),
                         progress=FlushNewWineInteraction(self),
                         retry=FlushNewWineInteraction(self),
+                        transfer=FlushNewWineInteraction(self),
                     ),
                     storage=NewWineStorage(),
                 )
@@ -516,6 +550,29 @@ class FlushNewWineInteraction:
     """
 
     owner: WineCLI
+
+    async def choose_transfer(
+        self, source: new_wine.PlaylistTrack, liked: int | None, albums: int | None
+    ) -> TransferChoice:
+        """Ask this command's explicit no-discovery transfer question.
+
+        Args:
+            source: Eligible Wine Cellar marker.
+            liked: Observed liked-track count, if counted.
+            albums: Observed saved-album count, if counted.
+
+        Returns:
+            Explicit accept, skip or quit choice.
+        """
+        return await self.owner._prompt_cellar_transfer(source, liked, albums)
+
+    def check(self) -> None:
+        """Observe terminal interruption at the accepted-transfer boundary.
+
+        Raises:
+            CliInterruptedError: The terminal command has been interrupted.
+        """
+        check_cli_interruption()
 
     def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.

@@ -137,7 +137,11 @@ def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
 def _validate_submission(
     pending: NewWinePendingChoice, request: NewWineChoiceRequest
 ) -> None:
-    if pending.kind == "album_endpoint":
+    if request.request_id != pending.request_id:
+        raise HTTPException(status_code=409, detail="Wine Cellar proposal changed")
+    if pending.kind == "cellar_transfer":
+        allowed = {"accept", "skip", "quit"}
+    elif pending.kind == "album_endpoint":
         allowed = {
             new_wine.CHOICE_CUTOFF,
             new_wine.CHOICE_CONTINUE,

@@ -7,8 +7,11 @@ from typing import Literal
 from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.cellar_review import CellarReview
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.new_wine_values import CellarRefillSummary
+from spotify_manager.application.new_wine_values import NewWineError
+from spotify_manager.application.ports.cellar_review import TransferChoiceReader
 from spotify_manager.domain.catalog import PlaylistTrack
 
 
@@ -132,10 +135,12 @@ class CellarWorkflow:
         access: Original playlist, membership and persistence boundary.
         moved: Original transfer presentation resource.
         presentation: Named presenter for accepted workflow outcomes.
+        reader: Optional explicit no-discovery transfer interaction.
     """
 
     access: CellarAccess
     presentation: TransferPresentation
+    reader: TransferChoiceReader | None = None
 
     async def run(
         self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
@@ -150,7 +155,9 @@ class CellarWorkflow:
         Returns:
             Original ordered refill results and destination counts.
         """
-        return await refill_cellar(self.access, options, state, run, self.presentation)
+        return await refill_cellar(
+            self.access, options, state, run, self.presentation, self.reader
+        )
 
 
 async def refill_cellar(
@@ -159,6 +166,7 @@ async def refill_cellar(
     state: dict[str, object],
     run: dict[str, object],
     presentation: TransferPresentation,
+    reader: TransferChoiceReader | None = None,
 ) -> CellarRefillSummary:
     """Resume any pending transfer, then fill available slots in cellar order.
 
@@ -168,6 +176,7 @@ async def refill_cellar(
         state: Complete mutable New Wine namespace.
         run: Active run inside that namespace.
         presentation: Named presenter for accepted workflow outcomes.
+        reader: Optional explicit no-discovery transfer interaction.
 
     Returns:
         Original refill summary with observed and projected membership counts.
@@ -178,7 +187,11 @@ async def refill_cellar(
     if len(ids) >= options.target_size and pending is None:
         return _full_summary(options, len(ids))
     sources = await access.playlist(options.source)
-    session = CellarRefill(access, options, state, run, presentation, ids, sources)
+    review = CellarReview(reader if options.no_discovery else None)
+    review.restore(run)
+    session = CellarRefill(
+        access, options, state, run, presentation, ids, sources, review
+    )
     return await session.execute(cast(dict[str, object] | None, pending))
 
 
@@ -210,6 +223,7 @@ class CellarRefill:
         moved: Original transfer message resource.
         destination_ids: Current or projected destination membership.
         sources: Original ordered cellar observations.
+        review: Run-owned confirmation, cancellation and skipped-marker state.
         results: Results produced by this invocation.
         added: Destination markers accepted or previewed.
         removed: Source markers removed or previewed.
@@ -225,6 +239,7 @@ class CellarRefill:
     presentation: TransferPresentation
     destination_ids: set[str]
     sources: tuple[PlaylistTrack, ...]
+    review: CellarReview
     results: list[CellarRefillResult] = field(default_factory=list)
     added: int = 0
     removed: int = 0
@@ -256,6 +271,7 @@ class CellarRefill:
             self.ineligible,
             self.options.no_discovery,
             tuple(self.results),
+            self.review.paused,
         )
 
     async def _inventory(self) -> Inventory:
@@ -280,9 +296,15 @@ class CellarRefill:
         self, cellar_ids: set[str], inventory: Inventory, run_id: str
     ) -> None:
         for source in self.sources:
-            if len(self.destination_ids) >= self.options.target_size:
+            if (
+                self.review.paused
+                or len(self.destination_ids) >= self.options.target_size
+            ):
                 break
-            if source.spotify_id not in cellar_ids:
+            if (
+                source.spotify_id not in cellar_ids
+                or source.spotify_id in self.review.skipped
+            ):
                 continue
             await self._consider(source, cellar_ids, inventory, run_id)
 
@@ -306,6 +328,8 @@ class CellarRefill:
             self.ineligible += 1
             await self._record(result, run_id)
             return
+        if not await self._confirm(source, liked, albums, run_id):
+            return
         await self._pending(
             {
                 "source": asdict(source),
@@ -316,6 +340,60 @@ class CellarRefill:
         result = await self._transfer(source, liked, albums, cellar_ids)
         await self._pending(None)
         await self._record(result, run_id)
+
+    async def _confirm(
+        self, source: PlaylistTrack, liked: int | None, albums: int | None, run_id: str
+    ) -> bool:
+        reader = self.review.reader
+        if reader is None:
+            return True
+        self.review.check()
+        choice = await reader.choose_transfer(source, liked, albums)
+        self.review.check()
+        if choice == "quit":
+            self.review.paused = True
+            return False
+        if choice == "skip":
+            await self._skip(source, liked, albums, run_id)
+            return False
+        if choice != "accept":
+            raise NewWineError("The Wine Cellar transfer choice is not available.")
+        await self._fresh_transfer(source)
+        return True
+
+    async def _skip(
+        self, source: PlaylistTrack, liked: int | None, albums: int | None, run_id: str
+    ) -> None:
+        self.review.skipped.add(source.spotify_id)
+        if not self.options.dry_run:
+            self.run["refill_skipped"] = sorted(self.review.skipped)
+            await self.access.save(self.state)
+        result = CellarRefillResult(
+            source.name,
+            source.primary_artist_name,
+            "skipped",
+            liked,
+            albums,
+            self.options.dry_run,
+        )
+        await self._record(result, run_id)
+
+    async def _fresh_transfer(self, source: PlaylistTrack) -> None:
+        sources = await self.access.playlist(self.options.source)
+        if source not in sources:
+            raise NewWineError(
+                "Wine Cellar changed during confirmation. Run again to review it."
+            )
+        if self.options.dry_run:
+            return
+        destination = await self.access.playlist(self.options.destination)
+        ids = {track.spotify_id for track in destination}
+        if source.spotify_id not in ids and len(ids) >= self.options.target_size:
+            raise NewWineError(
+                "New Wine filled during confirmation. No transfer was applied."
+            )
+        self.destination_ids.clear()
+        self.destination_ids.update(ids)
 
     async def _eligibility(
         self, source: PlaylistTrack, inventory: Inventory
@@ -338,8 +416,10 @@ class CellarRefill:
     ) -> CellarRefillResult:
         duplicate = source.spotify_id in self.destination_ids
         in_cellar = source.spotify_id in cellar_ids
+        self.review.check()
         if not duplicate:
             await self._append(source)
+        self.review.check()
         if in_cellar:
             await self._remove(source, cellar_ids)
         action: Literal["already present", "moved"] = (

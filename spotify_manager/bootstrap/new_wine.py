@@ -60,6 +60,7 @@ def new_wine_dependencies(
             storage.albums_path,
         ),
         CellarPresenter(callbacks.output),
+        callbacks.transfer,
     )
     return NewWineDependencies(
         access,

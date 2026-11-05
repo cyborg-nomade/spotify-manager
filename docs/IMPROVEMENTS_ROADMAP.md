@@ -178,6 +178,11 @@ correct artist, and has tested recovery after accepted effects.
 
 ## Item 9: order New Wine replacements and confirm cellar transfers
 
+**Status:** implemented and verified; awaiting owner review on
+`codex/item09-new-wine-order-and-transfers`. The
+[implementation and review guide](improvements/09_NEW_WINE_ORDER_AND_TRANSFERS.md)
+records deferred execution, durable skips and isolated review environments.
+
 Apply continuations within existing records before appending selections that
 begin new records, preserving encounter order within each group. For A finishing,
 B advancing, and C finishing, the result is B's next track, A's new record, C's
