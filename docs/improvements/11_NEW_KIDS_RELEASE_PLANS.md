@@ -1,6 +1,6 @@
 # Item 11: explicit New Kids plans for new Queue 2 transfers
 
-**Status:** implemented; awaiting owner PR review.
+**Status:** owner-approved, deployed and verified on 2026-11-05 in PR #83.
 **Branch:** `codex/item11-new-kids-release-plans`.
 **Roadmap:** [Item 11](../IMPROVEMENTS_ROADMAP.md#item-11-plan-new-kids-releases-for-new-queue-2-transfers).
 
@@ -108,8 +108,9 @@ the existing cancellation signal interrupts its wait and Spotify retry boundarie
 - [Offline demo](http://127.0.0.1:8769/?review=item11): synthetic Spotify/Last.fm only.
 - Unlock text: `release-plan-review`.
 
-Both environments use isolated local state, mirrors, history and durable-data
-publications. The agent did not start an account routine. This item is not deployed.
+Both environments used isolated local state, mirrors, history and durable-data
+publications. The agent did not start an account routine. These owned review
+servers were stopped after approval and deployment; their files remain local.
 
 The offline fixture has one Queue 2 artist and an empty New Kids playlist. Its
 catalogue contains four studios, an EP, a single, a live album, a compilation and
@@ -166,10 +167,26 @@ bytes were identical after restart. Later runs advanced within the studio album
 and then started the pinned single with no additional choices. The fixture was
 restored afterward. No preview, credential or synthetic data may be uploaded.
 
-Deployment and merge await owner approval under [AGENTS.md](../../AGENTS.md).
-After approval, verify source CI and idle production jobs, preserve independent
-state/data revisions, and deploy only approved runtime files. Verify the running
-revision, exact frontend, health, authentication and durable artifacts before merge.
+The owner approved PR #83 after reviewing the scroll correction.
+[Source CI 42049216976](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42049216976)
+passed all **12,391 tests**, random-order seed **424943**, in 578.98 seconds, plus
+typing, architecture, interface, packaging and independent coverage gates.
+
+Authenticated [preflight 42050854015](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42050854015)
+and [postflight 42051427620](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42051427620)
+verified automation access, shared state, all four artifacts and no active jobs
+across **20** routine endpoints. Neither check started a routine.
+
+Only the **21 approved runtime files**, including seven new modules, were uploaded
+with a guarded parent revision and verified prior blobs. Space revision
+`426253d23eedea77154729c435384ff00eabf38b` is running; all **160 cumulative release
+blobs**, exact served frontend, startup, health and protected authentication were
+verified. State stayed at `45f409930215adf29d185b769453b337dc478eca`; canonical data
+stayed at `96c1caba1f8e6c5dadccd677cc2f1b03bed957d1`. Credentials, operational files
+and all preview/synthetic state were excluded. Both owned review servers were
+stopped after verifying their 20 idle endpoints. Operator files and stashes were
+preserved. Remaining release tracking is documentation only; merge and cleanup
+follow [AGENTS.md](../../AGENTS.md).
 
 Rollback requires stopping New Kids and Queue 2 and preserving accepted plans,
 pending transfer intents and already completed effects. An older runtime ignores
