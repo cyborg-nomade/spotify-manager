@@ -2900,6 +2900,8 @@
     }
     var retainedEditor = out.querySelector('[data-new-kids-plan]');
     var retainedFocus = retainedEditor && retainedEditor.contains(document.activeElement) ? document.activeElement : null;
+    var retainedCatalogue = retainedEditor && retainedEditor.querySelector('.plan-catalogue');
+    var retainedScrollTop = retainedCatalogue ? retainedCatalogue.scrollTop : 0;
     out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count + '</div>' +
       meter + summary + resultRows + transfers + pending +
       '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
@@ -2907,6 +2909,8 @@
     if (retainedEditor && newEditor && retainedEditor.dataset.newKidsPlan === newEditor.dataset.newKidsPlan) {
       newEditor.replaceWith(retainedEditor);
       if (retainedFocus) retainedFocus.focus({ preventScroll: true });
+      // Reinserting a scroll container can reset its offset even on the same node.
+      if (retainedCatalogue) retainedCatalogue.scrollTop = retainedScrollTop;
     }
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");

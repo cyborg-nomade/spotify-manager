@@ -32,7 +32,9 @@ short selections use a distinct shorter-plan confirmation. `s` skips the transfe
 and `q` stops. Web submissions carry the exact current proposal identity, so a
 stale tab or repeat click cannot accept another draft.
 
-Polling retains ordering, filters, shorter confirmation and keyboard focus.
+Polling retains ordering, filters, shorter confirmation, keyboard focus and the
+catalogue's scroll position. Scrolling partway down or to the last release does
+not reset when a job update arrives.
 Unsubmitted web edits are process-local form state and reset on page reload;
 accepted plans are durable. No plan or transfer is saved by a dry run. The existing
 shared Last.fm history refresh remains part of discovery preflight, including
@@ -151,6 +153,12 @@ verification passes for 725 exact packaged Python/frontend files, 44 commands,
 ordering, optional categories, shorter confirmation, retained polling focus,
 both stop controls and 320/390/1120 px layouts without horizontal overflow. The
 temporary viewport override was reset, and there are no console errors.
+
+The catalogue-scroll correction was verified in both New Kids and Queue 2 through
+repeated live polling, including middle/bottom positions, optional categories and
+selection at the bottom. The 26 public-interface/capture checks pass, and the
+wheel was rebuilt and verified with the corrected frontend. No Python behavior
+or API schema changed for this correction.
 
 Offline live verification accepted the exact studio/single/EP/live order, secured
 the first chosen marker once, then restarted the actual server. State and remote
