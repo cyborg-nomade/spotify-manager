@@ -20,6 +20,17 @@ def _ordered_ids(text: str, releases: tuple[RankedRelease, ...]) -> tuple[str, .
     return tuple(releases[position - 1].spotify_id for position in positions)
 
 
+def _visible(draft: ReleasePlanDraft) -> tuple[RankedRelease, ...]:
+    result = []
+    for release in draft.releases:
+        if (
+            default_plan_release(release)
+            or release.spotify_id == draft.current_release_id
+        ):
+            result.append(release)
+    return tuple(result)
+
+
 @dataclass(frozen=True)
 class NewKidsPlanCLI:
     """Own terminal display and confirmation while the regular progress is stopped.
@@ -52,7 +63,7 @@ class NewKidsPlanCLI:
                 self.progress.start()
 
     async def _read(self, draft: ReleasePlanDraft) -> ReleasePlanSubmission:
-        releases = tuple(item for item in draft.releases if default_plan_release(item))
+        releases = _visible(draft)
         while True:
             self._show(draft, releases)
             response = await TerminalPrompt(self.display.prompt).ask(
@@ -72,16 +83,49 @@ class NewKidsPlanCLI:
                 self.console.print(str(exc), markup=False)
                 continue
             if await self._confirm(identities, releases):
-                return ReleasePlanSubmission("select", identities, len(identities) < 4)
+                answer = await self._resolved(draft, identities)
+                if answer is not None:
+                    return answer
+
+    async def _resolved(
+        self, draft: ReleasePlanDraft, identities: tuple[str, ...]
+    ) -> ReleasePlanSubmission | None:
+        short = len(identities) < 4
+        if not draft.migration or draft.current_release_id:
+            return ReleasePlanSubmission(
+                "select", identities, short, draft.current_release_id
+            )
+        choices = [str(index) for index in range(1, len(identities) + 1)]
+        position = await TerminalPrompt(self.display.prompt).ask(
+            "Current album's position in the selected order",
+            choices=choices,
+            console=self.console,
+        )
+        confirm = await TerminalPrompt(self.display.prompt).ask(
+            "Confirm this edition contains the current track",
+            choices=["yes", "no"],
+            default="no",
+            console=self.console,
+        )
+        if confirm != "yes":
+            return None
+        return ReleasePlanSubmission(
+            "select", identities, short, identities[int(position) - 1], True
+        )
 
     def _show(
         self, draft: ReleasePlanDraft, releases: tuple[RankedRelease, ...]
     ) -> None:
         self.console.print(f"Release plan for {draft.artist}", markup=False)
-        self.console.print(
-            f"Queue 2 album: {draft.queue_album}. Choose it explicitly to include it.",
-            markup=False,
+        context = (
+            f"Current album: {draft.queue_album}; "
+            f"current track: {draft.current_track}. "
+            "Include this album; earlier entries count as completed."
+            if draft.migration
+            else f"Queue 2 album: {draft.queue_album}. "
+            "Choose it explicitly to include it."
         )
+        self.console.print(context, markup=False)
         if draft.notice:
             self.console.print(draft.notice, markup=False)
         table = self.display.create_table(title="Choose up to four releases")

@@ -25,9 +25,11 @@ from spotify_manager.application.ports.state import AsyncRoutineState as Routine
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.composers import is_composer_playlist_candidate
+from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.discovery_progression import catalog_track_index
 from spotify_manager.domain.discovery_progression import composer_release
+from spotify_manager.domain.new_kids_migration import current_track_index
 from spotify_manager.domain.progression import primary_artist_tracks
 
 
@@ -80,6 +82,15 @@ def _current_release(
         if release.spotify_id == source.release.spotify_id:
             return release
     return fallback
+
+
+def _source_index(entry: ReviewEntry, tracks: tuple[CatalogTrack, ...]) -> int | None:
+    marker = entry.progress.get("release_plan_marker")
+    if isinstance(marker, dict) and marker.get("track_id") == entry.source.spotify_id:
+        return current_track_index(
+            tracks, entry.source.spotify_id, entry.source.name, True
+        )
+    return catalog_track_index(tracks, entry.source)
 
 
 @dataclass(frozen=True)
@@ -264,7 +275,10 @@ class DiscoveryReview:
         if all(candidate.identity != release.identity for candidate in catalog):
             catalog = (release, *catalog)
         tracks = await observations.tracks(release)
-        primary = primary_artist_tracks(tracks, entry.artist.identifier)
+        primary_id = (
+            release.primary_artist_id if pinned is not None else entry.artist.identifier
+        )
+        primary = primary_artist_tracks(tracks, primary_id)
         return ReviewSource(
             entry.source,
             entry.artist.identifier,
@@ -274,7 +288,7 @@ class DiscoveryReview:
             release,
             tracks,
             primary,
-            catalog_track_index(primary, entry.source),
+            _source_index(entry, primary),
         )
 
     async def _skipped(self, entry: ReviewEntry, result: FlushResult) -> FlushResult:

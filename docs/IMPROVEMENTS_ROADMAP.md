@@ -239,6 +239,9 @@ or catalogue changes cannot silently replace a chosen release.
 
 ## Item 12: migrate existing New Kids artists
 
+**Status:** implemented and verified on `codex/item12-new-kids-plan-migration`;
+owner review pending. See the [migration guide](improvements/12_NEW_KIDS_PLAN_MIGRATION.md).
+
 Prompt existing artists without a plan to choose and order one. Include the
 current album at its chosen position; earlier plan entries count as completed.
 Resume at the current playlist track rather than restarting the current album.

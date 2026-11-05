@@ -190,6 +190,10 @@ class NewKidsWorker:
                 queue_album=draft.queue_album,
                 notice=draft.notice,
                 releases=self._new_kids_release_options(draft.releases),
+                migration=draft.migration,
+                current_release_id=draft.current_release_id,
+                current_track=draft.current_track,
+                selected_release_ids=list(draft.selected_ids),
             )
             self.job.result.status = "waiting"
             self.job.result.detail = f"Choose a release plan for {draft.artist}"

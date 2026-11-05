@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
+from spotify_manager.application.new_kids_migration import NewKidsPlanMigration
 from spotify_manager.application.new_kids_plan_transfers import (
     PlannedDiscoveryTransfers,
 )
@@ -64,6 +65,7 @@ class DiscoveryRun:
         fill_from_queue: Whether this review performs initial and final queue transfers.
         dry_run: Whether to suppress namespace and remote writes.
         clock: Original UTC clock for run identifiers and timestamps.
+        migration: Optional existing-artist migration at a fresh-run boundary.
     """
 
     state_access: RoutineState
@@ -75,6 +77,7 @@ class DiscoveryRun:
     fill_from_queue: bool
     dry_run: bool
     clock: Clock
+    migration: NewKidsPlanMigration | None = None
 
     async def prepare(
         self,
@@ -102,6 +105,8 @@ class DiscoveryRun:
             and raw.get("playlist_id") == self.playlist_id
         )
         if resumed:
+            if self.migration is not None:
+                self.migration.deferred()
             run = cast(dict[str, object], raw)
             length_before = len(await self._tracks(live))
             prefill: tuple[FillResult, ...] = ()
@@ -172,12 +177,16 @@ class DiscoveryRun:
     ) -> tuple[dict[str, object], int, tuple[FillResult, ...]]:
         current = await self._tracks(initial)
         length_before = len(current)
+        if self.migration is not None:
+            await self.migration.run(current)
         prefill: tuple[FillResult, ...] = ()
         if self.fill_from_queue:
             current, prefill, _remaining = await self.transfer.move(current, self.state)
         reviewed = current
         if isinstance(self.transfer, PlannedDiscoveryTransfers):
             reviewed = self.transfer.review_markers(current, self.state)
+        if self.migration is not None:
+            reviewed = self.migration.review_markers(reviewed)
         run = new_run(self.playlist_id, reviewed, self.state, self.clock)
         if not self.dry_run:
             self.state[self.active_key] = run

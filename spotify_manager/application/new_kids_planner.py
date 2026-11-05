@@ -135,7 +135,7 @@ class NewKidsPlanner:
             return await self._finish(facts, evaluation)
         release = pinned.releases[position]
         tracks = await self.observations.tracks(release)
-        target = _primary_track(tracks, facts.context.artist_id)
+        target = _primary_track(tracks, release.primary_artist_id)
         if target is None:
             raise NewKidsError(
                 f"Planned release {release.name} is unavailable or has no "
@@ -267,7 +267,13 @@ def _validate_pinned_source(context: ReviewSource, pinned: ReleasePlan | None) -
         return
     current = pinned.releases[pinned.position].spotify_id
     identities = {track.spotify_id for track in context.primary_tracks}
-    matches = (
+    marker = context.progress.get("release_plan_marker")
+    resolved = (
+        isinstance(marker, dict)
+        and marker.get("track_id") == context.source.spotify_id
+        and marker.get("release_id") == current
+    )
+    matches = resolved or (
         context.source.release.spotify_id == current
         or context.source.spotify_id in identities
     )
