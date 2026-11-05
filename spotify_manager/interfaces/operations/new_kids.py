@@ -203,6 +203,8 @@ async def flush_queue_2(
         options.dry_run,
         resources.log_path,
         interaction,
+        resources.plan_reader,
+        state_access,
     )
     snapshot = await prepare_queue_review(transfer, state, legacy.QUEUE_2_DAILY_LIMIT)
     review = await _flush_review_playlist(

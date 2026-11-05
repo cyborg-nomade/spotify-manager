@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from typing import cast
 
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
+from spotify_manager.application.new_kids_plan_transfers import (
+    PlannedDiscoveryTransfers,
+)
 from spotify_manager.application.new_kids_state import new_run
 from spotify_manager.application.new_kids_values import FillResult
 from spotify_manager.application.new_kids_values import FlushResult
@@ -107,7 +110,14 @@ class DiscoveryRun:
         entries = run.get("entries")
         if not isinstance(entries, list):
             raise NewKidsStateError("New Kids active run has invalid entries.")
-        live_ids = {track.spotify_id for track in (await self._tracks(live))}
+        observed = await self._tracks(live)
+        if isinstance(self.transfer, PlannedDiscoveryTransfers) and self.dry_run:
+            observed = (
+                self.transfer.preview.tracks
+                if self.transfer.preview.tracks is not None
+                else observed
+            )
+        live_ids = {track.spotify_id for track in observed}
         return ReviewSnapshot(run, entries, live_ids, length_before, prefill, resumed)
 
     async def finish(
@@ -127,7 +137,9 @@ class DiscoveryRun:
         postfill: tuple[FillResult, ...] = ()
         if not paused:
             if self.fill_from_queue:
-                length_after, postfill = await self._refill(snapshot.run)
+                length_after, postfill = await self._refill(
+                    snapshot.run, snapshot.live_ids
+                )
             await self._clear()
         return FlushSummary(
             results,
@@ -163,19 +175,24 @@ class DiscoveryRun:
         prefill: tuple[FillResult, ...] = ()
         if self.fill_from_queue:
             current, prefill, _remaining = await self.transfer.move(current, self.state)
-        run = new_run(self.playlist_id, current, self.state, self.clock)
+        reviewed = current
+        if isinstance(self.transfer, PlannedDiscoveryTransfers):
+            reviewed = self.transfer.review_markers(current, self.state)
+        run = new_run(self.playlist_id, reviewed, self.state, self.clock)
         if not self.dry_run:
             self.state[self.active_key] = run
             await self.state_access.save(self.state)
         return run, length_before, prefill
 
     async def _refill(
-        self, run: dict[str, object]
+        self, run: dict[str, object], live_ids: set[str]
     ) -> tuple[int, tuple[FillResult, ...]]:
         if not self.dry_run:
             run["status"] = "refilling"
             await self.state_access.save(self.state)
         current = await self._tracks(None)
+        if isinstance(self.transfer, PlannedDiscoveryTransfers) and self.dry_run:
+            self.transfer.project_review(run, live_ids, self.state)
         current, results, _remaining = await self.transfer.move(current, self.state)
         return len(current), results
 

@@ -215,6 +215,11 @@ explicitly selected identities.
 
 ## Item 11: plan New Kids releases for new Queue 2 transfers
 
+**Status:** owner-approved, deployed and verified on 2026-11-05 in PR #83. The
+[implementation and review guide](improvements/11_NEW_KIDS_RELEASE_PLANS.md)
+records ordered selection, accepted transfer recovery, pinned progression and
+isolated account/offline previews.
+
 Provide an ordered four-release plan editor. Default to studio albums and EPs;
 allow showing singles, compilations, and live albums. Select distinct releases
 and their order. Allow a shorter plan with explicit confirmation.

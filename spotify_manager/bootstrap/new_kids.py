@@ -12,8 +12,13 @@ from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.discovery_review import DiscoveryReview
 from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_execution import NewKidsExecution
+from spotify_manager.application.new_kids_plan_selection import NewKidsPlanSelection
+from spotify_manager.application.new_kids_plan_transfers import (
+    PlannedDiscoveryTransfers,
+)
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.new_kids_plans import ReleasePlanReader
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import ReviewProgress
@@ -231,6 +236,8 @@ def queue_transfer(
     dry_run: bool,
     log_path: Path,
     echo: Messages,
+    plan_reader: ReleasePlanReader | None = None,
+    state_access: RoutineState | None = None,
 ) -> DiscoveryQueueTransfer:
     """Compose queue transfers over the original observation and audit boundaries.
 
@@ -244,9 +251,25 @@ def queue_transfer(
         log_path: Existing routine event log.
         echo: Existing CLI or job output sink.
 
+        plan_reader: Explicit release-plan editor for new transfers, when enabled.
+        state_access: Namespace authority for accepted plan checkpoints.
+
     Returns:
         Queue transfer service preserving original marker and logical-artist rules.
     """
+    if plan_reader is not None:
+        assert state_access is not None
+        return PlannedDiscoveryTransfers(
+            LegacyDiscoveryQueue(client, retry),
+            LegacyDiscoveryAudit(log_path),
+            NewKidsPresenter(echo),
+            destination,
+            source,
+            capacity,
+            dry_run,
+            NewKidsPlanSelection(LegacyDiscoveryCatalog(client, retry), plan_reader),
+            state_access,
+        )
     return DiscoveryQueueTransfer(
         LegacyDiscoveryQueue(client, retry),
         LegacyDiscoveryAudit(log_path),
@@ -329,6 +352,8 @@ def review_run(
         options.dry_run,
         resources.log_path,
         echo,
+        resources.plan_reader,
+        inputs.state_access,
     )
     return DiscoveryRun(
         inputs.state_access,

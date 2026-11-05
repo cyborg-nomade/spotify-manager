@@ -6,6 +6,7 @@ from pathlib import Path
 from spotify_manager.application.ports.discovery import (
     DiscoveryInteraction as DiscoveryInteraction,
 )
+from spotify_manager.application.ports.new_kids_plans import ReleasePlanReader
 from spotify_manager.core.state import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.routines.scrobble_history import LastFmReader
@@ -51,6 +52,7 @@ class DiscoveryResources:
         scrobbles_path: Canonical history export.
         lastfm: Optional history reader, also used for previews.
         lastfm_username: Expected history account when a reader is supplied.
+        plan_reader: Optional explicit release-plan editor for new transfers.
     """
 
     state_path: Path = FILES_DIR / "new_kids_state.json"
@@ -62,6 +64,7 @@ class DiscoveryResources:
     scrobbles_path: Path = FILES_DIR / "lastfmstats-man-et-arms.json"
     lastfm: LastFmReader | None = None
     lastfm_username: str | None = None
+    plan_reader: ReleasePlanReader | None = None
 
 
 @dataclass(frozen=True)

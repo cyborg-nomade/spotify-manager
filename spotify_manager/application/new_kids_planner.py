@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from spotify_manager.application.composer_routes import ReleaseChoiceReader
 from spotify_manager.application.discovery_observations import DiscoveryObservations
+from spotify_manager.application.new_kids_plan_records import saved_plan
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import NewKidsError
@@ -16,6 +17,7 @@ from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.discovery_history import review_catalog
 from spotify_manager.domain.discovery_progression import next_release_options
+from spotify_manager.domain.new_kids_plans import ReleasePlan
 from spotify_manager.domain.progression import advance_streak
 from spotify_manager.domain.progression import next_liked_track
 from spotify_manager.domain.progression import trailing_unliked
@@ -99,6 +101,8 @@ class NewKidsPlanner:
         Raises:
             NewKidsError: The selected release is unavailable or has no primary tracks.
         """
+        pinned = saved_plan(context.progress)
+        _validate_pinned_source(context, pinned)
         facts = await self._facts(context)
         target, reason = await self._next_track(facts)
         if target is not None:
@@ -109,6 +113,8 @@ class NewKidsPlanner:
         evaluation = evaluate_catalog_release(
             context.release, context.tracks, self.observations.liked
         )
+        if pinned is not None:
+            return await self._planned_boundary(facts, evaluation, pinned)
         catalog = review_catalog(context.catalog, self.observations.release_limit)
         played = await self.observations.played(catalog)
         await self._record_history(facts, played)
@@ -120,6 +126,24 @@ class NewKidsPlanner:
         return await self._select_release(
             facts, evaluation, options[:10], len(played) + 1
         )
+
+    async def _planned_boundary(
+        self, facts: ReviewFacts, evaluation: AlbumEvaluation, pinned: ReleasePlan
+    ) -> dict[str, object]:
+        position = pinned.position + 1
+        if position == len(pinned.releases):
+            return await self._finish(facts, evaluation)
+        release = pinned.releases[position]
+        tracks = await self.observations.tracks(release)
+        target = _primary_track(tracks, facts.context.artist_id)
+        if target is None:
+            raise NewKidsError(
+                f"Planned release {release.name} is unavailable or has no "
+                "playable primary-artist tracks. The saved plan was retained."
+            )
+        plan = _next_release_plan(facts, release, target, evaluation, position + 1)
+        plan["release_plan_position"] = position
+        return plan
 
     async def _facts(self, context: ReviewSource) -> ReviewFacts:
         await self.observations.memberships([context.source.spotify_id])
@@ -236,6 +260,23 @@ class NewKidsPlanner:
             action="skip",
             dry_run=self.dry_run,
         )
+
+
+def _validate_pinned_source(context: ReviewSource, pinned: ReleasePlan | None) -> None:
+    if pinned is None:
+        return
+    current = pinned.releases[pinned.position].spotify_id
+    identities = {track.spotify_id for track in context.primary_tracks}
+    matches = (
+        context.source.release.spotify_id == current
+        or context.source.spotify_id in identities
+    )
+    if context.source_index is not None and matches:
+        return
+    raise NewKidsError(
+        "The current marker does not match the saved release plan. "
+        "Restore a track from the planned album before continuing."
+    )
 
 
 def _advance_plan(

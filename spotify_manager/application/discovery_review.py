@@ -11,6 +11,7 @@ from spotify_manager.application.composer_progression import composer_step
 from spotify_manager.application.composer_routes import resolve_composer_route
 from spotify_manager.application.discovery_completion import ReviewArtist
 from spotify_manager.application.new_kids_execution import NewKidsExecution
+from spotify_manager.application.new_kids_plan_records import saved_plan
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.new_kids_planner import ReviewSource
 from spotify_manager.application.new_kids_state import artist_progress
@@ -188,6 +189,8 @@ class DiscoveryReview:
                 await self._discard(entry)
         if plan is not None:
             return plan
+        if saved_plan(entry.progress) is not None:
+            return None
         return await self._composer(entry)
 
     def _valid_composer(self, artist: str, playlist: str) -> bool:
@@ -255,6 +258,9 @@ class DiscoveryReview:
         observations = self.planner.observations
         catalog = await observations.catalog(entry.artist.identifier)
         release = _current_release(entry.source, entry.artist, catalog)
+        pinned = saved_plan(entry.progress)
+        if pinned is not None:
+            release = pinned.releases[pinned.position]
         if all(candidate.identity != release.identity for candidate in catalog):
             catalog = (release, *catalog)
         tracks = await observations.tracks(release)

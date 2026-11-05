@@ -2128,6 +2128,29 @@
           "choice": {
             "title": "Choice",
             "type": "string"
+          },
+          "confirm_short": {
+            "default": false,
+            "title": "Confirm Short",
+            "type": "boolean"
+          },
+          "release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Release Ids",
+            "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
@@ -2167,12 +2190,54 @@
             "title": "Artist",
             "type": "string"
           },
+          "kind": {
+            "default": "release",
+            "enum": [
+              "release",
+              "release_plan"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice"
+          },
+          "queue_album": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Album"
+          },
           "releases": {
             "items": {
               "$ref": "#/components/schemas/NewKidsReleaseOption"
             },
             "title": "Releases",
             "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [

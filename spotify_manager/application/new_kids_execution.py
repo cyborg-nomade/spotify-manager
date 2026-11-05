@@ -181,6 +181,9 @@ class NewKidsExecution:
             transition.plan.get("next_prior_unliked_streak")
         )
         progress["updated_at"] = self.clock.now().isoformat()
+        pinned = progress.get("release_plan")
+        if isinstance(pinned, dict) and "release_plan_position" in transition.plan:
+            pinned["position"] = transition.plan["release_plan_position"]
         routes = self.state.get("composer_routes")
         if not isinstance(routes, dict) or not transition.plan.get(
             "composer_playlist_id"

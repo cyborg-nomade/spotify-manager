@@ -6,6 +6,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.interfaces.http import jobs
 from spotify_manager.interfaces.http.models.discovery import NewKidsChoiceRequest
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
+from spotify_manager.interfaces.http.new_kids_plans import accept_release_plan
 from spotify_manager.interfaces.http.validation import option_ids
 from spotify_manager.interfaces.operations import new_kids as new_kids
 
@@ -70,6 +71,9 @@ def cmd_choose_queue_2_release(
                 status_code=409,
                 detail="Queue 2 job is not waiting for a release choice",
             )
+        if pending.kind == "release_plan":
+            accept_release_plan(job, pending, request)
+            return jobs._blast_job_snapshot(job)
         allowed = {
             new_kids.CHOICE_SKIP,
             new_kids.CHOICE_QUIT,

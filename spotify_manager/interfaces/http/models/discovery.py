@@ -24,6 +24,10 @@ class NewKidsPendingChoice(BaseModel):
 
     artist: str
     releases: list[NewKidsReleaseOption] = Field(default_factory=list)
+    kind: Literal["release", "release_plan"] = "release"
+    request_id: str | None = None
+    queue_album: str | None = None
+    notice: str | None = None
 
 
 class NewKidsTrackResult(BaseModel):
@@ -59,6 +63,9 @@ class NewKidsChoiceRequest(BaseModel):
     """Release or control choice submitted to a waiting New Kids job."""
 
     choice: str
+    release_ids: list[str] = Field(default_factory=list)
+    confirm_short: bool = False
+    request_id: str | None = None
 
 
 class Queue3ReleaseOption(BaseModel):
