@@ -18,17 +18,22 @@ class DiscographyReleaseOption(BaseModel):
     total_tracks: int
     saved: bool
     default: bool
+    artists: list[str] = Field(default_factory=list)
+    linked: bool = False
 
 
 class DiscographyPendingChoice(BaseModel):
     """Current release checklist or final confirmation shown by the web client."""
 
-    kind: Literal["artist", "releases", "confirm"]
+    kind: Literal["artist", "releases", "release_review", "confirm"]
     artist: str | None = None
     queue: str | None = None
     artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
     releases: list[DiscographyReleaseOption] = Field(default_factory=list)
     default_release_ids: list[str] = Field(default_factory=list)
+    request_id: str | None = None
+    remaining_slots: int | None = None
+    notices: list[str] = Field(default_factory=list)
 
 
 class DiscographyArtistResult(BaseModel):
@@ -40,6 +45,7 @@ class DiscographyArtistResult(BaseModel):
     releases: int
     days: float
     release_names: list[str] = Field(default_factory=list)
+    release_ids: list[str] = Field(default_factory=list)
 
 
 class DiscographyChoiceRequest(BaseModel):
@@ -47,3 +53,5 @@ class DiscographyChoiceRequest(BaseModel):
 
     choice: str
     release_ids: list[str] = Field(default_factory=list)
+    album_references: list[str] = Field(default_factory=list)
+    request_id: str | None = None

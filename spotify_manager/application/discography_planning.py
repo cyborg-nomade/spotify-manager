@@ -9,6 +9,7 @@ from spotify_manager.application.discography_catalog import DiscographyCatalog
 from spotify_manager.application.discography_history import DiscographyArtistMapping
 from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_queues import DiscographyQueues
+from spotify_manager.application.discography_review import DiscographyReleaseReview
 from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.discography_batches import next_queue
@@ -65,6 +66,7 @@ class DiscographyReads:
         catalog: Original complete catalog reader.
         choose: Original release-selection interaction.
         progress: Original optional stage presenter.
+        review: Optional editable release-review stage for web/CLI runs.
     """
 
     state: PriorityState
@@ -74,6 +76,7 @@ class DiscographyReads:
     catalog: DiscographyCatalog
     choose: ReleaseSelector
     progress: Messages
+    review: DiscographyReleaseReview | None = None
 
 
 @dataclass
@@ -196,11 +199,17 @@ class DiscographyPlanning:
         self.catalogs[candidate.spotify_id] = catalog
         return catalog
 
-    async def _choose(self, candidate: QueueArtist) -> tuple[CatalogRelease, ...]:
+    async def _choose(
+        self, candidate: QueueArtist, remaining: int | None = None
+    ) -> tuple[CatalogRelease, ...]:
         cached = self.choices.get(candidate.spotify_id)
         if cached is not None:
             return cached
         catalog = await self._catalog(candidate)
+        if self.reads.review is not None:
+            reviewed = await self.reads.review.run(candidate, catalog, remaining)
+            self.choices[candidate.spotify_id] = reviewed
+            return reviewed
         identities = await self.reads.choose.select_releases(candidate, catalog)
         releases = selected_releases(catalog, identities)
         if releases is None:
@@ -211,5 +220,15 @@ class DiscographyPlanning:
         return releases
 
     async def _fits(self, candidate: QueueArtist, remaining: int) -> bool:
+        if self.reads.review is not None:
+            releases = await self._choose(candidate, remaining)
+            if not releases:
+                self.declined.add(candidate.spotify_id)
+            if len(releases) > remaining:
+                self.reads.progress.echo(
+                    f"{candidate.name}: {len(releases)} selected releases exceed "
+                    f"the {remaining} remaining slots; checking the next artist."
+                )
+            return 0 < len(releases) <= remaining
         defaults = sum(release.default for release in (await self._catalog(candidate)))
         return 0 < defaults <= remaining

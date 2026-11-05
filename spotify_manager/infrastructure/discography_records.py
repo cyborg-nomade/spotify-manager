@@ -1,17 +1,61 @@
 """Parse original Spotify catalog facts without importing routine business helpers."""
 
+from dataclasses import replace
+
 from spotify_manager.application.discography_catalog import DiscographyPage
+from spotify_manager.application.discography_values import DiscographyAlbumError
 from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.domain.discography_catalog import (
     COMPILATION_PATTERN as COMPILATION_PATTERN,
 )
 from spotify_manager.domain.discography_catalog import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.discography_catalog import catalog_type
+from spotify_manager.domain.discography_links import ReviewRelease
 from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.domain.releases import edition_details
 from spotify_manager.domain.releases import release_identity
 from spotify_manager.infrastructure.studio_records import artist_pairs
 from spotify_manager.infrastructure.studio_records import studio_release
+
+
+def linked_release(raw: object, identity: str) -> ReviewRelease:
+    """Parse an explicit edition without fetched-catalog artist/type filters.
+
+    Args:
+        raw: Spotify's exact album response.
+        identity: Requested validated album identity.
+
+    Returns:
+        Exact edition and actual credits, including singles or other artists.
+
+    Raises:
+        DiscographyAlbumError: Metadata is invalid or availability restricted.
+    """
+    if not isinstance(raw, dict) or raw.get("id") != identity:
+        raise DiscographyAlbumError("Spotify returned no matching album metadata.")
+    artists = artist_pairs(raw.get("artists"))
+    name, total = raw.get("name"), raw.get("total_tracks")
+    if not artists or not isinstance(name, str) or not name.strip():
+        raise DiscographyAlbumError("Spotify returned incomplete album metadata.")
+    if type(total) is not int or total <= 0:
+        raise DiscographyAlbumError("This album has no available tracks.")
+    if raw.get("is_playable") is False or raw.get("restrictions"):
+        raise DiscographyAlbumError(
+            "This album is unavailable in this account's market."
+        )
+    album_type = raw.get("album_type")
+    if not isinstance(album_type, str) or album_type not in {
+        "album",
+        "single",
+        "compilation",
+        "ep",
+    }:
+        raise DiscographyAlbumError("Spotify returned an invalid album type.")
+    standard = studio_release(raw, artists[0][0])
+    kind = _kind(raw, name, total, standard.release_type if standard else None)
+    release = _record(raw, identity, name.strip(), total, kind or "Single", False)
+    release = replace(release, uri=f"spotify:album:{identity}")
+    return ReviewRelease(release, tuple(name for _, name in artists), True)
 
 
 def positive_int(value: object) -> int:

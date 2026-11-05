@@ -10,11 +10,16 @@ from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_planning import DiscographyPlanning
 from spotify_manager.application.discography_planning import DiscographyReads
 from spotify_manager.application.discography_queues import DiscographyQueues
+from spotify_manager.application.discography_review import DiscographyReleaseReview
+from spotify_manager.application.ports.discography_review import DiscographyReviewReader
 from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.discography_values import QueueName
+from spotify_manager.infrastructure.discography_linked_albums import (
+    DiscographyLinkedAlbums,
+)
 from spotify_manager.infrastructure.discography_observations import (
     DiscographyArtistCatalog,
 )
@@ -115,6 +120,7 @@ def planning(
     progress: legacy.ProgressCallback | None,
     state_path: Path,
     service: StateService | None,
+    review_reader: DiscographyReviewReader | None = None,
 ) -> DiscographyPlanning:
     """Bind original preflight, lazy fallback, catalog and interaction seams.
 
@@ -131,6 +137,7 @@ def planning(
         progress: Original optional progress presenter.
         state_path: Original priority location.
         service: Original optional shared service.
+        review_reader: Optional editable checklist and album-addition interaction.
 
     Returns:
         Original complete synchronous planning use case.
@@ -144,8 +151,17 @@ def planning(
         catalog_stage(spotify, caller_retry),
         selector,
         OptionalMessages(progress),
+        _release_review(spotify, caller_retry, review_reader),
     )
     return DiscographyPlanning(reads, legacy.WEEK_RELEASES)
+
+
+def _release_review(
+    spotify: Spotify, retry: legacy.RetryCall, reader: DiscographyReviewReader | None
+) -> DiscographyReleaseReview | None:
+    if reader is None:
+        return None
+    return DiscographyReleaseReview(DiscographyLinkedAlbums(spotify, retry), reader)
 
 
 def execution(

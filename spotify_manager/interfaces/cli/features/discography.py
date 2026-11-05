@@ -11,9 +11,13 @@ from rich.status import Status
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.discography_review import ReleaseReviewDraft
+from spotify_manager.application.ports.discography_review import ReleaseReviewSubmission
 from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.domain.discography_links import split_album_references
 from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.infrastructure.cli_cancellation import CliInterruptedError
+from spotify_manager.infrastructure.cli_cancellation import check_cli_interruption
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.features.something_old import SomethingOldCLI
@@ -44,6 +48,89 @@ class DiscographyCLI:
     display: ConsoleDisplay
     historical_artists: SomethingOldCLI
     sleep: Wait
+
+    async def _review_discography_draft(
+        self, draft: ReleaseReviewDraft
+    ) -> ReleaseReviewSubmission:
+        status = self._plan_discographies_status_ref
+        if status is not None:
+            status.stop()
+        try:
+            return await self._read_discography_draft(draft)
+        finally:
+            if status is not None:
+                status.start()
+
+    async def _read_discography_draft(
+        self, draft: ReleaseReviewDraft
+    ) -> ReleaseReviewSubmission:
+        self._show_discography_draft(draft)
+        indexes = _selected_indexes(draft)
+        default = discography.format_release_indexes(indexes)
+        while True:
+            response = (
+                await TerminalPrompt(self.display.prompt).ask(
+                    "Release numbers/ranges / [a]dd album links / [n]one / [q]uit",
+                    default=default,
+                    console=self._plan_discographies_console,
+                )
+            ).strip()
+            if response.casefold() == "q":
+                return ReleaseReviewSubmission("quit")
+            if response.casefold() == "n":
+                return ReleaseReviewSubmission("none")
+            if response.casefold() == "a":
+                return await self._read_discography_links(draft)
+            try:
+                indexes = discography.parse_release_indexes(
+                    response, len(draft.entries)
+                )
+            except ValueError:
+                self._plan_discographies_console.print(
+                    "Enter valid release numbers.", markup=False
+                )
+                continue
+            identities = []
+            for index in indexes:
+                identities.append(draft.entries[index - 1].release.spotify_id)
+            return ReleaseReviewSubmission("select", tuple(identities))
+
+    async def _read_discography_links(
+        self, draft: ReleaseReviewDraft
+    ) -> ReleaseReviewSubmission:
+        text = await TerminalPrompt(self.display.prompt).ask(
+            "Spotify album links/URIs (separate with spaces or commas)",
+            default="",
+            console=self._plan_discographies_console,
+        )
+        return ReleaseReviewSubmission(
+            "add", draft.selected_ids, split_album_references(text)
+        )
+
+    def _show_discography_draft(self, draft: ReleaseReviewDraft) -> None:
+        console = self._plan_discographies_console
+        table = self.display.create_table(
+            title=f"Review releases for {draft.artist.name}"
+        )
+        for column in ("#", "Release", "Type / date", "Tracks", "Credits", "Selected"):
+            table.add_column(column)
+        for index, entry in enumerate(draft.entries, start=1):
+            release = entry.release
+            table.add_row(
+                str(index),
+                self.display.create_text(release.name),
+                f"{release.release_type} · {release.chronology_date}",
+                str(release.total_tracks),
+                self.display.create_text(", ".join(entry.artists) or draft.artist.name),
+                "yes" if release.spotify_id in draft.selected_ids else "-",
+            )
+        console.print(table)
+        if draft.remaining is not None:
+            console.print(
+                f"{draft.remaining} release slots remain in this week.", markup=False
+            )
+        for notice in draft.notices:
+            console.print(notice, markup=False)
 
     async def _prompt_discography_release_selection(
         self,
@@ -359,6 +446,7 @@ class DiscographyCLI:
                 historical_artist_choice_reader=PlanDiscographiesInteraction(self),
                 retry_call=PlanDiscographiesInteraction(self),
                 progress_callback=StatusOutput(self._plan_discographies_status),
+                review_reader=PlanDiscographiesInteraction(self),
             )
         self._render_discography_plan(self._plan_discographies_console, plan)
         if not (await self._confirm_plan(plan, dry_run)):
@@ -416,6 +504,27 @@ class PlanDiscographiesInteraction:
 
     owner: DiscographyCLI
 
+    async def review_releases(
+        self, draft: ReleaseReviewDraft
+    ) -> ReleaseReviewSubmission:
+        """Read an editable checklist using the owning terminal command.
+
+        Args:
+            draft: Current exact options and addition feedback.
+
+        Returns:
+            One edit, selection or cancellation.
+        """
+        return await self.owner._review_discography_draft(draft)
+
+    def check(self) -> None:
+        """Observe terminal interruption at the read-only review boundary.
+
+        Raises:
+            CliInterruptedError: The command was interrupted.
+        """
+        check_cli_interruption()
+
     def attempts(self, description: str) -> Iterator[AbstractAsyncContextManager[None]]:
         """Open the original retry boundary for a directly executed operation.
 
@@ -470,3 +579,11 @@ class PlanDiscographiesInteraction:
         return await self.owner._plan_discographies_ask_something_old_artist(
             artist_name, candidates
         )
+
+
+def _selected_indexes(draft: ReleaseReviewDraft) -> tuple[int, ...]:
+    selected = []
+    for index, entry in enumerate(draft.entries, start=1):
+        if entry.release.spotify_id in draft.selected_ids:
+            selected.append(index)
+    return tuple(selected)

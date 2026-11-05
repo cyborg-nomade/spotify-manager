@@ -34,6 +34,7 @@ class PlaylistJob:
         cancel_event: Cancellation request observed at existing safe boundaries.
         submitted_choice: Accepted choice token awaiting worker consumption.
         submitted_order: Accepted ordered release IDs awaiting consumption.
+        submitted_references: Discography album links awaiting resolution.
     """
 
     result: BlastJobResult
@@ -42,3 +43,4 @@ class PlaylistJob:
     cancel_event: Event = field(default_factory=Event)
     submitted_choice: str | None = None
     submitted_order: tuple[str, ...] | None = None
+    submitted_references: tuple[str, ...] | None = None

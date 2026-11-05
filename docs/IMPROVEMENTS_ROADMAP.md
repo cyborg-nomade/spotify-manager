@@ -197,6 +197,11 @@ order, and transfer choices preserve capacity and duplicate handling.
 
 ## Item 10: add album links to Discographies
 
+**Status:** implemented and verified; awaiting owner review on
+`codex/item10-discography-album-links`. The
+[implementation and review guide](improvements/10_DISCOGRAPHY_ALBUM_LINKS.md)
+records exact-edition selection, packing, validation and isolated previews.
+
 Before confirming an artist's releases, allow multiple Spotify album links/URIs.
 Resolve and display metadata; allow explicit inclusion outside the fetched
 catalogue. Preserve selected edition IDs, deduplicate appropriately, and

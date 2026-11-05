@@ -187,6 +187,8 @@
   .track-match-options a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   #requeueForADreamCard .new-wine-choice a { color: var(--yellow); }
   #newWineCard .new-wine-choice a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
+  #discographyCard a { color: var(--yellow); }
+  .discography-links { display: block; width: 100%; min-height: 70px; margin: 8px 0; resize: vertical; font: inherit; }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
@@ -3809,6 +3811,12 @@
     var out = document.getElementById("discographyProgress");
     var start = document.querySelector('[data-action="startDiscography"]');
     var cancel = document.querySelector('[data-action="cancelDiscography"]');
+    document.getElementById("discographyDryRun").disabled = isAnalysisActive(job.status);
+    var draftChoice = job.discography_pending_choice;
+    var draftIdentity = draftChoice && draftChoice.kind === "release_review" && job.status === "waiting"
+      ? job.job_id + "|" + draftChoice.request_id : "";
+    if (draftIdentity && out.dataset.discographyDraft === draftIdentity) return;
+    out.dataset.discographyDraft = draftIdentity;
     var previousChoiceKey = out.dataset.discographyChoiceKey || "";
     var previousReleaseIds = new Set(
       Array.prototype.slice.call(
@@ -3839,9 +3847,14 @@
     var results = (job.discography_results || []).map(function (item) {
       return '<div class="blast-selection"><div class="blast-selection-title">' +
         esc(item.artist) + '</div><div class="blast-selection-match">' +
-        esc(item.queue + ' · ' + item.releases + ' releases · ' + item.days + ' days') +
+        esc(item.queue + ' · ' + item.releases + (item.releases === 1 ? ' release · ' : ' releases · ') +
+          item.days + (item.days === 1 ? ' day' : ' days')) +
         '</div><div class="blast-selection-meta">' +
-        esc((item.release_names || []).join(' · ')) + '</div></div>';
+        (item.release_names || []).map(function (name, index) {
+          var id = (item.release_ids || [])[index];
+          return id ? '<a href="https://open.spotify.com/album/' + esc(id) +
+            '" target="_blank" rel="noopener">' + esc(name) + '</a>' : esc(name);
+        }).join(' · ') + '</div></div>';
     }).join("");
 
     var pending = "";
@@ -3866,7 +3879,7 @@
         '<div class="btns">' + artistRows +
         '<button class="danger" data-action="discographyChoice" ' +
           'data-choice="quit">Quit</button></div></div>';
-    } else if (choice && choice.kind === "releases") {
+    } else if (choice && (choice.kind === "releases" || choice.kind === "release_review")) {
       var defaults = new Set(choice.default_release_ids || []);
       choiceKey = job.job_id + ":" + (choice.artist || "") + ":" +
         (choice.releases || []).map(function (release) {
@@ -3883,17 +3896,35 @@
           '<span class="new-wine-option-meta">' + esc(release.release_type) +
           ' · ' + esc(release.release_date) + ' · ' + esc(release.total_tracks) +
           ' tracks' + (release.saved ? ' · saved' : '') +
-          (release.default ? ' · default' : '') + '</span></span></label>';
+          (release.default ? ' · default' : '') +
+          (release.linked ? ' · added by link' : '') +
+          (release.artists && release.artists.length ? ' · ' + esc(release.artists.join(', ')) : '') +
+          '</span><a href="https://open.spotify.com/album/' + esc(release.spotify_id) +
+          '" target="_blank" rel="noopener">Open in Spotify</a></span></label>';
       }).join("");
+      var requestAttribute = choice.request_id ? ' data-request-id="' + esc(choice.request_id) + '"' : '';
+      var additions = choice.kind === "release_review"
+        ? '<div class="playlist-dates">' +
+          (typeof choice.remaining_slots === "number" ? esc(choice.remaining_slots) +
+            (choice.remaining_slots === 1 ? ' release slot remains in this week. ' : ' release slots remain in this week. ') : '') +
+          'Add album links before confirming this artist.</div>' +
+          (choice.notices || []).map(function (notice) {
+            return '<div class="playlist-dates" role="status">' + esc(notice) + '</div>';
+          }).join('') +
+          '<label for="discographyAlbumLinks">Spotify album links or URIs</label>' +
+          '<textarea class="discography-links" id="discographyAlbumLinks" placeholder="Paste one or more album links or URIs"></textarea>' +
+          '<button class="ghost" data-action="addDiscographyAlbums"' + requestAttribute + '>Add albums</button>'
+        : '';
       pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
         esc(choice.artist) + ' · ' + esc(choice.queue) + '</div>' +
         '<div class="slow-listening-order">' + rows + '</div>' +
+        '<div class="playlist-dates" id="discographySelectedCount" aria-live="polite"></div>' + additions +
         '<div class="btns"><button class="primary" ' +
-          'data-action="submitDiscographyReleases">Use selected releases</button>' +
+          'data-action="submitDiscographyReleases"' + requestAttribute + '>Use selected releases</button>' +
         '<button class="ghost" data-action="discographyChoice" ' +
-          'data-choice="none">No releases</button>' +
+          'data-choice="none"' + requestAttribute + '>No releases</button>' +
         '<button class="danger" data-action="discographyChoice" ' +
-          'data-choice="quit">Quit</button></div></div>';
+          'data-choice="quit"' + requestAttribute + '>Quit</button></div></div>';
     } else if (choice && choice.kind === "confirm") {
       pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
         'Remove the planned artists from their source queues and Queue 3 where applicable?</div>' +
@@ -3934,6 +3965,7 @@
       delete out.dataset.discographyChoiceKey;
     }
     out.classList.add("show");
+    updateDiscographySelectionCount();
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
     var active = isAnalysisActive(job.status);
@@ -3947,6 +3979,13 @@
     } else {
       setBusy(start, false);
     }
+  }
+
+  function updateDiscographySelectionCount() {
+    var out = document.getElementById("discographySelectedCount");
+    if (!out) return;
+    var count = document.querySelectorAll("#discographyProgress [data-discography-release-id]:checked").length;
+    out.textContent = count + " selected · " + (count / 2) + (count === 2 ? " day" : " days");
   }
 
   async function pollDiscographyJob(jobId) {
@@ -5173,6 +5212,7 @@
             json: {
               choice: selected.length ? "select" : "none",
               release_ids: selected,
+              request_id: btn.dataset.requestId || null,
             },
           }
         );
@@ -5183,6 +5223,26 @@
       }
     },
 
+    async addDiscographyAlbums(btn) {
+      if (!discographyJob || !discographyJob.job_id) return;
+      var field = document.getElementById("discographyAlbumLinks");
+      var references = field.value.trim().split(/[\s,;]+/).filter(Boolean);
+      if (!references.length) { showToast("Enter one or more Spotify album links", "err"); return; }
+      var selected = Array.prototype.slice.call(
+        document.querySelectorAll("#discographyProgress [data-discography-release-id]:checked")
+      ).map(function (input) { return input.dataset.discographyReleaseId; });
+      btn.disabled = true;
+      try {
+        var job = await api("/commands/plan-discographies-jobs/" + discographyJob.job_id + "/choice", {
+          method: "POST", json: {choice:"add", release_ids:selected, album_references:references, request_id:btn.dataset.requestId},
+        });
+        renderDiscographyJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not add album links", "err");
+      }
+    },
+
     async discographyChoice(btn) {
       if (!discographyJob || !discographyJob.job_id) return;
       btn.disabled = true;
@@ -5190,7 +5250,7 @@
         var job = await api(
           "/commands/plan-discographies-jobs/" +
             discographyJob.job_id + "/choice",
-          { method: "POST", json: { choice: btn.dataset.choice } }
+          { method: "POST", json: { choice: btn.dataset.choice, request_id: btn.dataset.requestId || null } }
         );
         renderDiscographyJob(job);
       } catch (e) {
@@ -5900,6 +5960,10 @@
     if (!btn) return;
     var fn = actions[btn.dataset.action];
     if (fn) fn(btn);
+  });
+
+  document.getElementById("app").addEventListener("change", function (ev) {
+    if (ev.target.matches("[data-discography-release-id]")) updateDiscographySelectionCount();
   });
 
   document.getElementById("stateNamespaceSelect").addEventListener("change", function () {
