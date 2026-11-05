@@ -24,6 +24,7 @@ from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.wine_cellar import CellarOptions
 from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.domain.catalog import PlaylistTrack
+from spotify_manager.domain.new_wine import starts_new_record
 
 
 @dataclass(frozen=True)
@@ -240,6 +241,7 @@ class NewWineRun:
         resumed: Whether an existing active run was selected.
         results: Results produced in this invocation.
         paused: Whether the operator requested a pause.
+        deferred: Accepted new-record entries awaiting within-record advances.
     """
 
     options: NewWineOptions
@@ -253,6 +255,7 @@ class NewWineRun:
     resumed: bool
     results: list[FlushResult] = field(default_factory=list)
     paused: bool = False
+    deferred: list[dict[str, object]] = field(default_factory=list)
 
     async def execute(self) -> FlushSummary:
         """Process entries, then refill and mark completion at the original boundaries.
@@ -264,7 +267,11 @@ class NewWineRun:
             if not (await self._review(_entry(raw), index)):
                 self.paused = True
                 break
+        if not self.paused:
+            await self._new_records()
         refill = await self._refill()
+        if refill is not None and refill.paused:
+            self.paused = True
         await self._finish()
         return self._summary(refill)
 
@@ -282,10 +289,31 @@ class NewWineRun:
             plan = decision
             entry["plan"] = plan
             await self.execution.checkpoint()
+        if starts_new_record(source, plan):
+            self.deferred.append(entry)
+            return True
+        await self._apply(entry, plan, index)
+        return True
+
+    async def _apply(
+        self, entry: dict[str, object], plan: dict[str, object], index: int
+    ) -> None:
+        source = source_from_record(entry.get("source"))
         result = await self.execution.execute(source, entry, plan)
         await self._record(result)
         self._progress(index, f"Completed {source.name}")
-        return True
+
+    async def _new_records(self) -> None:
+        if self.deferred:
+            await self.execution.refresh_destination()
+        for entry in self.deferred:
+            source = source_from_record(entry.get("source"))
+            self._progress(
+                len(self.results),
+                f"Starting a new record for {source.primary_artist_name}",
+            )
+            plan = cast(dict[str, object], entry["plan"])
+            await self._apply(entry, plan, len(self.results) + 1)
 
     async def _skip_or_pause(
         self, entry: dict[str, object], result: FlushResult | None

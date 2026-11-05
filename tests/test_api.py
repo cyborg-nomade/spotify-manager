@@ -2008,6 +2008,11 @@ def test_new_wine_web_job_accepts_canonical_album_endpoint(
         "total_tracks": 8,
         "terminal_release": False,
         "releases": [],
+        "request_id": None,
+        "spotify_id": None,
+        "release_id": None,
+        "liked_tracks": None,
+        "saved_albums": None,
     }
     response = client.post(
         f"/commands/flush-new-wine-jobs/{job_id}/choice",
@@ -4654,6 +4659,7 @@ class NewWineWebJobWaitsForAndAppliesReleaseChoiceScenario:
             "removed_from_cellar": 2,
             "ineligible": 1,
             "no_discovery": True,
+            "paused": False,
             "results": [
                 {
                     "artist": "Known Artist",

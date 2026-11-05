@@ -56,6 +56,7 @@ def new_wine_refill_result(
         ineligible=refill.ineligible,
         no_discovery=refill.no_discovery,
         results=_cellar_track_results(refill.results),
+        paused=refill.paused,
     )
 
 

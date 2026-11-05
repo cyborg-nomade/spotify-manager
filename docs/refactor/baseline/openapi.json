@@ -2372,6 +2372,17 @@
           "choice": {
             "title": "Choice",
             "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
@@ -2391,10 +2402,22 @@
             "default": "release",
             "enum": [
               "release",
-              "album_endpoint"
+              "album_endpoint",
+              "cellar_transfer"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "liked_tracks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liked Tracks"
           },
           "release": {
             "anyOf": [
@@ -2407,6 +2430,17 @@
             ],
             "title": "Release"
           },
+          "release_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Id"
+          },
           "releases": {
             "items": {
               "$ref": "#/components/schemas/NewWineReleaseOption"
@@ -2414,9 +2448,42 @@
             "title": "Releases",
             "type": "array"
           },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "saved_albums": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Albums"
+          },
           "source_track": {
             "title": "Source Track",
             "type": "string"
+          },
+          "spotify_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spotify Id"
           },
           "terminal_release": {
             "default": false,
@@ -2474,6 +2541,11 @@
           },
           "no_discovery": {
             "title": "No Discovery",
+            "type": "boolean"
+          },
+          "paused": {
+            "default": false,
+            "title": "Paused",
             "type": "boolean"
           },
           "removed_from_cellar": {

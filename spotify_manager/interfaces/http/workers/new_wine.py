@@ -7,11 +7,13 @@ from dataclasses import field
 from datetime import UTC
 from datetime import timedelta
 from typing import cast
+from uuid import uuid4
 
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.cellar_review import TransferChoice
 from spotify_manager.application.ports.spotify_client import SpotifyClient as Spotify
 from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
@@ -172,6 +174,51 @@ class NewWineWorker:
             self.context.append(self.job, self.job.result.detail)
         return await await_submission(self.job.choice_event, EndpointSubmission(self))
 
+    async def choose_transfer(
+        self, source: new_wine.PlaylistTrack, liked: int | None, albums: int | None
+    ) -> TransferChoice:
+        """Confirm one eligible no-discovery transfer with a fresh proposal identity.
+
+        Args:
+            source: Candidate cellar marker with its release and artist.
+            liked: Observed liked-track count, if counted.
+            albums: Observed saved-album count, if counted.
+
+        Returns:
+            Accept, skip or quit submitted for this exact proposal.
+        """
+        with self.context.lock:
+            self.check()
+            self.job.submitted_choice = None
+            self.job.choice_event.clear()
+            self.job.result.pending_choice = NewWinePendingChoice(
+                kind="cellar_transfer",
+                request_id=uuid4().hex,
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                release=source.release.name,
+                release_id=source.release.spotify_id,
+                spotify_id=source.spotify_id,
+                liked_tracks=liked,
+                saved_albums=albums,
+            )
+            self.job.result.status = "waiting"
+            self.job.result.detail = (
+                f"Transfer {source.primary_artist_name} from Wine Cellar?"
+            )
+            self.context.append(self.job, self.job.result.detail)
+        choice = await await_submission(self.job.choice_event, self)
+        return cast(TransferChoice, choice)
+
+    def check(self) -> None:
+        """Stop at a transfer boundary when this job has been cancelled.
+
+        Raises:
+            _NewWineJobCancelledError: This job's cancellation was requested.
+        """
+        if self.job.cancel_event.is_set():
+            raise _NewWineJobCancelledError
+
     async def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
@@ -220,6 +267,7 @@ class NewWineWorker:
                 output=self,
                 progress=self,
                 retry=self,
+                transfer=self,
             ),
             storage=NewWineStorage(),
         )

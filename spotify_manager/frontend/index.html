@@ -186,6 +186,7 @@
   #somethingOldCard .new-wine-options .new-wine-option-meta { color: inherit; }
   .track-match-options a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   #requeueForADreamCard .new-wine-choice a { color: var(--yellow); }
+  #newWineCard .new-wine-choice a { display: inline-block; padding: 6px 0; color: var(--yellow); font-size: .72rem; }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
@@ -3044,6 +3045,13 @@
     document.getElementById("newWineDryRun").checked = Boolean(job.dry_run);
     document.getElementById("newWineNoDiscovery").checked = Boolean(job.no_discovery);
     document.getElementById("newWineChooseEndpoints").checked = Boolean(job.choose_album_endpoints);
+    ["newWineDryRun", "newWineNoDiscovery", "newWineChooseEndpoints"].forEach(function (id) {
+      document.getElementById(id).disabled = isAnalysisActive(job.status);
+    });
+    var choiceIdentity = job.pending_choice && job.status === "waiting"
+      ? job.job_id + "|" + JSON.stringify(job.pending_choice) : "";
+    if (choiceIdentity && out.dataset.newWineChoice === choiceIdentity) return;
+    out.dataset.newWineChoice = choiceIdentity;
     var processed = typeof job.processed === "number" ? job.processed : 0;
     var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
     var pct = total === null ? null : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
@@ -3109,7 +3117,9 @@
     }).join("");
     var pending = "";
     if (job.pending_choice) {
-      if (job.pending_choice.kind === "album_endpoint") {
+      if (job.pending_choice.kind === "cellar_transfer") {
+        pending = renderCellarTransfer(job.pending_choice);
+      } else if (job.pending_choice.kind === "album_endpoint") {
         pending = '<div class="new-wine-choice">' +
           '<div class="new-wine-choice-title">Last canonical track?</div>' +
           '<div class="blast-selection-match">' + esc(job.pending_choice.artist) + ' · ' +
@@ -3180,6 +3190,25 @@
     } else {
       setBusy(start, false);
     }
+  }
+
+  function renderCellarTransfer(choice) {
+    var counts = [];
+    if (typeof choice.liked_tracks === "number") counts.push(choice.liked_tracks + " liked tracks");
+    if (typeof choice.saved_albums === "number") counts.push(choice.saved_albums + " saved albums");
+    var buttons = [["accept", "Accept transfer"], ["skip", "Skip this run"], ["quit", "Quit"]];
+    return '<div class="new-wine-choice">' +
+      '<div class="new-wine-choice-title">Wine Cellar → New Wine</div>' +
+      '<div class="blast-selection-match">' + esc(choice.artist) + ' · ' +
+        esc(choice.release) + ' · ' + esc(choice.source_track) + '</div>' +
+      '<div class="blast-selection-meta">' + esc(counts.join(" · ")) + '</div>' +
+      '<a href="https://open.spotify.com/album/' + esc(choice.release_id) +
+        '" target="_blank" rel="noopener">Open album in Spotify</a>' +
+      '<div class="new-wine-controls">' + buttons.map(function (item) {
+        return '<button class="' + (item[0] === "accept" ? "primary" : "ghost") +
+          '" data-action="newWineChoice" data-choice="' + item[0] +
+          '" data-request-id="' + esc(choice.request_id) + '">' + item[1] + '</button>';
+      }).join("") + '</div></div>';
   }
 
   async function pollNewWineJob(jobId) {
@@ -5257,7 +5286,7 @@
       try {
         var job = await api(
           "/commands/flush-new-wine-jobs/" + newWineJob.job_id + "/choice",
-          { method: "POST", json: { choice: btn.dataset.choice } }
+          { method: "POST", json: { choice: btn.dataset.choice, request_id: btn.dataset.requestId || null } }
         );
         renderNewWineJob(job);
       } catch (e) {

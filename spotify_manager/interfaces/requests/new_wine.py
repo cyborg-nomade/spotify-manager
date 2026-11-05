@@ -5,6 +5,7 @@ from pathlib import Path
 
 from spotify_manager.application.new_wine_values import EndpointChoiceReader
 from spotify_manager.application.new_wine_values import ReleaseChoiceReader
+from spotify_manager.application.ports.cellar_review import TransferChoiceReader
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.runtime import ReviewProgress
@@ -25,6 +26,7 @@ class NewWineCallbacks:
         output: Output sink for decisions and completed effects.
         progress: Optional progress and cancellation callback.
         retry: Caller-owned retry policy, or direct invocation when absent.
+        transfer: Optional no-discovery cellar confirmation resource.
     """
 
     choose: ReleaseChoiceReader
@@ -32,6 +34,7 @@ class NewWineCallbacks:
     output: Messages = STANDARD_OUTPUT
     progress: ReviewProgress | None = None
     retry: RetryCall | None = None
+    transfer: TransferChoiceReader | None = None
 
 
 @dataclass(frozen=True)

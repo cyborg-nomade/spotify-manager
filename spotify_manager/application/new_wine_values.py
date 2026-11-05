@@ -125,7 +125,7 @@ class CellarRefillResult:
 
     source_track: str
     artist: str
-    action: Literal["moved", "already present", "ineligible"]
+    action: Literal["moved", "already present", "ineligible", "skipped"]
     liked_tracks: int | None = None
     saved_albums: int | None = None
     dry_run: bool = False
@@ -144,6 +144,7 @@ class CellarRefillSummary:
         ineligible: Number of sources left by the library-affinity rule.
         no_discovery: Whether library affinity was required.
         results: Refill results in processing order.
+        paused: Whether the operator quit before finishing the refill.
     """
 
     target_size: int
@@ -154,6 +155,7 @@ class CellarRefillSummary:
     ineligible: int
     no_discovery: bool
     results: tuple[CellarRefillResult, ...]
+    paused: bool = False
 
 
 @dataclass(frozen=True)

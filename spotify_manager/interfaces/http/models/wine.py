@@ -20,7 +20,7 @@ class NewWineReleaseOption(BaseModel):
 class NewWinePendingChoice(BaseModel):
     """Current interactive choice exposed to the web client."""
 
-    kind: Literal["release", "album_endpoint"] = "release"
+    kind: Literal["release", "album_endpoint", "cellar_transfer"] = "release"
     artist: str
     source_track: str
     release: str | None = None
@@ -28,6 +28,11 @@ class NewWinePendingChoice(BaseModel):
     total_tracks: int | None = None
     terminal_release: bool = False
     releases: list[NewWineReleaseOption] = Field(default_factory=list)
+    request_id: str | None = None
+    spotify_id: str | None = None
+    release_id: str | None = None
+    liked_tracks: int | None = None
+    saved_albums: int | None = None
 
 
 class NewWineTrackResult(BaseModel):
@@ -71,9 +76,11 @@ class NewWineRefillResult(BaseModel):
     ineligible: int
     no_discovery: bool
     results: list[NewWineCellarTrackResult] = Field(default_factory=list)
+    paused: bool = False
 
 
 class NewWineChoiceRequest(BaseModel):
     """Choice submitted for a waiting New Wine job."""
 
     choice: str
+    request_id: str | None = None

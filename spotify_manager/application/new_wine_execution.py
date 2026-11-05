@@ -130,6 +130,17 @@ class WineExecution:
         if not self.dry_run:
             await self.access.save(self.state)
 
+    async def refresh_destination(self) -> None:
+        """Refresh membership before applying records deferred across later prompts.
+
+        Preview retains its projected membership and performs no extra reads.
+        """
+        if self.dry_run:
+            return
+        tracks = await self.access.playlist(self.destination)
+        self.destination_ids.clear()
+        self.destination_ids.update(track.spotify_id for track in tracks)
+
     async def _missing_evaluation(self, transition: WineTransition) -> None:
         if (
             transition.action != "sauvignon"

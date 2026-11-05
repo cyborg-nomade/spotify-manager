@@ -1,5 +1,6 @@
 """Pure marker mapping and progression within a selected New Wine release."""
 
+from collections.abc import Mapping
 from typing import Literal
 
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -8,6 +9,24 @@ from spotify_manager.domain.catalog import ReleaseTrack
 
 
 type SelectedAction = Literal["advance", "sauvignon", "complete single"]
+
+
+def starts_new_record(source: PlaylistTrack, plan: Mapping[str, object]) -> bool:
+    """Identify transitions whose New Wine marker begins another record.
+
+    Args:
+        source: Original playlist marker.
+        plan: Accepted durable transition fields.
+
+    Returns:
+        Whether a follow-up or a different selected release starts a record.
+    """
+    if plan.get("continuation_target") is not None:
+        return True
+    release = plan.get("release")
+    if plan.get("action") != "advance" or not isinstance(release, dict):
+        return False
+    return release.get("spotify_id") != source.release.spotify_id
 
 
 def track_index(tracks: tuple[ReleaseTrack, ...], source: PlaylistTrack) -> int | None:
