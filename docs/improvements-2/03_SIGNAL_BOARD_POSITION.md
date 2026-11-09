@@ -1,6 +1,7 @@
 # Round 2, item 3: Data Signal Board position
 
-**Status:** implemented and verified; awaiting owner review.
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #87](https://github.com/cyborg-nomade/spotify-manager/pull/87).
 **Branch:** `codex/round2-item3-signal-board-layout`.
 **Roadmap:** [second-round item 3](../IMPROVEMENTS_ROADMAP_2.md#item-3-restore-the-desktop-data-signal-board-position).
 
@@ -61,6 +62,26 @@ and have **20 idle job endpoints**. Read-only preview verification leaves their
 local state and publication unchanged. The complete randomized suite and typing
 checks also run through the PR's existing GitHub Actions workflow.
 
-Deployment and merge await owner approval. After approval, deploy only the
-frontend file and verify the served layout plus unchanged data/state. Rollback
-restores the previous frontend file; no data or state migration is required.
+The owner approved PR #87 on 2026-11-09.
+[Source CI 42598046805](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42598046805)
+passed all **12,465 tests**, seed **858415**, in **475.71 seconds**, with independent
+statement/branch floors passing. Typing, architecture, lifecycle, interface and
+packaging gates passed.
+
+Authenticated [preflight 42622787182](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42622787182)
+and [postflight 42623034680](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42623034680)
+confirmed shared state, all four canonical artifacts and **20 idle routine
+endpoints**. Neither check started a routine.
+
+Only the approved **frontend file** was deployed, with the prior Space revision
+and file hash guarded. Space revision `9a9469410601ae11c5c9340e913f4efddbc305cc` is running;
+all **170 cumulative runtime blobs**, exact served frontend, runtime identity
+and health were verified. Shared state remained at
+`ace561202e4d4fd28924b14a4f127f8907029066` and canonical data at
+`7275bd794de01e5ab8b541ce6b5535837a7d267a`. The approved runtime source remains
+`ef1912a98a68b7a44c586251e8ae09226873f614`; release tracking is documentation only.
+Credentials, operator files, preview fixtures and screenshots were excluded.
+
+Rollback restores the prior frontend file without changing shared data or state.
+The review processes are retired after idle-job verification; their local files
+and private evidence are retained.
