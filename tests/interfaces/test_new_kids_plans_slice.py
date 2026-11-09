@@ -354,7 +354,7 @@ def test_cli_migration_uses_current_album_in_explicit_order(
     _http, spotify = plan_http
     _existing(spotify)
     result = CliRunner().invoke(
-        main.app, ["flush-new-kids", "--dry-run"], input="2,1,3,4\nyes\n"
+        main.app, ["flush-new-kids", "--dry-run"], input="2,5,6,3\nyes\n"
     )
     assert result.exit_code == 0, result.output
     assert "Current album" in result.output and "Would migrate" in result.output
@@ -399,3 +399,76 @@ def test_migration_advances_within_album_and_retains_logical_route(
     if composer:
         routes = cast(dict[str, dict[str, object]], saved["composer_routes"])
         assert routes["composer"]["current_track_id"] == "b" * 20 + "01"
+
+
+def _dated_catalogue(spotify: NewKidsPlanSpotify) -> None:
+    dates = {
+        "a": "2003",
+        "b": "1999",
+        "c": "2001",
+        "d": "2001",
+        "e": "1998",
+        "s": "1990",
+        "l": "2005",
+        "m": "Unknown",
+        "q": "2010",
+    }
+    for record in spotify.artist_releases["artist"]:
+        identity = str(record["id"])
+        record["release_date"] = dates[identity[0]]
+
+
+@pytest.mark.parametrize(
+    "route,migration",
+    [("flush-new-kids", False), ("flush-queue-2", False), ("flush-new-kids", True)],
+)
+def test_http_catalogue_is_chronological_but_accepted_plan_keeps_user_order(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify], route: str, migration: bool
+) -> None:
+    """Actual drafts share chronology, including optional categories and migration.
+
+    Args:
+        plan_http: Real job lifecycle and isolated synthetic services.
+        route: Public command presenting the plan.
+        migration: Whether the current album must be retained at its own position.
+    """
+    http, spotify = plan_http
+    _dated_catalogue(spotify)
+    if migration:
+        _existing(spotify)
+    job = _start(http, route)
+    pending = _pending(http, job, route)
+    records = cast(list[dict[str, object]], pending["releases"])
+    assert [record["spotify_id"] for record in records] == [
+        key * 22 for key in "sebdcalqm"
+    ]
+    if migration:
+        assert pending["selected_release_ids"] == ["b" * 22]
+    assert _choose(http, job, pending, [key * 22 for key in "abcd"], route) == 200
+    _wait(http, job, "completed", route)
+    expected = "c" if migration else "a"
+    assert spotify.playlists["new"][0]["id"] == expected * 20 + "00"
+    access = new_kids._state_access(new_kids.DEFAULT_STATE_PATH, None)
+    artists = cast(dict[str, dict[str, object]], access.load()["artists"])
+    plan = cast(dict[str, object], artists["artist"]["release_plan"])
+    pinned = cast(list[dict[str, object]], plan["releases"])
+    assert [record["spotify_id"] for record in pinned] == [key * 22 for key in "abcd"]
+
+
+def test_cli_displays_chronology_and_accepts_a_different_listening_order(
+    plan_http: tuple[TestClient, NewKidsPlanSpotify],
+) -> None:
+    """Displayed numeric choices follow chronology, rather than popularity tiers.
+
+    Args:
+        plan_http: Actual CLI resources with a synthetic discography.
+    """
+    _http, spotify = plan_http
+    _dated_catalogue(spotify)
+    result = CliRunner().invoke(
+        main.app, ["flush-new-kids", "--dry-run"], input="5,2,4,3\nyes\n"
+    )
+    assert result.exit_code == 0, result.output
+    titles = ("An EP", "Second studio", "Fourth studio", "Third studio", "First studio")
+    positions = [result.output.index(title) for title in titles]
+    assert positions == sorted(positions) and spotify.mutations == []

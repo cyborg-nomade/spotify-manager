@@ -10,6 +10,7 @@ from spotify_manager.application.ports.new_kids_plans import ReleasePlanReader
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.new_kids_plans import ReleasePlan
 from spotify_manager.domain.new_kids_plans import plan_marker
+from spotify_manager.domain.new_kids_plans import planning_catalogue
 from spotify_manager.domain.new_kids_plans import select_plan
 
 
@@ -59,7 +60,7 @@ class NewKidsPlanSelection:
             ReleasePlanStoppedError: The operator quits.
             NewKidsError: Spotify cannot supply the chosen release's tracks.
         """
-        releases = await self.catalog.ranked(artist_id)
+        releases = planning_catalogue(await self.catalog.ranked(artist_id))
         draft = ReleasePlanDraft(artist_name, releases, source.release.name)
         while True:
             answer = await self.reader.choose_plan(draft)

@@ -6,6 +6,7 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.domain.releases import studio_date_key
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,27 @@ class ReleasePlan:
 
     releases: tuple[RankedRelease, ...]
     position: int = 0
+
+
+def planning_catalogue(
+    releases: tuple[RankedRelease, ...],
+) -> tuple[RankedRelease, ...]:
+    """Present releases chronologically without changing a chosen listening order.
+
+    Args:
+        releases: Canonical editions, including optional categories and current album.
+
+    Returns:
+        Oldest first, then case-insensitive title and exact ID. Partial dates use
+        the first day of their year/month; unknown or invalid dates come last.
+    """
+    # The standard-library sort requires a key callback; it is not an execution port.
+    return tuple(sorted(releases, key=_planning_key))
+
+
+def _planning_key(release: RankedRelease) -> tuple[int, int, str, str]:
+    validity, ordinal, _padding, _raw = studio_date_key(release.release_date)
+    return validity, ordinal, release.name.casefold(), release.spotify_id
 
 
 def select_plan(
