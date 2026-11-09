@@ -80,6 +80,10 @@ order with no horizontal overflow.
 
 ## Item 4: Flush Mode policy, shared state and panel
 
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #88](https://github.com/cyborg-nomade/spotify-manager/pull/88). See the
+[item guide](improvements-2/04_FLUSH_MODE.md).
+
 Add a global panel below the Data Signal Board showing effective mode, control
 mode, both playlist counts, activation reason and last successful check. Provide
 Check now and Automatic / Force On / Force Off controls.

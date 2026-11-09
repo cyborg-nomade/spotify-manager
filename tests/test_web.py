@@ -691,8 +691,8 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert ".discovery-grid > .blank-console-card" in response.text
     assert ".blank-console-card { display: none; order: 8; }" in response.text
     assert "grid-template-rows: repeat(7, auto) minmax(24px, 1fr)" in response.text
-    assert "grid-column: 6 / -1;\n      grid-row: 3 / span 3" in response.text
-    assert "grid-column: 1 / span 5;\n      grid-row: 4" in response.text
+    assert "grid-column: 6 / -1;\n      grid-row: 4 / span 3" in response.text
+    assert "grid-column: 1 / span 5;\n      grid-row: 6" in response.text
     assert "grid-column: 1 / span 5;\n      grid-row: 5" in response.text
     assert (
         "commandRow.appendChild(terminal);\n        commandRow.appendChild(command);"

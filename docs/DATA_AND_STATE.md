@@ -136,6 +136,7 @@ uses the dataset commit as an optimistic concurrency guard.
 | Namespace | Important contents |
 | --- | --- |
 | `genre_reveal` | Completed genre slugs and display preference. |
+| `flush_mode` | Persistent Automatic/Force On/Force Off control, independent automatic decision, both successful queue counts, check timestamps and latest count failure. |
 | `review_album_limits` | Persisted keep decisions across album-review runs. |
 | `review_artists` | Completed artists and pending unfollow/queue-move plans. |
 | `recover_removed_albums` | Processed albums and checked credited artists. |

@@ -447,10 +447,13 @@ class NewWineWorker:
 
     def _append_refill_detail(self, summary: new_wine.FlushSummary) -> None:
         if summary.refill is not None:
+            self.job.result.no_discovery = summary.refill.no_discovery
             self.job.result.detail = cast(str, self.job.result.detail) + (
                 f" New Wine {summary.refill.before} -> {summary.refill.after}; "
                 f"{summary.refill.added} pulled from Wine Cellar."
             )
+            if summary.refill.discovery_fallback:
+                self.job.result.detail += " No Discovery is off for capacity fallback."
 
     def retry_accepted(self) -> None:
         """Clear the original retry timestamp after a successful operation."""

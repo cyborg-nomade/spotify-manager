@@ -145,6 +145,7 @@ class CellarRefillSummary:
         no_discovery: Whether library affinity was required.
         results: Refill results in processing order.
         paused: Whether the operator quit before finishing the refill.
+        discovery_fallback: Whether recovery exhausted its eligible sources.
     """
 
     target_size: int
@@ -156,6 +157,7 @@ class CellarRefillSummary:
     no_discovery: bool
     results: tuple[CellarRefillResult, ...]
     paused: bool = False
+    discovery_fallback: bool = False
 
 
 @dataclass(frozen=True)

@@ -194,6 +194,22 @@ remove albums, tracks, or artists that have since been unsaved, unliked, or
 unfollowed. Every file has its own checkpoint, progress log, backup, and cancel
 control.
 
+The **Flush Mode** panel below the board checks The Queue and Queue 2. Automatic
+mode activates at 2,400 or 1,200 tracks respectively and exits only when both are
+at or below 1,200 and 900. Force On/Off persists independently of count checks.
+Active mode blocks new Found Art, Genre Reveal, Queue/Queue 2/Queue 3 and
+Sauvignon runs, including dry runs and queue flushes. Existing jobs finish
+normally. New Wine begins with No Discovery and allows normal Wine Cellar
+discovery only for capacity recovery could not fill. See the
+[Flush Mode guide](docs/improvements-2/04_FLUSH_MODE.md).
+
+```console
+uv run spotify-manager flush-mode
+uv run spotify-manager flush-mode --check
+uv run spotify-manager flush-mode --control on
+uv run spotify-manager flush-mode --control automatic
+```
+
 ### `restore-library-sync`
 
 Restore the generated files from a completed analysis by passing the run id
@@ -1117,7 +1133,10 @@ Liked Songs or at least 3 live saved albums. The local
 Spotify ids, but each id's current status is checked through Spotify's live API
 in batches of 10 before the artist qualifies. Ineligible entries remain in
 Wine Cellar while the command continues through the playlist in its existing
-order:
+order. If that recovery pass cannot fill New Wine to 10 tracks, No Discovery
+turns off for the remaining capacity and normal Wine Cellar transfers continue.
+Explicit skips and pending transfers are preserved. A source with insufficient
+records still reports the actual final size:
 
 ```console
 uv run spotify-manager flush-new-wine --no-discovery

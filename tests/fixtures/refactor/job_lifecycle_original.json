@@ -2108,7 +2108,8 @@
             "cellar",
             false,
             true,
-            true
+            true,
+            false
           ],
           "name": "new-wine-flush-00000000",
           "daemon": true

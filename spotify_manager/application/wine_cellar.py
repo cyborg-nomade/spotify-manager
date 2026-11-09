@@ -3,6 +3,7 @@
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import replace
 from typing import Literal
 from typing import Protocol
 from typing import cast
@@ -13,6 +14,7 @@ from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import NewWineError
 from spotify_manager.application.ports.cellar_review import TransferChoiceReader
 from spotify_manager.domain.catalog import PlaylistTrack
+from spotify_manager.domain.flush_mode import discovery_fallback
 
 
 type Inventory = tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]
@@ -29,6 +31,15 @@ class TransferPresentation(Protocol):
             source: Original cellar marker.
             duplicate: Whether the destination already had this marker.
             dry_run: Whether the transfer was previewed.
+        """
+        ...
+
+    def recovery_exhausted(self, after: int, target: int) -> None:
+        """Explain why normal discovery may fill the remaining capacity.
+
+        Args:
+            after: Destination size after recovery.
+            target: Maximum destination size.
         """
         ...
 
@@ -262,6 +273,7 @@ class CellarRefill:
             await self._resume(pending, cellar_ids, run_id)
         inventory = await self._inventory()
         await self._scan(cellar_ids, inventory, run_id)
+        await self._discovery_fallback(cellar_ids, run_id)
         return CellarRefillSummary(
             self.options.target_size,
             before,
@@ -272,7 +284,25 @@ class CellarRefill:
             self.options.no_discovery,
             tuple(self.results),
             self.review.paused,
+            bool(self.run.get("discovery_fallback")),
         )
+
+    async def _discovery_fallback(self, cellar_ids: set[str], run_id: str) -> None:
+        if self.review.paused or not discovery_fallback(
+            self.options.no_discovery,
+            len(self.destination_ids),
+            self.options.target_size,
+        ):
+            return
+        self.presentation.recovery_exhausted(
+            len(self.destination_ids), self.options.target_size
+        )
+        self.options = replace(self.options, no_discovery=False)
+        self.run["no_discovery"] = False
+        self.run["discovery_fallback"] = True
+        if not self.options.dry_run:
+            await self.access.save(self.state)
+        await self._scan(cellar_ids, ({}, {}), run_id)
 
     async def _inventory(self) -> Inventory:
         if (
@@ -345,7 +375,7 @@ class CellarRefill:
         self, source: PlaylistTrack, liked: int | None, albums: int | None, run_id: str
     ) -> bool:
         reader = self.review.reader
-        if reader is None:
+        if not self.options.no_discovery or reader is None:
             return True
         self.review.check()
         choice = await reader.choose_transfer(source, liked, albums)

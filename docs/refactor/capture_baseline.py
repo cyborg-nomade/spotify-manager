@@ -554,10 +554,16 @@ def retained_validator_name(definition: StateDefinition) -> str:
     Raises:
         ValueError: The adapter no longer binds an explicit original validator.
     """
+    from spotify_manager.infrastructure.flush_mode_schema import FlushModeDefinition
     from spotify_manager.infrastructure.something_old_choice_schema import (
         SomethingOldChoiceDefinition,
     )
 
+    if isinstance(definition, FlushModeDefinition):
+        return (
+            "spotify_manager.infrastructure.flush_mode_schema."
+            "FlushModeDefinition.validate"
+        )
     if isinstance(definition, SomethingOldChoiceDefinition):
         return (
             "spotify_manager.infrastructure.something_old_choice_schema."

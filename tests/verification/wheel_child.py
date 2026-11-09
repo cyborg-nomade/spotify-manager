@@ -39,7 +39,7 @@ def _check_entrypoints() -> None:
     cli = entries["spotify-manager"].load()
     assert isinstance(cli, Typer)
     group = get_command(cli)
-    assert isinstance(group, TyperGroup) and len(group.commands) == 44
+    assert isinstance(group, TyperGroup) and len(group.commands) == 45
     result = CliRunner().invoke(cli, ["--help"], prog_name="spotify-manager")
     assert result.exit_code == 0, result.output
     server = entries["spotify-api"].load()
@@ -89,15 +89,15 @@ def main() -> int:
     _check_entrypoints()
     from spotify_manager import api
 
-    assert len(api.app.routes) == 129
+    assert len(api.app.routes) == 132
     from spotify_manager import web
 
-    assert len(api.app.routes) == 136  # Web wraps the same app, adding seven routes.
+    assert len(api.app.routes) == 139  # Web wraps the same app, adding seven routes.
     assert vars(web)["app"] is api.app
     assert (site / "spotify_manager/frontend/index.html").is_file()
     assert (site / "spotify_manager/frontend/genre-reveal.html").is_file()
     _check_module_origins(site)
-    print("Wheel imports, 44 commands, 136 wrapped routes and both entry points pass.")
+    print("Wheel imports, 45 commands, 139 wrapped routes and both entry points pass.")
     return 0
 
 

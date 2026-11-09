@@ -117,7 +117,7 @@ async def test_duplicate_cellar_marker_is_removed_once_without_duplicate_append(
 async def test_eligibility_leaves_ineligible_sources_and_caches_normalized_artist() -> (
     None
 ):
-    """Only qualifying sources move; repeated artist names reuse their live counts."""
+    """Recovery precedes fallback; repeated artist names reuse live counts."""
     low = replace(SOURCE, primary_artist_name="Low")
     high = replace(OTHER, primary_artist_name=" High ")
     repeated = replace(high, spotify_id="third", primary_artist_name="HIGH")
@@ -126,11 +126,14 @@ async def test_eligibility_leaves_ineligible_sources_and_caches_normalized_artis
         eligibility={"high": (None, 3, True)},
     )
     result = await _run(memory, no_discovery=True)
-    assert [item.action for item in result.results] == ["ineligible", "moved", "moved"]
-    assert result.ineligible == 1 and result.added == 2
+    assert [item.action for item in result.results] == [
+        "ineligible", "moved", "moved", "moved"
+    ]
+    assert result.ineligible == 1 and result.added == 3
+    assert result.discovery_fallback and not result.no_discovery
     assert memory.calls["counts"] == 2
-    assert memory.playlists["cellar"] == [low]
-    assert [item.saved_albums for item in result.results] == [0, 3, 3]
+    assert memory.playlists["cellar"] == []
+    assert [item.saved_albums for item in result.results] == [0, 3, 3, None]
 
 
 @pytest.mark.parametrize("liked,albums", [(True, False), ("1", []), (18, 2)])

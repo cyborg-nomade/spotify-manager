@@ -6,6 +6,18 @@
     },
     "validator": "spotify_manager.routines.discography.validate_state"
   },
+  "flush_mode": {
+    "default": {
+      "attempted_at": null,
+      "automatic_active": false,
+      "checked_at": null,
+      "control": "automatic",
+      "counts": null,
+      "error": null,
+      "version": 1
+    },
+    "validator": "spotify_manager.infrastructure.flush_mode_schema.FlushModeDefinition.validate"
+  },
   "genre_reveal": {
     "default": {
       "completed": [],

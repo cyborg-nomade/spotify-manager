@@ -165,6 +165,15 @@ class MemoryCellar:
                 return track
         raise AssertionError("Unknown pending source")
 
+    def recovery_exhausted(self, after: int, target: int) -> None:
+        """Record the explicit capacity fallback.
+
+        Args:
+            after: Recovered destination size.
+            target: Destination capacity.
+        """
+        self.events.append(("recovery_exhausted", (after, target)))
+
     def moved(self, source: PlaylistTrack, duplicate: bool, dry_run: bool) -> None:
         """Observe transfer presentation before the pending checkpoint is cleared.
 

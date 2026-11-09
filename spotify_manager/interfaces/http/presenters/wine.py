@@ -57,6 +57,7 @@ def new_wine_refill_result(
         no_discovery=refill.no_discovery,
         results=_cellar_track_results(refill.results),
         paused=refill.paused,
+        discovery_fallback=refill.discovery_fallback,
     )
 
 

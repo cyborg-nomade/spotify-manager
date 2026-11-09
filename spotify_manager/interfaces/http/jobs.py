@@ -68,6 +68,7 @@ from spotify_manager.core.state.models import namespace_value as namespace_value
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
 from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
 from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.flush_mode_schema import FlushModeDefinition
 from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
@@ -95,6 +96,7 @@ from spotify_manager.interfaces.http.analysis_context import AnalysisContext
 from spotify_manager.interfaces.http.analysis_worker import (
     AnalysisWorker as AnalysisWorker,
 )
+from spotify_manager.interfaces.http.handlers import flush_mode as flush_mode_http
 from spotify_manager.interfaces.http.job_queries import (
     active_analysis_snapshots as active_analysis_snapshots,
 )
@@ -489,6 +491,7 @@ __all__ = ["evaluate_album_live", "sauvignon"]
 
 
 STATE_NAMESPACE_DEFINITIONS: dict[str, StateDefinition] = {
+    "flush_mode": FlushModeDefinition(),
     "discography": DiscographyStateCodec(),
     "genre_reveal": GenreRevealStateCodec(),
     "new_kids": NewKidsStateCodec(),
@@ -1060,6 +1063,7 @@ async def _run_new_wine_job(
     dry_run: bool,
     no_discovery: bool,
     choose_album_endpoints: bool = False,
+    force_no_discovery: bool = False,
 ) -> None:
     """Execute one interactive New Wine flush as a reconnectable web job."""
     await NewWineWorker(
@@ -1073,6 +1077,7 @@ async def _run_new_wine_job(
             dry_run=dry_run,
             cellar=wine_cellar_playlist_id,
             endpoint_mode=choose_album_endpoints,
+            force_no_discovery=force_no_discovery,
             sauvignon=sauvignon_playlist_id,
         ),
     ).run()
@@ -1335,6 +1340,7 @@ async def start_found_art_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("found_art")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1387,6 +1393,7 @@ async def start_sauvignon_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("fill_sauvignon_from_lastfm")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1451,6 +1458,7 @@ async def start_queue_fill_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("fill_queue_from_lastfm")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1502,6 +1510,7 @@ async def start_queue_flush_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("flush_queue")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1601,6 +1610,7 @@ async def start_queue_2_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("flush_queue_2")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1648,6 +1658,7 @@ async def start_queue_3_job(
     Returns:
         Original operation result.
     """
+    await flush_mode_http.require_start("flush_queue_3")
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1698,6 +1709,8 @@ async def start_new_wine_job(
     Returns:
         Original operation result.
     """
+    mode = await flush_mode_http.wine_mode(no_discovery)
+    no_discovery = mode.no_discovery
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1726,6 +1739,7 @@ async def start_new_wine_job(
                 dry_run,
                 no_discovery,
                 choose_album_endpoints,
+                mode.forced,
             )
         ),
         job.cancel_event,

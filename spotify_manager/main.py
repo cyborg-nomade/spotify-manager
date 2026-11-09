@@ -66,6 +66,7 @@ from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.compatibility_retry import BlockingAnalysisRetry
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.features import flush_mode as flush_mode_cli
 from spotify_manager.interfaces.cli.features.album_review import (
     AlbumReviewCLI as AlbumReviewCLI,
 )
@@ -545,8 +546,10 @@ def _recovery_cli() -> RecoveryCLI:
 
 @app.callback()
 def initialize_shared_library_data(ctx: typer.Context) -> None:
-    """Hydrate durable canonical files before ordinary CLI commands."""
+    """Admit routines, then hydrate durable files for ordinary CLI commands."""
+    flush_mode_cli.require_start(ctx.invoked_subcommand)
     if ctx.invoked_subcommand in {
+        "flush-mode",
         "library-data-status",
         "library-data-pull",
         "library-data-push",
@@ -1678,6 +1681,20 @@ def _spotify_auth_cli() -> SpotifyAuthCLI:
     return SpotifyAuthCLI(
         runtime=CommandResources(), rotating_client_type=RotatingSpotify
     )
+
+
+@app.command("flush-mode")
+def flush_mode(
+    check: bool = typer.Option(False, "--check", help="Check both live queue counts."),
+    control: str | None = typer.Option(None, "--control", help="automatic, on or off."),
+) -> None:
+    """Inspect Flush Mode, persist an override or refresh its observations.
+
+    Args:
+        check: Whether to check live counts without running a listening routine.
+        control: Optional persistent control selection.
+    """
+    run_cli(flush_mode_cli.run_flush_mode(check, control, CommandResources()))
 
 
 if __name__ == "__main__":

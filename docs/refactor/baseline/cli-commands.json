@@ -459,6 +459,43 @@
     ]
   },
   {
+    "handler": "flush_mode",
+    "help": "Inspect Flush Mode, persist an override or refresh its observations.\n\nArgs:\n    check: Whether to check live counts without running a listening routine.\n    control: Optional persistent control selection.",
+    "name": "flush-mode",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Check both live queue counts.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "check",
+        "nargs": 1,
+        "opts": [
+          "--check"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": null,
+        "help": "automatic, on or off.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "control",
+        "nargs": 1,
+        "opts": [
+          "--control"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      }
+    ]
+  },
+  {
     "handler": "flush_new_kids_command",
     "help": "Advance New Kids artists and refill the playlist from Queue 2.",
     "name": "flush-new-kids",
