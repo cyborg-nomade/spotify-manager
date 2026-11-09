@@ -80,7 +80,8 @@ order with no horizontal overflow.
 
 ## Item 4: Flush Mode policy, shared state and panel
 
-**Status:** implemented and verified; owner review pending. See the
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #88](https://github.com/cyborg-nomade/spotify-manager/pull/88). See the
 [item guide](improvements-2/04_FLUSH_MODE.md).
 
 Add a global panel below the Data Signal Board showing effective mode, control

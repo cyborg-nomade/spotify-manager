@@ -1,6 +1,7 @@
 # Round 2, item 4: Flush Mode policy and panel
 
-**Status:** implemented and verified; owner review pending.
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #88](https://github.com/cyborg-nomade/spotify-manager/pull/88).
 **Branch:** `codex/round2-item4-flush-mode`.
 **Roadmap:** [second-round item 4](../IMPROVEMENTS_ROADMAP_2.md#item-4-flush-mode-policy-shared-state-and-panel).
 
@@ -180,9 +181,28 @@ historical traces and source inventories remain unchanged.
 The lifecycle fixture adds only the default false admission-force argument for
 New Wine; the existing API result expectation adds the false fallback field.
 
-Deployment and merge await owner approval. After approval, deploy only approved
-runtime changes, verify state/data and read-only health first, then validate the
-policy controls as agreed. Rollback restores the prior runtime files and removes
-the new modules, preserving shared namespaces, accepted transfer intent and
-canonical data. Older code does not enforce Flush Mode; retained namespace data
-allows re-deployment without losing the operator selection.
+The owner approved PR #88 on 2026-11-09.
+[Source CI 42634484970](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42634484970)
+passed **12,562 tests**, seed **9979**, in **650.25 seconds**, including independent
+coverage floors, typing, architecture, lifecycle, interfaces and packaging.
+
+Authenticated [preflight 42639348559](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42639348559)
+and [postflight 42639641686](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42639641686)
+confirmed all four canonical artifacts, shared state and **20 idle routine
+endpoints**. Neither check started a routine. Only the **25 approved runtime
+files** (including ten new modules) were uploaded, guarded by the prior Space
+revision and each prior blob identity. Credentials and local fixtures were excluded.
+
+Space revision `6bada8f24427485060eb9e0f748d6184127318cb` is running. All **183 cumulative runtime
+blobs**, exact served frontend, runtime identity, health and the three new routes'
+authentication boundaries were verified. Shared state remained at
+`3e0deaf54ff9011ec9708e0635b8d48344a9ea49` and canonical data at
+`c652dc9ef8cf83391de85f6acff320e1927587cc`. The approved runtime source remains
+`b5a12425890b60c813e3535b7478ccb7a3870f8b`; release tracking is documentation only.
+The isolated review processes are retired after idle-job verification, with
+local files and private evidence retained.
+
+Rollback restores the prior runtime files and removes the new modules, preserving
+shared namespaces, accepted transfer intent and canonical data. Older code does
+not enforce Flush Mode; retained namespace data allows re-deployment without
+losing the operator selection. Nightly integration follows in item 5.
