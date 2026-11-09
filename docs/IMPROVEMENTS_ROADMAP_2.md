@@ -52,6 +52,9 @@ work consistently in actual web and CLI interactions.
 
 ## Item 2: download stored Last.fm scrobble history
 
+**Status:** implemented and verified; awaiting owner review. See the
+[item guide](improvements-2/02_SCROBBLE_HISTORY_DOWNLOAD.md).
+
 Add Download beside Sync in the Last.fm row of the Data Signal Board. An
 authenticated endpoint returns the latest complete, durably stored JSON history
 as an attachment, using existing artifact storage and integrity checks. Download

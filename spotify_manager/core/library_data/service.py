@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -25,6 +26,7 @@ from spotify_manager.core.library_data.store import LibraryDataStore
 
 
 MAX_WRITE_ATTEMPTS = 5
+MAX_EXPORT_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,21 @@ class ArtifactStatus:
     sha256: str | None
     source: str | None
     local_current: bool
+
+
+def _verify_export(path: Path, metadata: ArtifactMetadata) -> None:
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            digest = hashlib.file_digest(handle, "sha256").hexdigest()
+    except OSError as exc:
+        raise LibraryDataIntegrityError(
+            f"Could not verify the stored {metadata.filename} download."
+        ) from exc
+    if size != metadata.size_bytes or digest != metadata.sha256:
+        raise LibraryDataIntegrityError(
+            f"Stored {metadata.filename} failed its size or checksum verification."
+        )
 
 
 class LibraryDataService:
@@ -65,6 +82,44 @@ class LibraryDataService:
             document=validate_manifest(snapshot.document),
             revision=snapshot.revision,
         )
+
+    def export_snapshot(
+        self, name: ArtifactName, destination: Path
+    ) -> ArtifactMetadata | None:
+        """Copy one complete published revision without touching working files.
+
+        Args:
+            name: Canonical artifact to download.
+            destination: Request-owned temporary path, independent of managed files.
+
+        Returns:
+            Verified metadata, or None when this artifact has never been published.
+
+        Raises:
+            LibraryDataConflictError: Repeated local publications prevent a snapshot.
+            LibraryDataError: The manifest, stored artifact or checksum is invalid.
+        """
+        for _attempt in range(MAX_EXPORT_ATTEMPTS):
+            try:
+                return self._export_snapshot(name, destination)
+            except LibraryDataConflictError:
+                continue
+        raise LibraryDataConflictError(
+            "Stored data changed repeatedly while preparing the download. Try again."
+        )
+
+    def _export_snapshot(
+        self, name: ArtifactName, destination: Path
+    ) -> ArtifactMetadata | None:
+        current = self.snapshot()
+        metadata = artifact_metadata(current.document, name)
+        if metadata is None:
+            return None
+        self._store.restore(
+            name, metadata, revision=current.revision, destination=destination
+        )
+        _verify_export(destination, metadata)
+        return metadata
 
     @staticmethod
     def _local_digest(path: Path) -> str | None:

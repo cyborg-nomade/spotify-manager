@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Query as Query
 from fastapi import status
+from fastapi.responses import FileResponse as FileResponse
 from fastapi.responses import Response as Response
 from requests.exceptions import RequestException
 
@@ -26,6 +27,9 @@ from spotify_manager.interfaces.http.handlers import found_art as found_art_http
 from spotify_manager.interfaces.http.handlers import health as health_http
 from spotify_manager.interfaces.http.handlers import historical as historical_http
 from spotify_manager.interfaces.http.handlers import history as history_http
+from spotify_manager.interfaces.http.handlers import (
+    history_download as history_download_http,
+)
 from spotify_manager.interfaces.http.handlers import (
     library_commands as library_commands_http,
 )
@@ -2239,6 +2243,36 @@ def library_mirror_files_status() -> LibraryMirrorFilesStatus:
         The named feature response in its original HTTP representation.
     """
     return history_http.library_mirror_files_status()
+
+
+@app.api_route(
+    "/scrobble-history/download",
+    methods=["GET"],
+    response_class=FileResponse,
+    description="Download the latest complete stored Last.fm history as JSON.",
+    responses={
+        200: {
+            "content": {
+                "application/json": {"schema": {"type": "string", "format": "binary"}}
+            }
+        },
+        404: {"description": "No stored scrobble history has been published."},
+        409: {
+            "description": "History publication changed repeatedly; retry the download."
+        },
+        502: {
+            "description": "Stored artifact integrity or manifest verification failed."
+        },
+        503: {"description": "Artifact storage or temporary storage is unavailable."},
+    },
+)
+def download_scrobble_history() -> FileResponse:
+    """Return a verified stored history attachment under the deployment auth gate.
+
+    Returns:
+        Complete JSON file whose temporary storage is released after delivery.
+    """
+    return history_download_http.download_scrobble_history()
 
 
 @app.api_route(

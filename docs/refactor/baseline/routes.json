@@ -1474,6 +1474,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.api.download_scrobble_history",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "download_scrobble_history",
+    "path": "/scrobble-history/download",
+    "response_model": null,
+    "source_line": 2248,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.api.cmd_active_scrobble_history_jobs",
     "include_in_schema": true,
     "methods": [

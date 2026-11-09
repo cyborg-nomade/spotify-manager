@@ -9751,6 +9751,38 @@
         "summary": "Refresh Library"
       }
     },
+    "/scrobble-history/download": {
+      "get": {
+        "description": "Download the latest complete stored Last.fm history as JSON.",
+        "operationId": "download_scrobble_history_scrobble_history_download_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No stored scrobble history has been published."
+          },
+          "409": {
+            "description": "History publication changed repeatedly; retry the download."
+          },
+          "502": {
+            "description": "Stored artifact integrity or manifest verification failed."
+          },
+          "503": {
+            "description": "Artifact storage or temporary storage is unavailable."
+          }
+        },
+        "summary": "Download Scrobble History"
+      }
+    },
     "/state": {
       "get": {
         "description": "Return the complete shared application state and revision guard.",

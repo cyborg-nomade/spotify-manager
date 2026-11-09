@@ -181,6 +181,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | POST | `/commands/fill-palace-of-memory-jobs/{job_id}/cancel` | `cmd_cancel_palace_of_memory_job` | True |
 | [ ] | api | POST | `/commands/update-scrobble-history` | `cmd_update_scrobble_history` | True |
 | [ ] | api | GET | `/library-mirrors/status` | `library_mirror_files_status` | True |
+| [ ] | api | GET | `/scrobble-history/download` | `download_scrobble_history` | True |
 | [ ] | api | GET | `/commands/update-scrobble-history-jobs` | `cmd_active_scrobble_history_jobs` | True |
 | [ ] | api | GET | `/commands/update-scrobble-history-jobs/{job_id}` | `cmd_scrobble_history_job` | True |
 | [ ] | api | POST | `/commands/update-scrobble-history-jobs/{job_id}/cancel` | `cmd_cancel_scrobble_history_job` | True |
