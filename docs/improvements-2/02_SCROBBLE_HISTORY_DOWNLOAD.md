@@ -1,6 +1,7 @@
 # Round 2, item 2: download stored Last.fm history
 
-**Status:** implemented and verified; awaiting owner review.
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #86](https://github.com/cyborg-nomade/spotify-manager/pull/86).
 **Branch:** `codex/round2-item2-scrobble-history-download`.
 **Roadmap:** [second-round item 2](../IMPROVEMENTS_ROADMAP_2.md#item-2-download-stored-lastfm-scrobble-history).
 
@@ -113,7 +114,33 @@ The account preview's 38,789,216-byte attachment matches its stored history;
 both previews leave local state and publication unchanged on download. Temporary
 viewport overrides were reset.
 
-Deployment and merge await owner approval. After approval, deploy only this
-item's runtime changes, verify the authenticated download and unchanged shared
-data/state, then merge and clean up. Rollback restores the prior runtime files
-and removes the five new modules without altering canonical data or state.
+The owner approved PR #86 on 2026-11-09.
+[Source CI 42594614102](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42594614102)
+passed **12,465 tests**, seed **697451**, in **840.51 seconds**, with independent
+statement/branch floors passing. Typing, architecture, lifecycle, public-contract
+and wheel gates passed.
+
+Authenticated [preflight 42596502729](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42596502729)
+and [postflight 42596870599](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42596870599)
+confirmed shared state, all four canonical artifacts and **20 idle routine
+endpoints**. Postflight also streamed the live authenticated **38,789,216-byte**
+attachment and verified its original filename, size, SHA-256, ETag and no-store
+policy against the pinned durable manifest. Neither check started a routine.
+The temporary verification branch used the existing Actions credential without
+exposing it; its workflow change is excluded from this PR and deployment.
+
+Only the **eight approved runtime files** were uploaded: three replacements and
+five new modules. The prior Space revision and prior file blobs were guarded.
+Space revision `3b8d162b2771b226d85f2189aa8890dbd4c1e5eb` is running; all **170 cumulative
+runtime blobs**, exact served frontend, runtime identity, health and the
+unauthenticated download rejection were verified. Shared state remained at
+`ace561202e4d4fd28924b14a4f127f8907029066` and canonical data at
+`7275bd794de01e5ab8b541ce6b5535837a7d267a`, including after the live download.
+The approved runtime source remains `95ccf5fec2eb7fefd9621efe1d76f1df2f7187d2`;
+release tracking is documentation only. Credentials, operator files, synthetic
+fixtures and preview files were excluded.
+
+Rollback restores the three prior runtime files and removes the five new modules
+without altering canonical data or shared state. Review processes are stopped
+only after idle-job verification; their files and private evidence are retained.
+The temporary postflight branch and worktree are retired after success.
