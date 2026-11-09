@@ -30,7 +30,8 @@ rollback guidance in each item's guide.
 
 ## Item 1: chronological New Kids planning catalogue
 
-**Status:** approved; implementation next.
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #85](https://github.com/cyborg-nomade/spotify-manager/pull/85). See the [item guide](improvements-2/01_NEW_KIDS_CATALOGUE_ORDER.md).
 
 Sort the available releases oldest first, then alphabetically by title for equal
 release dates. Use the same domain ordering in Queue 2 transfer and existing-artist

@@ -16,6 +16,7 @@ from spotify_manager.domain.discovery_progression import source_release
 from spotify_manager.domain.new_kids_migration import current_track_matches
 from spotify_manager.domain.new_kids_migration import migration_position
 from spotify_manager.domain.new_kids_plans import ReleasePlan
+from spotify_manager.domain.new_kids_plans import planning_catalogue
 from spotify_manager.domain.new_kids_plans import select_plan
 
 
@@ -105,7 +106,7 @@ class NewKidsMigrationSelection:
             pass
         return ReleasePlanDraft(
             artist,
-            releases,
+            planning_catalogue(releases),
             source.release.name,
             "Choose the current edition and confirm its track mapping."
             if not known

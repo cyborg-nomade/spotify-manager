@@ -836,8 +836,11 @@ then advances each existing, accepted artist once. Configure
 
 Before transferring a new artist, choose up to four distinct releases in listening
 order. Studio albums and EPs appear first; singles, compilations and live releases
-can be shown independently. A shorter plan requires explicit confirmation. The
-Queue 2 album counts only if selected. The accepted plan is saved before transfer;
+can be shown independently. Available releases are listed oldest first, then
+alphabetically by title for equal dates, in web and CLI. Partial dates use the
+first day of their year/month for ordering; unknown dates come last. This does
+not reorder the listening plan you choose or an existing saved plan. A shorter
+plan requires explicit confirmation. The Queue 2 album counts only if selected. The accepted plan is saved before transfer;
 the first chosen release starts at its first playable primary-artist track. The
 source is removed only after the destination is secured, and the new marker stays
 on that first track until the next invocation.
