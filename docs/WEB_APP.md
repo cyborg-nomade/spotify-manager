@@ -88,6 +88,9 @@ Routine cards are organized by listening function:
 - release discovery and discography planning; and
 - live library instruments.
 
+The full-width **Data signal board** sits immediately below **New Year's
+Routines** on desktop, tablet and mobile, before the listening modules.
+
 Cards start cautious routines in dry-run mode, expose command-specific compact
 controls, and show terminal logs on demand. Pending choices are rendered in the
 card rather than using blocking browser dialogs. Controls remain available when

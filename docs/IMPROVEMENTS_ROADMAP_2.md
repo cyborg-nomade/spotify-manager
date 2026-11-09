@@ -67,6 +67,9 @@ missing-file errors, concurrent synchronization and mobile controls are verified
 
 ## Item 3: restore the desktop Data Signal Board position
 
+**Status:** implemented and verified; awaiting owner review. See the
+[item guide](improvements-2/03_SIGNAL_BOARD_POSITION.md).
+
 Place the full-width board immediately below New Year's Routines on desktop as
 well as mobile. Correct the desktop grid's explicit row allocation, preserving
 source order, action bindings, readable controls and keyboard order.
