@@ -388,10 +388,17 @@ The card shows counts and logs, restores the running mode after reload, and
 offers cancellation while active. Replacements display their server-side backup
 path. CLI and API dry-run options remain available.
 
+**Download** beside Sync saves the latest complete stored history as
+`lastfmstats-man-et-arms.json`, preserving the original JSON bytes. It remains
+available during a sync and returns the previous publication until the new one
+is complete. Download does not start a sync or change the history. If no stored
+history exists yet, sync it first.
+
 ```text
 POST /commands/update-scrobble-history?dry_run=true
 GET  /commands/update-scrobble-history-jobs
 GET  /commands/update-scrobble-history-jobs/{job_id}
+GET  /scrobble-history/download
 ```
 
 ### `blast-from-the-past`

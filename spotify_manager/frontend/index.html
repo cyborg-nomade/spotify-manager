@@ -778,6 +778,7 @@
                 </div>
                 <div class="analysis-actions">
                   <button class="primary" data-action="startScrobbleHistory">Sync</button>
+                  <button class="ghost" data-action="downloadScrobbleHistory">Download</button>
                   <button class="danger cancel" data-action="cancelScrobbleHistory" hidden title="Stop history refresh">×</button>
                 </div>
               </div>
@@ -1852,10 +1853,10 @@
     renderStateEditor(sharedStateSnapshot.document, nextNamespace);
   }
 
-  async function downloadSharedState() {
+  async function downloadAttachment(path, fallbackFilename) {
     var response;
     try {
-      response = await fetch(API + "/state/export", { headers: headers() });
+      response = await fetch(API + path, { headers: headers() });
     } catch (e) {
       throw { status: 0, detail: "Network error — is the server awake?" };
     }
@@ -1869,7 +1870,7 @@
     }
     var disposition = response.headers.get("Content-Disposition") || "";
     var match = disposition.match(/filename="([^"]+)"/);
-    var filename = match ? match[1] : "spotify-manager-state.json";
+    var filename = match ? match[1] : fallbackFilename;
     var url = URL.createObjectURL(await response.blob());
     var anchor = document.createElement("a");
     anchor.href = url;
@@ -1878,6 +1879,10 @@
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadSharedState() {
+    await downloadAttachment("/state/export", "spotify-manager-state.json");
   }
 
   function isAnalysisActive(status) {
@@ -4848,6 +4853,17 @@
         showToast("State snapshot downloaded", "ok");
       } catch (e) {
         showToast(e.detail || "Could not export shared state", "err");
+      }
+      setBusy(btn, false);
+    },
+
+    async downloadScrobbleHistory(btn) {
+      setBusy(btn, true, "Downloading…");
+      try {
+        await downloadAttachment("/scrobble-history/download", "lastfmstats-man-et-arms.json");
+        showToast("Last.fm history downloaded", "ok");
+      } catch (e) {
+        showToast(e.detail || "Could not download Last.fm history", "err");
       }
       setBusy(btn, false);
     },

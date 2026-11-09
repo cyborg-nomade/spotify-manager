@@ -86,6 +86,14 @@ manifest together using the previous Hub revision as an optimistic guard.
 Writes to different artifacts can rebase safely; a stale write to the same
 artifact is rejected.
 
+The Last.fm **Download** action exports the published scrobble artifact through
+the same revision-aware service into a request-owned temporary file. It verifies
+the original uncompressed size and SHA-256 without parsing or rewriting JSON.
+The mutable working export is never served, so an overlapping sync cannot expose
+a partial replacement. Delivery releases only that request's temporary storage,
+including on disconnect or cancellation; no working file, manifest or shared
+state is changed. A missing published artifact must be synchronized first.
+
 ```console
 just library-data-status
 just library-data-pull --artifact scrobbles

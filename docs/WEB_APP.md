@@ -98,6 +98,14 @@ a name, raw Spotify id, URI, or share link. The **Data signal board** starts
 independent album, track, and artist mirror refreshes and shows server file
 timestamps, including Last.fm history.
 
+The Last.fm row also offers **Download** beside Sync. The authenticated
+`GET /scrobble-history/download` endpoint returns the complete published JSON as
+an attachment, retaining its original filename and bytes. Download stays
+available during synchronization: the last complete publication is served until
+the replacement is published. Missing history produces a clear error asking for
+a sync. See the [download guide](improvements-2/02_SCROBBLE_HISTORY_DOWNLOAD.md)
+for storage, error and review details.
+
 Legacy library cards and generic command buttons are intentionally absent from
 the current UI, but their API routes remain available.
 

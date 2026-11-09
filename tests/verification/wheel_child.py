@@ -89,15 +89,15 @@ def main() -> int:
     _check_entrypoints()
     from spotify_manager import api
 
-    assert len(api.app.routes) == 128
+    assert len(api.app.routes) == 129
     from spotify_manager import web
 
-    assert len(api.app.routes) == 135  # Web wraps the same app, adding seven routes.
+    assert len(api.app.routes) == 136  # Web wraps the same app, adding seven routes.
     assert vars(web)["app"] is api.app
     assert (site / "spotify_manager/frontend/index.html").is_file()
     assert (site / "spotify_manager/frontend/genre-reveal.html").is_file()
     _check_module_origins(site)
-    print("Wheel imports, 44 commands, 135 wrapped routes and both entry points pass.")
+    print("Wheel imports, 44 commands, 136 wrapped routes and both entry points pass.")
     return 0
 
 

@@ -90,7 +90,7 @@ def test_route_declarations_stay_beside_endpoint_definitions() -> None:
         if endpoint is not None and endpoint.__module__ == "spotify_manager.api":
             endpoints.add(endpoint.__name__)
     assert declarations == endpoints
-    assert len(endpoints) == 124
+    assert len(endpoints) == 125
 
 
 def _route_names(module: ast.Module) -> set[str]:
