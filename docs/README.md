@@ -77,6 +77,7 @@ behavior, final release and operational handoff.
 | [`ARCHITECTURE_SPEC.md`](ARCHITECTURE_SPEC.md) | Maintainers and reviewers | Concise current-state specification: modules, APIs, schemas, progress, and backlog. |
 | [`REFACTOR_ROADMAP.md`](REFACTOR_ROADMAP.md) | Maintainers and reviewers | Approved refactor sequence, behavior-preservation tests, and delivery workflow. |
 | [`IMPROVEMENTS_ROADMAP.md`](IMPROVEMENTS_ROADMAP.md) | Maintainers and reviewers | Completed 12-item routine improvements roadmap and per-item release guides. |
+| [`IMPROVEMENTS_ROADMAP_2.md`](IMPROVEMENTS_ROADMAP_2.md) | Maintainers and reviewers | Approved second-round improvements and per-item acceptance criteria. |
 | [`improvements/FINAL_VERIFICATION.md`](improvements/FINAL_VERIFICATION.md) | Operators and maintainers | Improvements conclusion, final release evidence, and operational handoff. |
 | [`refactor/CHARACTERIZATION.md`](refactor/CHARACTERIZATION.md) | Maintainers and reviewers | Offline effect traces, fault injection, test isolation, and migration regression checks. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Maintainers | System context, layers, execution paths, integrations, and extension points. |
