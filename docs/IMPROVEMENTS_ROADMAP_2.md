@@ -67,6 +67,10 @@ missing-file errors, concurrent synchronization and mobile controls are verified
 
 ## Item 3: restore the desktop Data Signal Board position
 
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #87](https://github.com/cyborg-nomade/spotify-manager/pull/87). See the
+[item guide](improvements-2/03_SIGNAL_BOARD_POSITION.md).
+
 Place the full-width board immediately below New Year's Routines on desktop as
 well as mobile. Correct the desktop grid's explicit row allocation, preserving
 source order, action bindings, readable controls and keyboard order.
