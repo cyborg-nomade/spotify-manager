@@ -1,6 +1,7 @@
 # Round 2, item 1: chronological New Kids planning catalogue
 
-**Status:** implemented and verified; owner review pending.
+**Status:** owner-approved, deployed and verified on 2026-11-09 in
+[PR #85](https://github.com/cyborg-nomade/spotify-manager/pull/85).
 **Branch:** `codex/round2-item1-new-kids-chronology`.
 **Roadmap:** [second-round item 1](../IMPROVEMENTS_ROADMAP_2.md#item-1-chronological-new-kids-planning-catalogue).
 
@@ -39,7 +40,7 @@ identification and unique-track confirmation behavior.
 The only callback is the standard-library `sorted` key; its reason is documented
 beside the call. No execution dependency or bootstrap wiring is added.
 
-## Review environments
+## Owner review (completed)
 
 - [Account preview](http://127.0.0.1:8767/?review=round2-item1): keep Dry run checked.
 - [Offline demo](http://127.0.0.1:8769/?review=round2-item1): synthetic services only.
@@ -94,6 +95,26 @@ artist from Second track 1 to track 2, and left the transferred artist at First
 track 1. No artist plans, migration backup or synthetic remote mutations were
 saved. The initial fixture remains ready for owner review.
 
-Deployment and merge wait for owner approval. Only three runtime files change;
-rollback restores their prior blobs without modifying accepted plans, progress,
-state or data.
+The owner approved PR #85 on 2026-11-09.
+[Source CI 42586637598](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42586637598)
+passed all **12,441 tests**, seed **257920**, with independent
+statement/branch floors passing. Typing, architecture, lifecycle, interface and
+packaging gates passed.
+
+Authenticated [preflight 42587786972](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42587786972)
+and [postflight 42588616731](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42588616731)
+confirmed automation access, shared state, all four canonical artifacts and
+**20 idle routine endpoints**. Neither check started a routine.
+
+Only the **three approved runtime files** were uploaded, with the prior Space
+revision and prior blobs guarded. There are no new modules. Space revision
+`993522905d6384a84f2f7d9760d31eacc2537ef7` is running; all **164 cumulative
+release blobs**, exact frontend, runtime identity and health were verified.
+Shared state stayed at `ace561202e4d4fd28924b14a4f127f8907029066`; canonical data stayed at
+`7275bd794de01e5ab8b541ce6b5535837a7d267a`. Preview/synthetic files, operational files and credentials
+were excluded. The approved runtime source remains `fc0aef1ae1ea6a3932aff927628828fdca800bf0`;
+subsequent release tracking is documentation only.
+
+Rollback restores the three prior runtime blobs without changing accepted plans,
+progress, state or canonical data. Review servers are retired after approval and
+idle-job verification; their local files and private evidence are retained.
