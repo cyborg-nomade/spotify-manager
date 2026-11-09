@@ -21,6 +21,7 @@ from spotify_manager.infrastructure.cli_cancellation import check_cli_interrupti
 from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.features import flush_mode as flush_mode_cli
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.cli.terminal import TerminalPrompt
@@ -164,6 +165,8 @@ class WineCLI:
             no_discovery: No discovery supplied by the caller.
             choose_album_endpoints: Choose album endpoints supplied by the caller.
         """
+        mode = await flush_mode_cli.wine_mode(no_discovery)
+        no_discovery = mode.no_discovery
         choose_album_endpoints = choose_album_endpoints is True
         self._flush_new_wine_console = self.display.create_console()
         self._flush_new_wine_progress_ref: Progress | None = None
@@ -206,6 +209,7 @@ class WineCLI:
                         sauvignon=sauvignon_playlist_id,
                         cellar=wine_cellar_playlist_id,
                         no_discovery=no_discovery,
+                        force_no_discovery=mode.forced,
                         endpoint_mode=choose_album_endpoints,
                         dry_run=dry_run,
                     ),

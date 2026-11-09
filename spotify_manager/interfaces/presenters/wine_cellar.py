@@ -33,6 +33,18 @@ class CellarPresenter:
 
     output: Messages
 
+    def recovery_exhausted(self, after: int, target: int) -> None:
+        """Explain the explicitly permitted capacity fallback.
+
+        Args:
+            after: Destination size after the recovery pass.
+            target: Maximum destination size.
+        """
+        self.output.echo(
+            f"Recovery filled New Wine to {after}/{target}. No Discovery is now off; "
+            "remaining Wine Cellar artists may fill the available slots."
+        )
+
     def moved(self, source: PlaylistTrack, duplicate: bool, dry_run: bool) -> None:
         """Present an accepted or previewed transfer.
 

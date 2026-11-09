@@ -61,6 +61,9 @@
   header .status.ok .pill { background: var(--green); }
   header .status.err .pill { background: var(--red); }
 
+  .flush-mode-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .flush-mode-controls .mode-switch { grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 1 1 230px; max-width: 400px; }
+  .flush-mode-detail { margin: 8px 0 0; font-size: .72rem; overflow-wrap: anywhere; }
   .cockpit-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .card {
     --panel-accent: var(--green);
@@ -575,13 +578,14 @@
   @media (min-width: 1120px) {
     .cockpit-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
     .system-card { grid-row: 2; }
+    #flushModeCard { grid-row: 3; }
     .recovery-module {
       grid-column: 1 / span 5;
-      grid-row: 3;
+      grid-row: 4;
     }
     .discovery-module {
       grid-column: 6 / -1;
-      grid-row: 3 / span 3;
+      grid-row: 4 / span 3;
     }
     .discovery-grid {
       height: calc(100% - 28px);
@@ -594,11 +598,11 @@
     }
     .listening-module {
       grid-column: 1 / span 5;
-      grid-row: 4;
+      grid-row: 5;
     }
     .albums-module {
       grid-column: 1 / span 5;
-      grid-row: 5;
+      grid-row: 6;
     }
     .independent-module { grid-column: span 6; }
     .lookup-module { grid-column: span 12; }
@@ -801,6 +805,25 @@
           </div>
         </section>
       </div>
+    </section>
+
+    <section class="card" id="flushModeCard" style="grid-column:1 / -1" aria-labelledby="flushModeTitle">
+      <div class="system-card-heading">
+        <h2 id="flushModeTitle">Flush Mode</h2>
+        <span id="flushModeState" role="status">Checking…</span>
+      </div>
+      <div class="flush-mode-controls">
+        <div class="mode-switch" role="group" aria-label="Flush Mode control">
+          <button data-action="flushModeControl" data-control="automatic" aria-pressed="false">Automatic</button>
+          <button data-action="flushModeControl" data-control="on" aria-pressed="false">Force on</button>
+          <button data-action="flushModeControl" data-control="off" aria-pressed="false">Force off</button>
+        </div>
+        <button class="primary" data-action="checkFlushMode">Check now</button>
+      </div>
+      <p class="flush-mode-detail" id="flushModeCounts">Queue counts have not been checked.</p>
+      <p class="flush-mode-detail" id="flushModeReason"></p>
+      <p class="flush-mode-detail" id="flushModeError" role="status"></p>
+      <p class="flush-mode-detail">When active, Found Art, Genre Reveal, The Queue, Queue 2, Queue 3 and Sauvignon cannot start. Existing runs finish normally. New Wine starts with No Discovery; discovery is allowed if recovery cannot fill its 10 tracks.</p>
     </section>
 
     <section class="macro-module recovery-module" aria-labelledby="recoveryModuleTitle">
@@ -1332,6 +1355,7 @@
 
   function setBusy(btn, busy, label) {
     if (!btn) return;
+    btn.dataset.busy = busy ? "true" : "false";
     if (busy) {
       btn.dataset.label = btn.innerHTML;
       btn.dataset.title = btn.getAttribute("title") || "";
@@ -1348,7 +1372,7 @@
       } else {
         btn.removeAttribute("aria-label");
       }
-      btn.disabled = false;
+      btn.disabled = btn.dataset.flushBlocked === "true";
     }
   }
 
@@ -3196,6 +3220,7 @@
     ["newWineDryRun", "newWineNoDiscovery", "newWineChooseEndpoints"].forEach(function (id) {
       document.getElementById(id).disabled = isAnalysisActive(job.status);
     });
+    applyFlushRestrictions();
     var choiceIdentity = job.pending_choice && job.status === "waiting"
       ? job.job_id + "|" + JSON.stringify(job.pending_choice) : "";
     if (choiceIdentity && out.dataset.newWineChoice === choiceIdentity) return;
@@ -3231,10 +3256,12 @@
       refill = '<div class="new-wine-refill">' +
         '<div class="new-wine-choice-title">Wine Cellar refill · ' +
           esc(cellar.no_discovery ? "no discovery" : "all artists") + '</div>' +
+        (cellar.discovery_fallback ? '<div class="playlist-dates">No Discovery turned off: recovery could not fill all 10 tracks.</div>' : "") +
         '<div class="blast-summary">' +
           '<div><strong>' + esc(cellar.before + " → " + cellar.after) + '</strong><span>New Wine</span></div>' +
           '<div><strong>' + esc(cellar.added) + '</strong><span>Added</span></div>' +
-          '<div><strong>' + esc(cellar.ineligible) + '</strong><span>Ineligible</span></div>' +
+          '<div><strong>' + esc(cellar.ineligible) + '</strong><span>' +
+            (cellar.discovery_fallback ? 'Recovery exclusions' : 'Ineligible') + '</span></div>' +
         '</div><div class="playlist-dates">' + esc(cellar.removed_from_cellar) +
           ' removed from Wine Cellar</div>' + refillResults + '</div>';
     }
@@ -4767,7 +4794,112 @@
     }
   }
 
+  var flushModeStatus = null;
+  var flushModeEpoch = 0;
+  var flushModeTimer = null;
+  var flushModeChanging = false;
+  var flushModeWineLocked = false;
+  var flushModeWinePreference = false;
+
+  function applyFlushRestrictions() {
+    var jobs = {
+      startFoundArt: foundArtJob, startSauvignon: sauvignonJob,
+      startQueueFill: queueJob, startQueueFlush: queueJob,
+      startQueue2: queue2Job, startQueue3: queue3Job, openGenreReveal: null,
+    };
+    Object.keys(jobs).forEach(function (action) {
+      var button = document.querySelector('[data-action="' + action + '"]');
+      if (!button) return;
+      var blocked = !flushModeStatus || flushModeStatus.active;
+      button.dataset.flushBlocked = blocked ? "true" : "false";
+      var job = jobs[action];
+      button.disabled = blocked || button.dataset.busy === "true" ||
+        Boolean(job && isAnalysisActive(job.status));
+      button.title = blocked ? "Flush Mode blocks new starts of this routine." : "";
+    });
+    var startWine = document.querySelector('[data-action="startNewWine"]');
+    startWine.dataset.flushBlocked = flushModeStatus ? "false" : "true";
+    startWine.disabled = !flushModeStatus || startWine.dataset.busy === "true" ||
+      Boolean(newWineJob && isAnalysisActive(newWineJob.status));
+    if (newWineJob && isAnalysisActive(newWineJob.status)) return;
+    var wine = document.getElementById("newWineNoDiscovery");
+    if (!flushModeStatus) { wine.disabled = true; return; }
+    if (flushModeStatus.active) {
+      if (!flushModeWineLocked) flushModeWinePreference = wine.checked;
+      flushModeWineLocked = true;
+      wine.checked = true;
+    } else if (flushModeWineLocked) {
+      wine.checked = flushModeWinePreference;
+      flushModeWineLocked = false;
+    }
+    wine.disabled = flushModeStatus.active;
+  }
+
+  function renderFlushMode(status) {
+    flushModeStatus = status;
+    document.getElementById("flushModeState").textContent = status.active ? "Active" : "Normal";
+    document.getElementById("flushModeReason").textContent = status.reason;
+    var counts = "The Queue: " + (status.queue_tracks === null ? "unknown" : status.queue_tracks) +
+      " · Queue 2: " + (status.queue_2_tracks === null ? "unknown" : status.queue_2_tracks);
+    document.getElementById("flushModeCounts").textContent = counts +
+      " · Last successful check: " + (status.checked_at ? new Date(status.checked_at).toLocaleString() : "never");
+    document.getElementById("flushModeError").textContent = status.error ?
+      "Last check failed. " + status.error : "";
+    document.querySelectorAll('[data-action="flushModeControl"]').forEach(function (button) {
+      button.classList.toggle("active", button.dataset.control === status.control);
+      button.setAttribute("aria-pressed", String(button.dataset.control === status.control));
+    });
+    applyFlushRestrictions();
+  }
+
+  async function refreshFlushMode() {
+    if (!pw || app.classList.contains("hidden")) return;
+    clearTimeout(flushModeTimer);
+    if (!flushModeChanging) {
+      var epoch = ++flushModeEpoch;
+      try {
+        var status = await api("/flush-mode");
+        if (epoch === flushModeEpoch) renderFlushMode(status);
+      } catch (e) {
+        if (epoch === flushModeEpoch) {
+          flushModeStatus = null;
+          document.getElementById("flushModeState").textContent = "Unavailable";
+          document.getElementById("flushModeError").textContent =
+            "Flush Mode could not be read. New starts are blocked until it is available.";
+          applyFlushRestrictions();
+        }
+      }
+    }
+    flushModeTimer = setTimeout(refreshFlushMode, 5000);
+  }
+
+  async function changeFlushControl(button) {
+    flushModeChanging = true;
+    ++flushModeEpoch;
+    document.querySelectorAll('[data-action="flushModeControl"]').forEach(function (item) { item.disabled = true; });
+    try {
+      var status = await api("/flush-mode/control", {method: "PUT", json: {control: button.dataset.control}});
+      renderFlushMode(status);
+    } catch (e) { showToast(e.detail || "Could not save Flush Mode", "err"); }
+    flushModeChanging = false;
+    document.querySelectorAll('[data-action="flushModeControl"]').forEach(function (item) { item.disabled = false; });
+    refreshFlushMode();
+  }
+
+  async function checkFlushMode(button) {
+    var epoch = ++flushModeEpoch;
+    setBusy(button, true, "Checking queue counts…");
+    try {
+      var status = await api("/flush-mode/check", {method: "POST"});
+      if (epoch === flushModeEpoch) renderFlushMode(status);
+    } catch (e) { showToast(e.detail || "Could not check Flush Mode", "err"); }
+    setBusy(button, false);
+    refreshFlushMode();
+  }
+
   var actions = {
+    async flushModeControl(btn) { return changeFlushControl(btn); },
+    async checkFlushMode(btn) { return checkFlushMode(btn); },
     editNewKidsPlan(btn) { editReleasePlan(btn); },
     async submitNewKidsPlan(btn) { return submitReleasePlan(btn); },
     async openSharedState(btn) {
@@ -6178,6 +6310,8 @@
     if (remember) { try { /* in-memory only fallback */ window.name = STORAGE_KEY + ":" + candidate; } catch (e) {} }
     gate.classList.add("hidden");
     app.classList.remove("hidden");
+    applyFlushRestrictions();
+    refreshFlushMode();
     checkHealth();
     loadServerFilesStatus();
     try {

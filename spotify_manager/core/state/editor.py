@@ -33,6 +33,18 @@ STATE_EDITOR_SCHEMA: dict[str, Any] = {
         ],
     },
     "namespaces": {
+        "flush_mode": {
+            "label": "Flush Mode",
+            "rules": [
+                _select("/control", "automatic", "on", "off"),
+                _readonly("/version"),
+                _readonly("/automatic_active"),
+                _readonly("/counts"),
+                _readonly("/checked_at"),
+                _readonly("/attempted_at"),
+                _readonly("/error"),
+            ],
+        },
         "discography": {
             "label": "Discographies",
             "rules": [

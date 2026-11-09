@@ -1028,5 +1028,15 @@
     "owner": "spotify_manager.infrastructure.something_old_choice_storage.SomethingOldChoiceStorage.audit_choices",
     "function": "read_choice_audit",
     "reason": "Read the complete legacy choice audit through the bounded file-I/O thread edge; asyncio.to_thread requires this concrete reader and capacity remains held until it finishes."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.flush_mode_state.AsyncFlushModeState.load",
+    "function": "self.source.load",
+    "reason": "asyncio.to_thread requires the concrete state reader to finish the blocking shared-state snapshot off the event loop before releasing bounded worker capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.flush_mode_state.AsyncFlushModeState._change",
+    "function": "self.source.change",
+    "reason": "asyncio.to_thread requires the concrete state writer to finish the complete namespace CAS/rebase operation off the event loop, including cancellation draining, before releasing bounded worker capacity."
   }
 ]

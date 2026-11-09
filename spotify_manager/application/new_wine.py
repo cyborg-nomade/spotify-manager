@@ -38,6 +38,7 @@ class NewWineOptions:
         no_discovery: Whether refill requires existing library affinity.
         endpoint_mode: Whether album/EP endpoint prompts are requested.
         dry_run: Whether remote effects and checkpoints are suppressed.
+        force_no_discovery: Whether current Flush Mode overrides a saved false mode.
     """
 
     destination: str
@@ -46,6 +47,7 @@ class NewWineOptions:
     no_discovery: bool
     endpoint_mode: bool
     dry_run: bool
+    force_no_discovery: bool = False
 
 
 @dataclass(frozen=True)
@@ -337,11 +339,11 @@ class NewWineRun:
         cellar = self.run.get("wine_cellar_playlist_id")
         if not isinstance(cellar, str) or not cellar:
             cellar = self.options.cellar
-        no_discovery = (
-            bool(self.run["no_discovery"])
-            if "no_discovery" in self.run
-            else self.options.no_discovery
+        no_discovery = self.options.force_no_discovery or bool(
+            self.run.get("no_discovery", self.options.no_discovery)
         )
+        if self.run.get("discovery_fallback"):
+            no_discovery = False
         if self.paused or not cellar:
             return None
         assert isinstance(cellar, str)

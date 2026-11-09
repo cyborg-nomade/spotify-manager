@@ -4660,6 +4660,7 @@ class NewWineWebJobWaitsForAndAppliesReleaseChoiceScenario:
             "ineligible": 1,
             "no_discovery": True,
             "paused": False,
+            "discovery_fallback": False,
             "results": [
                 {
                     "artist": "Known Artist",

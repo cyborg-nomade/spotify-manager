@@ -2019,6 +2019,115 @@
         "title": "DormantArtistResultEntry",
         "type": "object"
       },
+      "FlushControl": {
+        "enum": [
+          "automatic",
+          "on",
+          "off"
+        ],
+        "type": "string"
+      },
+      "FlushControlRequest": {
+        "description": "Select a persistent operator override or return to Automatic.",
+        "properties": {
+          "control": {
+            "$ref": "#/components/schemas/FlushControl"
+          }
+        },
+        "required": [
+          "control"
+        ],
+        "title": "FlushControlRequest",
+        "type": "object"
+      },
+      "FlushModeStatus": {
+        "description": "Present effective policy independently of automatic observations.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "attempted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempted At"
+          },
+          "automatic_active": {
+            "title": "Automatic Active",
+            "type": "boolean"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "control": {
+            "$ref": "#/components/schemas/FlushControl"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "queue_2_tracks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue 2 Tracks"
+          },
+          "queue_tracks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Tracks"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "control",
+          "active",
+          "automatic_active",
+          "queue_tracks",
+          "queue_2_tracks",
+          "checked_at",
+          "attempted_at",
+          "error",
+          "reason"
+        ],
+        "title": "FlushModeStatus",
+        "type": "object"
+      },
       "FoundArtSelectionResult": {
         "description": "One Last.fm recommendation and its Spotify playlist outcome.",
         "properties": {
@@ -2716,6 +2825,11 @@
           "before": {
             "title": "Before",
             "type": "integer"
+          },
+          "discovery_fallback": {
+            "default": false,
+            "title": "Discovery Fallback",
+            "type": "boolean"
           },
           "ineligible": {
             "title": "Ineligible",
@@ -9688,6 +9802,83 @@
           }
         },
         "summary": "Cmd Update Total Albums"
+      }
+    },
+    "/flush-mode": {
+      "get": {
+        "description": "Read effective Flush Mode and retained observations.\n\nReturns:\n    Current persistent control and automatic decision.",
+        "operationId": "flush_mode_status_flush_mode_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlushModeStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Flush Mode Status"
+      }
+    },
+    "/flush-mode/check": {
+      "post": {
+        "description": "Check both live playlist counts without starting a listening routine.\n\nArgs:\n    client: Invocation-owned Spotify client supplied by the HTTP dependency.\n\nReturns:\n    Updated state, with retained observations and error on count-check failure.",
+        "operationId": "check_flush_mode_flush_mode_check_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlushModeStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check Flush Mode"
+      }
+    },
+    "/flush-mode/control": {
+      "put": {
+        "description": "Persist a manual override or return to Automatic.\n\nArgs:\n    request: Validated persistent control selection.\n\nReturns:\n    Committed control and latest observations.",
+        "operationId": "set_flush_mode_control_flush_mode_control_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlushControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlushModeStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Flush Mode Control"
       }
     },
     "/health": {

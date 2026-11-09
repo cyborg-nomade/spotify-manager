@@ -24,7 +24,6 @@ from fastapi.responses import FileResponse
 from fastapi.responses import Response
 from spotipy.exceptions import SpotifyException
 
-# UFI
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.api import ClientDep
 from spotify_manager.api import app
@@ -36,6 +35,9 @@ from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+
+# UFI
+from spotify_manager.interfaces.http.handlers import flush_mode as flush_mode_http
 from spotify_manager.routines import genre_reveal
 from spotify_manager.settings import Settings
 
@@ -98,6 +100,7 @@ async def put_genre_reveal_state(
     update: genre_reveal.GenreRevealStateUpdate,
 ) -> genre_reveal.GenreRevealState:
     """Atomically replace persisted Every Noise route progress."""
+    await flush_mode_http.require_start("genre_reveal")
     try:
         async with current_execution().genre_state_lock:
             return await genre_reveal.async_save_genre_reveal_state(
@@ -118,6 +121,7 @@ async def get_genre_reveal_source(
     name: str,
 ) -> genre_reveal.GenreRevealSourcePreview:
     """Resolve the primary Spotify playlist before the user starts a run."""
+    await flush_mode_http.require_start("genre_reveal")
     try:
         return await genre_reveal.async_discover_genre_source(slug, name)
     except genre_reveal.GenreRevealSourceError as exc:
@@ -133,6 +137,7 @@ async def run_next_genre_reveal(
     client: ClientDep,
 ) -> genre_reveal.GenreRevealRunResult:
     """Save and sample the first incomplete genre selected by the route."""
+    await flush_mode_http.require_start("genre_reveal")
     if not _genre_reveal_run_lock.acquire(blocking=False):
         raise HTTPException(
             status_code=409,

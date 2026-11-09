@@ -27,6 +27,7 @@ for this baseline; parameter names below are Python callback names.
 | [ ] | `fill-palace-of-memory` | `fill_palace_of_memory_command` | `dry_run=False`; `alphabetical_start=None`; `set_alphabetical_cursor=None` |
 | [ ] | `fill-queue-from-lastfm` | `fill_queue_from_lastfm_command` | `count=None`; `max_playlist_length=None`; `seed_count=30`; `dry_run=False` |
 | [ ] | `fill-sauvignon-from-lastfm` | `fill_sauvignon_from_lastfm_command` | `count=None`; `max_playlist_length=None`; `seed_count=30`; `dry_run=False` |
+| [ ] | `flush-mode` | `flush_mode` | `check=False`; `control=None` |
 | [ ] | `flush-new-kids` | `flush_new_kids_command` | `dry_run=False` |
 | [ ] | `flush-new-wine` | `flush_new_wine_command` | `dry_run=False`; `no_discovery=False`; `choose_album_endpoints=False` |
 | [ ] | `flush-queue` | `flush_queue_command` | `dry_run=False` |
@@ -197,6 +198,9 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/commands/new-year-jobs/{job_id}` | `cmd_new_year_job` | True |
 | [ ] | api | POST | `/commands/new-year-jobs/{job_id}/match` | `cmd_choose_new_year_match` | True |
 | [ ] | api | POST | `/commands/new-year-jobs/{job_id}/cancel` | `cmd_cancel_new_year_job` | True |
+| [ ] | api | GET | `/flush-mode` | `flush_mode_status` | True |
+| [ ] | api | PUT | `/flush-mode/control` | `set_flush_mode_control` | True |
+| [ ] | api | POST | `/flush-mode/check` | `check_flush_mode` | True |
 | [ ] | web | GET | `/` | `index` | False |
 | [ ] | web | GET | `/genre-reveal` | `genre_reveal_page` | False |
 | [ ] | web | GET | `/genre-reveal/state` | `get_genre_reveal_state` | True |

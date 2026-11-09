@@ -91,6 +91,19 @@ Routine cards are organized by listening function:
 The full-width **Data signal board** sits immediately below **New Year's
 Routines** on desktop, tablet and mobile, before the listening modules.
 
+The **Flush Mode** panel follows the board. It shows both queue counts, the last
+successful check, effective mode and any retained check failure. **Automatic**
+uses the latest successful count check; **Force on/off** persists until changed.
+Use **Check now** to read both queues without running a listening routine.
+Nightly checking is the next roadmap item.
+
+Active Flush Mode disables new Found Art, Genre Reveal, Queue/Queue 2/Queue 3
+and Sauvignon runs, including queue flushes, dry runs and resumptions. The API
+and CLI enforce the same start policy. Existing jobs, their choices and cancel
+controls remain available. New Wine starts with No Discovery, but permits normal
+Wine Cellar discovery if recovery cannot fill its ten slots. Completed results
+identify that fallback. See the [policy and review guide](improvements-2/04_FLUSH_MODE.md).
+
 Cards start cautious routines in dry-run mode, expose command-specific compact
 controls, and show terminal logs on demand. Pending choices are rendered in the
 card rather than using blocking browser dialogs. Controls remain available when

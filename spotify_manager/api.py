@@ -23,6 +23,7 @@ from spotify_manager.interfaces.http.handlers import (
 from spotify_manager.interfaces.http.handlers import discography as discography_http
 from spotify_manager.interfaces.http.handlers import discovery as discovery_http
 from spotify_manager.interfaces.http.handlers import dormant as dormant_http
+from spotify_manager.interfaces.http.handlers import flush_mode as flush_mode_http
 from spotify_manager.interfaces.http.handlers import found_art as found_art_http
 from spotify_manager.interfaces.http.handlers import health as health_http
 from spotify_manager.interfaces.http.handlers import historical as historical_http
@@ -72,6 +73,8 @@ from spotify_manager.interfaces.http.models.discovery import (
 from spotify_manager.interfaces.http.models.discovery import (
     Queue3ChoiceRequest as Queue3ChoiceRequest,
 )
+from spotify_manager.interfaces.http.models.flush_mode import FlushControlRequest
+from spotify_manager.interfaces.http.models.flush_mode import FlushModeStatus
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult as BlastJobResult
 from spotify_manager.interfaces.http.models.queue import (
     QueueChoiceRequest as QueueChoiceRequest,
@@ -2578,3 +2581,39 @@ def __getattr__(name: str) -> object:
         AttributeError: The API never exported this name.
     """
     return getattr(jobs, name)
+
+
+@app.api_route("/flush-mode", methods=["GET"], response_model=FlushModeStatus)
+async def flush_mode_status() -> FlushModeStatus:
+    """Read effective Flush Mode and retained observations.
+
+    Returns:
+        Current persistent control and automatic decision.
+    """
+    return await flush_mode_http.status()
+
+
+@app.api_route("/flush-mode/control", methods=["PUT"], response_model=FlushModeStatus)
+async def set_flush_mode_control(request: FlushControlRequest) -> FlushModeStatus:
+    """Persist a manual override or return to Automatic.
+
+    Args:
+        request: Validated persistent control selection.
+
+    Returns:
+        Committed control and latest observations.
+    """
+    return await flush_mode_http.control(request.control)
+
+
+@app.api_route("/flush-mode/check", methods=["POST"], response_model=FlushModeStatus)
+async def check_flush_mode(client: ClientDep) -> FlushModeStatus:
+    """Check both live playlist counts without starting a listening routine.
+
+    Args:
+        client: Invocation-owned Spotify client supplied by the HTTP dependency.
+
+    Returns:
+        Updated state, with retained observations and error on count-check failure.
+    """
+    return await flush_mode_http.check(client)

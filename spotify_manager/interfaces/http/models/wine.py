@@ -77,6 +77,7 @@ class NewWineRefillResult(BaseModel):
     no_discovery: bool
     results: list[NewWineCellarTrackResult] = Field(default_factory=list)
     paused: bool = False
+    discovery_fallback: bool = False
 
 
 class NewWineChoiceRequest(BaseModel):

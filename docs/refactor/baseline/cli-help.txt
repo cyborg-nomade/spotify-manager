@@ -2,7 +2,7 @@ $ spotify-manager --help
 
  Usage: spotify-manager [OPTIONS] COMMAND [ARGS]...
 
- Hydrate durable canonical files before ordinary CLI commands.
+ Admit routines, then hydrate durable files for ordinary CLI commands.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
 │ --install-completion          Install completion for the current shell.                          │
@@ -63,6 +63,8 @@ $ spotify-manager --help
 │ recover-removed-albums        Audit removed albums, follow credited artists, and restore future  │
 │                               releases.                                                          │
 │ review-artists                Review followed artists and place one track in the matching queue. │
+│ flush-mode                    Inspect Flush Mode, persist an override or refresh its             │
+│                               observations.                                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
@@ -277,6 +279,23 @@ $ spotify-manager fill-sauvignon-from-lastfm --help
 │ --dry-run                                          Resolve album recommendations without         │
 │                                                    changing Spotify.                             │
 │ --help                                             Show this message and exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-mode --help
+
+ Usage: spotify-manager flush-mode [OPTIONS]
+
+ Inspect Flush Mode, persist an override or refresh its observations.
+
+ Args:
+ check: Whether to check live counts without running a listening routine.
+ control: Optional persistent control selection.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --check                Check both live queue counts.                                             │
+│ --control        TEXT  automatic, on or off.                                                     │
+│ --help                 Show this message and exit.                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 

@@ -87,8 +87,9 @@ async def test_ineligible_marker_is_not_offered_for_confirmation() -> None:
     memory.eligibility.clear()
     reader = TransferReader()
     result = await _review(memory, reader)
-    assert result.ineligible == 2 and result.added == 0
-    assert reader.offered == [] and memory.playlists["new"] == []
+    assert result.ineligible == 2 and result.added == 1
+    assert result.discovery_fallback and not result.no_discovery
+    assert reader.offered == [] and memory.playlists["new"] == [SOURCE]
 
 
 async def test_standard_mode_keeps_automatic_transfer_contract() -> None:

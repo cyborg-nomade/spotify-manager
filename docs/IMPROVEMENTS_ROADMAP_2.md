@@ -80,6 +80,9 @@ order with no horizontal overflow.
 
 ## Item 4: Flush Mode policy, shared state and panel
 
+**Status:** implemented and verified; owner review pending. See the
+[item guide](improvements-2/04_FLUSH_MODE.md).
+
 Add a global panel below the Data Signal Board showing effective mode, control
 mode, both playlist counts, activation reason and last successful check. Provide
 Check now and Automatic / Force On / Force Off controls.

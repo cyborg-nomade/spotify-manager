@@ -578,10 +578,10 @@ async def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
     ]
 
 
-async def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
+async def test_no_discovery_refill_uses_recovery_before_capacity_fallback(
     tmp_path: Path,
 ) -> None:
-    """No discovery refill keeps ineligible tracks in cellar order.
+    """Recovery first preserves its order before filling capacity with discovery.
 
     Args:
         tmp_path: Isolated original fixture storage.
@@ -676,19 +676,22 @@ async def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
     )
 
     assert summary.refill is not None
-    assert summary.refill.after == 2
-    assert summary.refill.added == 2
+    assert summary.refill.after == 3
+    assert summary.refill.added == 3
+    assert summary.refill.discovery_fallback and not summary.refill.no_discovery
     assert summary.refill.ineligible == 1
     assert [result.action for result in summary.refill.results] == [
         "ineligible",
+        "moved",
         "moved",
         "moved",
     ]
     assert [track["id"] for track in spotify.playlists["new"]] == [
         "albums",
         "likes",
+        "low",
     ]
-    assert [track["id"] for track in spotify.playlists["wine"]] == ["low"]
+    assert spotify.playlists["wine"] == []
     assert spotify.album_contains_calls == [["a0", "a1", "a2"]]
     assert spotify.liked_contains_calls == [
         [f"low{index}" for index in range(10)],

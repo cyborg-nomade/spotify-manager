@@ -1682,6 +1682,45 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.api.flush_mode_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "flush_mode_status",
+    "path": "/flush-mode",
+    "response_model": "FlushModeStatus",
+    "source_line": 2586,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.set_flush_mode_control",
+    "include_in_schema": true,
+    "methods": [
+      "PUT"
+    ],
+    "name": "set_flush_mode_control",
+    "path": "/flush-mode/control",
+    "response_model": "FlushModeStatus",
+    "source_line": 2596,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.check_flush_mode",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "check_flush_mode",
+    "path": "/flush-mode/check",
+    "response_model": "FlushModeStatus",
+    "source_line": 2609,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [

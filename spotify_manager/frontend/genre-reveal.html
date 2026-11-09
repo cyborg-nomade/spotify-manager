@@ -298,6 +298,7 @@
     const MAX_BROWSER_BACKUPS = 50;
     const HIDE_KEY = "everynoise-nearest-neighbour-hide-done-v1";
     const APP_PASSWORD_KEY = "sm_pw";
+    let flushBlocked = true;
     const STATE_URL = "/genre-reveal/state";
     const SOURCE_URL = "/genre-reveal/source";
     const RUN_URL = "/genre-reveal/run-next";
@@ -425,7 +426,7 @@
     let sourceRequestSequence = 0;
 
     async function flushServerState() {
-      if (savingServerState) return;
+      if (savingServerState || flushBlocked) return;
       savingServerState = true;
       while (pendingServerState) {
         const state = pendingServerState;
@@ -449,6 +450,7 @@
     }
 
     function saveProgress() {
+      if (flushBlocked) return;
       storeBrowserBackup(lastBrowserSnapshot);
       const updatedAt = new Date().toISOString();
       localStorage.setItem(STORAGE_KEY, JSON.stringify([...completed]));
@@ -484,6 +486,7 @@
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.disabled = flushBlocked;
       checkbox.className = "check";
       checkbox.checked = completed.has(slug);
       checkbox.setAttribute("aria-label", `Mark ${name} completed`);
@@ -581,7 +584,31 @@
       return `HTTP ${response.status}`;
     }
 
+    async function loadFlushPolicy() {
+      const before = flushBlocked;
+      try {
+        const response = await fetch("/flush-mode", {headers: stateHeaders()});
+        if (!response.ok) throw new Error("Flush Mode unavailable");
+        const state = await response.json();
+        flushBlocked = state.active;
+      } catch (error) {
+        flushBlocked = true;
+      }
+      reset.disabled = flushBlocked;
+      hideDone.disabled = flushBlocked;
+      list.querySelectorAll(".check").forEach(item => { item.disabled = flushBlocked; });
+      if (flushBlocked) {
+        runNext.disabled = true;
+        routineStatus.textContent = "Flush Mode blocks new Genre Reveal actions. Change it from the main panel.";
+      } else if (before) {
+        if (shouldSeedServer) { saveProgress(); shouldSeedServer = false; }
+        void flushServerState();
+        void refreshNextSource();
+      }
+    }
+
     async function refreshNextSource(announce = true) {
+      if (flushBlocked) return;
       const requestSequence = ++sourceRequestSequence;
       const firstIncomplete = rows.find(
         row => !completed.has(row.dataset.slug)
@@ -611,10 +638,10 @@
         }
         if (!response.ok) throw new Error(await responseDetail(response));
         const preview = await response.json();
-        if (requestSequence !== sourceRequestSequence) return;
+        if (requestSequence !== sourceRequestSequence || flushBlocked) return;
 
         nextPreview = preview;
-        runNext.disabled = false;
+        runNext.disabled = flushBlocked;
         runNext.textContent = `Run ${name}`;
         nextGenreLink.href = preview.every_noise_url;
         nextGenreLink.hidden = false;
@@ -622,12 +649,13 @@
         nextPlaylistLink.hidden = false;
         if (announce) routineStatus.textContent = `${name} is ready.`;
       } catch (error) {
-        if (requestSequence !== sourceRequestSequence) return;
+        if (requestSequence !== sourceRequestSequence || flushBlocked) return;
         routineStatus.textContent = `Could not load next genre: ${error.message}`;
       }
     }
 
     runNext.addEventListener("click", async () => {
+      if (flushBlocked) return;
       const preview = nextPreview;
       if (!preview) {
         void refreshNextSource();
@@ -662,7 +690,7 @@
           `tracks added, ${result.already_present_track_uris.length} already present.`;
       } catch (error) {
         routineStatus.textContent = `${preview.name} failed: ${error.message}`;
-        runNext.disabled = false;
+        runNext.disabled = flushBlocked;
       }
     });
 
@@ -692,7 +720,7 @@
     });
 
     reset.addEventListener("click", () => {
-      if (!confirm("Clear all completed genres?")) return;
+      if (flushBlocked || !confirm("Clear all completed genres?")) return;
       completed.clear();
       saveProgress();
       for (const row of rows) {
@@ -707,7 +735,8 @@
 
     updateProgress();
     applyFilters();
-    void refreshNextSource();
+    await loadFlushPolicy();
+    setInterval(loadFlushPolicy, 5000);
   })();
   </script>
 </body>
