@@ -150,8 +150,14 @@ switches safely to live batch verification so the job cannot retry forever.
 
 The workflow requires matching `AUTOMATION_TOKEN` secrets in GitHub Actions and
 the Space, plus a GitHub `HF_SPACE_TOKEN` secret that can access the private
-Space. Manual dispatch from GitHub's Actions page includes `check_only` and
-`full_rebuild` options.
+Space. Every maintenance run checks Flush Mode before library-file freshness,
+including duplicate triggers whose files are already current. Count failures
+retain the previous decision and retry within the maintenance deadline; persistent
+Force On/Off selections are preserved.
+
+Manual dispatch includes read-only `check_only`, `full_rebuild`, and
+`flush_mode_only` (live counts without library jobs). See the
+[nightly Flush Mode guide](docs/improvements-2/05_NIGHTLY_FLUSH_MODE.md).
 
 ## Library mirror commands
 

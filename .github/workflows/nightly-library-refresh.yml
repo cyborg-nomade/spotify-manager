@@ -18,12 +18,17 @@ on:
   workflow_dispatch:
     inputs:
       check_only:
-        description: Verify access without starting refresh jobs
+        description: Read-only verification of access, data and Flush Mode status
         required: false
         default: false
         type: boolean
       full_rebuild:
         description: Fully rebuild Last.fm history and all Spotify mirrors
+        required: false
+        default: false
+        type: boolean
+      flush_mode_only:
+        description: Update Flush Mode counts and decision without library refresh jobs
         required: false
         default: false
         type: boolean
@@ -57,10 +62,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only }}
         run: python .github/scripts/nightly_refresh.py --check-only
 
-      - name: Refresh recent durable library data
-        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '17 19 * * 0-5' || github.event.schedule == '17 0 * * 1-6')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.full_rebuild) }}
+      - name: Check only Flush Mode
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.check_only && inputs.flush_mode_only }}
+        run: python .github/scripts/nightly_refresh.py --flush-mode-only
+
+      - name: Check Flush Mode and refresh recent durable library data
+        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '17 19 * * 0-5' || github.event.schedule == '17 0 * * 1-6')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.flush_mode_only && !inputs.full_rebuild) }}
         run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG
 
-      - name: Fully rebuild durable library data
-        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '37 19 * * 6' || github.event.schedule == '37 0 * * 0')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && inputs.full_rebuild) }}
+      - name: Check Flush Mode and fully rebuild durable library data
+        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '37 19 * * 6' || github.event.schedule == '37 0 * * 0')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.flush_mode_only && inputs.full_rebuild) }}
         run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG --full-rebuild

@@ -131,6 +131,9 @@ discovery never fabricates a full playlist.
 
 ## Item 5: nightly Flush Mode checks
 
+**Status:** implemented and verified; owner review pending. See the
+[item guide](improvements-2/05_NIGHTLY_FLUSH_MODE.md).
+
 Integrate the checker into the existing Berlin-time nightly workflow,
 independently of Recent/Full artifact freshness. Already-current library files
 must not suppress the mode check. Nightly checks update observations and

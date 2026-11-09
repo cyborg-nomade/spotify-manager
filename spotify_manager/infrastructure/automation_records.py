@@ -3,9 +3,69 @@
 import json
 from datetime import UTC
 from datetime import datetime
+from typing import cast
 
 from spotify_manager.application.automation_values import DURABLE_ARTIFACT_FILENAMES
 from spotify_manager.application.automation_values import AutomationError
+from spotify_manager.domain.flush_mode import FlushControl
+from spotify_manager.domain.flush_mode import FlushState
+from spotify_manager.domain.flush_mode import QueueCounts
+
+
+def flush_observation(payload: object) -> FlushState:
+    """Decode the policy endpoint using only the Actions standard library.
+
+    Args:
+        payload: Untrusted HTTP status or check response.
+
+    Returns:
+        Validated state with normalized UTC timestamps.
+
+    Raises:
+        AutomationError: Control, counts, timestamps or effective mode are invalid.
+    """
+    if not isinstance(payload, dict):
+        raise AutomationError("Flush Mode returned an invalid status.")
+    control, automatic = payload.get("control"), payload.get("automatic_active")
+    error = payload.get("error")
+    if not isinstance(control, str) or control not in {"automatic", "on", "off"}:
+        raise AutomationError("Flush Mode returned an invalid control.")
+    if type(automatic) is not bool or (
+        error is not None and not isinstance(error, str)
+    ):
+        raise AutomationError("Flush Mode returned an invalid decision or error.")
+    state = FlushState(
+        cast(FlushControl, control),
+        automatic,
+        _flush_counts(payload),
+        _flush_timestamp(payload.get("checked_at")),
+        _flush_timestamp(payload.get("attempted_at")),
+        error,
+    )
+    if type(payload.get("active")) is not bool or payload["active"] != state.active:
+        raise AutomationError("Flush Mode returned an inconsistent effective decision.")
+    return state
+
+
+def _flush_counts(payload: dict[str, object]) -> QueueCounts | None:
+    first, second = payload.get("queue_tracks"), payload.get("queue_2_tracks")
+    if first is None and second is None:
+        return None
+    if type(first) is not int or type(second) is not int or first < 0 or second < 0:
+        raise AutomationError("Flush Mode returned invalid queue counts.")
+    return QueueCounts(first, second)
+
+
+def _flush_timestamp(raw: object) -> str | None:
+    if raw is None:
+        return None
+    try:
+        stamp = datetime.fromisoformat(raw) if isinstance(raw, str) else None
+    except ValueError as exc:
+        raise AutomationError("Flush Mode returned an invalid timestamp.") from exc
+    if stamp is None or stamp.tzinfo is None:
+        raise AutomationError("Flush Mode timestamps require a timezone.")
+    return stamp.astimezone(UTC).isoformat()
 
 
 def decode_response(raw: bytes) -> object:
