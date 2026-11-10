@@ -5,6 +5,11 @@ boundary rules and implementation, with the New Wine fallback below. The
 [first improvements roadmap](IMPROVEMENTS_ROADMAP.md) and
 [backend refactor](REFACTOR_ROADMAP.md) remain complete and closed.
 
+**Completed:** 2026-11-10. All five items are implemented, owner-approved,
+deployed and verified. The [final verification and conclusion](improvements-2/FINAL_VERIFICATION.md)
+records delivered behavior, release evidence and operational handoff. No items
+remain in this roadmap.
+
 ## Engineering and delivery
 
 Follow [AGENTS.md](../AGENTS.md), [ADR 003](adr/003-direct-use-case-paths.md) and
@@ -131,7 +136,8 @@ discovery never fabricates a full playlist.
 
 ## Item 5: nightly Flush Mode checks
 
-**Status:** implemented and verified; owner review pending. See the
+**Status:** owner-approved, deployed and verified on 2026-11-10 in
+[PR #89](https://github.com/cyborg-nomade/spotify-manager/pull/89). See the
 [item guide](improvements-2/05_NIGHTLY_FLUSH_MODE.md).
 
 Integrate the checker into the existing Berlin-time nightly workflow,

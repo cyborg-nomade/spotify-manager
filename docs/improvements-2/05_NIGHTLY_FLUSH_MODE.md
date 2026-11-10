@@ -1,6 +1,7 @@
 # Round 2, item 5: nightly Flush Mode checks
 
-**Status:** implemented and verified; owner review pending.
+**Status:** owner-approved, deployed and verified on 2026-11-10 in
+[PR #89](https://github.com/cyborg-nomade/spotify-manager/pull/89).
 **Branch:** `codex/round2-item5-nightly-flush-mode`.
 **Roadmap:** [second-round item 5](../IMPROVEMENTS_ROADMAP_2.md#item-5-nightly-flush-mode-checks).
 
@@ -126,11 +127,38 @@ recovery, with no console errors. Check-only verification kept state, count-step
 and durable manifest hashes unchanged. A private retry screenshot and logs are
 retained outside the repository.
 
-Deployment and merge await owner approval. After approval, verify
-read-only access, deploy the approved application helpers, then enable the approved
-workflow by merging. Run the narrow manual automation check and record the live
-result without starting the four library refreshes. Record completion of this
-roadmap after that verification.
+The owner approved PR #89 on 2026-11-10.
+[Source CI 42679506425](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42679506425)
+passed **12,593 tests**, seed **663027**, in **793.21 seconds**, with all independent
+coverage floors, typing, architecture, interface and packaging gates passing.
+
+Authenticated [preflight 42781756999](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42781756999)
+and [read-only postflight 42781911517](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42781911517)
+verified access, all four canonical artifacts, shared state and **20 idle routine
+endpoints**. Postflight also read Flush Mode status without requesting new counts.
+The runtime upload contained only the **three approved automation helper files**,
+with guarded prior Space and file identities. No credentials, fixtures, logs,
+state or canonical files were uploaded.
+
+Space revision `749d14d824350497dd10cb2842e08b8318aca122` is running. All **186 cumulative release
+blobs**, runtime identity, exact served frontend, health and authentication were
+verified. Deployment left state at `78be6ea4e6f3cdae24cf866ceac01db3ec636523` and data at
+`de774b845146f76ea403beca7c77ac5049489c9e` unchanged.
+
+The [live Flush Mode-only verification 42782100348](https://github.com/cyborg-nomade/spotify-manager/actions/runs/42782100348)
+ran the approved workflow against production without starting any library jobs.
+It observed **4,795 / 1,133 tracks**, preserved **Automatic**, and correctly retained
+active mode. The policy observation was published at state revision
+`03d5517b32290fa09f5ff61693c992debbb6d9eb`. Comparing immutable before/after snapshots confirmed
+that every other namespace was unchanged, the operator control was preserved,
+and canonical data remained unchanged. The approved workflow and script become
+the nightly default when this PR merges; their schedules and concurrency remain
+unchanged. The operational handoff is in the [round conclusion](FINAL_VERIFICATION.md).
+
+The approved runtime source remains `ea313620e6756a9277454e50a38b18913e6d2f3c`; release tracking is
+documentation only. Review servers were retired after verifying idle jobs, while
+all local fixtures, operator state, private evidence and existing stashes were
+preserved.
 
 Rollback restores the previous application automation helpers, script and workflow.
 This stops nightly count checks without altering shared policy, manual overrides,

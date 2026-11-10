@@ -32,7 +32,7 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | [Architecture specification](docs/ARCHITECTURE_SPEC.md) | Concise current modules, APIs, schemas, delivery status, and backlog. |
 | [Approved refactor roadmap](docs/REFACTOR_ROADMAP.md) | Behavior-preserving Clean Architecture migration, test gates, and delivery workflow. |
 | [Completed improvements roadmap](docs/IMPROVEMENTS_ROADMAP.md) | All 12 released routine improvements, acceptance criteria, and release workflow. |
-| [Second improvements roadmap](docs/IMPROVEMENTS_ROADMAP_2.md) | Approved follow-up: chronological catalogues, history download, layout and Flush Mode. |
+| [Completed second improvements roadmap](docs/IMPROVEMENTS_ROADMAP_2.md) | All five follow-up improvements, including nightly Flush Mode checks; [conclusion](docs/improvements-2/FINAL_VERIFICATION.md). |
 | [Improvements conclusion](docs/improvements/FINAL_VERIFICATION.md) | Delivered behavior, final verification, release evidence, and operational handoff. |
 | [Follow a request through the layers](docs/refactor/CALL_PATH_SIMPLIFICATION.md) | Feature entry points, named use cases, domain policies and result presenters for every family. |
 | [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
