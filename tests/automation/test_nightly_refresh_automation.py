@@ -12,7 +12,10 @@ import pytest
 from pytest_mock import MockerFixture
 
 from spotify_manager.application import automation_run
+from spotify_manager.domain.flush_mode import FlushState
 from spotify_manager.infrastructure.automation_records import artifact_updates
+from spotify_manager.infrastructure.automation_records import flush_observation
+from tests.support.automation_flush import flush_payload
 
 
 SCRIPT_PATH = (
@@ -133,6 +136,22 @@ class FakeClient:
         """
         return self.remaining
 
+    def flush_mode_status(self) -> FlushState:
+        """Read an independent policy response through the recorded boundary.
+
+        Returns:
+            Validated current policy.
+        """
+        return flush_observation(self.request("GET", "/flush-mode"))
+
+    def check_flush_mode(self) -> FlushState:
+        """Request an independent successful or failed count observation.
+
+        Returns:
+            Validated check response.
+        """
+        return flush_observation(self.request("POST", "/flush-mode/check"))
+
 
 def test_start_job_reconnects_to_its_existing_job(nightly: ModuleType) -> None:
     spec = nightly.JOBS[1]
@@ -215,13 +234,13 @@ def test_nightly_refresh_stops_cleanly_after_a_rate_limit(
         nightly: Loaded automation entry point.
         mocker: Isolated mocks for the original I/O and application boundaries.
     """
-    client = FakeClient([{"status": "ok"}])
+    client = FakeClient([{"status": "ok"}, flush_payload()])
     stages = mocker.patch.object(
         automation_run, "run_job", side_effect=["completed", "paused"]
     )
 
     assert nightly.run_nightly_refresh(client) == 0
-    assert client.calls == [("GET", "/health")]
+    assert client.calls == [("GET", "/health"), ("POST", "/flush-mode/check")]
     assert stages.call_count == 2
 
 
@@ -243,7 +262,7 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
         }
         for filename in nightly.DURABLE_ARTIFACT_FILENAMES
     ]
-    client = FakeClient([{"status": "ok"}, {"files": files}])
+    client = FakeClient([{"status": "ok"}, flush_payload(), {"files": files}])
     stage = mocker.patch.object(
         automation_run,
         "run_job",
@@ -259,6 +278,7 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
     )
     assert client.calls == [
         ("GET", "/health"),
+        ("POST", "/flush-mode/check"),
         ("GET", "/library-mirrors/status"),
     ]
     stage.assert_not_called()
@@ -308,6 +328,7 @@ def test_connection_check_requires_all_durable_artifacts(
                 }
             },
             [],
+            flush_payload(),
         ]
     )
 

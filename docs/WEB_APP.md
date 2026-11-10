@@ -95,7 +95,9 @@ The **Flush Mode** panel follows the board. It shows both queue counts, the last
 successful check, effective mode and any retained check failure. **Automatic**
 uses the latest successful count check; **Force on/off** persists until changed.
 Use **Check now** to read both queues without running a listening routine.
-Nightly checking is the next roadmap item.
+Nightly maintenance checks the same policy before library freshness checks, while
+preserving overrides. Read-only deployment checks do not request live counts.
+See the [nightly automation guide](improvements-2/05_NIGHTLY_FLUSH_MODE.md).
 
 Active Flush Mode disables new Found Art, Genre Reveal, Queue/Queue 2/Queue 3
 and Sauvignon runs, including queue flushes, dry runs and resumptions. The API

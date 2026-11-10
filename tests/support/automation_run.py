@@ -11,6 +11,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from spotify_manager.domain.flush_mode import FlushState
+from spotify_manager.infrastructure.automation_records import flush_observation
+from tests.support.automation_flush import flush_payload
 from tests.support.effects import Json
 from tests.support.effects import encode_value
 
@@ -110,6 +113,8 @@ class AutomationMemory:
             Unvalidated decoded external JSON.
         """
         self.events.append([method, path, parameters])
+        if path in {"/flush-mode", "/flush-mode/check"}:
+            return flush_payload()
         if method == "POST":
             return self.post(path)
         if path.endswith("/job") or path.endswith("/existing"):
@@ -237,6 +242,22 @@ class AutomationMemory:
             Original positive or exhausted remaining time.
         """
         return 0 if self.scenario.profile == "deadline" else 100
+
+    def flush_mode_status(self) -> FlushState:
+        """Read policy without requesting new counts.
+
+        Returns:
+            Independent typed status observation.
+        """
+        return flush_observation(self.request("GET", "/flush-mode"))
+
+    def check_flush_mode(self) -> FlushState:
+        """Record a live policy check without starting a library job.
+
+        Returns:
+            Independent typed successful observation.
+        """
+        return flush_observation(self.request("POST", "/flush-mode/check"))
 
 
 def execute(module: ModuleType, memory: AutomationMemory) -> object:

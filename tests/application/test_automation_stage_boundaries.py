@@ -13,8 +13,11 @@ from spotify_manager.application.automation_values import JOBS
 from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import JobSpec
+from spotify_manager.domain.flush_mode import FlushState
+from spotify_manager.infrastructure.automation_records import flush_observation
 from tests.application.automation_memory import FixedNowResource
 from tests.application.automation_memory import fixed_now
+from tests.support.automation_flush import flush_payload
 from tests.support.runtime_resources import MessageList
 
 
@@ -85,6 +88,22 @@ class ScriptedSpace:
             Remaining original seconds.
         """
         return 100
+
+    def flush_mode_status(self) -> FlushState:
+        """Read policy at the recorded external boundary.
+
+        Returns:
+            Validated response.
+        """
+        return flush_observation(self.request("GET", "/flush-mode"))
+
+    def check_flush_mode(self) -> FlushState:
+        """Check policy at the recorded external boundary.
+
+        Returns:
+            Validated response.
+        """
+        return flush_observation(self.request("POST", "/flush-mode/check"))
 
 
 def discard(message: str) -> None:
@@ -200,7 +219,7 @@ def unexpected_job(spec: JobSpec) -> str:
 
 def test_fresh_duplicate_skips_after_health_read() -> None:
     """Retain health before duplicate detection and suppress all routine starts."""
-    client = FreshSpace([{}])
+    client = FreshSpace([{}, flush_payload()])
     assert (
         workflow.nightly_refresh(
             client,
@@ -212,7 +231,10 @@ def test_fresh_duplicate_skips_after_health_read() -> None:
         )
         == 0
     )
-    assert len(client.events) == 1
+    assert client.events == [
+        ("GET", "/health", True, None),
+        ("POST", "/flush-mode/check", True, None),
+    ]
 
 
 @pytest.mark.parametrize(

@@ -32,7 +32,7 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | [Architecture specification](docs/ARCHITECTURE_SPEC.md) | Concise current modules, APIs, schemas, delivery status, and backlog. |
 | [Approved refactor roadmap](docs/REFACTOR_ROADMAP.md) | Behavior-preserving Clean Architecture migration, test gates, and delivery workflow. |
 | [Completed improvements roadmap](docs/IMPROVEMENTS_ROADMAP.md) | All 12 released routine improvements, acceptance criteria, and release workflow. |
-| [Second improvements roadmap](docs/IMPROVEMENTS_ROADMAP_2.md) | Approved follow-up: chronological catalogues, history download, layout and Flush Mode. |
+| [Completed second improvements roadmap](docs/IMPROVEMENTS_ROADMAP_2.md) | All five follow-up improvements, including nightly Flush Mode checks; [conclusion](docs/improvements-2/FINAL_VERIFICATION.md). |
 | [Improvements conclusion](docs/improvements/FINAL_VERIFICATION.md) | Delivered behavior, final verification, release evidence, and operational handoff. |
 | [Follow a request through the layers](docs/refactor/CALL_PATH_SIMPLIFICATION.md) | Feature entry points, named use cases, domain policies and result presenters for every family. |
 | [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
@@ -150,8 +150,14 @@ switches safely to live batch verification so the job cannot retry forever.
 
 The workflow requires matching `AUTOMATION_TOKEN` secrets in GitHub Actions and
 the Space, plus a GitHub `HF_SPACE_TOKEN` secret that can access the private
-Space. Manual dispatch from GitHub's Actions page includes `check_only` and
-`full_rebuild` options.
+Space. Every maintenance run checks Flush Mode before library-file freshness,
+including duplicate triggers whose files are already current. Count failures
+retain the previous decision and retry within the maintenance deadline; persistent
+Force On/Off selections are preserved.
+
+Manual dispatch includes read-only `check_only`, `full_rebuild`, and
+`flush_mode_only` (live counts without library jobs). See the
+[nightly Flush Mode guide](docs/improvements-2/05_NIGHTLY_FLUSH_MODE.md).
 
 ## Library mirror commands
 

@@ -17,7 +17,9 @@ from spotify_manager.application.automation_values import DeadlineReachedError
 from spotify_manager.application.ports.runtime import BlockingWait as Wait
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.domain.flush_mode import FlushState
 from spotify_manager.infrastructure.automation_records import decode_response
+from spotify_manager.infrastructure.automation_records import flush_observation
 
 
 class HttpResponse(Protocol):
@@ -131,6 +133,22 @@ class SpaceHttpClient:
         from spotify_manager.infrastructure.automation_records import artifact_updates
 
         return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
+    def flush_mode_status(self) -> FlushState:
+        """Read validated policy without requesting new Spotify observations.
+
+        Returns:
+            Existing control and retained counts.
+        """
+        return flush_observation(self.request("GET", "/flush-mode"))
+
+    def check_flush_mode(self) -> FlushState:
+        """Request one live count check with existing bounded HTTP retries.
+
+        Returns:
+            Updated policy or explicit retained-state failure.
+        """
+        return flush_observation(self.request("POST", "/flush-mode/check"))
 
     def remaining_seconds(self) -> float:
         """Observe the original signed maintenance time remaining.

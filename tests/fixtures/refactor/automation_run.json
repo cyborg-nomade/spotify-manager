@@ -638,6 +638,11 @@
       ],
       [
         "POST",
+        "/flush-mode/check",
+        {}
+      ],
+      [
+        "POST",
         "/commands/update-scrobble-history?dry_run=false",
         {
           "retry_transient": true
@@ -694,7 +699,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -710,13 +715,18 @@
       ],
       [
         "POST",
+        "/flush-mode/check",
+        {}
+      ],
+      [
+        "POST",
         "/commands/update-scrobble-history?dry_run=false",
         {
           "retry_transient": true
         }
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\n"
   },
   {
     "outcome": {
@@ -732,13 +742,18 @@
       ],
       [
         "POST",
+        "/flush-mode/check",
+        {}
+      ],
+      [
+        "POST",
         "/commands/update-scrobble-history?dry_run=false",
         {
           "retry_transient": true
         }
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\n"
   },
   {
     "outcome": {
@@ -748,6 +763,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -763,7 +783,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: paused - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: paused - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
   },
   {
     "outcome": {
@@ -773,6 +793,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -788,7 +813,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: cancelled - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: cancelled - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
   },
   {
     "outcome": {
@@ -804,29 +829,7 @@
       ],
       [
         "POST",
-        "/commands/update-scrobble-history?dry_run=false",
-        {
-          "retry_transient": true
-        }
-      ],
-      [
-        "GET",
-        "/commands/update-scrobble-history-jobs/job",
-        {}
-      ]
-    ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: failed - detail\n"
-  },
-  {
-    "outcome": {
-      "error": "AutomationError",
-      "message": "Last.fm scrobble history returned unknown status 'unknown'.",
-      "cause": null
-    },
-    "events": [
-      [
-        "GET",
-        "/health",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -842,7 +845,39 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: unknown - detail\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: failed - detail\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status 'unknown'.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: unknown - detail\n"
   },
   {
     "outcome": {
@@ -852,6 +887,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -924,7 +964,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history handle was lost; resuming from its checkpoint.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history handle was lost; resuming from its checkpoint.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -934,6 +974,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1005,7 +1050,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nLast.fm scrobble history is blocked by unrelated; waiting.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nLast.fm scrobble history is blocked by unrelated; waiting.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1015,6 +1060,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1066,7 +1116,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history: completed - \nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - \nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - \nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - \nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history: completed - \nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - \nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - \nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - \nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1082,6 +1132,11 @@
       ],
       [
         "POST",
+        "/flush-mode/check",
+        {}
+      ],
+      [
+        "POST",
         "/commands/update-scrobble-history?dry_run=false",
         {
           "retry_transient": true
@@ -1093,7 +1148,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history:  - \n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history:  - \n"
   },
   {
     "outcome": {
@@ -1103,6 +1158,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1121,7 +1181,7 @@
         }
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nCancelling Last.fm scrobble history at the maintenance deadline.\nMaintenance window closed; progress was saved.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nCancelling Last.fm scrobble history at the maintenance deadline.\nMaintenance window closed; progress was saved.\n"
   },
   {
     "outcome": {
@@ -1131,6 +1191,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1191,7 +1256,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1201,6 +1266,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1261,7 +1331,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1271,6 +1341,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1331,7 +1406,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1341,6 +1416,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1401,7 +1481,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1411,6 +1491,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1471,7 +1556,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1481,6 +1566,11 @@
       [
         "GET",
         "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/flush-mode/check",
         {}
       ],
       [
@@ -1541,7 +1631,7 @@
         {}
       ]
     ],
-    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nFlush Mode: normal (control: automatic); The Queue: 100; Queue 2: 50; checked: 2026-09-24T00:00:00+00:00. Automatic mode is normal; activation thresholds are not reached.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
   },
   {
     "outcome": {
@@ -1582,9 +1672,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1675,9 +1770,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1718,9 +1818,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1761,9 +1866,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1804,9 +1914,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1847,9 +1962,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1890,9 +2010,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1933,9 +2058,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -1976,9 +2106,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -2019,9 +2154,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -2062,9 +2202,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -2105,9 +2250,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {
@@ -2148,9 +2298,14 @@
         "GET",
         "/commands/two-jobs",
         {}
+      ],
+      [
+        "GET",
+        "/flush-mode",
+        {}
       ]
     ],
-    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+    "output": "Flush Mode status is available (control: automatic); no count check requested.\nAutomation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
   },
   {
     "outcome": {

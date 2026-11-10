@@ -347,10 +347,16 @@ def run_connection_check(client: workflow.SpaceAccess) -> int:
 
 def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    verification = parser.add_mutually_exclusive_group()
+    verification.add_argument(
         "--check-only",
         action="store_true",
         help="Verify authentication and durable data without starting refreshes.",
+    )
+    verification.add_argument(
+        "--flush-mode-only",
+        action="store_true",
+        help="Refresh Flush Mode counts without starting library refresh jobs.",
     )
     parser.add_argument(
         "--full-rebuild",
@@ -407,6 +413,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.check_only:
             return run_connection_check(client)
+        if args.flush_mode_only:
+            workflow.refresh_flush_mode(client, _OUTPUT)
+            return 0
         return _refresh(client, args, now)
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)

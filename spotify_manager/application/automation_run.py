@@ -12,6 +12,7 @@ from spotify_manager.application.automation_values import DURABLE_ARTIFACT_FILEN
 from spotify_manager.application.automation_values import FULL_REBUILD_JOBS
 from spotify_manager.application.automation_values import JOBS
 from spotify_manager.application.automation_values import POLL_SECONDS
+from spotify_manager.application.automation_values import REQUEST_RETRY_SECONDS
 from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import JobLostError
@@ -19,6 +20,8 @@ from spotify_manager.application.automation_values import JobSpec
 from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.automation_calendar import artifacts_are_fresh
+from spotify_manager.domain.flush_mode import FlushState
+from spotify_manager.domain.flush_mode import flush_reason
 
 
 class SpaceAccess(Protocol):
@@ -29,6 +32,22 @@ class SpaceAccess(Protocol):
     """
 
     deadline: datetime
+
+    def flush_mode_status(self) -> FlushState:
+        """Read policy without checking Spotify or changing shared state.
+
+        Returns:
+            Validated control and retained observations.
+        """
+        ...
+
+    def check_flush_mode(self) -> FlushState:
+        """Refresh live counts through the existing policy endpoint.
+
+        Returns:
+            Validated policy, including any retained observation failure.
+        """
+        ...
 
     def request(
         self,
@@ -299,7 +318,7 @@ def nightly_refresh(
     now: Clock,
     emit: Messages,
 ) -> int:
-    """Run original serial refreshes after health and optional duplicate detection.
+    """Check Flush Mode, then refresh library files unless already current.
 
     Args:
         client: Original authenticated API observations.
@@ -318,6 +337,7 @@ def nightly_refresh(
     )
     client.request("GET", "/health")
     emit.echo("Space is awake and healthy.")
+    refresh_flush_mode(client, emit)
     if threshold is not None and durable_artifacts_are_fresh(client, threshold):
         emit.echo(
             "All four durable artifacts were already refreshed during this "
@@ -327,6 +347,40 @@ def nightly_refresh(
     mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
     emit.echo(f"Refresh mode: {mode}.")
     return _run_jobs(client, jobs, now, emit)
+
+
+def refresh_flush_mode(client: SpaceAccess, emit: Messages) -> None:
+    """Retry failed count checks within the transport's maintenance deadline.
+
+    Args:
+        client: Authenticated policy resource with bounded requests and waits.
+        emit: Visible check outcome and retry messages.
+
+    Raises:
+        AutomationError: The endpoint returns incomplete successful observations.
+        DeadlineReachedError: Retried checks exhaust the maintenance window.
+    """
+    while True:
+        state = client.check_flush_mode()
+        if state.error is None:
+            _report_flush_mode(state, emit)
+            return
+        emit.echo(
+            f"Flush Mode check failed: {state.error} "
+            "Retrying within the maintenance window."
+        )
+        client.sleep(REQUEST_RETRY_SECONDS)
+
+
+def _report_flush_mode(state: FlushState, emit: Messages) -> None:
+    if state.counts is None or state.checked_at is None or state.attempted_at is None:
+        raise AutomationError("Flush Mode check returned no complete observation.")
+    effective = "active" if state.active else "normal"
+    emit.echo(
+        f"Flush Mode: {effective} (control: {state.control}); "
+        f"The Queue: {state.counts.queue}; Queue 2: {state.counts.queue_2}; "
+        f"checked: {state.checked_at}. {flush_reason(state)}"
+    )
 
 
 def _run_jobs(
@@ -392,6 +446,11 @@ def connection_check(client: SpaceAccess, emit: Messages) -> int:
         raise AutomationError("The shared state dataset is unavailable.")
     paths = _job_paths(client.request("GET", "/openapi.json"))
     _check_active_jobs(client, paths)
+    policy = client.flush_mode_status()
+    emit.echo(
+        f"Flush Mode status is available (control: {policy.control}); "
+        "no count check requested."
+    )
     emit.echo(
         "Automation authentication, shared state, and all four artifacts are healthy."
     )
