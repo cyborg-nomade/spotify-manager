@@ -1,0 +1,13 @@
+{
+  "name": "spotify-manager-browser-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "format:check": "prettier --check ../../spotify_manager/frontend/lastfm.html ../../spotify_manager/frontend/lastfm-assets/*-v1.js ../../spotify_manager/frontend/lastfm-assets/*-v1.css *.js package.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "prettier": "3.6.2"
+  }
+}

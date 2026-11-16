@@ -94,6 +94,16 @@ a partial replacement. Delivery releases only that request's temporary storage,
 including on disconnect or cancellation; no working file, manifest or shared
 state is changed. A missing published artifact must be synchronized first.
 
+The [Listening Explorer](listening-explorer/README.md) acquires the same verified
+published history for a disposable SQLite analytics index. Each web process owns
+its temporary index directory and refresh task; an optional `LISTENING_CACHE_DIR`
+sets the parent directory. Cache generations are keyed by source checksum and
+index/identity version, with at most four timezone tables per generation. The
+latest two generations and any active readers remain available during source
+replacement. Full checksum changes rebuild the index even with unchanged row
+counts. Shutdown drains the worker before deleting its cache. No analytics cache
+is canonical state or a durable publication; process replacement rebuilds it.
+
 ```console
 just library-data-status
 just library-data-pull --artifact scrobbles

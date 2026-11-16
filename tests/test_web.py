@@ -46,6 +46,23 @@ def test_genre_reveal_shell_is_open_but_state_api_is_protected() -> None:
     assert "/genre-reveal/state" not in OPEN_PATHS
 
 
+def test_listening_shell_and_exact_assets_are_open_but_analytics_are_protected(
+    client: TestClient,
+) -> None:
+    """Keep navigation loadable without exposing data or arbitrary static files."""
+    assert "/lastfm" in OPEN_PATHS and "/lastfm/" in OPEN_PATHS
+    assert "/lastfm/assets/explorer-v1.js" in OPEN_PATHS
+    assert "/lastfm/analytics/status" not in OPEN_PATHS
+    assert "/lastfm/analytics/overview" not in OPEN_PATHS
+    assert client.get("/lastfm").status_code == 200
+    assert client.get("/lastfm/").status_code == 200
+    assert 'href="/lastfm"' in client.get("/").text
+    script = client.get("/lastfm/assets/explorer-v1.js")
+    assert script.status_code == 200 and "loadSelection" in script.text
+    assert client.get("/lastfm/assets/echarts-6.0.0.min.js").status_code == 200
+    assert client.get("/lastfm/assets/not-an-asset.json").status_code == 404
+
+
 def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> None:
     response = client.get("/")
 

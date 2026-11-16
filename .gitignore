@@ -43,6 +43,9 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+node_modules/
+tests/browser/test-results/
+tests/browser/playwright-report/
 nosetests.xml
 coverage.xml
 *.cover

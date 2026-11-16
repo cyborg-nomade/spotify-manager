@@ -23,7 +23,9 @@ ALLOWED_IMPORTS = {
     "math",
     "re",
     "typing",
+    "unicodedata",  # Pure Unicode identity rules; no external services.
     "unidecode",
+    "zoneinfo",  # Explicit IANA calendar values, independent of the host timezone.
     "spotify_manager.domain",
 }
 IMPORT_SMOKE = """

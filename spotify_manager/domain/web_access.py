@@ -4,8 +4,29 @@ import hmac
 from typing import Protocol
 
 
+LISTENING_ASSETS = frozenset(
+    {
+        "explorer-v1.js",
+        "charts-v1.js",
+        "tables-v1.js",
+        "explorer-v1.css",
+        "echarts-6.0.0.min.js",
+        "ECHARTS-LICENSE.txt",
+        "ECHARTS-NOTICE.txt",
+    }
+)
 OPEN_PATHS = frozenset(
-    {"/", "/index.html", "/genre-reveal", "/genre-reveal/", "/health", "/favicon.ico"}
+    {
+        "/",
+        "/index.html",
+        "/genre-reveal",
+        "/genre-reveal/",
+        "/health",
+        "/favicon.ico",
+        "/lastfm",
+        "/lastfm/",
+    }
+    | {"/lastfm/assets/" + name for name in LISTENING_ASSETS}
 )
 
 

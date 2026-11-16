@@ -1038,5 +1038,10 @@
     "owner": "spotify_manager.infrastructure.flush_mode_state.AsyncFlushModeState._change",
     "function": "self.source.change",
     "reason": "asyncio.to_thread requires the concrete state writer to finish the complete namespace CAS/rebase operation off the event loop, including cancellation draining, before releasing bounded worker capacity."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.runtime.ListeningRuntime._refresh",
+    "function": "self.refresh_source",
+    "reason": "asyncio.to_thread requires this concrete resource method to read the published manifest, verify an independent source snapshot, and build the disposable SQLite index off the event loop. Capacity and runtime ownership remain held until the worker finishes; no application stage or supplied workflow is executed."
   }
 ]

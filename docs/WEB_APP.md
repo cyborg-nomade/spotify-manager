@@ -53,12 +53,18 @@ check health:
 /index.html
 /genre-reveal
 /genre-reveal/
+/lastfm
+/lastfm/
 /health
 /favicon.ico
 ```
 
 Every other route is protected when `APP_PASSWORD` is configured. A missing or
 incorrect header returns HTTP 401 with `{"detail":"unauthorized"}`.
+
+The exact versioned assets listed in `domain.web_access.LISTENING_ASSETS` are
+also open under `/lastfm/assets/`, so the explorer login can load. No wildcard
+prefix is allowlisted; `/lastfm/analytics/*` remains protected.
 
 For local cockpit development, a direct loopback request accepts any non-empty
 header when the process is not running in an HF Space. This convenience does
@@ -123,6 +129,14 @@ available during synchronization: the last complete publication is served until
 the replacement is published. Missing history produces a clear error asking for
 a sync. See the [download guide](improvements-2/02_SCROBBLE_HISTORY_DOWNLOAD.md)
 for storage, error and review details.
+
+**Explore ↗** opens the [Listening Explorer](listening-explorer/README.md).
+It provides calendar/rhythm, rankings, artist evolution, entity details,
+discovery cohorts, period comparisons, and forgotten favorites on a separate
+responsive page. It reads the published history, uses one snapshot token across
+widgets, and makes no live Last.fm/Spotify calls. Filters and selected entities
+are restored from the URL; charts have table alternatives and CSV/PNG exports.
+Only the new page's source is modularized; the existing cockpit remains intact.
 
 Legacy library cards and generic command buttons are intentionally absent from
 the current UI, but their API routes remain available.

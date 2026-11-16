@@ -31,6 +31,7 @@ from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.web import environment
 from spotify_manager.bootstrap.web import managed_path
 from spotify_manager.core.state.runtime import get_state_service
+from spotify_manager.domain.web_access import LISTENING_ASSETS
 from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
@@ -45,6 +46,7 @@ from spotify_manager.settings import Settings
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 INDEX_HTML = FRONTEND_DIR / "index.html"
 GENRE_REVEAL_HTML = FRONTEND_DIR / "genre-reveal.html"
+LASTFM_HTML = FRONTEND_DIR / "lastfm.html"
 GENRE_REVEAL_STATE_PATH = managed_path(
     "GENRE_REVEAL_STATE_PATH", genre_reveal.DEFAULT_STATE_PATH
 )
@@ -77,6 +79,35 @@ def index() -> FileResponse:
 def genre_reveal_page() -> FileResponse:
     """Serve the Every Noise nearest-neighbour route."""
     return FileResponse(GENRE_REVEAL_HTML)
+
+
+@app.get("/lastfm", include_in_schema=False)
+@app.get("/lastfm/", include_in_schema=False)
+def listening_explorer_page() -> FileResponse:
+    """Serve the data-free Listening Explorer shell and its login controls.
+
+    Returns:
+        Static companion page; all listening data requires authentication.
+    """
+    return FileResponse(LASTFM_HTML)
+
+
+@app.get("/lastfm/assets/{filename}", include_in_schema=False)
+def listening_explorer_asset(filename: str) -> FileResponse:
+    """Serve only the exact versioned explorer assets and bundled license notices.
+
+    Args:
+        filename: One explicitly allowed asset basename.
+
+    Returns:
+        Packaged static asset.
+
+    Raises:
+        HTTPException: The name is not an explorer asset.
+    """
+    if filename not in LISTENING_ASSETS:
+        raise HTTPException(404, "Unknown explorer asset.")
+    return FileResponse(FRONTEND_DIR / "lastfm-assets" / filename)
 
 
 @app.get(
