@@ -57,6 +57,13 @@ Python/frontend files** against source and both existing entry points. The full
 randomized suite and independent coverage floors are also required; the PR's
 checks and description record their final results.
 
+Post-merge CI for the first release exposed a test readiness race: the helper
+allowed roughly half a second for a correct background index build. A controlled
+two-second build reproduced that failure. The candidate replaces the attempt
+count with a ten-second monotonic deadline, fails immediately on a reported
+source error, and includes the delayed-build regression. Production execution is
+unchanged by this test-only correction.
+
 ## Published history and scale
 
 The read-only benchmark verified the current published artifact: **338,774

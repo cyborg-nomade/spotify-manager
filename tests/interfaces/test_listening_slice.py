@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from time import monotonic
 from time import sleep
 from typing import cast
 from unittest.mock import Mock
@@ -19,6 +21,15 @@ from spotify_manager.interfaces.http.listening import router
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
+
+
+class DelayedListeningRuntime(ListeningRuntime):
+    """Model a correct index build delayed by a busy CI worker."""
+
+    def refresh_source(self) -> None:
+        """Delay only this synthetic resource, then run the real index build."""
+        sleep(2)
+        super().refresh_source()
 
 
 @asynccontextmanager
@@ -44,7 +55,8 @@ def listening_http(tmp_path: Path) -> Iterator[tuple[TestClient, ListeningFixtur
 
 
 def ready_parameters(client: TestClient) -> dict[str, str]:
-    for _attempt in range(100):
+    deadline = monotonic() + 10
+    while monotonic() < deadline:
         status = client.get("/lastfm/analytics/status").json()
         if status["metadata"] is not None:
             return {
@@ -53,8 +65,24 @@ def ready_parameters(client: TestClient) -> dict[str, str]:
                 "tz": "UTC",
                 "snapshot": status["metadata"]["snapshot"],
             }
-        sleep(0.005)
-    raise AssertionError("The synthetic index never became ready.")
+        assert status["state"] == "building", status["message"]
+        sleep(0.01)
+    raise AssertionError("The synthetic index did not become ready within 10 seconds.")
+
+
+def test_readiness_wait_accepts_a_delayed_successful_index(tmp_path: Path) -> None:
+    fixture = listening_fixture(tmp_path)
+    fixture.publish(sample_history())
+    runtime = DelayedListeningRuntime(fixture.service, TemporaryDirectory(dir=tmp_path))
+    app = FastAPI(lifespan=http_lifespan)
+    app.state.listening = runtime
+    app.include_router(router)
+    with TestClient(app) as client:
+        params = ready_parameters(client)
+        assert params["snapshot"].startswith("v1-")
+        assert (
+            client.get("/lastfm/analytics/overview", params=params).status_code == 200
+        )
 
 
 def test_authentication_precedes_any_index_acquisition(
