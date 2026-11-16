@@ -105,8 +105,7 @@ def _synthetic(path: Path, count: int) -> ArtifactMetadata:
                 "album": f"Album {index % 40000}",
                 "albumId": "",
             }
-            if index:
-                stream.write(",")
+            stream.write("," if index else "")
             stream.write(json.dumps(row, separators=(",", ":")))
         stream.write("]}")
     return _local_metadata(path)
@@ -174,13 +173,7 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     with TemporaryDirectory(prefix="listening-benchmark-") as directory:
         root = Path(directory)
         if arguments.published:
-            snapshot = ScrobbleHistoryFiles(get_library_data_service(), root).prepare()
-            if snapshot is None:
-                raise ValueError("No scrobble artifact is published.")
-            try:
-                return _measure(snapshot.path, snapshot.metadata, root)
-            finally:
-                snapshot.close()
+            return _published(root)
         source = arguments.source or root / "synthetic.json"
         metadata = (
             _synthetic(source, arguments.synthetic)
@@ -188,6 +181,16 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
             else _local_metadata(source)
         )
         return _measure(source, metadata, root)
+
+
+def _published(root: Path) -> dict[str, object]:
+    snapshot = ScrobbleHistoryFiles(get_library_data_service(), root).prepare()
+    if snapshot is None:
+        raise ValueError("No scrobble artifact is published.")
+    try:
+        return _measure(snapshot.path, snapshot.metadata, root)
+    finally:
+        snapshot.close()
 
 
 def main() -> None:
