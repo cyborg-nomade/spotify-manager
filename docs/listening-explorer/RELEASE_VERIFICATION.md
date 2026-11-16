@@ -95,12 +95,16 @@ the verified publication independently.
   and routes match pre-feature master after removing only new registrations.
 - Wheel/source distribution build and offline wheel smoke pass. Explorer page,
   JS/CSS, chart bytes, license, and notice files are checked against source.
-- Final randomized suite, independent coverage floors, and GitHub CI are being
-  recorded against the finished candidate before it is marked ready for review.
+- Final randomized suite: **12,653 passed** in 8m30s. Independent statement/branch
+  coverage: package **96.02% / 92.41%**, domain **100.00% / 99.90%**, application
+  **99.66% / 98.53%**. All required floors pass. GitHub CI is being completed
+  before the candidate is marked ready for review.
 
-Browser CI uses synthetic local publications, pinned npm dependencies and
-Playwright Chromium, and retains screenshots/failure traces. Production gains
-no frontend installation or bundling step.
+Browser CI uses synthetic local publications, Ubuntu 24.04, pinned npm dependencies
+and Playwright Chromium, and retains screenshots/failure traces. The browser job
+pins Ubuntu because `ubuntu-latest` selected Ubuntu 26.04, which the pinned
+Playwright release does not support. Production gains no frontend installation
+or bundling step.
 
 ## Release boundary
 

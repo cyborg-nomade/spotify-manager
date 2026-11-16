@@ -166,7 +166,9 @@ npm --prefix tests/browser test
 ```
 
 To use an existing Chrome installation, set `LISTENING_CHROME_PATH` to its binary.
-CI installs its pinned Playwright Chromium and retains screenshots/failure traces.
+CI uses Ubuntu 24.04 with its pinned Playwright Chromium and retains
+screenshots/failure traces. The runner version matches that browser release's
+supported system dependencies.
 The existing Python, architecture, frozen-interface, and independent coverage
 gates remain required. The wheel smoke check now verifies all explorer assets.
 
