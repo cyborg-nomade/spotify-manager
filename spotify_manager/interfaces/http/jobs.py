@@ -2067,13 +2067,13 @@ async def start_scrobble_history_job(
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Hydrate durable data once whenever an API process starts."""
     await _hydrate_library_data()
-    async with ExecutionRuntime() as runtime:
-        _app.state.execution = runtime
-        _app.state.listening = listening_explorer_runtime()
-        try:
+    _app.state.listening = listening_explorer_runtime()
+    try:
+        async with ExecutionRuntime() as runtime:
+            _app.state.execution = runtime
             yield
-        finally:
-            await _app.state.listening.close()
+    finally:
+        await _app.state.listening.close()
 
 
 def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONResponse:
