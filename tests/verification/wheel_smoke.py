@@ -36,7 +36,8 @@ def _environment(temporary: Path) -> dict[str, str]:
 
 def _verify_sources(site: Path) -> None:
     paths = list((ROOT / "spotify_manager").rglob("*.py"))
-    paths.extend((ROOT / "spotify_manager/frontend").glob("*.html"))
+    paths.extend((ROOT / "spotify_manager/frontend").rglob("*.html"))
+    paths.extend((ROOT / "spotify_manager/frontend/lastfm-assets").glob("*"))
     for path in paths:
         packaged = site / path.relative_to(ROOT)
         assert packaged.read_bytes() == path.read_bytes(), path.relative_to(ROOT)

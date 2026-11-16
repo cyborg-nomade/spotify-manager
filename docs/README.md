@@ -6,6 +6,13 @@ library and carrying out the listening routines defined in
 The same Python routine layer is exposed through a Typer CLI, a FastAPI service,
 and a responsive web cockpit.
 
+The [Listening Explorer](listening-explorer/README.md) is the companion Last.fm
+page at `/lastfm`, linked from the Data Signal Board. It adds activity, taste
+evolution, discovery, and forgotten-favorite views over verified published
+history. Its [approved plan](listening-explorer/IMPLEMENTATION_PLAN.md) and
+[release record](listening-explorer/RELEASE_VERIFICATION.md) describe the scope
+and verification.
+
 ## Reading paths
 
 ### Running the project

@@ -1962,6 +1962,55 @@
         "title": "DiscographyReleaseOption",
         "type": "object"
       },
+      "DiscoveryCohort": {
+        "description": "Report cohort returns only when the entire follow-up window is observed.\n\nArgs:\n    month: First-observed ISO month.\n    artists: All first-observed artists in this cohort.\n    eligible_7: Artists with seven fully observed follow-up days.\n    returned_7: Eligible artists returning on another day within seven days.\n    eligible_30: Artists with 30 fully observed follow-up days.\n    returned_30: Eligible artists returning on another day within 30 days.\n    eligible_90: Artists with 90 fully observed follow-up days.\n    returned_90: Eligible artists returning on another day within 90 days.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "eligible_30": {
+            "title": "Eligible 30",
+            "type": "integer"
+          },
+          "eligible_7": {
+            "title": "Eligible 7",
+            "type": "integer"
+          },
+          "eligible_90": {
+            "title": "Eligible 90",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "returned_30": {
+            "title": "Returned 30",
+            "type": "integer"
+          },
+          "returned_7": {
+            "title": "Returned 7",
+            "type": "integer"
+          },
+          "returned_90": {
+            "title": "Returned 90",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "artists",
+          "eligible_7",
+          "returned_7",
+          "eligible_30",
+          "returned_30",
+          "eligible_90",
+          "returned_90"
+        ],
+        "title": "DiscoveryCohort",
+        "type": "object"
+      },
       "DormantArtistResultEntry": {
         "description": "One dormant Last.fm artist and the liked track selected on Spotify.",
         "properties": {
@@ -2017,6 +2066,53 @@
           "action"
         ],
         "title": "DormantArtistResultEntry",
+        "type": "object"
+      },
+      "EntityKind": {
+        "enum": [
+          "artist",
+          "album",
+          "track"
+        ],
+        "type": "string"
+      },
+      "EntityLifetime": {
+        "description": "Keep entity history through an explicit analysis cutoff.\n\nArgs:\n    key: Opaque analytics identity.\n    name: First encountered display name.\n    artist: Artist context for albums/tracks.\n    plays: Recorded rows before the analysis cutoff.\n    first_ms: First recorded UTC observation.\n    last_ms: Last recorded UTC observation before the cutoff.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "first_ms": {
+            "title": "First Ms",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_ms": {
+            "title": "Last Ms",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "artist",
+          "plays",
+          "first_ms",
+          "last_ms"
+        ],
+        "title": "EntityLifetime",
         "type": "object"
       },
       "FlushControl": {
@@ -2128,6 +2224,24 @@
         "title": "FlushModeStatus",
         "type": "object"
       },
+      "ForgottenFavorite": {
+        "description": "Describe lifetime counts and inactivity as of a selected local date.\n\nArgs:\n    entity: Full available history through the analysis cutoff.\n    days_since_last: Local calendar-day gap to the analysis date.",
+        "properties": {
+          "days_since_last": {
+            "title": "Days Since Last",
+            "type": "integer"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityLifetime"
+          }
+        },
+        "required": [
+          "entity",
+          "days_since_last"
+        ],
+        "title": "ForgottenFavorite",
+        "type": "object"
+      },
       "FoundArtSelectionResult": {
         "description": "One Last.fm recommendation and its Spotify playlist outcome.",
         "properties": {
@@ -2229,6 +2343,934 @@
           "files"
         ],
         "title": "LibraryMirrorFilesStatus",
+        "type": "object"
+      },
+      "ListeningActivity": {
+        "description": "Return complete daily buckets and all 168 weekly rhythm cells.\n\nArgs:\n    days: Ordered local calendar dates, including empty buckets.\n    hours: Monday-first, hour-major weekly rhythm cells.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningHour"
+            },
+            "title": "Hours",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days",
+          "hours"
+        ],
+        "title": "ListeningActivity",
+        "type": "object"
+      },
+      "ListeningBreadth": {
+        "description": "Describe recorded variety and top-artist concentration in a bucket.\n\nArgs:\n    artists: Distinct recorded artists in the bucket.\n    tracks: Distinct artist-qualified tracks in the bucket.\n    top_artist_share: Largest artist count divided by all bucket plays.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "top_artist_share": {
+            "title": "Top Artist Share",
+            "type": "number"
+          },
+          "tracks": {
+            "title": "Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artists",
+          "tracks",
+          "top_artist_share"
+        ],
+        "title": "ListeningBreadth",
+        "type": "object"
+      },
+      "ListeningChange": {
+        "description": "Compare counts and percentage shares across two equally long periods.\n\nArgs:\n    key: Stable artist identity.\n    name: Display artist name.\n    previous: Recorded plays in the preceding equal-length period.\n    current: Recorded plays in the visible selected period.\n    previous_share: Fraction of all previous-period plays.\n    current_share: Fraction of all selected-period plays.",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "integer"
+          },
+          "current_share": {
+            "title": "Current Share",
+            "type": "number"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "previous": {
+            "title": "Previous",
+            "type": "integer"
+          },
+          "previous_share": {
+            "title": "Previous Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "previous",
+          "current",
+          "previous_share",
+          "current_share"
+        ],
+        "title": "ListeningChange",
+        "type": "object"
+      },
+      "ListeningComparison": {
+        "description": "Report a previous-period comparison with explicit coverage bounds.\n\nArgs:\n    previous_start: Inclusive earlier local start date.\n    previous_end: Inclusive earlier local end date.\n    previous_total: All recorded plays in the earlier period.\n    current_total: All recorded plays in the selected period.\n    previous_covered: Whether source coverage starts before the earlier period.\n    items: Top 15 artists by combined plays, with explicit shares.",
+        "properties": {
+          "current_total": {
+            "title": "Current Total",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningChange"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "previous_covered": {
+            "title": "Previous Covered",
+            "type": "boolean"
+          },
+          "previous_end": {
+            "format": "date",
+            "title": "Previous End",
+            "type": "string"
+          },
+          "previous_start": {
+            "format": "date",
+            "title": "Previous Start",
+            "type": "string"
+          },
+          "previous_total": {
+            "title": "Previous Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "previous_start",
+          "previous_end",
+          "previous_total",
+          "current_total",
+          "previous_covered",
+          "items"
+        ],
+        "title": "ListeningComparison",
+        "type": "object"
+      },
+      "ListeningCounts": {
+        "description": "Keep exact filtered counts and observed UTC bounds together.\n\nArgs:\n    scrobbles: Recorded rows, including duplicates.\n    artists: Distinct artist identities.\n    tracks: Distinct artist/title identities.\n    albums: Distinct known artist/album identities.\n    active_days: Local dates with a recorded play.\n    missing_album: Plays without an album name.\n    first_ms: Earliest selected UTC observation, or none.\n    last_ms: Latest selected UTC observation, or none.",
+        "properties": {
+          "active_days": {
+            "title": "Active Days",
+            "type": "integer"
+          },
+          "albums": {
+            "title": "Albums",
+            "type": "integer"
+          },
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "first_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Ms"
+          },
+          "last_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ms"
+          },
+          "missing_album": {
+            "title": "Missing Album",
+            "type": "integer"
+          },
+          "scrobbles": {
+            "title": "Scrobbles",
+            "type": "integer"
+          },
+          "tracks": {
+            "title": "Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scrobbles",
+          "artists",
+          "tracks",
+          "albums",
+          "active_days",
+          "missing_album",
+          "first_ms",
+          "last_ms"
+        ],
+        "title": "ListeningCounts",
+        "type": "object"
+      },
+      "ListeningDay": {
+        "description": "Describe one local date and whether it intersects observed coverage.\n\nArgs:\n    day: Date in the selected display timezone.\n    plays: Recorded rows on this date.\n    covered: Whether the date falls within observed source bounds.\n    partial: Whether the source starts or ends on this date.",
+        "properties": {
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "plays",
+          "covered",
+          "partial"
+        ],
+        "title": "ListeningDay",
+        "type": "object"
+      },
+      "ListeningDiscoveries": {
+        "description": "Return first-observed artist cohorts and the source follow-up boundary.\n\nArgs:\n    cohorts: Monthly cohorts with window-specific denominators.\n    observed_through: Last complete follow-up calendar day, or none.",
+        "properties": {
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryCohort"
+            },
+            "title": "Cohorts",
+            "type": "array"
+          },
+          "observed_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Through"
+          }
+        },
+        "required": [
+          "cohorts",
+          "observed_through"
+        ],
+        "title": "ListeningDiscoveries",
+        "type": "object"
+      },
+      "ListeningEntity": {
+        "description": "Separate lifetime facts from filtered details and related rankings.\n\nArgs:\n    kind: Opened artist, album, or track dimension.\n    lifetime: Full pre-cutoff recorded history facts.\n    overview: Counts within the visible shared selection.\n    activity: Calendar/rhythm within the shared selection.\n    records: First page of selected observations.\n    related: Related track ranking within the same selection.",
+        "properties": {
+          "activity": {
+            "$ref": "#/components/schemas/ListeningActivity"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EntityKind"
+          },
+          "lifetime": {
+            "$ref": "#/components/schemas/EntityLifetime"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/ListeningOverview"
+          },
+          "records": {
+            "$ref": "#/components/schemas/ListeningRecords"
+          },
+          "related": {
+            "$ref": "#/components/schemas/ListeningRanking"
+          }
+        },
+        "required": [
+          "kind",
+          "lifetime",
+          "overview",
+          "activity",
+          "records",
+          "related"
+        ],
+        "title": "ListeningEntity",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningActivity_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningActivity"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningActivity]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningComparison_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningComparison"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningComparison]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningDiscoveries_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningDiscoveries"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningDiscoveries]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningEntity_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningEntity"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningEntity]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningEvolution_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningEvolution"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningEvolution]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningOverview_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningOverview"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningOverview]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningRanking_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningRanking"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningRanking]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningRecords_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningRecords"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningRecords]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningRediscovery_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningRediscovery"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningRediscovery]",
+        "type": "object"
+      },
+      "ListeningEvolution": {
+        "description": "Return fixed top-eight-plus-Other series and aligned breadth metrics.\n\nArgs:\n    buckets: Ordered ISO months or Monday dates, including empty periods.\n    series: Up to eight fixed artists plus the Other remainder.\n    breadth: Variety and concentration aligned with the same buckets.\n    grain: Calendar months or Monday-based weeks.",
+        "properties": {
+          "breadth": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningBreadth"
+            },
+            "title": "Breadth",
+            "type": "array"
+          },
+          "buckets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "grain": {
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningSeries"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "buckets",
+          "series",
+          "breadth",
+          "grain"
+        ],
+        "title": "ListeningEvolution",
+        "type": "object"
+      },
+      "ListeningHour": {
+        "description": "Describe a weekday/hour cell with its actual covered-hour denominator.\n\nArgs:\n    weekday: Monday-based weekday index.\n    hour: Local hour from zero through 23.\n    plays: Recorded observations in this cell.\n    occurrences: Covered hours, including fractional source boundaries.\n    average: Recorded plays per covered hour, or zero without coverage.",
+        "properties": {
+          "average": {
+            "title": "Average",
+            "type": "number"
+          },
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "number"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "hour",
+          "plays",
+          "occurrences",
+          "average"
+        ],
+        "title": "ListeningHour",
+        "type": "object"
+      },
+      "ListeningMetadata": {
+        "description": "Identify one complete derived index and its verified source publication.",
+        "properties": {
+          "build_seconds": {
+            "title": "Build Seconds",
+            "type": "number"
+          },
+          "first_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Ms"
+          },
+          "indexed_at": {
+            "title": "Indexed At",
+            "type": "string"
+          },
+          "last_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ms"
+          },
+          "missing_album": {
+            "title": "Missing Album",
+            "type": "integer"
+          },
+          "published_at": {
+            "title": "Published At",
+            "type": "string"
+          },
+          "scrobbles": {
+            "title": "Scrobbles",
+            "type": "integer"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          },
+          "source_bytes": {
+            "title": "Source Bytes",
+            "type": "integer"
+          },
+          "source_sha256": {
+            "title": "Source Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "source_sha256",
+          "published_at",
+          "indexed_at",
+          "first_ms",
+          "last_ms",
+          "scrobbles",
+          "missing_album",
+          "source_bytes",
+          "build_seconds"
+        ],
+        "title": "ListeningMetadata",
+        "type": "object"
+      },
+      "ListeningOverview": {
+        "description": "Present counts with explicit calendar-day and active-day averages.\n\nArgs:\n    counts: Exact filtered counts.\n    calendar_days: Inclusive selected days, including empty dates.\n    per_calendar_day: Recorded plays divided by selected calendar days.\n    per_active_day: Recorded plays divided by populated calendar days.",
+        "properties": {
+          "calendar_days": {
+            "title": "Calendar Days",
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ListeningCounts"
+          },
+          "per_active_day": {
+            "title": "Per Active Day",
+            "type": "number"
+          },
+          "per_calendar_day": {
+            "title": "Per Calendar Day",
+            "type": "number"
+          }
+        },
+        "required": [
+          "counts",
+          "calendar_days",
+          "per_calendar_day",
+          "per_active_day"
+        ],
+        "title": "ListeningOverview",
+        "type": "object"
+      },
+      "ListeningQuery": {
+        "description": "Select local calendar dates and optional artist/rhythm filters.\n\nArgs:\n    start: Inclusive first local date.\n    end: Inclusive last local date.\n    timezone: Valid IANA display timezone.\n    artist: Optional analytics artist key.\n    weekday: Optional Monday-based weekday.\n    hour: Optional local hour.",
+        "properties": {
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hour"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "Europe/Berlin",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ListeningQuery",
+        "type": "object"
+      },
+      "ListeningRanking": {
+        "description": "Return a bounded ranking and total matching entities.\n\nArgs:\n    items: At most one page of ranked entities.\n    total: All matching entities before pagination.\n    page: One-based page number.\n    limit: Requested maximum rows per page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RankedEntity"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "title": "ListeningRanking",
+        "type": "object"
+      },
+      "ListeningRecord": {
+        "description": "Describe one recorded scrobble without asserting playback duration.\n\nArgs:\n    ordinal: Original source row position, preserving stable timestamp ties.\n    timestamp_ms: Recorded UTC milliseconds.\n    artist_key: Stable analytics artist identity.\n    artist: Original source artist spelling.\n    album: Original source album, possibly empty.\n    track: Original source track spelling.",
+        "properties": {
+          "album": {
+            "title": "Album",
+            "type": "string"
+          },
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "artist_key": {
+            "title": "Artist Key",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "timestamp_ms": {
+            "title": "Timestamp Ms",
+            "type": "integer"
+          },
+          "track": {
+            "title": "Track",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ordinal",
+          "timestamp_ms",
+          "artist_key",
+          "artist",
+          "album",
+          "track"
+        ],
+        "title": "ListeningRecord",
+        "type": "object"
+      },
+      "ListeningRecords": {
+        "description": "Return one bounded record page with its full filtered row count.\n\nArgs:\n    items: Newest-first observations with stable source-order ties.\n    total: All matching rows before pagination.\n    page: One-based page number.\n    limit: Requested maximum rows per page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "title": "ListeningRecords",
+        "type": "object"
+      },
+      "ListeningRediscovery": {
+        "description": "Return bounded forgotten favorites with transparent thresholds.\n\nArgs:\n    items: At most 100 favorites ordered by historical plays and gap.\n    total: All qualifying entities before the display cap.\n    as_of: Selected local analysis end date.\n    minimum_plays: Inclusive historical-play threshold.\n    minimum_gap: Inclusive calendar-day inactivity threshold.",
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForgottenFavorite"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "minimum_gap": {
+            "title": "Minimum Gap",
+            "type": "integer"
+          },
+          "minimum_plays": {
+            "title": "Minimum Plays",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "as_of",
+          "minimum_plays",
+          "minimum_gap"
+        ],
+        "title": "ListeningRediscovery",
+        "type": "object"
+      },
+      "ListeningSeries": {
+        "description": "Keep one fixed artist series across all requested temporal buckets.\n\nArgs:\n    key: Stable artist identity, or other for the remainder.\n    name: Display artist or Other label.\n    counts: Recorded plays aligned to the result's temporal buckets.",
+        "properties": {
+          "counts": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "counts"
+        ],
+        "title": "ListeningSeries",
+        "type": "object"
+      },
+      "ListeningStatus": {
+        "description": "Report source/index readiness without exposing any unverified partial build.",
+        "properties": {
+          "checking": {
+            "title": "Checking",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ListeningMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_after": {
+            "default": 2,
+            "title": "Retry After",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "building",
+              "stale",
+              "missing",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "metadata",
+          "message",
+          "checking"
+        ],
+        "title": "ListeningStatus",
         "type": "object"
       },
       "NewKidsChoiceRequest": {
@@ -3681,6 +4723,40 @@
           "score"
         ],
         "title": "QueuePendingChoice",
+        "type": "object"
+      },
+      "RankedEntity": {
+        "description": "Describe a ranked entity with its share of all filtered scrobbles.\n\nArgs:\n    key: Opaque analytics identity.\n    name: First encountered display spelling.\n    artist: Display artist context, including for tracks/albums.\n    plays: Filtered recorded-row count.\n    share: Fraction of all filtered rows, before ranking-name search.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "artist",
+          "plays",
+          "share"
+        ],
+        "title": "RankedEntity",
         "type": "object"
       },
       "ReleaseCheckArtistOption": {
@@ -9902,6 +10978,1400 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/lastfm/analytics/activity": {
+      "get": {
+        "description": "Return daily coverage and explicit weekday/hour denominators.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned calendar and rhythm cells.",
+        "operationId": "listening_activity_lastfm_analytics_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningActivity_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Activity",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/comparison": {
+      "get": {
+        "description": "Compare artist shares against an equally long preceding calendar period.\n\nArgs:\n    query: Effective current selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned current/previous counts, shares, and coverage status.",
+        "operationId": "listening_comparison_lastfm_analytics_comparison_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningComparison_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Comparison",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/discovery": {
+      "get": {
+        "description": "Return first-observed artist cohorts with incomplete windows identified.\n\nArgs:\n    query: Cohort dates, timezone, and optional artist selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned cohort and retention counts.\n\nRaises:\n    HTTPException: Rhythm filters would change first-observed semantics.",
+        "operationId": "listening_discovery_lastfm_analytics_discovery_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningDiscoveries_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Discovery",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/entities/{kind}/{key}": {
+      "get": {
+        "description": "Return separate lifetime and selected-period entity facts.\n\nArgs:\n    kind: Entity dimension.\n    key: Opaque analytics identity.\n    query: Effective shared selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned entity facts, activity, related tracks, and first record page.",
+        "operationId": "listening_entity_lastfm_analytics_entities__kind___key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "artist",
+                "album",
+                "track"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningEntity_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Entity",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/evolution": {
+      "get": {
+        "description": "Return fixed artist series and temporal breadth/concentration metrics.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n    grain: Monday-based week or calendar month.\n\nReturns:\n    Versioned top-eight-plus-Other series.",
+        "operationId": "listening_evolution_lastfm_analytics_evolution_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "grain",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "enum": [
+                "week",
+                "month"
+              ],
+              "title": "Grain",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningEvolution_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Evolution",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/overview": {
+      "get": {
+        "description": "Return exact counts and calendar-day versus active-day averages.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned listening overview.",
+        "operationId": "listening_overview_lastfm_analytics_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningOverview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Overview",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/rankings": {
+      "get": {
+        "description": "Return a searchable, bounded artist/album/track ranking.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n    options: Dimension, name search, ordering, and pagination.\n\nReturns:\n    Versioned ranked entities.",
+        "operationId": "listening_rankings_lastfm_analytics_rankings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "artist",
+              "enum": [
+                "artist",
+                "album",
+                "track"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "plays",
+              "enum": [
+                "plays",
+                "name"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningRanking_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Rankings",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/rediscovery": {
+      "get": {
+        "description": "Return historical counts and gaps as of the selected analysis end date.\n\nArgs:\n    query: Analysis cutoff, timezone, and optional artist.\n    index: Pinned source generation.\n    kind: Artist, album, or track dimension.\n    minimum_plays: Inclusive recorded-play threshold.\n    minimum_gap: Inclusive calendar-day inactivity threshold.\n\nReturns:\n    At most 100 versioned forgotten favorites.\n\nRaises:\n    HTTPException: A partial-day rhythm filter was supplied.",
+        "operationId": "listening_rediscovery_lastfm_analytics_rediscovery_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "artist",
+              "enum": [
+                "artist",
+                "album",
+                "track"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_plays",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 10000000,
+              "minimum": 1,
+              "title": "Minimum Plays",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_gap",
+            "required": false,
+            "schema": {
+              "default": 365,
+              "maximum": 36600,
+              "minimum": 0,
+              "title": "Minimum Gap",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningRediscovery_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Rediscovery",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/scrobbles": {
+      "get": {
+        "description": "Return original recorded names in a bounded newest-first page.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n    page: One-based record page.\n    limit: At most 200 observations.\n    kind: Optional selected entity dimension.\n    key: Optional selected entity key, required with kind.\n\nReturns:\n    Versioned source records.\n\nRaises:\n    HTTPException: Only one entity-selection component was supplied.",
+        "operationId": "listening_scrobbles_lastfm_analytics_scrobbles_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EntityKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningRecords_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Scrobbles",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/status": {
+      "get": {
+        "description": "Return ready coverage while lazily refreshing the published source identity.\n\nArgs:\n    request: Runtime-owning request.\n    response: Response receiving private cache controls.\n    refresh: Check now, reusing any already-running worker.\n\nReturns:\n    Complete index coverage, build progress, or a recoverable source error.",
+        "operationId": "listening_status_lastfm_analytics_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Status",
+        "tags": [
+          "Listening Explorer"
+        ]
       }
     },
     "/library-mirrors/status": {

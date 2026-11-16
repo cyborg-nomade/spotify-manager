@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="referrer" content="same-origin" />
+    <title>Listening Explorer · Spotify Manager</title>
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css" />
+    <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="masthead">
+        <a class="brand" href="/" aria-label="Spotify Manager cockpit"
+          ><span class="brand-mark" aria-hidden="true">≋</span
+          ><span
+            >SPOTIFY MANAGER <span class="brand-divider">/</span>
+            <strong>LISTENING EXPLORER</strong></span
+          ></a
+        >
+        <div class="header-actions">
+          <a class="quiet" href="/">← Back to cockpit</a
+          ><button id="lock" class="quiet" hidden>Lock</button>
+        </div>
+      </header>
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow">
+              <span class="signal-dot" aria-hidden="true"></span> YOUR LAST.FM
+              ARCHIVE
+            </p>
+            <h1 id="page-title">Your life, <em>on repeat.</em></h1>
+            <p class="intro">
+              Follow the rhythms, changing favorites, and rediscoveries in your
+              recorded listening history.
+            </p>
+          </div>
+          <div class="archive-note">
+            <span class="micro">THE ARCHIVE</span
+            ><strong id="archive-years">Waiting to connect</strong
+            ><span id="archive-through"
+              >Your published scrobbles, in perspective.</span
+            >
+          </div>
+        </section>
+
+        <form id="login" class="login-card" hidden>
+          <div>
+            <h2>Open your listening archive</h2>
+            <p>Use your Spotify Manager app password.</p>
+          </div>
+          <label
+            >App password<input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              required
+          /></label>
+          <button class="primary" type="submit">
+            Unlock explorer <span aria-hidden="true">↗</span>
+          </button>
+          <p id="login-error" class="error" role="alert"></p>
+        </form>
+        <div id="status" class="status-banner" role="status" aria-live="polite">
+          Connecting to your recorded history…
+        </div>
+        <div class="status-actions">
+          <button id="retry" class="quiet" hidden>
+            Check publication again</button
+          ><a id="sync-link" href="/#scrobbleHistoryCard" hidden
+            >Open history sync ↗</a
+          >
+        </div>
+
+        <div id="workspace" hidden>
+          <form id="filters" class="filter-panel">
+            <div class="filter-top">
+              <div class="preset-group" role="group" aria-label="Date presets">
+                <button type="button" data-preset="30">30 days</button
+                ><button type="button" data-preset="90">90 days</button
+                ><button type="button" data-preset="year">12 months</button
+                ><button type="button" data-preset="all">All time</button>
+              </div>
+              <span id="publication" class="micro"></span>
+            </div>
+            <div class="filter-fields">
+              <label
+                >From<input
+                  id="from"
+                  type="date"
+                  min="1900-01-01"
+                  max="2099-12-31"
+                  required
+              /></label>
+              <label
+                >Through<input
+                  id="to"
+                  type="date"
+                  min="1900-01-01"
+                  max="2099-12-31"
+                  required
+              /></label>
+              <label
+                >Timezone<input
+                  id="timezone"
+                  value="Europe/Berlin"
+                  list="timezones"
+                  maxlength="100"
+                  required /><datalist id="timezones">
+                  <option value="Europe/Berlin"></option>
+                  <option value="UTC"></option>
+                  <option value="America/New_York"></option>
+                  <option value="America/Sao_Paulo"></option>
+                  <option value="Asia/Tokyo"></option>
+                  <option value="Australia/Sydney"></option></datalist
+              ></label>
+              <div class="artist-control">
+                <label for="artist-search">Artist filter</label
+                ><input
+                  id="artist-search"
+                  type="search"
+                  placeholder="Find an artist…"
+                  autocomplete="off"
+                  aria-controls="artist-results"
+                />
+                <div id="artist-results" class="search-results" hidden></div>
+              </div>
+              <button class="primary" type="submit">Apply filters</button
+              ><button type="button" id="reset" class="quiet">Reset</button>
+            </div>
+            <div
+              id="filter-chips"
+              class="chips"
+              aria-label="Active filters"
+            ></div>
+            <p class="filter-caption" id="selection-caption"></p>
+          </form>
+
+          <section class="metrics" aria-label="Selected listening statistics">
+            <div class="metric">
+              <span class="micro">SCROBBLES</span
+              ><strong id="metric-plays">—</strong
+              ><span id="metric-average">Recorded plays</span>
+            </div>
+            <div class="metric">
+              <span class="micro">ARTISTS</span
+              ><strong id="metric-artists">—</strong
+              ><span>Distinct recorded artists</span>
+            </div>
+            <div class="metric">
+              <span class="micro">TRACKS</span
+              ><strong id="metric-tracks">—</strong
+              ><span>Artist + track identities</span>
+            </div>
+            <div class="metric">
+              <span class="micro">ALBUMS</span
+              ><strong id="metric-albums">—</strong
+              ><span id="metric-missing">Known album names</span>
+            </div>
+            <div class="metric">
+              <span class="micro">ACTIVE DAYS</span
+              ><strong id="metric-days">—</strong
+              ><span id="metric-active-average">Days with recorded plays</span>
+            </div>
+          </section>
+
+          <nav class="tabs" aria-label="Listening views">
+            <button data-tab="overview" aria-current="page">Overview</button
+            ><button data-tab="taste">Taste over time</button
+            ><button data-tab="discovery">Discoveries</button
+            ><button data-tab="rediscovery">Rediscover</button
+            ><button id="all-records" class="records-link">
+              View recorded plays ↗
+            </button>
+          </nav>
+          <p id="view-error" class="error" role="alert" hidden></p>
+
+          <section
+            id="tab-overview"
+            class="tab-content"
+            aria-label="Listening overview"
+          >
+            <div class="overview-grid">
+              <article class="panel">
+                <header class="panel-heading">
+                  <div>
+                    <p class="eyebrow">01 / YOUR RHYTHM</p>
+                    <h2>A year in listening</h2>
+                  </div>
+                  <div class="panel-actions">
+                    <label class="sr-only" for="calendar-year"
+                      >Calendar year</label
+                    ><select id="calendar-year"></select
+                    ><button
+                      class="icon-button"
+                      data-chart-export="calendar"
+                      aria-label="Download listening calendar PNG"
+                    >
+                      ↓ PNG
+                    </button>
+                  </div>
+                </header>
+                <p class="chart-description">
+                  Every square is a day. Select one to explore its recorded
+                  plays.
+                </p>
+                <div id="calendar-chart" class="chart calendar-chart"></div>
+                <div class="chart-key">
+                  <span class="legend-gray"></span> Outside observed range
+                  <span class="legend-outline"></span> Partial boundary day
+                </div>
+                <details>
+                  <summary>
+                    Calendar data <span>Accessible table & export</span>
+                  </summary>
+                  <button data-csv="calendar" class="small-button">
+                    Export CSV
+                  </button>
+                  <div id="calendar-table" class="table-scroll"></div>
+                </details>
+              </article>
+              <article class="panel">
+                <header class="panel-heading">
+                  <div>
+                    <p class="eyebrow">02 / THE WEEKLY PATTERN</p>
+                    <h2>When you press play</h2>
+                  </div>
+                  <button
+                    class="icon-button"
+                    data-chart-export="rhythm"
+                    aria-label="Download weekly rhythm PNG"
+                  >
+                    ↓ PNG
+                  </button>
+                </header>
+                <div class="control-line">
+                  <label for="rhythm-mode">Show</label
+                  ><select id="rhythm-mode">
+                    <option value="plays">Recorded plays</option>
+                    <option value="average">Plays per covered hour</option>
+                  </select>
+                </div>
+                <div id="rhythm-chart" class="chart rhythm-chart"></div>
+                <p class="chart-description">
+                  Select a cell to filter its weekday and hour. Repeated DST
+                  hours count twice.
+                </p>
+                <details>
+                  <summary>Weekly rhythm data</summary>
+                  <button data-csv="rhythm" class="small-button">
+                    Export CSV
+                  </button>
+                  <div id="rhythm-table" class="table-scroll"></div>
+                </details>
+              </article>
+            </div>
+            <article class="panel ranking-panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">03 / IN ROTATION</p>
+                  <h2>The music that stays</h2>
+                </div>
+                <div class="panel-actions">
+                  <label class="sr-only" for="rank-kind"
+                    >Ranked music type</label
+                  ><select id="rank-kind">
+                    <option value="artist">Artists</option>
+                    <option value="album">Albums</option>
+                    <option value="track">Tracks</option></select
+                  ><button
+                    class="icon-button"
+                    data-chart-export="rankings"
+                    aria-label="Download ranking PNG"
+                  >
+                    ↓ PNG
+                  </button>
+                </div>
+              </header>
+              <div class="control-line">
+                <label class="sr-only" for="rank-search">Search ranking</label
+                ><input
+                  id="rank-search"
+                  type="search"
+                  placeholder="Search this ranking…"
+                  maxlength="100"
+                /><label class="sr-only" for="rank-order">Ranking order</label
+                ><select id="rank-order">
+                  <option value="plays">Most played</option>
+                  <option value="name">Name A–Z</option></select
+                ><button data-csv="rankings" class="small-button">
+                  Export page CSV
+                </button>
+              </div>
+              <div class="ranking-grid">
+                <div id="rankings-chart" class="chart rankings-chart"></div>
+                <div>
+                  <div id="rankings-table" class="table-scroll"></div>
+                  <div class="pagination">
+                    <button id="rank-previous" class="quiet">← Previous</button
+                    ><span id="rank-page"></span
+                    ><button id="rank-next" class="quiet">Next →</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section
+            id="tab-taste"
+            class="tab-content"
+            aria-label="Taste over time"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">01 / CHANGING FAVORITES</p>
+                  <h2>The soundtrack shifts</h2>
+                </div>
+                <div class="panel-actions">
+                  <select id="grain" aria-label="Evolution bucket">
+                    <option value="month">Monthly</option>
+                    <option value="week">Weekly</option></select
+                  ><select id="evolution-mode" aria-label="Evolution measure">
+                    <option value="counts">Play counts</option>
+                    <option value="share">Listening share</option></select
+                  ><button class="icon-button" data-chart-export="evolution">
+                    ↓ PNG
+                  </button>
+                </div>
+              </header>
+              <p class="chart-description">
+                Your top eight artists in this selection keep the same colors
+                throughout. Everything else is Other. Select an artist to open
+                its history.
+              </p>
+              <div id="evolution-chart" class="chart tall-chart"></div>
+              <details>
+                <summary>Artist evolution data</summary>
+                <button data-csv="evolution" class="small-button">
+                  Export CSV
+                </button>
+                <div id="evolution-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">02 / EXPLORATION & FAMILIARITY</p>
+                  <h2>Wide horizons, deep favorites</h2>
+                </div>
+                <button class="icon-button" data-chart-export="breadth">
+                  ↓ PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Distinct artists and tracks show variety; top-artist share shows
+                concentration. Neither is a measure of listening quality.
+              </p>
+              <div id="breadth-chart" class="chart medium-chart"></div>
+              <details>
+                <summary>Listening breadth data</summary>
+                <button data-csv="breadth" class="small-button">
+                  Export CSV
+                </button>
+                <div id="breadth-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">03 / THEN & NOW</p>
+                  <h2>A different rotation</h2>
+                </div>
+                <button class="icon-button" data-chart-export="comparison">
+                  ↓ PNG
+                </button>
+              </header>
+              <p id="comparison-description" class="chart-description"></p>
+              <div id="comparison-chart" class="chart tall-chart"></div>
+              <details>
+                <summary>Period comparison data</summary>
+                <button data-csv="comparison" class="small-button">
+                  Export CSV
+                </button>
+                <div id="comparison-table" class="table-scroll"></div>
+              </details>
+            </article>
+          </section>
+
+          <section
+            id="tab-discovery"
+            class="tab-content"
+            aria-label="Artist discoveries"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">01 / NEW ARRIVALS</p>
+                  <h2>Discoveries that stick</h2>
+                </div>
+                <button class="icon-button" data-chart-export="discovery">
+                  ↓ PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Artists first recorded in your available history, grouped by
+                month. A return means a play on a different day within 7, 30, or
+                90 days. This does not claim when you first heard them.
+              </p>
+              <div id="discovery-chart" class="chart tall-chart"></div>
+              <p id="discovery-description" class="chart-description"></p>
+              <details open>
+                <summary>Discovery cohorts & return rates</summary>
+                <button data-csv="discovery" class="small-button">
+                  Export CSV
+                </button>
+                <div id="discovery-table" class="table-scroll"></div>
+              </details>
+            </article>
+          </section>
+
+          <section
+            id="tab-rediscovery"
+            class="tab-content"
+            aria-label="Forgotten favorites"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">01 / WORTH ANOTHER SPIN</p>
+                  <h2>Familiar, but far away</h2>
+                </div>
+                <button class="icon-button" data-chart-export="rediscovery">
+                  ↓ PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Substantial favorites you have not recorded recently. Counts use
+                your full available history through the selected end date,
+                independently of the visible start date.
+              </p>
+              <form id="rediscovery-filters" class="control-line">
+                <label
+                  >Explore<select id="rediscovery-kind">
+                    <option value="artist">Artists</option>
+                    <option value="album">Albums</option>
+                    <option value="track">Tracks</option>
+                  </select></label
+                ><label
+                  >At least this many plays<input
+                    id="minimum-plays"
+                    type="number"
+                    min="1"
+                    max="10000000"
+                    value="50"
+                    required /></label
+                ><label
+                  >Days since last play<input
+                    id="minimum-gap"
+                    type="number"
+                    min="0"
+                    max="36600"
+                    value="365"
+                    required /></label
+                ><button class="small-button" type="submit">
+                  Find favorites</button
+                ><button
+                  data-csv="rediscovery"
+                  class="small-button"
+                  type="button"
+                >
+                  Export CSV
+                </button>
+              </form>
+              <div id="rediscovery-chart" class="chart tall-chart"></div>
+              <p id="rediscovery-description" class="chart-description"></p>
+              <div id="rediscovery-table" class="table-scroll"></div>
+            </article>
+          </section>
+          <footer>
+            <p>
+              One scrobble is one recorded play. Gaps may reflect missing
+              scrobbles. Minutes listened, skips, mood, and location are not
+              inferred.
+            </p>
+            <p id="source-footnote"></p>
+            <p>
+              Charts powered by Apache ECharts ·
+              <a href="/lastfm/assets/ECHARTS-LICENSE.txt">License</a> ·
+              <a href="/lastfm/assets/ECHARTS-NOTICE.txt">Notices</a>
+            </p>
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="detail" aria-labelledby="detail-title">
+      <div class="detail-top">
+        <p class="eyebrow" id="detail-kind">RECORDED HISTORY</p>
+        <button
+          id="close-detail"
+          class="quiet"
+          aria-label="Close listening details"
+        >
+          Close ×
+        </button>
+      </div>
+      <h2 id="detail-title">Recorded plays</h2>
+      <p id="detail-description" class="chart-description"></p>
+      <div id="detail-loading" role="status"></div>
+      <div id="detail-facts"></div>
+      <div id="detail-chart" class="chart detail-chart"></div>
+      <section id="detail-related">
+        <h3>Tracks in this selection</h3>
+        <div id="related-table" class="table-scroll"></div>
+      </section>
+      <h3>Recorded plays</h3>
+      <button data-csv="records" class="small-button">Export page CSV</button>
+      <div id="records-table" class="table-scroll"></div>
+      <div class="pagination">
+        <button id="records-previous" class="quiet">← Previous</button
+        ><span id="records-page"></span
+        ><button id="records-next" class="quiet">Next →</button>
+      </div>
+    </dialog>
+  </body>
+</html>

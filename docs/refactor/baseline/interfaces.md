@@ -60,8 +60,8 @@ for this baseline; parameter names below are Python callback names.
 
 ## HTTP routes
 
-Includes 115 application API routes, four FastAPI framework routes,
-and seven web additions. `openapi.json` freezes pure API schemas;
+Includes application and framework API registrations, followed by
+deployment-only web routes. `openapi.json` freezes pure API schemas;
 `web-openapi-additions.json` freezes the additional web schemas.
 Hidden routes remain in this table. Framework GET/HEAD methods share
 one route registration. API-only imports are ungated; importing web
@@ -201,8 +201,21 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/flush-mode` | `flush_mode_status` | True |
 | [ ] | api | PUT | `/flush-mode/control` | `set_flush_mode_control` | True |
 | [ ] | api | POST | `/flush-mode/check` | `check_flush_mode` | True |
+| [ ] | api | GET | `/lastfm/analytics/status` | `listening_status` | True |
+| [ ] | api | GET | `/lastfm/analytics/overview` | `listening_overview` | True |
+| [ ] | api | GET | `/lastfm/analytics/activity` | `listening_activity` | True |
+| [ ] | api | GET | `/lastfm/analytics/rankings` | `listening_rankings` | True |
+| [ ] | api | GET | `/lastfm/analytics/evolution` | `listening_evolution` | True |
+| [ ] | api | GET | `/lastfm/analytics/entities/{kind}/{key}` | `listening_entity` | True |
+| [ ] | api | GET | `/lastfm/analytics/scrobbles` | `listening_scrobbles` | True |
+| [ ] | api | GET | `/lastfm/analytics/discovery` | `listening_discovery` | True |
+| [ ] | api | GET | `/lastfm/analytics/rediscovery` | `listening_rediscovery` | True |
+| [ ] | api | GET | `/lastfm/analytics/comparison` | `listening_comparison` | True |
 | [ ] | web | GET | `/` | `index` | False |
 | [ ] | web | GET | `/genre-reveal` | `genre_reveal_page` | False |
+| [ ] | web | GET | `/lastfm/` | `listening_explorer_page` | False |
+| [ ] | web | GET | `/lastfm` | `listening_explorer_page` | False |
+| [ ] | web | GET | `/lastfm/assets/{filename}` | `listening_explorer_asset` | False |
 | [ ] | web | GET | `/genre-reveal/state` | `get_genre_reveal_state` | True |
 | [ ] | web | PUT | `/genre-reveal/state` | `put_genre_reveal_state` | True |
 | [ ] | web | GET | `/genre-reveal/source` | `get_genre_reveal_source` | True |

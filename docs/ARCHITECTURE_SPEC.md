@@ -57,7 +57,7 @@ datasets as production, so their durable state is shared.
 | `spotify_manager/main.py` | Stable Typer signatures, supported overrides and explicit feature composition. |
 | `spotify_manager/api.py` | Stable FastAPI signatures, supported overrides and feature router/handler/worker composition. |
 | `spotify_manager/web.py` | Password middleware, static frontend routes, and Genre Reveal web endpoints. |
-| `spotify_manager/frontend/` | Dependency-free HTML/CSS/JavaScript cockpit and preserved Genre Reveal page. |
+| `spotify_manager/frontend/` | Static cockpit, Genre Reveal, and the modular Listening Explorer with locally bundled ECharts. |
 | `spotify_manager/interfaces/` | Feature delivery, shared invocation functions, worker-owned interactions and interface presenters. |
 | `spotify_manager/application/` | Named use cases, observation/effect sequencing, accepted checkpoints and recovery. |
 | `spotify_manager/domain/` | Pure listening and selection policies. |
@@ -140,6 +140,7 @@ seven web-wrapper routes (126 registrations in the wrapped application):
 | Playlist jobs | `flush-queue`, `flush-new-kids`, `flush-queue-2`, `flush-queue-3`, `flush-new-wine`, `flush-slow-listening`, `flush-requeue-for-a-dream`, `fill-palace-of-memory` |
 | Planning/history jobs | `check-new-releases`, `plan-discographies`, `update-scrobble-history`, `import-queue-3-previous-year` |
 | Genre Reveal | `GET /genre-reveal`, state/source endpoints, and `POST /genre-reveal/run-next` |
+| Listening Explorer | `GET /lastfm`, exact versioned assets, and protected read-only `/lastfm/analytics/*` endpoints. |
 | Legacy request/response commands | `POST /library/refresh`, monthly routines, total-album update, export restoration, comparison, conversion, and artist count |
 
 Long operations follow a common protocol where supported:

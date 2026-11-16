@@ -89,16 +89,24 @@ def main() -> int:
     _check_entrypoints()
     from spotify_manager import api
 
-    assert len(api.app.routes) == 132
+    assert len(api.app.routes) == 133  # Includes the explorer's lazy feature router.
+    assert "/lastfm/analytics/overview" in api.app.openapi()["paths"]
     from spotify_manager import web
 
-    assert len(api.app.routes) == 139  # Web wraps the same app, adding seven routes.
+    assert len(api.app.routes) == 143  # Web adds ten shell, asset and Genre routes.
     assert vars(web)["app"] is api.app
-    assert (site / "spotify_manager/frontend/index.html").is_file()
-    assert (site / "spotify_manager/frontend/genre-reveal.html").is_file()
+    _check_web_assets(site)
     _check_module_origins(site)
-    print("Wheel imports, 45 commands, 139 wrapped routes and both entry points pass.")
+    print("Wheel imports, 45 commands, explorer assets and both entry points pass.")
     return 0
+
+
+def _check_web_assets(site: Path) -> None:
+    frontend = site / "spotify_manager/frontend"
+    assert (frontend / "index.html").is_file()
+    assert (frontend / "genre-reveal.html").is_file()
+    assert (frontend / "lastfm.html").is_file()
+    assert (frontend / "lastfm-assets/echarts-6.0.0.min.js").is_file()
 
 
 if __name__ == "__main__":

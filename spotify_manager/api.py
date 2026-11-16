@@ -56,6 +56,7 @@ from spotify_manager.interfaces.http.jobs import ClientDep as ClientDep
 from spotify_manager.interfaces.http.jobs import (
     InteractiveClientDep as InteractiveClientDep,
 )
+from spotify_manager.interfaces.http.listening import router as listening_router
 from spotify_manager.interfaces.http.models.analysis import (
     AnalysisJobResult as AnalysisJobResult,
 )
@@ -2617,3 +2618,6 @@ async def check_flush_mode(client: ClientDep) -> FlushModeStatus:
         Updated state, with retained observations and error on count-check failure.
     """
     return await flush_mode_http.check(client)
+
+
+app.include_router(listening_router)

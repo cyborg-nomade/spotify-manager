@@ -176,6 +176,7 @@ a code and configuration update.
 | --- | --- | --- |
 | `LASTFM_API_KEY` | For Last.fm API routines | Read-only Last.fm API key. |
 | `LASTFM_USERNAME` | For Last.fm API routines | Account whose scrobbles feed the canonical history. |
+| `LISTENING_CACHE_DIR` | Optional | Existing parent for process-isolated temporary Listening Explorer indexes; defaults to the OS temporary directory. Rebuilt after process replacement. |
 
 A Last.fm shared secret is not required because the project performs only
 read-only API calls.

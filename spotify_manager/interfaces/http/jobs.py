@@ -42,6 +42,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.bootstrap.execution import current_execution
+from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
 )
@@ -2066,9 +2067,13 @@ async def start_scrobble_history_job(
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Hydrate durable data once whenever an API process starts."""
     await _hydrate_library_data()
-    async with ExecutionRuntime() as runtime:
-        _app.state.execution = runtime
-        yield
+    _app.state.listening = listening_explorer_runtime()
+    try:
+        async with ExecutionRuntime() as runtime:
+            _app.state.execution = runtime
+            yield
+    finally:
+        await _app.state.listening.close()
 
 
 def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONResponse:

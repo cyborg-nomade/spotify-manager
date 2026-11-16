@@ -1,0 +1,198 @@
+# Listening Explorer
+
+The companion page at **`/lastfm`** explores the complete published Last.fm
+history. Open **Explore ↗** beside Sync and Download in the cockpit's Last.fm
+row, or navigate directly to the page. It uses the existing app password.
+
+## Delivered views
+
+- **Overview:** exact scrobble/artist/track/album counts, calendar-day versus
+  active-day averages, a navigable yearly listening calendar, weekday/hour rhythm,
+  searchable artist/album/track rankings, and the underlying recorded plays.
+- **Taste over time:** fixed top-eight-plus-Other artist trajectories, count/share
+  display, weekly/monthly buckets, recorded artist/track breadth, concentration,
+  and comparison with the immediately preceding equal-length calendar period.
+- **Discoveries:** first-observed artist cohorts and 7/30/90-day return rates,
+  using separate complete-window denominators and explicit pending follow-up.
+- **Rediscover:** historically substantial artists/albums/tracks with adjustable
+  minimum-play and inactivity thresholds, as of the selected analysis end date.
+
+Select a ranking/table entry or an artist chart series to open entity history.
+The detail panel separates lifetime facts through the analysis cutoff from
+counts inside the visible period. Original source names remain visible in the
+paginated scrobbles, including spellings grouped under one analytics identity.
+
+Calendar selection opens that day's recorded plays. Rhythm selection adds
+visible weekday/hour filter chips. Discovery and rediscovery use full calendar
+days; switching to those tabs clears rhythm filters. Their API routes reject
+rhythm filters rather than changing first-observed semantics silently.
+
+## Filters and interpretation
+
+Date presets end at the latest **stored scrobble**, not the current clock time.
+The end date, source publication time, and stale-history notice remain visible.
+Choose custom dates to include today or any other interval. Filters and selected
+entities are restored from the URL. Credentials never appear in the URL.
+
+Europe/Berlin is the default aggregation zone. UTC and other valid IANA zones
+are supported. Calendar boundaries are converted explicitly with `ZoneInfo`;
+the host's local timezone is not used. Rhythm averages divide by the actual
+covered duration of each weekday/hour, including fractional source boundaries
+and the repeated or missing hours at DST transitions.
+
+All counts are recorded scrobbles, including repeated source rows. A zero means
+zero recorded observations, not proof that no listening happened or that the
+scrobbler worked. Calendar cells distinguish source boundaries and dates outside
+the observed range. Blank albums remain included in scrobble/artist/track totals,
+but are excluded from unique-album counts and reported separately.
+
+Artist identities use NFC, trimmed whitespace, and case folding, preserving
+accents and punctuation. Track and album identities include artist context.
+Existing routine matching rules are unchanged. Source album IDs are preserved
+as opaque identifiers, never assumed to be Spotify IDs.
+
+"First observed" means first recorded in the available source history. Returns
+require a play on a different calendar day within the chosen inclusive window.
+The latest source day is conservatively partial; artists without a complete
+follow-up window are pending, not failed discoveries. Forgotten Favorites ignores
+the visible start date and excludes scrobbles after the selected analysis end.
+
+## Tables and exports
+
+Equivalent tables accompany charts. Keyboard users can select the same entities,
+dates, and rhythm cells through buttons in those tables. Reduced-motion settings
+disable chart animation. Mobile uses a single column and a native dialog for
+details.
+
+PNG exports include chart labels, dates, timezone, and source identity. CSV
+exports include the effective shared filters and source token; rankings and
+records export the displayed page. CSV text cells are protected against
+spreadsheet-formula interpretation. The cockpit's existing Download control
+still exports the original complete published JSON unchanged.
+
+## Storage, ownership, and execution path
+
+```text
+HTTP route beside endpoint
+  → named application use case
+  → named read resource + direct domain rules
+  → typed HTTP presenter
+```
+
+The page reads the **published** scrobble artifact through `LibraryDataService`
+and `ScrobbleHistoryFiles`. It does not read a mutable sync-in-progress working
+file or request live Spotify/Last.fm data. Source acquisition is revision-pinned
+and verifies the existing checksum and byte-size contract.
+
+The runtime lazily builds a standard-library SQLite index in an independently
+owned temporary directory. `LISTENING_CACHE_DIR`, when set, selects an existing
+parent directory for that temporary cache. The default is the operating system's
+temporary directory. Each web process has an isolated cache, so no cross-process
+writer lock is needed. The application lifespan owns the single refresh task and
+drains it through cancellation before removing its files.
+
+The first authenticated status request starts source acquisition and indexing.
+Further manifest checks are limited to once per 60 seconds unless the user
+requests **Check publication again**. A full source checksum change creates a
+new generation, even when the row count is unchanged. A failure retains the last
+complete index and reports stale/error status. A missing publication links back
+to the existing cockpit sync controls.
+
+Every data request pins the source token obtained from status. All widgets use
+that token together; an expired token returns 409 and the browser reloads the
+whole selection. Active readers keep their generation alive during replacement.
+The latest two generations are retained, plus any older active readers.
+
+Each generation materializes at most four IANA calendar tables. HTTP results use
+bounded process-local memoization keyed by immutable reader identity, typed
+query, and options. SQLite queries use fixed identifiers and separately bound
+values. Read connections are read-only. The derived cache never publishes data,
+changes routine state, or mutates a playlist.
+
+Cold starts and process replacements rebuild this cache. Canonical publications
+and their durable backups are unaffected by cache deletion or rollback.
+
+## HTTP interface
+
+All data routes require the existing `X-App-Password` header in the deployed
+web wrapper. The data-free shell and exact versioned JS/CSS/chart assets are
+open so the login interface can load. The whole `/lastfm/` prefix is never
+allowlisted. The pure API retains its original trusted-loopback boundary.
+
+| GET endpoint under `/lastfm/analytics` | Result |
+| --- | --- |
+| `/status` | Ready/building/stale/missing/error state and source/build metadata; optional `refresh=true`. |
+| `/overview` | Exact selected counts and separate averages. |
+| `/activity` | Local calendar coverage and all weekday/hour cells. |
+| `/rankings` | Searchable/paginated artist, album, or track counts. |
+| `/evolution` | Weekly/monthly artist series and aligned breadth. |
+| `/entities/{kind}/{key}` | Pre-cutoff lifetime facts and filtered detail. |
+| `/scrobbles` | Original recorded names with stable timestamp/source-order paging. |
+| `/discovery` | First-observed cohorts and eligible/returned counts. |
+| `/rediscovery` | Historical-play/gap thresholds as of the analysis cutoff. |
+| `/comparison` | Current/previous equal-length artist counts and shares. |
+
+Data routes require `from`, `to`, and `snapshot`; `tz` defaults to Europe/Berlin.
+Optional shared filters are `artist`, Monday-based `weekday`, and `hour`.
+Rankings additionally accept `kind`, `q`, `page`, `limit`, and `order`. Scrobble
+pages accept `page`, `limit`, and an optional `kind`/`key` pair. Rankings cap at
+100 rows, records at 200, evolution at eight artists plus Other, and rediscovery
+at 100 results. Date selections are bounded to 100 years within 1900–2099.
+
+Successful protected responses use `Cache-Control: private, no-store`.
+Music names are rendered as text, and ECharts uses rich-text canvas tooltips
+rather than parsing names as HTML.
+
+## Development and checks
+
+Run the ordinary web entry point from the feature branch:
+
+```console
+uv run --env-file .env uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8000
+```
+
+The chart distribution is Apache ECharts 6.0.0, served locally with its license
+and notice files. Its npm archive SHA-512 was verified before extraction. No
+production JavaScript package installation or bundling step is required.
+
+The browser-test dependency is isolated in `tests/browser`, pinned with its npm
+lockfile. Tests serve the actual page/router/assets over synthetic local
+publications and never use operator history or credentials:
+
+```console
+npm ci --prefix tests/browser --ignore-scripts --no-audit --no-fund
+tests/browser/node_modules/.bin/playwright install chromium
+npm --prefix tests/browser test
+```
+
+To use an existing Chrome installation, set `LISTENING_CHROME_PATH` to its binary.
+CI uses Ubuntu 24.04 with its pinned Playwright Chromium and retains
+screenshots/failure traces. The runner version matches that browser release's
+supported system dependencies.
+The existing Python, architecture, frozen-interface, and independent coverage
+gates remain required. The wheel smoke check now verifies all explorer assets.
+
+Read-only benchmarks can use the published artifact, an explicit local JSON, or
+a synthetic source. They create and remove their own snapshot/index files:
+
+```console
+uv run python docs/listening-explorer/benchmark.py --published --output build/reports/listening-published.json
+uv run python docs/listening-explorer/benchmark.py --synthetic 1000000 --output build/reports/listening-million.json
+```
+
+The tool reports cold build/query costs, warm p95 including serialization,
+response size, derived disk usage, and peak process memory. It does not print
+music names or credentials. Warm local timings do not establish deployment
+latency; verify the same paths after the approved Space deployment.
+
+## Follow-up scope
+
+The approved core and discovery/rediscovery views are delivered together for
+review. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
+matching, playlists, session inference, Musical Eras, and On This Day remain
+optional follow-ups. The current export cannot establish listening minutes,
+skips, completion rates, mood, or historical location.
+
+See [the approved plan](IMPLEMENTATION_PLAN.md) and
+[release verification](RELEASE_VERIFICATION.md) for scope, evidence, and release
+status. Deployment and merge follow owner review of the release candidate.

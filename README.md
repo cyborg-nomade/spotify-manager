@@ -39,6 +39,7 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | [Configuration](docs/CONFIGURATION.md) | Requirements, installation, Spotify OAuth, every environment variable, and local execution. |
 | [Data and state](docs/DATA_AND_STATE.md) | Source exports, live mirrors, checkpoints, caches, logs, backups, and ownership rules. |
 | [Web application and API](docs/WEB_APP.md) | Local servers, authentication, endpoint families, background jobs, and UI behavior. |
+| [Listening Explorer](docs/listening-explorer/README.md) | Companion Last.fm dashboard, analytical definitions, snapshots, exports, and verification. |
 | [Hugging Face deployment](DEPLOY.md) | Private Space setup, secrets, token seeding, state-preserving releases, verification, and rollback. |
 | [Listening rules](THE%20RULES%20OF%20MUSIC%20LISTENING.md) | Behavioral source of truth for the named listening routines. |
 
