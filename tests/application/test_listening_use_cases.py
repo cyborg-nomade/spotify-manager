@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from spotify_manager.application.listening import get_listening_activity
+from spotify_manager.application.listening import get_listening_anniversaries
 from spotify_manager.application.listening import get_listening_comparison
 from spotify_manager.application.listening import get_listening_discoveries
 from spotify_manager.application.listening import get_listening_entity
+from spotify_manager.application.listening import get_listening_eras
 from spotify_manager.application.listening import get_listening_evolution
 from spotify_manager.application.listening import get_listening_overview
 from spotify_manager.application.listening import get_listening_rankings
@@ -23,6 +25,7 @@ from spotify_manager.domain.listening_values import RecordOptions
 from spotify_manager.domain.listening_values import RediscoveryOptions
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
+from tests.support.listening import scrobble
 
 
 def test_direct_use_cases_reconcile_counts_and_lifetime_scope(tmp_path: Path) -> None:
@@ -70,3 +73,50 @@ def test_detail_keeps_lifetime_firsts_and_artist_track_identity(tmp_path: Path) 
     assert get_listening_entity(index, query, track).overview.counts.scrobbles == 0
     with pytest.raises(ListeningEntityError):
         get_listening_entity(index, query, EntitySelection("artist", "0" * 64))
+
+
+def test_time_capsule_respects_artist_dates_timezone_and_published_snapshot(
+    tmp_path: Path,
+) -> None:
+    fixture = listening_fixture(tmp_path)
+    rows = [
+        scrobble("2022-01-01T23:30:00", "Alpha"),
+        scrobble("2022-01-02T12:00:00", "Béta"),
+        scrobble("2023-01-02T12:00:00", "Alpha"),
+        scrobble("2024-01-02T12:00:00", "Alpha"),
+    ]
+    fixture.publish(rows)
+    index = fixture.index()
+    revision = fixture.service.snapshot().revision
+    query = ListeningQuery(
+        date(2024, 1, 1), date(2024, 1, 2), artist=listening_identity(("Alpha",))
+    )
+    anniversaries = get_listening_anniversaries(index, query)
+    assert [item.plays for item in anniversaries.days] == [1, 1]
+    assert anniversaries.days[0].top_artists[0].name == "Alpha"
+    eras = get_listening_eras(index, query)
+    assert eras.periods[0].plays == 1 and eras.similarities == ((1.0,),)
+    fixture.source.write_text("mutable working history is deliberately invalid")
+    other = ListeningQuery(date(2022, 1, 1), date(2024, 1, 2), "UTC")
+    assert get_listening_anniversaries(index, other).days[0].plays == 1
+    assert sum(item.plays for item in get_listening_eras(index, other).periods) == 4
+    assert fixture.service.snapshot().revision == revision
+
+
+def test_eras_keeps_rhythm_filters_and_new_generations_do_not_reuse_old_results(
+    tmp_path: Path,
+) -> None:
+    fixture = listening_fixture(tmp_path)
+    fixture.publish(sample_history())
+    old = fixture.index()
+    query = ListeningQuery(date(2024, 1, 1), date(2024, 7, 1), "UTC", hour=12)
+    assert sum(item.plays for item in get_listening_eras(old, query).periods) == 7
+    empty = ListeningQuery(query.start, query.end, "UTC", hour=13)
+    assert sum(item.plays for item in get_listening_eras(old, empty).periods) == 0
+    next_root = tmp_path / "next"
+    next_root.mkdir()
+    replacement = listening_fixture(next_root)
+    replacement.publish([scrobble("2024-01-01T13:00:00")])
+    new = replacement.index()
+    assert sum(item.plays for item in get_listening_eras(new, empty).periods) == 1
+    assert new.metadata.snapshot != old.metadata.snapshot

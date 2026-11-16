@@ -586,6 +586,151 @@ export function detail(data, context) {
   );
 }
 
+export function anniversaries(data, context) {
+  chart(
+    "anniversaries",
+    `On this day · ${data.as_of.slice(5)} · earlier years`,
+    {
+      grid: { left: 55, right: 20, top: 75, bottom: 55 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: data.days.map((item) => item.day.slice(0, 4)),
+      },
+      yAxis: {
+        ...axes(),
+        type: "value",
+        minInterval: 1,
+        name: "Recorded plays",
+      },
+      series: [
+        {
+          type: "bar",
+          data: data.days.map((item) => ({
+            value: item.covered ? item.plays : null,
+            itemStyle: { color: item.partial ? "#e9c178" : "#8cddc5" },
+          })),
+          barMaxWidth: 32,
+        },
+      ],
+      tooltip: {
+        backgroundColor: "#243a42",
+        borderColor: "#476469",
+        textStyle: { color: "#edf3ee", fontSize: 11 },
+        trigger: "item",
+        renderMode: "richText",
+        confine: true,
+        formatter: (params) => {
+          const item = data.days[params.dataIndex];
+          return `${item.day}\n${number(item.plays)} recorded plays · ${number(item.artists)} artists${item.partial ? "\nPartial source boundary day" : ""}`;
+        },
+      },
+    },
+    context,
+    (params) => {
+      const item = data.days[params.dataIndex];
+      if (item?.covered) select({ type: "day", day: item.day });
+    },
+  );
+}
+
+export function eras(data, context) {
+  const cells = [];
+  for (let row = 0; row < data.periods.length; row++) {
+    for (let column = 0; column < data.periods.length; column++) {
+      const value = data.similarities[row][column];
+      if (value !== null) cells.push([column, row, value]);
+    }
+  }
+  const labels = data.periods.map((item) => item.label);
+  const zoom =
+    data.periods.length > 36
+      ? [
+          {
+            type: "slider",
+            xAxisIndex: 0,
+            bottom: 30,
+            height: 15,
+            start: 0,
+            end: 100,
+          },
+          {
+            type: "slider",
+            yAxisIndex: 0,
+            right: 4,
+            width: 15,
+            start: 0,
+            end: 100,
+          },
+          { type: "inside", xAxisIndex: 0, filterMode: "none" },
+        ]
+      : [];
+  chart(
+    "eras",
+    `Musical eras · ${data.grain === "month" ? "monthly" : "yearly"} artist-share similarity`,
+    {
+      animation: false,
+      grid: { left: 72, right: 35, top: 75, bottom: 155 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: labels,
+        axisLabel: { ...axes().axisLabel, rotate: 45 },
+        splitArea: { show: true, areaStyle: { color: ["#27373e"] } },
+      },
+      yAxis: {
+        ...axes(),
+        type: "category",
+        data: labels,
+        splitArea: { show: true, areaStyle: { color: ["#27373e"] } },
+      },
+      visualMap: {
+        min: 0,
+        max: 1,
+        precision: 2,
+        orient: "horizontal",
+        left: "center",
+        bottom: 65,
+        text: ["Same mix", "No shared artists"],
+        textStyle: { color: "#a6b7bc", fontSize: 10 },
+        inRange: { color: ["#233f50", "#398b92", "#8cddc5"] },
+      },
+      dataZoom: zoom,
+      tooltip: {
+        backgroundColor: "#243a42",
+        borderColor: "#476469",
+        textStyle: { color: "#edf3ee", fontSize: 11 },
+        trigger: "item",
+        renderMode: "richText",
+        confine: true,
+        formatter: (params) => {
+          const [column, row, value] = params.value;
+          const left = data.periods[column],
+            right = data.periods[row];
+          return `${left.label} ↔ ${right.label}\n${percent(value)} artist-share similarity\n${number(left.plays)} / ${number(right.plays)} recorded plays${left.partial || right.partial ? "\nIncludes a partial boundary period" : ""}`;
+        },
+      },
+      series: [
+        {
+          type: "heatmap",
+          data: cells,
+          progressive: 0,
+          emphasis: { itemStyle: { borderColor: "#edf3ee", borderWidth: 1 } },
+        },
+      ],
+    },
+    context,
+    (params) => {
+      if (Array.isArray(params.value))
+        select({
+          type: "era",
+          reference: params.value[0],
+          comparison: params.value[1],
+        });
+    },
+  );
+}
+
 export function exportChart(id, context) {
   const instance = instances.get(id);
   if (!instance) return;

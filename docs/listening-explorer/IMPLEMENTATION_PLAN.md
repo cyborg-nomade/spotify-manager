@@ -1,6 +1,6 @@
 # Last.fm Listening Explorer: survey and implementation plan
 
-Prepared 16 November 2026. Approved by the owner on 16 November 2026. The owner authorized implementing the core and discovery/rediscovery views through one release candidate before requesting revision. Optional enrichment remains follow-up scope. See RELEASE_VERIFICATION.md for the delivered scope and evidence.
+Prepared 16 November 2026. Approved by the owner on 16 November 2026. The owner authorized implementing the core and discovery/rediscovery views through one release candidate before requesting revision. PR #90 was approved, deployed, verified, and merged on 16 November 2026. The owner authorized the next release: Time Capsule completes Musical Eras and On This Day before optional enrichment. See RELEASE_VERIFICATION.md and TIME_CAPSULE_RELEASE.md for delivery evidence.
 
 ## Recommendation
 

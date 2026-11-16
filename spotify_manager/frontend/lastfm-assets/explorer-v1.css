@@ -909,3 +909,18 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+.eras-chart {
+  height: 580px;
+}
+#anniversaries-chart {
+  height: 300px;
+}
+#era-reference {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .eras-chart {
+    height: 420px;
+  }
+}

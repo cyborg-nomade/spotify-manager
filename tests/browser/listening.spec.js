@@ -249,3 +249,116 @@ test("artist search applies a visible filter and racing date requests settle cor
   );
   expect(current.searchParams.get("preset")).toBe("90");
 });
+
+test("time capsule restores its reference, exports both views, and opens anniversary records", async ({
+  page,
+}) => {
+  const failures = [];
+  page.on("pageerror", (error) => failures.push(error.message));
+  await unlock(page);
+  await allTime(page);
+  await page.getByRole("button", { name: "Time capsule", exact: true }).click();
+  await expect(page.locator("#tab-capsule canvas")).toHaveCount(2);
+  expect(
+    (await page.locator("#anniversaries-chart").boundingBox()).height,
+  ).toBeGreaterThan(200);
+  expect(
+    (await page.locator("#eras-chart").boundingBox()).height,
+  ).toBeGreaterThan(400);
+  await expect(page.locator("#eras-table table")).toBeVisible();
+  await expect(page.locator("#anniversary-description")).toContainText(
+    "earlier years",
+  );
+  await page.locator("#era-reference").selectOption("2024-02");
+  await expect(page.locator("#era-comparison")).toContainText("2024-02");
+  await page.reload();
+  await expect(page.locator("#era-reference")).toHaveValue("2024-02");
+  await expect(page.locator("#workspace")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  const matrixDownload = page.waitForEvent("download");
+  await page.locator('[data-csv="eras"]').click();
+  const matrix = await readFile(await (await matrixDownload).path(), "utf8");
+  expect(matrix).toContain("Source snapshot");
+  expect(matrix).toContain("2024-02");
+  expect(matrix).toContain("Partial period");
+  const anniversaryDownload = page.waitForEvent("download");
+  await page.locator('[data-csv="anniversaries"]').click();
+  const anniversaries = await readFile(
+    await (await anniversaryDownload).path(),
+    "utf8",
+  );
+  expect(anniversaries).toContain("Anniversary as of");
+  expect(anniversaries).toContain("Observed from");
+  const pngDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Musical Eras PNG" }).click();
+  const bytes = await readFile(await (await pngDownload).path());
+  expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  await page.locator("#eras-chart").scrollIntoViewIfNeeded();
+  const point = await page
+    .locator("#eras-chart")
+    .evaluate((node) =>
+      window.echarts
+        .getInstanceByDom(node)
+        .convertToPixel({ seriesIndex: 0 }, [0, 1]),
+    );
+  const rectangle = await page.locator("#eras-chart").boundingBox();
+  await page.mouse.click(rectangle.x + point[0], rectangle.y + point[1]);
+  await expect(page.locator("#era-comparison")).toContainText("↔");
+  await page.screenshot({
+    path: test.info().outputPath("time-capsule.png"),
+    fullPage: true,
+  });
+  await page
+    .locator("#anniversary-table button:not([disabled])")
+    .first()
+    .click();
+  await expect(page.locator("#detail")).toBeVisible();
+  await expect(page.locator("#records-table table")).toBeVisible();
+  await expect(page.locator('[data-tab="overview"]')).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(failures).toEqual([]);
+});
+
+test("time capsule handles long and empty ranges, safe names, and mobile period navigation", async ({
+  page,
+}) => {
+  await unlock(page);
+  await page.getByRole("button", { name: "Time capsule", exact: true }).click();
+  await page.locator("#from").fill("1950-01-01");
+  await page.locator("#to").fill("2025-12-01");
+  await page
+    .getByRole("button", { name: "Apply filters", exact: true })
+    .click();
+  await expect(page.locator("#eras-description")).toContainText("yearly");
+  await expect(page.locator("#eras-table")).toContainText("Not comparable");
+  await expect(page.locator("#anniversary-table")).toContainText("onerror");
+  expect(await page.locator("#anniversary-table img").count()).toBe(0);
+  expect(await page.evaluate(() => window.musicNameExecuted)).toBeUndefined();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("time-capsule-mobile.png"),
+    fullPage: true,
+  });
+  await page.locator("#eras-table button:not([disabled])").first().click();
+  await expect(page.locator("#detail")).toBeVisible();
+  await expect(page.locator("#from")).toHaveValue("2023-01-01");
+  await expect(page.locator("#to")).toHaveValue("2023-12-31");
+  await page.locator("#close-detail").click();
+  await page.getByRole("button", { name: "Time capsule", exact: true }).click();
+  await page.locator("#from").fill("2000-01-01");
+  await page.locator("#to").fill("2000-01-31");
+  await page
+    .getByRole("button", { name: "Apply filters", exact: true })
+    .click();
+  await expect(page.locator("#eras-table")).toContainText("Not comparable");
+  await expect(page.locator("#anniversary-table button")).toHaveCount(0);
+});

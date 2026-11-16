@@ -1851,6 +1851,32 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_era_similarity",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_era_similarity",
+    "path": "/lastfm/analytics/eras",
+    "response_model": "ListeningEnvelope[ListeningEras]",
+    "source_line": 386,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_on_this_day",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_on_this_day",
+    "path": "/lastfm/analytics/on-this-day",
+    "response_model": "ListeningEnvelope[ListeningAnniversaries]",
+    "source_line": 403,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [

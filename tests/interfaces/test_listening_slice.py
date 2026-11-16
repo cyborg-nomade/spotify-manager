@@ -90,6 +90,8 @@ def test_endpoints_share_one_snapshot_and_exact_filters(
         "discovery": "cohorts",
         "rediscovery": "items",
         "comparison": "items",
+        "eras": "similarities",
+        "on-this-day": "days",
     }
     for endpoint, field in expected.items():
         response = client.get("/lastfm/analytics/" + endpoint, params=params)
@@ -157,6 +159,8 @@ def test_query_validation_is_explicit(
         ("scrobbles", {"kind": "artist"}),
         ("scrobbles", {"key": "0" * 64}),
         ("discovery", {"hour": "12"}),
+        ("on-this-day", {"hour": "12"}),
+        ("on-this-day", {"weekday": "1"}),
         ("rediscovery", {"weekday": "1"}),
         ("rediscovery", {"minimum_gap": "-1"}),
         ("evolution", {"grain": "invalid"}),

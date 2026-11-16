@@ -18,9 +18,11 @@ from fastapi import Request
 from fastapi import Response
 
 from spotify_manager.application.listening import get_listening_activity
+from spotify_manager.application.listening import get_listening_anniversaries
 from spotify_manager.application.listening import get_listening_comparison
 from spotify_manager.application.listening import get_listening_discoveries
 from spotify_manager.application.listening import get_listening_entity
+from spotify_manager.application.listening import get_listening_eras
 from spotify_manager.application.listening import get_listening_evolution
 from spotify_manager.application.listening import get_listening_overview
 from spotify_manager.application.listening import get_listening_rankings
@@ -30,6 +32,8 @@ from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningNotReadyError
 from spotify_manager.application.listening_ports import ListeningStatus
 from spotify_manager.application.listening_ports import ListeningVersionError
+from spotify_manager.domain.listening_capsule_values import ListeningAnniversaries
+from spotify_manager.domain.listening_capsule_values import ListeningEras
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntitySelection
 from spotify_manager.domain.listening_values import ListeningActivity
@@ -376,4 +380,43 @@ def listening_comparison(
         Versioned current/previous counts, shares, and coverage status.
     """
     result = get_listening_comparison(index, query)
+    return present_listening(index, query, result)
+
+
+@router.get("/eras")
+def listening_era_similarity(
+    query: QueryDep, index: IndexDep
+) -> ListeningEnvelope[ListeningEras]:
+    """Compare calendar periods using weighted Jaccard over all artist shares.
+
+    Args:
+        query: Effective shared selection.
+        index: Pinned source generation.
+
+    Returns:
+        Versioned symmetric matrix with undefined empty comparisons.
+    """
+    result = get_listening_eras(index, query)
+    return present_listening(index, query, result)
+
+
+@router.get("/on-this-day")
+def listening_on_this_day(
+    query: QueryDep, index: IndexDep
+) -> ListeningEnvelope[ListeningAnniversaries]:
+    """Return earlier anniversaries of the selected analysis end date.
+
+    Args:
+        query: End date, timezone and optional artist; start is ignored.
+        index: Pinned source generation.
+
+    Returns:
+        Versioned earlier-year days with coverage and leading artists.
+
+    Raises:
+        HTTPException: A rhythm filter would conceal calendar anniversaries.
+    """
+    if query.weekday is not None or query.hour is not None:
+        raise HTTPException(422, "On This Day uses full days. Clear rhythm filters.")
+    result = get_listening_anniversaries(index, query)
     return present_listening(index, query, result)

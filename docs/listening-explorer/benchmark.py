@@ -18,8 +18,10 @@ from tempfile import TemporaryDirectory
 from dotenv import load_dotenv
 
 from spotify_manager.application.listening import get_listening_activity
+from spotify_manager.application.listening import get_listening_anniversaries
 from spotify_manager.application.listening import get_listening_comparison
 from spotify_manager.application.listening import get_listening_discoveries
+from spotify_manager.application.listening import get_listening_eras
 from spotify_manager.application.listening import get_listening_evolution
 from spotify_manager.application.listening import get_listening_overview
 from spotify_manager.application.listening import get_listening_rankings
@@ -78,6 +80,15 @@ def _insights(index: ListeningIndex, query: ListeningQuery) -> Measurements:
         asdict(get_listening_rediscovery(index, query, RediscoveryOptions())),
     )
     measurements.mark("comparison", asdict(get_listening_comparison(index, query)))
+    return measurements
+
+
+def _capsule(index: ListeningIndex, query: ListeningQuery) -> Measurements:
+    measurements = Measurements()
+    measurements.mark("eras", asdict(get_listening_eras(index, query)))
+    measurements.mark(
+        "anniversaries", asdict(get_listening_anniversaries(index, query))
+    )
     return measurements
 
 
@@ -142,6 +153,7 @@ def _measure(source: Path, metadata: ArtifactMetadata, root: Path) -> dict[str, 
     query = ListeningQuery(first, last)
     cold = _core(index, query)
     insights = _insights(index, query)
+    capsule = _capsule(index, query)
     warm = _warm(index, query)
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return {
@@ -156,6 +168,8 @@ def _measure(source: Path, metadata: ArtifactMetadata, root: Path) -> dict[str, 
         "warm_p95_ms_including_serialization": warm,
         "response_bytes": cold.bytes,
         "insight_cold_ms": insights.milliseconds,
+        "capsule_cold_ms": capsule.milliseconds,
+        "capsule_response_bytes": capsule.bytes,
         "peak_rss_bytes": peak if sys.platform == "darwin" else peak * 1024,
         "index_bytes": sum(item.stat().st_size for item in root.glob("index.*")),
     }

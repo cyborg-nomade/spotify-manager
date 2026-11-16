@@ -374,3 +374,9 @@ tests/test_api_job_failures.py
 
 Routine-specific CLI and API tests verify the same choice and result adapters.
 Run the full gate with `just test` before deployment.
+
+The Listening Explorer’s **Time capsule** tab adds On This Day (earlier
+anniversaries of the selected Through date) and Musical Eras (weighted Jaccard
+similarity of full artist-share vectors). Empty comparisons and partial source
+coverage are explicit. See the [feature guide](listening-explorer/README.md#time-capsule)
+for date semantics, matrix bounds, drill-down controls and exports.
