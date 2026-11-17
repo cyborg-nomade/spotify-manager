@@ -1,4 +1,5 @@
 import { download, number, percent } from "./tables-v1.js";
+import { eraBands, eraCells } from "./eras-v1.js";
 
 const instances = new Map();
 const palette = [
@@ -634,15 +635,17 @@ export function anniversaries(data, context) {
   );
 }
 
-export function eras(data, context) {
-  const cells = [];
-  for (let row = 0; row < data.periods.length; row++) {
-    for (let column = 0; column < data.periods.length; column++) {
-      const value = data.similarities[row][column];
-      if (value !== null) cells.push([column, row, value]);
-    }
-  }
-  const labels = data.periods.map((item) => item.label);
+export function eras(data, context, view) {
+  const cells = eraCells(data, view.order, view.threshold);
+  const comparable = cells.filter(
+    (item) =>
+      item.value[2] !== null && item.originalRow !== item.originalColumn,
+  );
+  const diagonal = cells.filter(
+    (item) =>
+      item.value[2] !== null && item.originalRow === item.originalColumn,
+  );
+  const labels = view.order.map((index) => data.periods[index].label);
   const zoom =
     data.periods.length > 36
       ? [
@@ -665,36 +668,53 @@ export function eras(data, context) {
           { type: "inside", xAxisIndex: 0, filterMode: "none" },
         ]
       : [];
+  const title = `Musical eras · ${view.grouped ? "grouped" : "chronological"} ${data.grain === "month" ? "months" : "years"} · ≥${Math.round(view.threshold * 100)}%`;
   chart(
     "eras",
-    `Musical eras · ${data.grain === "month" ? "monthly" : "yearly"} artist-share similarity`,
+    title,
     {
       animation: false,
-      grid: { left: 72, right: 35, top: 75, bottom: 155 },
+      grid: { left: 72, right: 35, top: 75, bottom: 170 },
       xAxis: {
         ...axes(),
         type: "category",
         data: labels,
         axisLabel: { ...axes().axisLabel, rotate: 45 },
-        splitArea: { show: true, areaStyle: { color: ["#27373e"] } },
+        splitArea: { show: true, areaStyle: { color: ["#15232a"] } },
       },
       yAxis: {
         ...axes(),
         type: "category",
         data: labels,
-        splitArea: { show: true, areaStyle: { color: ["#27373e"] } },
+        splitArea: { show: true, areaStyle: { color: ["#15232a"] } },
       },
       visualMap: {
-        min: 0,
-        max: 1,
-        precision: 2,
+        type: "piecewise",
+        seriesIndex: 0,
+        dimension: 2,
+        pieces: eraBands,
+        selectedMode: false,
         orient: "horizontal",
         left: "center",
-        bottom: 65,
-        text: ["Same mix", "No shared artists"],
-        textStyle: { color: "#a6b7bc", fontSize: 10 },
-        inRange: { color: ["#233f50", "#398b92", "#8cddc5"] },
+        bottom: 70,
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 7,
+        textStyle: { color: "#c5d2d1", fontSize: 9 },
       },
+      graphic: [
+        ...base(title, context).graphic,
+        {
+          type: "text",
+          left: "center",
+          bottom: 104,
+          style: {
+            text: "Gray diagonal: self · Blank: no recorded plays",
+            fill: "#a6b7bc",
+            fontSize: 9,
+          },
+        },
+      ],
       dataZoom: zoom,
       tooltip: {
         backgroundColor: "#243a42",
@@ -704,28 +724,37 @@ export function eras(data, context) {
         renderMode: "richText",
         confine: true,
         formatter: (params) => {
-          const [column, row, value] = params.value;
-          const left = data.periods[column],
-            right = data.periods[row];
-          return `${left.label} ↔ ${right.label}\n${percent(value)} artist-share similarity\n${number(left.plays)} / ${number(right.plays)} recorded plays${left.partial || right.partial ? "\nIncludes a partial boundary period" : ""}`;
+          const item = params.data;
+          const left = data.periods[item.originalColumn],
+            right = data.periods[item.originalRow];
+          const score = item.value[2];
+          const self = item.originalColumn === item.originalRow;
+          return `${left.label} ↔ ${right.label}\n${percent(score)} artist-share similarity${self ? "\nSelf-comparison · shown in gray" : score < view.threshold ? "\nBelow highlight threshold" : ""}\n${number(left.plays)} / ${number(right.plays)} recorded plays${left.partial || right.partial ? "\nIncludes a partial boundary period" : ""}`;
         },
       },
       series: [
         {
           type: "heatmap",
-          data: cells,
+          data: comparable,
           progressive: 0,
+          emphasis: { itemStyle: { borderColor: "#edf3ee", borderWidth: 1 } },
+        },
+        {
+          type: "heatmap",
+          data: diagonal,
+          progressive: 0,
+          itemStyle: { color: "#727981" },
           emphasis: { itemStyle: { borderColor: "#edf3ee", borderWidth: 1 } },
         },
       ],
     },
     context,
     (params) => {
-      if (Array.isArray(params.value))
+      if (params.data && params.data.value[2] !== null)
         select({
           type: "era",
-          reference: params.value[0],
-          comparison: params.value[1],
+          reference: params.data.originalColumn,
+          comparison: params.data.originalRow,
         });
     },
   );

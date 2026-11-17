@@ -1,4 +1,5 @@
 import * as charts from "./charts-v1.js";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js";
 import {
   element,
   entityButton,
@@ -42,6 +43,12 @@ const state = {
     : "overview",
   preset: parameters.get("preset") || (parameters.has("from") ? null : "year"),
   eraReference: parameters.get("era_ref"),
+  eraGrouped: parameters.get("era_order") === "grouped",
+  eraThreshold: Math.round(
+    Math.max(0, Math.min(100, Number(parameters.get("era_min")) || 0)),
+  ),
+  eraOrder: [],
+  groupedOrder: null,
   rankingPage: 1,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -332,6 +339,10 @@ function persist() {
   if (state.preset) values.preset = state.preset;
   if (state.tab === "capsule" && state.eraReference)
     values.era_ref = state.eraReference;
+  if (state.tab === "capsule") {
+    values.era_order = state.eraGrouped ? "grouped" : "chronological";
+    values.era_min = state.eraThreshold;
+  }
   if (state.artist) {
     values.artist = state.artist;
     values.artist_name = state.artistName;
@@ -568,21 +579,42 @@ function renderCapsule(anniversaries, eras) {
   );
   $("eras-description").textContent =
     `${eras.periods.length} ${eras.grain === "month" ? "monthly" : "yearly"} periods in the selected range. ${eras.grain === "year" ? "Selections longer than 240 months use calendar years to keep comparisons readable. " : ""}Partial selection and source boundaries are labeled. Select a matrix cell or use the period selector and table.`;
-  $("era-reference").replaceChildren(
-    ...eras.periods.map(
-      (item) =>
-        new Option(
-          `${item.label}${item.plays ? "" : " · no recorded plays"}`,
-          item.label,
-        ),
-    ),
-  );
+  state.groupedOrder = null;
   const fallback =
     eras.periods.findLast((item) => item.plays) || eras.periods.at(-1);
   if (!eras.periods.some((item) => item.label === state.eraReference))
     state.eraReference = fallback?.label;
+  renderEraView();
+}
+
+function renderEraView() {
+  const data = state.data.eras;
+  if (!data) return;
+  if (state.eraGrouped && !state.groupedOrder)
+    state.groupedOrder = groupedEraOrder(data);
+  state.eraOrder = state.eraGrouped
+    ? state.groupedOrder
+    : data.periods.map((_item, index) => index);
+  $("era-grouped").checked = state.eraGrouped;
+  $("era-threshold").value = state.eraThreshold;
+  $("era-threshold-value").textContent = `${state.eraThreshold}%`;
+  $("era-view-description").textContent =
+    `${state.eraGrouped ? "Periods are grouped by similarity of their artist mix; empty periods appear last." : "Periods follow calendar order."} Comparisons below ${state.eraThreshold}% are dimmed. Gray self-comparisons are kept separate. Scores, tables, and exports retain all observations.`;
+  $("era-reference").replaceChildren(
+    ...state.eraOrder.map((index) => {
+      const item = data.periods[index];
+      return new Option(
+        `${item.label}${item.plays ? "" : " · no recorded plays"}`,
+        item.label,
+      );
+    }),
+  );
   $("era-reference").value = state.eraReference;
-  charts.eras(eras, ctx);
+  charts.eras(data, context(), {
+    order: state.eraOrder,
+    grouped: state.eraGrouped,
+    threshold: state.eraThreshold / 100,
+  });
   renderEraTable();
   persist();
 }
@@ -609,16 +641,25 @@ function renderEraTable(comparison = null) {
       "Artists",
       `Similarity to ${state.eraReference}`,
       "Coverage",
+      "Highlight status",
     ],
-    data.periods.map((item, index) => [
-      periodButton(item),
-      number(item.plays),
-      number(item.artists),
-      data.similarities[reference][index] === null
-        ? "Not comparable"
-        : percent(data.similarities[reference][index]),
-      coverageLabel(item),
-    ]),
+    state.eraOrder.map((index) => {
+      const item = data.periods[index];
+      return [
+        periodButton(item),
+        number(item.plays),
+        number(item.artists),
+        data.similarities[reference][index] === null
+          ? "Not comparable"
+          : percent(data.similarities[reference][index]),
+        coverageLabel(item),
+        eraHighlight(
+          data.similarities[reference][index],
+          reference === index,
+          state.eraThreshold / 100,
+        ),
+      ];
+    }),
   );
 }
 
@@ -1091,20 +1132,25 @@ function exportData(name) {
       "Artists",
       "Inside source bounds",
       "Partial period",
-      ...data.eras.periods.map((item) => item.label),
+      ...state.eraOrder.map((index) => data.eras.periods[index].label),
     ];
-    rows = data.eras.periods.map((item, index) => [
-      item.label,
-      item.start,
-      item.end,
-      item.plays,
-      item.artists,
-      item.covered,
-      item.partial,
-      ...data.eras.similarities[index].map((value) =>
-        value === null ? "Not comparable" : value,
-      ),
-    ]);
+    rows = state.eraOrder.map((index) => {
+      const item = data.eras.periods[index];
+      return [
+        item.label,
+        item.start,
+        item.end,
+        item.plays,
+        item.artists,
+        item.covered,
+        item.partial,
+        ...state.eraOrder.map((column) =>
+          data.eras.similarities[index][column] === null
+            ? "Not comparable"
+            : data.eras.similarities[index][column],
+        ),
+      ];
+    });
   }
   if (name === "records" && data.records) {
     headers = [
@@ -1126,6 +1172,18 @@ function exportData(name) {
     const ctx = context();
     if (name === "anniversaries")
       ctx.from = data.anniversaries.observed_from || ctx.from;
+    if (name === "eras")
+      ctx.notes = [
+        [
+          "Period ordering",
+          state.eraGrouped
+            ? "Grouped by similarity (average linkage)"
+            : "Chronological",
+        ],
+        ["Highlight minimum (%)", state.eraThreshold],
+        ["Color bands (%)", "<2; 2–5; 5–10; 10–20; 20–35; ≥35"],
+        ["Values", "Full matrix; highlighting does not filter scores"],
+      ];
     exportCSV(name, headers, rows, ctx);
   }
 }
@@ -1262,6 +1320,17 @@ $("rank-next").addEventListener("click", () => {
   loadSelection();
 });
 $("calendar-year").addEventListener("change", renderCalendar);
+$("era-grouped").addEventListener("change", () => {
+  state.eraGrouped = $("era-grouped").checked;
+  renderEraView();
+});
+$("era-threshold").addEventListener("input", () => {
+  $("era-threshold-value").textContent = `${$("era-threshold").value}%`;
+});
+$("era-threshold").addEventListener("change", () => {
+  state.eraThreshold = Number($("era-threshold").value);
+  renderEraView();
+});
 $("era-reference").addEventListener("change", () => {
   state.eraReference = $("era-reference").value;
   renderEraTable();

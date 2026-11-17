@@ -542,6 +542,32 @@
                 Empty periods are not comparable. This describes recorded music,
                 without inferring life events.
               </p>
+              <div class="era-controls">
+                <label class="era-group-label"
+                  ><input id="era-grouped" type="checkbox" /> Group similar
+                  periods</label
+                >
+                <label for="era-threshold"
+                  >Highlight similarity at least
+                  <output id="era-threshold-value" for="era-threshold"
+                    >0%</output
+                  ></label
+                >
+                <input
+                  id="era-threshold"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="0"
+                  aria-describedby="era-view-description"
+                />
+              </div>
+              <p
+                id="era-view-description"
+                class="chart-description"
+                aria-live="polite"
+              ></p>
               <div id="eras-chart" class="chart eras-chart"></div>
               <div class="control-line">
                 <label for="era-reference">Compare with period</label

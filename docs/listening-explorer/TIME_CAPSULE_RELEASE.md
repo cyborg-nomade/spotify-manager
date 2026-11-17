@@ -9,7 +9,8 @@ up before this branch started from clean, current master.
 
 Review: **http://127.0.0.1:8765/lastfm?tab=capsule&preset=all**.
 The normal web application runs from the candidate wheel in an isolated temporary
-installation. Startup hydration writes into that installation, preserving the
+installation. The local review password is **`preview`**, printed at each start.
+Startup hydration writes into that installation, preserving the
 source checkout's managed mirrors. Review uses the actual published archive.
 
 ## Delivered scope
@@ -45,14 +46,14 @@ start independence, earlier-year scope, source coverage, partial boundaries,
 yearly fallback and generation separation. The new domain rules have **100%
 statement and branch coverage**. Application, HTTP and existing web checks pass.
 
-Nine Chrome scenarios cover existing explorer behavior plus the new tab,
+Ten Chrome scenarios cover existing explorer behavior plus the new tab,
 actual heatmap clicks, visible chart dimensions, URL reference restoration,
 CSV/PNG, hostile music names, long/empty selections, mobile layout and record
 navigation. Desktop/mobile screenshots were inspected. Browser CI uses only
 synthetic published data; personal screenshots remain local and ignored.
 
 Ruff, package and strict business typing, architecture/callback guards and all
-11 frozen-interface artifacts pass. Wheel smoke verifies **770 packaged
+11 frozen-interface artifacts pass. Wheel smoke verifies **771 packaged
 Python/frontend files** against source and both existing entry points. The full
 randomized suite and independent coverage floors are also required; the PR's
 checks and description record their final results.
@@ -83,7 +84,7 @@ accumulates intersecting artist keys, and the symmetric matrix is computed once
 per pair. The larger cold-query cost is visible rather than hidden behind a
 listening-duration estimate or a truncated artist list.
 
-Chrome over the final wheel reconciled all 229 monthly totals to the published
+The initial Time Capsule wheel check in Chrome reconciled all 229 monthly totals to the published
 338,774 observations, rendered 52,441 matrix positions, and reported no page
 errors or horizontal overflow at 390 pixels. First complete cold page load was
 6.52 seconds locally, including verified source acquisition and index build.
@@ -95,3 +96,22 @@ This is the next review candidate. Under the project workflow, approval of this
 PR precedes its Hugging Face deployment, deployed verification and merge. The
 first approved explorer release remains deployed. No canonical history or shared
 state migration is needed; rollback restores code and discards derived caches.
+
+## Readability revision after owner review
+
+The cockpit Explore link now matches the surrounding button dimensions,
+typography and pressed effect, with blue shading. Musical Eras replaces its
+continuous gradient with six fixed bands, subdues self-comparisons, and adds a
+threshold highlight control. A Group similar periods toggle uses deterministic
+average linkage on the existing scores, with empty periods at the end.
+It reorders both axes, reference choices, tables and CSV consistently; underlying
+counts and similarity values are preserved. Grouping and threshold restore from
+the URL and appear in exports. No analytical HTTP contract changes are needed.
+
+Seven pure JavaScript checks validate the presentation algorithm. The new Chrome
+scenario uses a hand-calculated matrix to verify rendered band colors, gray
+self-comparisons, actual opacity, original-index click mapping, grouped CSV data,
+keyboard adjustment, saved settings and mobile resizing. Existing explorer
+browser scenarios remain required. The new data-free JavaScript helper receives
+one exact static allowlist entry. Local review setup now always announces
+password `preview`; this preference is recorded in AGENTS.md.

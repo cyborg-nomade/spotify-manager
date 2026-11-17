@@ -59,6 +59,8 @@ def test_listening_shell_and_exact_assets_are_open_but_analytics_are_protected(
     assert 'href="/lastfm"' in client.get("/").text
     script = client.get("/lastfm/assets/explorer-v1.js")
     assert script.status_code == 200 and "loadSelection" in script.text
+    eras = client.get("/lastfm/assets/eras-v1.js")
+    assert eras.status_code == 200 and "groupedEraOrder" in eras.text
     assert client.get("/lastfm/assets/echarts-6.0.0.min.js").status_code == 200
     assert client.get("/lastfm/assets/not-an-asset.json").status_code == 404
 

@@ -362,3 +362,153 @@ test("time capsule handles long and empty ranges, safe names, and mobile period 
   await expect(page.locator("#eras-table")).toContainText("Not comparable");
   await expect(page.locator("#anniversary-table button")).toHaveCount(0);
 });
+
+test("era bands, grouped coordinates and highlighting preserve scores across reload and export", async ({
+  page,
+}) => {
+  await unlock(page);
+  await allTime(page);
+  const labels = ["2023-01", "2023-02", "2023-03", "2023-04", "2023-05"];
+  const matrix = [
+    [1, 0.03, 0.2, 0.01, null],
+    [0.03, 1, 0.02, 0.35, null],
+    [0.2, 0.02, 1, 0.05, null],
+    [0.01, 0.35, 0.05, 1, null],
+    [null, null, null, null, null],
+  ];
+  let eraRequests = 0;
+  await page.route("**/lastfm/analytics/eras?**", async (route) => {
+    eraRequests++;
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data = {
+      grain: "month",
+      periods: labels.map((label, index) => ({
+        label,
+        start: label + "-01",
+        end: label + "-28",
+        plays: index === 4 ? 0 : 10,
+        artists: index === 4 ? 0 : 2,
+        covered: true,
+        partial: false,
+      })),
+      similarities: matrix,
+    };
+    await route.fulfill({ response, json: body });
+  });
+  await page.getByRole("button", { name: "Time capsule", exact: true }).click();
+  await expect(page.locator("#eras-table table")).toBeVisible();
+  await page.getByLabel("Group similar periods", { exact: true }).check();
+  const rendered = await page.locator("#eras-chart").evaluate((node) => {
+    const chart = window.echarts.getInstanceByDom(node),
+      options = chart.getOption();
+    const index = options.series[0].data.findIndex(
+      (item) => item.originalRow === 0 && item.originalColumn === 1,
+    );
+    return {
+      labels: options.xAxis[0].data,
+      type: options.visualMap[0].type,
+      pieces: options.visualMap[0].pieces.map((piece) => piece.label),
+      color: chart.getVisual({ seriesIndex: 0, dataIndex: index }, "color"),
+      diagonal: chart.getVisual({ seriesIndex: 1, dataIndex: 0 }, "color"),
+    };
+  });
+  expect(rendered.labels).toEqual([
+    "2023-01",
+    "2023-03",
+    "2023-02",
+    "2023-04",
+    "2023-05",
+  ]);
+  expect(rendered.type).toBe("piecewise");
+  expect(rendered.pieces).toEqual([
+    "<2%",
+    "2–5%",
+    "5–10%",
+    "10–20%",
+    "20–35%",
+    "≥35%",
+  ]);
+  expect(rendered.color).toBe("#426fa3");
+  expect(rendered.diagonal).toBe("#727981");
+  await page.locator("#era-threshold").focus();
+  await page.keyboard.press("End");
+  await expect(page.locator("#era-threshold-value")).toHaveText("100%");
+  const opacity = await page.locator("#eras-chart").evaluate((node) => {
+    const chart = window.echarts.getInstanceByDom(node);
+    return {
+      comparison: chart
+        .getModel()
+        .getSeriesByIndex(0)
+        .getData()
+        .getItemVisual(0, "style").opacity,
+      self: chart
+        .getModel()
+        .getSeriesByIndex(1)
+        .getData()
+        .getItemVisual(0, "style").opacity,
+    };
+  });
+  expect(opacity).toEqual({ comparison: 0.16, self: 1 });
+  expect(eraRequests).toBe(1);
+  await expect(page.locator("#eras-table")).toContainText(
+    "Below highlight threshold",
+  );
+  const point = await page
+    .locator("#eras-chart")
+    .evaluate((node) =>
+      window.echarts
+        .getInstanceByDom(node)
+        .convertToPixel({ seriesIndex: 0 }, [2, 0]),
+    );
+  await page.locator("#eras-chart").scrollIntoViewIfNeeded();
+  const rectangle = await page.locator("#eras-chart").boundingBox();
+  await page.mouse.click(rectangle.x + point[0], rectangle.y + point[1]);
+  await expect(page.locator("#era-comparison")).toContainText(
+    "2023-02 ↔ 2023-01: 3.0%",
+  );
+  await expect(page.locator("#era-reference")).toHaveValue("2023-02");
+  const download = page.waitForEvent("download");
+  await page.locator('[data-csv="eras"]').click();
+  const csv = await readFile(await (await download).path(), "utf8");
+  expect(csv).toContain(
+    '"Period ordering","Grouped by similarity (average linkage)"',
+  );
+  expect(csv).toContain('"Highlight minimum (%)","100"');
+  const row = csv.split("\r\n").find((line) => line.startsWith('"2023-01",'));
+  expect(row.split(",").slice(7)).toEqual([
+    '"1"',
+    '"0.2"',
+    '"0.03"',
+    '"0.01"',
+    '"Not comparable"',
+  ]);
+  await page.reload();
+  await expect(page.locator("#era-grouped")).toBeChecked();
+  await expect(page.locator("#era-threshold")).toHaveValue("100");
+  await expect(page.locator("#era-reference")).toHaveValue("2023-02");
+  await expect(page.locator("#eras-table button").last()).toHaveText("2023-05");
+  await expect(page.locator("#eras-table button").last()).toBeEnabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("grouped-eras-mobile.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Group similar periods", { exact: true }).uncheck();
+  expect(new URL(page.url()).searchParams.get("era_order")).toBe(
+    "chronological",
+  );
+  expect(await page.locator("#eras-table button").allTextContents()).toEqual(
+    labels,
+  );
+  const fractional = new URL(page.url());
+  fractional.searchParams.set("era_min", "3.6");
+  await page.goto(fractional.href);
+  await expect(page.locator("#era-threshold")).toHaveValue("4");
+  await expect(page.locator("#era-threshold-value")).toHaveText("4%");
+});

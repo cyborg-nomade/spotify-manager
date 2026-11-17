@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "format:check": "prettier --check ../../spotify_manager/frontend/lastfm.html ../../spotify_manager/frontend/lastfm-assets/*-v1.js ../../spotify_manager/frontend/lastfm-assets/*-v1.css *.js package.json"
+    "test": "npm run test:unit && playwright test",
+    "format:check": "prettier --check ../../spotify_manager/frontend/lastfm.html ../../spotify_manager/frontend/lastfm-assets/*-v1.js ../../spotify_manager/frontend/lastfm-assets/*-v1.css *.js package.json",
+    "test:unit": "node --experimental-default-type=module --test eras.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

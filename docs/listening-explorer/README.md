@@ -81,14 +81,30 @@ sum(max(left artist share, right artist share))
 
 Identical mixes score 100% even if listening volumes differ; disjoint mixes score
 0%. A comparison involving an empty period is undefined, including its diagonal.
-Empty cells stay gray and tables/CSV say **Not comparable**. Values are rounded
+Empty cells stay blank and tables/CSV say **Not comparable**. Self-comparisons
+use a subdued gray diagonal, separate from the similarity palette. Values are rounded
 to six decimals. The chart describes recorded artist mix rather than real-life
 events. Selection and source boundaries mark partial periods explicitly.
 
 Selections of up to 240 calendar months use months. Longer selections use
 calendar years, with the grain explicitly reported in the response and UI. This
 bounds the matrix without dropping older history. The existing 100-year query
-bound remains in force. The heatmap has zoom controls for longer ranges. Use its
+bound remains in force. The heatmap uses six fixed, high-contrast bands: <2%, 2–5%, 5–10%, 10–20%,
+20–35%, and ≥35%. Exact values remain in tooltips and tables. The **Highlight
+similarity at least** slider dims lower scores without removing comparisons.
+Its setting applies on release and is restored from `era_min` (whole percentages).
+
+**Group similar periods** reorders both axes, the reference selector and the table
+using deterministic average-linkage clustering over the existing similarity
+matrix. Every original period has equal weight in average linkage; no artist or
+play counts are recomputed. Ties use earliest source-period indices. Each merge
+keeps its earliest child group first. Empty periods are excluded from clustering
+and appended in calendar order. Turning grouping off restores chronological order.
+Grouping is restored from `era_order=grouped`. The derived ordering is cached
+for the current result, and rendering maps every cell back to its original
+period indices for tooltips and selection.
+
+The heatmap has zoom controls for longer ranges. Use its
 cells or the **Compare with period** selector to inspect a reference column in
 the accessible table. The reference is restored from `era_ref` in the URL.
 Select a period row to open its recorded plays in Overview.
@@ -103,7 +119,9 @@ details.
 PNG exports include chart labels, dates, timezone, and source identity. CSV
 exports include the effective shared filters and source token; rankings and
 records export the displayed page. Musical Eras exports the complete matrix
-with counts, effective period bounds and coverage. On This Day exports earlier
+with counts, effective period bounds and coverage. Matrix rows and columns follow
+the displayed ordering, while scores remain unchanged. Export metadata records
+the ordering, fixed bands and highlight threshold; dimmed values remain included. On This Day exports earlier
 anniversaries with the full-archive start, anchor date and source coverage. CSV text cells are protected against
 spreadsheet-formula interpretation. The cockpit's existing Download control
 still exports the original complete published JSON unchanged.
@@ -188,8 +206,12 @@ rather than parsing names as HTML.
 Run the ordinary web entry point from the feature branch:
 
 ```console
-uv run --env-file .env uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8000
+printf 'Local preview password: preview\n'
+APP_PASSWORD=preview uv run --env-file .env uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8765
 ```
+
+Local review previews use password **`preview`**. Set it explicitly for the
+preview process and announce the URL and password at each start and handoff.
 
 The chart distribution is Apache ECharts 6.0.0, served locally with its license
 and notice files. Its npm archive SHA-512 was verified before extraction. No
@@ -209,6 +231,9 @@ To use an existing Chrome installation, set `LISTENING_CHROME_PATH` to its binar
 CI uses Ubuntu 24.04 with its pinned Playwright Chromium and retains
 screenshots/failure traces. The runner version matches that browser release's
 supported system dependencies.
+The browser test command also runs seven pure JavaScript checks for band
+boundaries, size-weighted average-linkage updates, deterministic and empty-period ordering,
+coordinate mapping, threshold semantics and the 240-period bound.
 The existing Python, architecture, frozen-interface, and independent coverage
 gates remain required. The wheel smoke check now verifies all explorer assets.
 
