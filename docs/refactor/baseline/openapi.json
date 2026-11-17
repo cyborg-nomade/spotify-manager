@@ -352,6 +352,49 @@
         "title": "AnalysisResourceProgress",
         "type": "object"
       },
+      "AnniversaryDay": {
+        "description": "Describe this calendar anniversary in one earlier year.\n\nArgs:\n    day: Exact local anniversary date; leap days are never shifted.\n    plays: Recorded observations on that day.\n    artists: Distinct recorded artists.\n    top_artists: At most five artists with shares of this day's plays.\n    covered: Whether the day lies inside source coverage.\n    partial: Whether the source starts or ends on this day.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "top_artists": {
+            "items": {
+              "$ref": "#/components/schemas/RankedEntity"
+            },
+            "title": "Top Artists",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "plays",
+          "artists",
+          "top_artists",
+          "covered",
+          "partial"
+        ],
+        "title": "AnniversaryDay",
+        "type": "object"
+      },
       "ArtistLibraryStats": {
         "description": "How much of a given artist is in the user's library.",
         "properties": {
@@ -2115,6 +2158,52 @@
         "title": "EntityLifetime",
         "type": "object"
       },
+      "EraPeriod": {
+        "description": "Describe the actual selected portion of a calendar period.\n\nArgs:\n    label: ISO month or year.\n    start: Inclusive selected local start.\n    end: Inclusive selected local end.\n    plays: Recorded observations in the period.\n    artists: Distinct recorded artists.\n    covered: Whether the period intersects source coverage.\n    partial: Whether selection or source boundaries cut the period.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "start",
+          "end",
+          "plays",
+          "artists",
+          "covered",
+          "partial"
+        ],
+        "title": "EraPeriod",
+        "type": "object"
+      },
       "FlushControl": {
         "enum": [
           "automatic",
@@ -2368,6 +2457,55 @@
           "hours"
         ],
         "title": "ListeningActivity",
+        "type": "object"
+      },
+      "ListeningAnniversaries": {
+        "description": "Explore earlier anniversaries independently of the visible start date.\n\nArgs:\n    as_of: Selected analysis end date defining the anniversary.\n    days: Chronological earlier anniversaries, including covered zero days.\n    observed_from: First recorded local source date, or None.\n    observed_through: Last recorded local source date, or None.",
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/AnniversaryDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "observed_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed From"
+          },
+          "observed_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Through"
+          }
+        },
+        "required": [
+          "as_of",
+          "days",
+          "observed_from",
+          "observed_through"
+        ],
+        "title": "ListeningAnniversaries",
         "type": "object"
       },
       "ListeningBreadth": {
@@ -2654,6 +2792,27 @@
         "title": "ListeningEnvelope[ListeningActivity]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningAnniversaries_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningAnniversaries"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningAnniversaries]",
+        "type": "object"
+      },
       "ListeningEnvelope_ListeningComparison_": {
         "properties": {
           "data": {
@@ -2715,6 +2874,27 @@
           "data"
         ],
         "title": "ListeningEnvelope[ListeningEntity]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningEras_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningEras"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningEras]",
         "type": "object"
       },
       "ListeningEnvelope_ListeningEvolution_": {
@@ -2820,6 +3000,50 @@
           "data"
         ],
         "title": "ListeningEnvelope[ListeningRediscovery]",
+        "type": "object"
+      },
+      "ListeningEras": {
+        "description": "Compare full artist-share vectors using weighted Jaccard similarity.\n\nArgs:\n    grain: Months, or years for selections exceeding 240 months.\n    periods: Chronological calendar periods, including empty ones.\n    similarities: Symmetric row/column matrix; empty comparisons are None.",
+        "properties": {
+          "grain": {
+            "enum": [
+              "month",
+              "year"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/EraPeriod"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "similarities": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Similarities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "grain",
+          "periods",
+          "similarities"
+        ],
+        "title": "ListeningEras",
         "type": "object"
       },
       "ListeningEvolution": {
@@ -11516,6 +11740,134 @@
         ]
       }
     },
+    "/lastfm/analytics/eras": {
+      "get": {
+        "description": "Compare calendar periods using weighted Jaccard over all artist shares.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n\nReturns:\n    Versioned symmetric matrix with undefined empty comparisons.",
+        "operationId": "listening_era_similarity_lastfm_analytics_eras_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningEras_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Era Similarity",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
     "/lastfm/analytics/evolution": {
       "get": {
         "description": "Return fixed artist series and temporal breadth/concentration metrics.\n\nArgs:\n    query: Effective shared selection.\n    index: Pinned source generation.\n    grain: Monday-based week or calendar month.\n\nReturns:\n    Versioned top-eight-plus-Other series.",
@@ -11653,6 +12005,134 @@
           }
         },
         "summary": "Listening Evolution",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/on-this-day": {
+      "get": {
+        "description": "Return earlier anniversaries of the selected analysis end date.\n\nArgs:\n    query: End date, timezone and optional artist; start is ignored.\n    index: Pinned source generation.\n\nReturns:\n    Versioned earlier-year days with coverage and leading artists.\n\nRaises:\n    HTTPException: A rhythm filter would conceal calendar anniversaries.",
+        "operationId": "listening_on_this_day_lastfm_analytics_on_this_day_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningAnniversaries_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening On This Day",
         "tags": [
           "Listening Explorer"
         ]

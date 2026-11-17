@@ -11,7 +11,8 @@ page at `/lastfm`, linked from the Data Signal Board. It adds activity, taste
 evolution, discovery, and forgotten-favorite views over verified published
 history. Its [approved plan](listening-explorer/IMPLEMENTATION_PLAN.md) and
 [release record](listening-explorer/RELEASE_VERIFICATION.md) describe the scope
-and verification.
+and verification. The deployed [Time Capsule release](listening-explorer/TIME_CAPSULE_RELEASE.md)
+adds Musical Eras and On This Day.
 
 ## Reading paths
 

@@ -8,6 +8,10 @@ from typing import Literal
 from spotify_manager.application.listening_ports import ListeningReads
 from spotify_manager.domain.listening_activity import listening_activity
 from spotify_manager.domain.listening_activity import summarize_listening
+from spotify_manager.domain.listening_capsule import listening_anniversaries
+from spotify_manager.domain.listening_capsule import listening_eras
+from spotify_manager.domain.listening_capsule_values import ListeningAnniversaries
+from spotify_manager.domain.listening_capsule_values import ListeningEras
 from spotify_manager.domain.listening_evolution import listening_evolution
 from spotify_manager.domain.listening_insights import compare_listening
 from spotify_manager.domain.listening_insights import forgotten_favorites
@@ -205,3 +209,36 @@ def get_listening_comparison(
     )
     periods = index.lifetimes(previous, "artist"), index.lifetimes(query, "artist")
     return compare_listening(periods, query, index.metadata.first_ms)
+
+
+@lru_cache(maxsize=4)
+def get_listening_eras(index: ListeningReads, query: ListeningQuery) -> ListeningEras:
+    """Compare calendar periods using every selected artist's recorded share.
+
+    Args:
+        index: Complete published history generation.
+        query: Shared dates, timezone, artist and rhythm selection.
+
+    Returns:
+        A bounded similarity matrix and explicit empty/partial period metadata.
+    """
+    coverage = index.metadata.first_ms, index.metadata.last_ms
+    return listening_eras(index.artist_plays(query), query, coverage)
+
+
+@lru_cache(maxsize=8)
+def get_listening_anniversaries(
+    index: ListeningReads, query: ListeningQuery
+) -> ListeningAnniversaries:
+    """Revisit earlier calendar anniversaries without resetting at the visible start.
+
+    Args:
+        index: Complete published history generation.
+        query: End date defining the anniversary, timezone and optional artist.
+
+    Returns:
+        Earlier-year days and their recorded artist summaries.
+    """
+    coverage = index.metadata.first_ms, index.metadata.last_ms
+    plays = index.artist_plays(query, full_history=True)
+    return listening_anniversaries(plays, query, coverage)

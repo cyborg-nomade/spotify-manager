@@ -64,6 +64,9 @@ contracts and integration checks throughout the backend work.
 
 ## Approved refactor workflow
 
+Local review previews use the process-local password `preview`. Set it explicitly
+and print the preview URL and password at startup and in the review handoff.
+
 Follow the approved roadmap in `docs/REFACTOR_ROADMAP.md`. For each roadmap item:
 
 1. Start from a clean, up-to-date `master` and create a dedicated branch.

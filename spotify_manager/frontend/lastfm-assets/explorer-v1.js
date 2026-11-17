@@ -1,4 +1,5 @@
-import * as charts from "./charts-v1.js";
+import * as charts from "./charts-v1.js?v=2";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=2";
 import {
   element,
   entityButton,
@@ -10,11 +11,11 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js";
+} from "./tables-v1.js?v=2";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
-const tabs = ["overview", "taste", "discovery", "rediscovery"];
+const tabs = ["overview", "taste", "discovery", "rediscovery", "capsule"];
 const weekdays = [
   "Monday",
   "Tuesday",
@@ -41,6 +42,13 @@ const state = {
     ? parameters.get("tab")
     : "overview",
   preset: parameters.get("preset") || (parameters.has("from") ? null : "year"),
+  eraReference: parameters.get("era_ref"),
+  eraGrouped: parameters.get("era_order") === "grouped",
+  eraThreshold: Math.round(
+    Math.max(0, Math.min(100, Number(parameters.get("era_min")) || 0)),
+  ),
+  eraOrder: [],
+  groupedOrder: null,
   rankingPage: 1,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -329,6 +337,12 @@ function persist() {
     tab: state.tab,
   };
   if (state.preset) values.preset = state.preset;
+  if (state.tab === "capsule" && state.eraReference)
+    values.era_ref = state.eraReference;
+  if (state.tab === "capsule") {
+    values.era_order = state.eraGrouped ? "grouped" : "chronological";
+    values.era_min = state.eraThreshold;
+  }
   if (state.artist) {
     values.artist = state.artist;
     values.artist_name = state.artistName;
@@ -409,7 +423,7 @@ async function loadSelection(recoverVersion = true) {
   state.controller = new AbortController();
   state.data = {};
   $("view-error").hidden = true;
-  if (["discovery", "rediscovery"].includes(state.tab)) {
+  if (["discovery", "rediscovery", "capsule"].includes(state.tab)) {
     state.weekday = null;
     state.hour = null;
   }
@@ -428,6 +442,8 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "discovery") tasks.push(analytics("discovery"));
     if (state.tab === "rediscovery")
       tasks.push(analytics("rediscovery", rediscoveryQuery()));
+    if (state.tab === "capsule")
+      tasks.push(analytics("on-this-day"), analytics("eras"));
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -479,6 +495,7 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "capsule") renderCapsule(results[0], results[1]);
   if (state.tab === "overview") {
     state.data.activity = results[0];
     state.data.rankings = results[1];
@@ -507,6 +524,155 @@ function renderView(results) {
     charts.rediscovery(results[0], $("rediscovery-kind").value, ctx);
     renderRediscovery();
   }
+}
+
+function coverageLabel(item) {
+  if (!item.covered) return "Outside observed range";
+  return item.partial ? "Partial boundary period" : "Inside observed range";
+}
+
+function periodButton(item) {
+  const button = element("button", item.label, "entity-button");
+  button.type = "button";
+  button.dataset.periodStart = item.start;
+  button.dataset.periodEnd = item.end;
+  button.disabled = !item.covered;
+  return button;
+}
+
+function renderCapsule(anniversaries, eras) {
+  state.data.anniversaries = anniversaries;
+  state.data.eras = eras;
+  const ctx = context();
+  $("anniversary-description").textContent =
+    `Anniversary: ${anniversaries.as_of.slice(5)} · earlier years before ${anniversaries.as_of}. Source coverage: ${anniversaries.observed_from || "none"} → ${anniversaries.observed_through || "none"} · ${state.timezone}. Zero means no recorded plays; dates outside coverage remain labeled.`;
+  const archive = {
+    ...ctx,
+    from: anniversaries.observed_from || ctx.from,
+    to: anniversaries.as_of,
+  };
+  charts.anniversaries(anniversaries, archive);
+  renderTable(
+    "anniversary-table",
+    [
+      "Local date",
+      "Recorded plays",
+      "Artists",
+      "Leading artists (up to 5)",
+      "Coverage",
+    ],
+    anniversaries.days.map((item) => {
+      const button = element("button", item.day, "entity-button");
+      button.type = "button";
+      button.dataset.day = item.day;
+      button.disabled = !item.covered;
+      return [
+        button,
+        number(item.plays),
+        number(item.artists),
+        item.top_artists
+          .map((artist) => `${artist.name} (${number(artist.plays)})`)
+          .join(" · ") || "—",
+        coverageLabel(item),
+      ];
+    }),
+  );
+  $("eras-description").textContent =
+    `${eras.periods.length} ${eras.grain === "month" ? "monthly" : "yearly"} periods in the selected range. ${eras.grain === "year" ? "Selections longer than 240 months use calendar years to keep comparisons readable. " : ""}Partial selection and source boundaries are labeled. Select a matrix cell or use the period selector and table.`;
+  state.groupedOrder = null;
+  const fallback =
+    eras.periods.findLast((item) => item.plays) || eras.periods.at(-1);
+  if (!eras.periods.some((item) => item.label === state.eraReference))
+    state.eraReference = fallback?.label;
+  renderEraView();
+}
+
+function renderEraView() {
+  const data = state.data.eras;
+  if (!data) return;
+  if (state.eraGrouped && !state.groupedOrder)
+    state.groupedOrder = groupedEraOrder(data);
+  state.eraOrder = state.eraGrouped
+    ? state.groupedOrder
+    : data.periods.map((_item, index) => index);
+  $("era-grouped").checked = state.eraGrouped;
+  $("era-threshold").value = state.eraThreshold;
+  $("era-threshold-value").textContent = `${state.eraThreshold}%`;
+  $("era-view-description").textContent =
+    `${state.eraGrouped ? "Periods are grouped by similarity of their artist mix; empty periods appear last." : "Periods follow calendar order."} Comparisons below ${state.eraThreshold}% are dimmed. Gray self-comparisons are kept separate. Scores, tables, and exports retain all observations.`;
+  $("era-reference").replaceChildren(
+    ...state.eraOrder.map((index) => {
+      const item = data.periods[index];
+      return new Option(
+        `${item.label}${item.plays ? "" : " · no recorded plays"}`,
+        item.label,
+      );
+    }),
+  );
+  $("era-reference").value = state.eraReference;
+  charts.eras(data, context(), {
+    order: state.eraOrder,
+    grouped: state.eraGrouped,
+    threshold: state.eraThreshold / 100,
+  });
+  renderEraTable();
+  persist();
+}
+
+function renderEraTable(comparison = null) {
+  const data = state.data.eras;
+  if (!data) return;
+  const reference = data.periods.findIndex(
+    (item) => item.label === state.eraReference,
+  );
+  if (reference < 0) return;
+  $("era-reference").value = state.eraReference;
+  const summary =
+    comparison === null ? null : data.similarities[reference][comparison];
+  $("era-comparison").textContent =
+    comparison === null
+      ? `Comparing every period with ${state.eraReference}. Open a period to inspect its recorded plays.`
+      : `${state.eraReference} ↔ ${data.periods[comparison].label}: ${summary === null ? "not comparable (one or both periods have no recorded plays)" : percent(summary) + " artist-share similarity"}.`;
+  renderTable(
+    "eras-table",
+    [
+      "Period",
+      "Recorded plays",
+      "Artists",
+      `Similarity to ${state.eraReference}`,
+      "Coverage",
+      "Highlight status",
+    ],
+    state.eraOrder.map((index) => {
+      const item = data.periods[index];
+      return [
+        periodButton(item),
+        number(item.plays),
+        number(item.artists),
+        data.similarities[reference][index] === null
+          ? "Not comparable"
+          : percent(data.similarities[reference][index]),
+        coverageLabel(item),
+        eraHighlight(
+          data.similarities[reference][index],
+          reference === index,
+          state.eraThreshold / 100,
+        ),
+      ];
+    }),
+  );
+}
+
+async function selectPeriod(start, end) {
+  state.from = start;
+  state.to = end;
+  state.preset = null;
+  state.selected = null;
+  state.tab = "overview";
+  state.rankingPage = 1;
+  charts.clearCharts();
+  await loadSelection();
+  await openRecords();
 }
 
 function calendarYears() {
@@ -805,11 +971,7 @@ async function loadRecords() {
 }
 
 function selectDay(day) {
-  state.from = day;
-  state.to = day;
-  state.preset = null;
-  state.rankingPage = 1;
-  loadSelection().then(() => openRecords());
+  selectPeriod(day, day);
 }
 
 function selectRhythm(weekday, hour) {
@@ -935,6 +1097,61 @@ function exportData(name) {
       new Date(item.entity.last_ms).toISOString(),
     ]);
   }
+  if (name === "anniversaries" && data.anniversaries) {
+    headers = [
+      "Local date",
+      "Recorded plays",
+      "Artists",
+      "Inside source bounds",
+      "Partial boundary day",
+      "Leading artists (up to 5)",
+      "Anniversary as of",
+      "Observed from",
+      "Observed through",
+    ];
+    rows = data.anniversaries.days.map((item) => [
+      item.day,
+      item.plays,
+      item.artists,
+      item.covered,
+      item.partial,
+      item.top_artists
+        .map((artist) => `${artist.name} (${artist.plays})`)
+        .join(" · "),
+      data.anniversaries.as_of,
+      data.anniversaries.observed_from,
+      data.anniversaries.observed_through,
+    ]);
+  }
+  if (name === "eras" && data.eras) {
+    headers = [
+      "Period",
+      "Selected from",
+      "Selected through",
+      "Recorded plays",
+      "Artists",
+      "Inside source bounds",
+      "Partial period",
+      ...state.eraOrder.map((index) => data.eras.periods[index].label),
+    ];
+    rows = state.eraOrder.map((index) => {
+      const item = data.eras.periods[index];
+      return [
+        item.label,
+        item.start,
+        item.end,
+        item.plays,
+        item.artists,
+        item.covered,
+        item.partial,
+        ...state.eraOrder.map((column) =>
+          data.eras.similarities[index][column] === null
+            ? "Not comparable"
+            : data.eras.similarities[index][column],
+        ),
+      ];
+    });
+  }
   if (name === "records" && data.records) {
     headers = [
       "Recorded UTC",
@@ -951,7 +1168,24 @@ function exportData(name) {
       item.ordinal,
     ]);
   }
-  if (headers.length) exportCSV(name, headers, rows, context());
+  if (headers.length) {
+    const ctx = context();
+    if (name === "anniversaries")
+      ctx.from = data.anniversaries.observed_from || ctx.from;
+    if (name === "eras")
+      ctx.notes = [
+        [
+          "Period ordering",
+          state.eraGrouped
+            ? "Grouped by similarity (average linkage)"
+            : "Chronological",
+        ],
+        ["Highlight minimum (%)", state.eraThreshold],
+        ["Color bands (%)", "<2; 2–5; 5–10; 10–20; 20–35; ≥35"],
+        ["Values", "Full matrix; highlighting does not filter scores"],
+      ];
+    exportCSV(name, headers, rows, ctx);
+  }
 }
 
 let artistTimer;
@@ -1086,6 +1320,22 @@ $("rank-next").addEventListener("click", () => {
   loadSelection();
 });
 $("calendar-year").addEventListener("change", renderCalendar);
+$("era-grouped").addEventListener("change", () => {
+  state.eraGrouped = $("era-grouped").checked;
+  renderEraView();
+});
+$("era-threshold").addEventListener("input", () => {
+  $("era-threshold-value").textContent = `${$("era-threshold").value}%`;
+});
+$("era-threshold").addEventListener("change", () => {
+  state.eraThreshold = Number($("era-threshold").value);
+  renderEraView();
+});
+$("era-reference").addEventListener("change", () => {
+  state.eraReference = $("era-reference").value;
+  renderEraTable();
+  persist();
+});
 $("rhythm-mode").addEventListener("change", renderRhythm);
 $("grain").addEventListener("change", () => loadSelection());
 $("evolution-mode").addEventListener("change", () => {
@@ -1132,16 +1382,29 @@ document.addEventListener("click", (event) => {
   if (button?.dataset.entityKey)
     openEntity(button.dataset.entityKind, button.dataset.entityKey);
   if (button?.dataset.day) selectDay(button.dataset.day);
+  if (button?.dataset.periodStart)
+    selectPeriod(button.dataset.periodStart, button.dataset.periodEnd);
   if (button?.dataset.weekday !== undefined)
     selectRhythm(button.dataset.weekday, button.dataset.hour);
   if (button?.dataset.chartExport)
-    charts.exportChart(button.dataset.chartExport, context());
+    charts.exportChart(button.dataset.chartExport, {
+      ...context(),
+      from:
+        button.dataset.chartExport === "anniversaries"
+          ? state.data.anniversaries?.observed_from || state.from
+          : state.from,
+    });
   if (button?.dataset.csv) exportData(button.dataset.csv);
   if (!event.target.closest(".artist-control"))
     $("artist-results").hidden = true;
 });
 document.addEventListener("listening:select", (event) => {
   const detail = event.detail;
+  if (detail.type === "era" && state.data.eras) {
+    state.eraReference = state.data.eras.periods[detail.reference].label;
+    renderEraTable(detail.comparison);
+    persist();
+  }
   if (detail.type === "entity") openEntity(detail.kind, detail.key);
   if (detail.type === "day") selectDay(detail.day);
   if (detail.type === "rhythm") selectRhythm(detail.weekday, detail.hour);

@@ -8,6 +8,7 @@ LISTENING_ASSETS = frozenset(
     {
         "explorer-v1.js",
         "charts-v1.js",
+        "eras-v1.js",
         "tables-v1.js",
         "explorer-v1.css",
         "echarts-6.0.0.min.js",
@@ -28,6 +29,20 @@ OPEN_PATHS = frozenset(
     }
     | {"/lastfm/assets/" + name for name in LISTENING_ASSETS}
 )
+
+
+def listening_asset_cache_control(filename: str) -> str:
+    """Keep mutable explorer code fresh while retaining the pinned chart cache.
+
+    Args:
+        filename: Explicitly allowed explorer asset basename.
+
+    Returns:
+        Revalidation policy for application assets or immutable chart bytes.
+    """
+    if filename == "echarts-6.0.0.min.js":
+        return "public, max-age=31536000, immutable"
+    return "no-cache"
 
 
 def is_open(password: str | None, method: str, path: str) -> bool:

@@ -131,6 +131,7 @@ export function exportCSV(name, headers, rows, context) {
     ["Artist filter", context.artist || "All artists"],
     ["Weekday filter (Monday=0)", context.weekday ?? "All weekdays"],
     ["Hour filter", context.hour ?? "All hours"],
+    ...(context.notes || []),
     [],
     headers,
   ];

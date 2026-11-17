@@ -1,4 +1,5 @@
-import { download, number, percent } from "./tables-v1.js";
+import { download, number, percent } from "./tables-v1.js?v=2";
+import { eraBands, eraCells } from "./eras-v1.js?v=2";
 
 const instances = new Map();
 const palette = [
@@ -583,6 +584,179 @@ export function detail(data, context) {
       ],
     },
     context,
+  );
+}
+
+export function anniversaries(data, context) {
+  chart(
+    "anniversaries",
+    `On this day · ${data.as_of.slice(5)} · earlier years`,
+    {
+      grid: { left: 55, right: 20, top: 75, bottom: 55 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: data.days.map((item) => item.day.slice(0, 4)),
+      },
+      yAxis: {
+        ...axes(),
+        type: "value",
+        minInterval: 1,
+        name: "Recorded plays",
+      },
+      series: [
+        {
+          type: "bar",
+          data: data.days.map((item) => ({
+            value: item.covered ? item.plays : null,
+            itemStyle: { color: item.partial ? "#e9c178" : "#8cddc5" },
+          })),
+          barMaxWidth: 32,
+        },
+      ],
+      tooltip: {
+        backgroundColor: "#243a42",
+        borderColor: "#476469",
+        textStyle: { color: "#edf3ee", fontSize: 11 },
+        trigger: "item",
+        renderMode: "richText",
+        confine: true,
+        formatter: (params) => {
+          const item = data.days[params.dataIndex];
+          return `${item.day}\n${number(item.plays)} recorded plays · ${number(item.artists)} artists${item.partial ? "\nPartial source boundary day" : ""}`;
+        },
+      },
+    },
+    context,
+    (params) => {
+      const item = data.days[params.dataIndex];
+      if (item?.covered) select({ type: "day", day: item.day });
+    },
+  );
+}
+
+export function eras(data, context, view) {
+  const cells = eraCells(data, view.order, view.threshold);
+  const comparable = cells.filter(
+    (item) =>
+      item.value[2] !== null && item.originalRow !== item.originalColumn,
+  );
+  const diagonal = cells.filter(
+    (item) =>
+      item.value[2] !== null && item.originalRow === item.originalColumn,
+  );
+  const labels = view.order.map((index) => data.periods[index].label);
+  const zoom =
+    data.periods.length > 36
+      ? [
+          {
+            type: "slider",
+            xAxisIndex: 0,
+            bottom: 30,
+            height: 15,
+            start: 0,
+            end: 100,
+          },
+          {
+            type: "slider",
+            yAxisIndex: 0,
+            right: 4,
+            width: 15,
+            start: 0,
+            end: 100,
+          },
+          { type: "inside", xAxisIndex: 0, filterMode: "none" },
+        ]
+      : [];
+  const title = `Musical eras · ${view.grouped ? "grouped" : "chronological"} ${data.grain === "month" ? "months" : "years"} · ≥${Math.round(view.threshold * 100)}%`;
+  chart(
+    "eras",
+    title,
+    {
+      animation: false,
+      grid: { left: 72, right: 35, top: 75, bottom: 170 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: labels,
+        axisLabel: { ...axes().axisLabel, rotate: 45 },
+        splitArea: { show: true, areaStyle: { color: ["#15232a"] } },
+      },
+      yAxis: {
+        ...axes(),
+        type: "category",
+        data: labels,
+        splitArea: { show: true, areaStyle: { color: ["#15232a"] } },
+      },
+      visualMap: {
+        type: "piecewise",
+        seriesIndex: 0,
+        dimension: 2,
+        pieces: eraBands,
+        selectedMode: false,
+        orient: "horizontal",
+        left: "center",
+        bottom: 70,
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 7,
+        textStyle: { color: "#c5d2d1", fontSize: 9 },
+      },
+      graphic: [
+        ...base(title, context).graphic,
+        {
+          type: "text",
+          left: "center",
+          bottom: 104,
+          style: {
+            text: "Gray diagonal: self · Blank: no recorded plays",
+            fill: "#a6b7bc",
+            fontSize: 9,
+          },
+        },
+      ],
+      dataZoom: zoom,
+      tooltip: {
+        backgroundColor: "#243a42",
+        borderColor: "#476469",
+        textStyle: { color: "#edf3ee", fontSize: 11 },
+        trigger: "item",
+        renderMode: "richText",
+        confine: true,
+        formatter: (params) => {
+          const item = params.data;
+          const left = data.periods[item.originalColumn],
+            right = data.periods[item.originalRow];
+          const score = item.value[2];
+          const self = item.originalColumn === item.originalRow;
+          return `${left.label} ↔ ${right.label}\n${percent(score)} artist-share similarity${self ? "\nSelf-comparison · shown in gray" : score < view.threshold ? "\nBelow highlight threshold" : ""}\n${number(left.plays)} / ${number(right.plays)} recorded plays${left.partial || right.partial ? "\nIncludes a partial boundary period" : ""}`;
+        },
+      },
+      series: [
+        {
+          type: "heatmap",
+          data: comparable,
+          progressive: 0,
+          emphasis: { itemStyle: { borderColor: "#edf3ee", borderWidth: 1 } },
+        },
+        {
+          type: "heatmap",
+          data: diagonal,
+          progressive: 0,
+          itemStyle: { color: "#727981" },
+          emphasis: { itemStyle: { borderColor: "#edf3ee", borderWidth: 1 } },
+        },
+      ],
+    },
+    context,
+    (params) => {
+      if (params.data && params.data.value[2] !== null)
+        select({
+          type: "era",
+          reference: params.data.originalColumn,
+          comparison: params.data.originalRow,
+        });
+    },
   );
 }
 

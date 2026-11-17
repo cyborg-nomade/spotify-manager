@@ -909,3 +909,46 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+.eras-chart {
+  height: 580px;
+}
+.era-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.era-controls label {
+  margin: 0;
+}
+.era-controls .era-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.era-controls input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8cddc5;
+}
+.era-controls input[type="range"] {
+  width: 220px;
+  max-width: 100%;
+  accent-color: #e9c178;
+}
+.era-controls output {
+  color: #edf3ee;
+  font-variant-numeric: tabular-nums;
+}
+#anniversaries-chart {
+  height: 300px;
+}
+#era-reference {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .eras-chart {
+    height: 420px;
+  }
+}

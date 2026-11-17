@@ -10,16 +10,32 @@ from tempfile import TemporaryDirectory
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Request
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 
 from spotify_manager._auth import PasswordMiddleware
+from spotify_manager.domain.web_access import LISTENING_ASSETS
+from spotify_manager.domain.web_access import listening_asset_cache_control
 from spotify_manager.interfaces.http.listening import router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
 
 
 FRONTEND = Path(__file__).resolve().parents[2] / "spotify_manager" / "frontend"
+LEGACY_ASSETS = {
+    "explorer-v1.js": 'import "./charts-v1.js"; import "./tables-v1.js"; '
+    "window.legacyExplorer = true;",
+    "charts-v1.js": 'import "./eras-v1.js"; window.legacyCharts = true;',
+    "tables-v1.js": "window.legacyTables = true;",
+    "eras-v1.js": "window.legacyEras = true;",
+    "explorer-v1.css": ".era-controls { pointer-events: none !important; }",
+}
+LEGACY_SHELL = """<!doctype html><html><head>
+<link rel="stylesheet" href="/lastfm/assets/explorer-v1.css">
+<script type="module" src="/lastfm/assets/explorer-v1.js"></script>
+</head><body>Legacy cache fixture</body></html>"""
 
 
 def browser_rows() -> list[dict[str, object]]:
@@ -63,7 +79,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(PasswordMiddleware, password="browser-test-password")
 app.include_router(router)
-app.mount("/lastfm/assets", StaticFiles(directory=FRONTEND / "lastfm-assets"))
+
+
+@app.get("/lastfm/assets/{filename}")
+def asset(filename: str, request: Request) -> Response:
+    """Serve actual assets or explicitly seed a long-lived older browser cache.
+
+    Args:
+        filename: Exact data-free asset basename.
+        request: Synthetic browser request with optional cache-fixture cookie.
+
+    Returns:
+        Current asset policy or an obsolete, deliberately cacheable test script.
+
+    Raises:
+        HTTPException: The path is not an explorer asset.
+    """
+    if filename not in LISTENING_ASSETS:
+        raise HTTPException(404, "Unknown explorer asset.")
+    legacy = request.cookies.get("legacy_assets") == "1"
+    if legacy and not request.query_params.get("v") and filename in LEGACY_ASSETS:
+        media = "text/css" if filename.endswith(".css") else "application/javascript"
+        return Response(
+            LEGACY_ASSETS[filename],
+            media_type=media,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+    return FileResponse(
+        FRONTEND / "lastfm-assets" / filename,
+        headers={"Cache-Control": listening_asset_cache_control(filename)},
+    )
 
 
 @app.get("/health")
@@ -79,9 +124,22 @@ def auth_check() -> dict[str, str]:
 
 
 @app.get("/lastfm")
-def shell() -> FileResponse:
-    """Serve the actual packaged explorer shell."""
-    return FileResponse(FRONTEND / "lastfm.html")
+def shell(request: Request) -> Response:
+    """Serve the actual shell or a read-only cache-seeding fixture.
+
+    Args:
+        request: Browser request selecting the fixture explicitly.
+
+    Returns:
+        Revalidated data-free shell for current or deliberately older code.
+    """
+    if request.query_params.get("legacy") == "1":
+        return Response(
+            LEGACY_SHELL,
+            media_type="text/html",
+            headers={"Cache-Control": "no-cache"},
+        )
+    return FileResponse(FRONTEND / "lastfm.html", headers={"Cache-Control": "no-cache"})
 
 
 if __name__ == "__main__":

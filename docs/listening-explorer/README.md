@@ -14,6 +14,8 @@ row, or navigate directly to the page. It uses the existing app password.
   and comparison with the immediately preceding equal-length calendar period.
 - **Discoveries:** first-observed artist cohorts and 7/30/90-day return rates,
   using separate complete-window denominators and explicit pending follow-up.
+- **Time capsule:** On This Day revisits earlier anniversaries; Musical Eras
+  compares the complete artist mix between calendar periods.
 - **Rediscover:** historically substantial artists/albums/tracks with adjustable
   minimum-play and inactivity thresholds, as of the selected analysis end date.
 
@@ -24,7 +26,7 @@ paginated scrobbles, including spellings grouped under one analytics identity.
 
 Calendar selection opens that day's recorded plays. Rhythm selection adds
 visible weekday/hour filter chips. Discovery and rediscovery use full calendar
-days; switching to those tabs clears rhythm filters. Their API routes reject
+days; switching to those tabs or Time capsule clears rhythm filters. Their API routes reject
 rhythm filters rather than changing first-observed semantics silently.
 
 ## Filters and interpretation
@@ -57,6 +59,56 @@ The latest source day is conservatively partial; artists without a complete
 follow-up window are pending, not failed discoveries. Forgotten Favorites ignores
 the visible start date and excludes scrobbles after the selected analysis end.
 
+## Time capsule
+
+**On This Day** uses the selected **Through** date as its month/day anchor. It
+shows earlier years across the available source history, independently of
+**From**, retaining the optional artist filter and selected timezone. The anchor
+year and later years are excluded. February 29 appears only in leap years.
+Covered days with zero recorded plays remain distinct from dates outside source
+coverage; first/last source days are partial. Up to five leading artists appear
+per day. Select a date to open its original recorded plays.
+
+**Musical Eras** compares all recorded artist identities in each selected period,
+including artists outside the overview's top eight. Artist counts become shares
+within each period. Similarity is weighted Jaccard:
+
+```text
+sum(min(left artist share, right artist share))
+------------------------------------------------
+sum(max(left artist share, right artist share))
+```
+
+Identical mixes score 100% even if listening volumes differ; disjoint mixes score
+0%. A comparison involving an empty period is undefined, including its diagonal.
+Empty cells stay blank and tables/CSV say **Not comparable**. Self-comparisons
+use a subdued gray diagonal, separate from the similarity palette. Values are rounded
+to six decimals. The chart describes recorded artist mix rather than real-life
+events. Selection and source boundaries mark partial periods explicitly.
+
+Selections of up to 240 calendar months use months. Longer selections use
+calendar years, with the grain explicitly reported in the response and UI. This
+bounds the matrix without dropping older history. The existing 100-year query
+bound remains in force. The heatmap uses six fixed, high-contrast bands: <2%, 2–5%, 5–10%, 10–20%,
+20–35%, and ≥35%. Exact values remain in tooltips and tables. The **Highlight
+similarity at least** slider dims lower scores without removing comparisons.
+Its setting applies on release and is restored from `era_min` (whole percentages).
+
+**Group similar periods** reorders both axes, the reference selector and the table
+using deterministic average-linkage clustering over the existing similarity
+matrix. Every original period has equal weight in average linkage; no artist or
+play counts are recomputed. Ties use earliest source-period indices. Each merge
+keeps its earliest child group first. Empty periods are excluded from clustering
+and appended in calendar order. Turning grouping off restores chronological order.
+Grouping is restored from `era_order=grouped`. The derived ordering is cached
+for the current result, and rendering maps every cell back to its original
+period indices for tooltips and selection.
+
+The heatmap has zoom controls for longer ranges. Use its
+cells or the **Compare with period** selector to inspect a reference column in
+the accessible table. The reference is restored from `era_ref` in the URL.
+Select a period row to open its recorded plays in Overview.
+
 ## Tables and exports
 
 Equivalent tables accompany charts. Keyboard users can select the same entities,
@@ -66,7 +118,11 @@ details.
 
 PNG exports include chart labels, dates, timezone, and source identity. CSV
 exports include the effective shared filters and source token; rankings and
-records export the displayed page. CSV text cells are protected against
+records export the displayed page. Musical Eras exports the complete matrix
+with counts, effective period bounds and coverage. Matrix rows and columns follow
+the displayed ordering, while scores remain unchanged. Export metadata records
+the ordering, fixed bands and highlight threshold; dimmed values remain included. On This Day exports earlier
+anniversaries with the full-archive start, anchor date and source coverage. CSV text cells are protected against
 spreadsheet-formula interpretation. The cockpit's existing Download control
 still exports the original complete published JSON unchanged.
 
@@ -131,6 +187,8 @@ allowlisted. The pure API retains its original trusted-loopback boundary.
 | `/discovery` | First-observed cohorts and eligible/returned counts. |
 | `/rediscovery` | Historical-play/gap thresholds as of the analysis cutoff. |
 | `/comparison` | Current/previous equal-length artist counts and shares. |
+| `/eras` | All-artist weighted Jaccard matrix, period counts and coverage. |
+| `/on-this-day` | Earlier anniversaries of `to`, full history independent of `from`. |
 
 Data routes require `from`, `to`, and `snapshot`; `tz` defaults to Europe/Berlin.
 Optional shared filters are `artist`, Monday-based `weekday`, and `hour`.
@@ -140,6 +198,13 @@ pages accept `page`, `limit`, and an optional `kind`/`key` pair. Rankings cap at
 at 100 results. Date selections are bounded to 100 years within 1900–2099.
 
 Successful protected responses use `Cache-Control: private, no-store`.
+The shell and mutable application assets send `Cache-Control: no-cache`. The
+entry script, stylesheet and every local module import carry the same explicit
+asset revision (`v=2`), bypassing older cached URLs. The pinned ECharts 6.0.0
+distribution retains an immutable cache policy. A browser upgrade test seeds the
+complete older module/style graph with a long-lived cache, then verifies normal
+navigation loads the current working controls.
+
 Music names are rendered as text, and ECharts uses rich-text canvas tooltips
 rather than parsing names as HTML.
 
@@ -148,8 +213,12 @@ rather than parsing names as HTML.
 Run the ordinary web entry point from the feature branch:
 
 ```console
-uv run --env-file .env uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8000
+printf 'Local preview password: preview\n'
+APP_PASSWORD=preview uv run --env-file .env uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8765
 ```
+
+Local review previews use password **`preview`**. Set it explicitly for the
+preview process and announce the URL and password at each start and handoff.
 
 The chart distribution is Apache ECharts 6.0.0, served locally with its license
 and notice files. Its npm archive SHA-512 was verified before extraction. No
@@ -169,6 +238,9 @@ To use an existing Chrome installation, set `LISTENING_CHROME_PATH` to its binar
 CI uses Ubuntu 24.04 with its pinned Playwright Chromium and retains
 screenshots/failure traces. The runner version matches that browser release's
 supported system dependencies.
+The browser test command also runs seven pure JavaScript checks for band
+boundaries, size-weighted average-linkage updates, deterministic and empty-period ordering,
+coordinate mapping, threshold semantics and the 240-period bound.
 The existing Python, architecture, frozen-interface, and independent coverage
 gates remain required. The wheel smoke check now verifies all explorer assets.
 
@@ -187,12 +259,14 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are delivered together for
-review. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
-matching, playlists, session inference, Musical Eras, and On This Day remain
-optional follow-ups. The current export cannot establish listening minutes,
+The approved core and discovery/rediscovery views are deployed. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
+matching, playlists, and session inference remain optional follow-ups. The
+Time Capsule release adds Musical Eras and On This Day. The current export
+cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
 
 See [the approved plan](IMPLEMENTATION_PLAN.md) and
-[release verification](RELEASE_VERIFICATION.md) for scope, evidence, and release
-status. Deployment and merge follow owner review of the release candidate.
+[first release verification](RELEASE_VERIFICATION.md) and
+[Time Capsule release verification](TIME_CAPSULE_RELEASE.md) for scope, evidence, and release
+status. Both releases were approved by the owner and verified on the deployed
+Space before merge.

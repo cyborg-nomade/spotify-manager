@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=2" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=2"></script>
   </head>
   <body>
     <div class="shell">
@@ -172,6 +172,7 @@
             ><button data-tab="taste">Taste over time</button
             ><button data-tab="discovery">Discoveries</button
             ><button data-tab="rediscovery">Rediscover</button
+            ><button data-tab="capsule">Time capsule</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -481,6 +482,109 @@
               <div id="rediscovery-chart" class="chart tall-chart"></div>
               <p id="rediscovery-description" class="chart-description"></p>
               <div id="rediscovery-table" class="table-scroll"></div>
+            </article>
+          </section>
+          <section
+            id="tab-capsule"
+            class="tab-content"
+            aria-label="Listening time capsule"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">01 / A DATE TO REMEMBER</p>
+                  <h2>On this day</h2>
+                </div>
+                <button
+                  class="icon-button"
+                  data-chart-export="anniversaries"
+                  aria-label="Download On This Day PNG"
+                >
+                  ↓ PNG
+                </button>
+              </header>
+              <p id="anniversary-description" class="chart-description"></p>
+              <p class="chart-description">
+                The Through date above sets the anniversary. This view uses
+                earlier years across the full available archive, independently
+                of From. Artist filters apply; rhythm filters are cleared.
+                February 29 stays February 29.
+              </p>
+              <div id="anniversaries-chart" class="chart"></div>
+              <details open>
+                <summary>Earlier anniversaries & recorded plays</summary>
+                <button data-csv="anniversaries" class="small-button">
+                  Export CSV
+                </button>
+                <div id="anniversary-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">02 / FAMILIAR PATTERNS</p>
+                  <h2>Musical eras</h2>
+                </div>
+                <button
+                  class="icon-button"
+                  data-chart-export="eras"
+                  aria-label="Download Musical Eras PNG"
+                >
+                  ↓ PNG
+                </button>
+              </header>
+              <p id="eras-description" class="chart-description"></p>
+              <p class="chart-description">
+                Similarity compares every artist's share of recorded plays: sum
+                of minimum shares ÷ sum of maximum shares (weighted Jaccard).
+                100% means the same artist mix; 0% means no shared artists.
+                Empty periods are not comparable. This describes recorded music,
+                without inferring life events.
+              </p>
+              <div class="era-controls">
+                <label class="era-group-label"
+                  ><input id="era-grouped" type="checkbox" /> Group similar
+                  periods</label
+                >
+                <label for="era-threshold"
+                  >Highlight similarity at least
+                  <output id="era-threshold-value" for="era-threshold"
+                    >0%</output
+                  ></label
+                >
+                <input
+                  id="era-threshold"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="0"
+                  aria-describedby="era-view-description"
+                />
+              </div>
+              <p
+                id="era-view-description"
+                class="chart-description"
+                aria-live="polite"
+              ></p>
+              <div id="eras-chart" class="chart eras-chart"></div>
+              <div class="control-line">
+                <label for="era-reference">Compare with period</label
+                ><select id="era-reference"></select>
+              </div>
+              <p
+                id="era-comparison"
+                class="chart-description"
+                aria-live="polite"
+              ></p>
+              <details open>
+                <summary>Period similarity & recorded plays</summary>
+                <button data-csv="eras" class="small-button">
+                  Export full matrix CSV
+                </button>
+                <div id="eras-table" class="table-scroll"></div>
+              </details>
             </article>
           </section>
           <footer>
