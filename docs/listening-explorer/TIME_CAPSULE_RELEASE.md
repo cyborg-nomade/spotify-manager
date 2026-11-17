@@ -1,13 +1,16 @@
-# Listening Explorer: Time Capsule release candidate
+# Listening Explorer: Time Capsule release verification
 
-Date: 16 November 2026. Branch: `codex/listening-time-capsule`.
+Date: 17 November 2026. Branch: `codex/listening-time-capsule`.
 
 After approving the first explorer release, the owner authorized completing the
 next release before another review handoff. PR #90 was deployed, verified and
 merged as `50b7a16`; its branch and temporary verification worktree were cleaned
 up before this branch started from clean, current master.
 
-Review: **http://127.0.0.1:8765/lastfm?tab=capsule&preset=all**.
+Deployed: **https://cyborg-nomade-spotify-manager.hf.space/lastfm?tab=capsule&preset=all**
+(private Space; existing application password applies).
+
+Local review: **http://127.0.0.1:8765/lastfm?tab=capsule&preset=all**.
 The normal web application runs from the candidate wheel in an isolated temporary
 installation. The local review password is **`preview`**, printed at each start.
 Startup hydration writes into that installation, preserving the
@@ -92,10 +95,10 @@ These measurements do not establish deployed Space latency.
 
 ## Release boundary
 
-This is the next review candidate. Under the project workflow, approval of this
-PR precedes its Hugging Face deployment, deployed verification and merge. The
-first approved explorer release remains deployed. No canonical history or shared
-state migration is needed; rollback restores code and discards derived caches.
+The owner approved PR #91 on 17 November 2026 after reviewing the readability
+changes and the existing-browser cache correction. The approved runtime was
+deployed and verified before merge. No canonical history or shared-state
+migration was needed; rollback restores code and discards derived caches.
 
 ## Readability revision after owner review
 
@@ -131,3 +134,49 @@ regression first proves that old scripts/styles remain cached after its fixture
 cookie is removed, then loads the current page and verifies grouping and
 highlighting work without clearing the cache. Source data and API contracts are
 unchanged.
+
+## Approved deployment
+
+Approved runtime commit: `a2493567c527b7b001f3f6c60f780b9ea1ec28fd`.
+All three [hosted quality checks](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44058408535)
+pass: **12,679 randomized tests**, independent statement/branch coverage floors,
+eleven Chrome scenarios, seven pure JavaScript checks, typing, architecture,
+frozen contracts and wheel packaging.
+
+Space revision `375836dd33bfcd6227010de29ed4fde568262fe8` replaces
+`039ae9923820d5abc69c63ced79467c3ec31eadd`. Exactly **13 runtime files** were
+uploaded in one code-only commit with an optimistic parent guard. Every file
+was read back and matched to the approved source. Prior bytes were retained
+locally for rollback; credentials, canonical files and operational state were
+excluded from the upload.
+
+The [read-only preflight](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44064031103)
+confirmed healthy authentication, shared state and all four durable artifacts,
+with no active jobs across 20 routine endpoints. The
+[authenticated deployed verification](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44064403189)
+then passed:
+
+- Application gate, cockpit link, new controls, revised asset URLs and cache
+  revalidation policy.
+- All existing analytical totals: **338,774 scrobbles**, plus entity details
+  and original-record pagination.
+- Musical Eras: all **229 monthly periods**, complete-source totals, matrix
+  dimensions, symmetry, self-comparisons and score bounds.
+- An independent raw-record reconciliation of the complete artist-share
+  weighted similarity for June 2014 versus June 2024.
+- Every earlier anniversary against the original records, and independence
+  from the visible From date.
+- Complete-history yearly fallback over 2000–2040 without truncating data.
+- Published-history download checksum and unchanged shared state after reads.
+
+Verified source:
+`v1-e0df33ad1ba950b67dbfd05703734692683dc6029ba4e8035fbda113b049be4f`.
+The durable authorities retained their predeployment revisions:
+
+- State: `804f0a4ce4c5b3599740e3dc08f63feeb732091e`.
+- Library data: `e228e54d4a2057cceffd4ef210e0186d6da273fd`.
+
+The Space remains private. Verification uses existing read-only Actions
+credentials on a temporary branch; it does not run refreshes, synchronization,
+playlist changes or state publication. The verification branch and worktree
+are removed after release.

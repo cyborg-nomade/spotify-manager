@@ -259,13 +259,14 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are delivered together for
-review. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
+The approved core and discovery/rediscovery views are deployed. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
 matching, playlists, and session inference remain optional follow-ups. The
-Time capsule candidate adds Musical Eras and On This Day after the first release. The current export cannot establish listening minutes,
+Time Capsule release adds Musical Eras and On This Day. The current export
+cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
 
 See [the approved plan](IMPLEMENTATION_PLAN.md) and
 [first release verification](RELEASE_VERIFICATION.md) and
-[Time Capsule candidate](TIME_CAPSULE_RELEASE.md) for scope, evidence, and release
-status. Deployment and merge follow owner review of the release candidate.
+[Time Capsule release verification](TIME_CAPSULE_RELEASE.md) for scope, evidence, and release
+status. Both releases were approved by the owner and verified on the deployed
+Space before merge.
