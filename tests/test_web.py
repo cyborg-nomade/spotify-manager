@@ -65,6 +65,27 @@ def test_listening_shell_and_exact_assets_are_open_but_analytics_are_protected(
     assert client.get("/lastfm/assets/not-an-asset.json").status_code == 404
 
 
+@pytest.mark.parametrize(
+    "path,policy",
+    [
+        ("/lastfm", "no-cache"),
+        ("/lastfm/", "no-cache"),
+        ("/lastfm/assets/explorer-v1.js?v=2", "no-cache"),
+        ("/lastfm/assets/charts-v1.js?v=2", "no-cache"),
+        ("/lastfm/assets/tables-v1.js?v=2", "no-cache"),
+        ("/lastfm/assets/eras-v1.js?v=2", "no-cache"),
+        ("/lastfm/assets/explorer-v1.css?v=2", "no-cache"),
+        ("/lastfm/assets/echarts-6.0.0.min.js", "public, max-age=31536000, immutable"),
+    ],
+)
+def test_listening_shell_and_assets_have_explicit_cache_policies(
+    client: TestClient, path: str, policy: str
+) -> None:
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == policy
+
+
 def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> None:
     response = client.get("/")
 

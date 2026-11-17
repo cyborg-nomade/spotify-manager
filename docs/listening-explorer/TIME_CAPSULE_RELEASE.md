@@ -46,7 +46,7 @@ start independence, earlier-year scope, source coverage, partial boundaries,
 yearly fallback and generation separation. The new domain rules have **100%
 statement and branch coverage**. Application, HTTP and existing web checks pass.
 
-Ten Chrome scenarios cover existing explorer behavior plus the new tab,
+Eleven Chrome scenarios cover existing explorer behavior plus the new tab,
 actual heatmap clicks, visible chart dimensions, URL reference restoration,
 CSV/PNG, hostile music names, long/empty selections, mobile layout and record
 navigation. Desktop/mobile screenshots were inspected. Browser CI uses only
@@ -115,3 +115,19 @@ keyboard adjustment, saved settings and mobile resizing. Existing explorer
 browser scenarios remain required. The new data-free JavaScript helper receives
 one exact static allowlist entry. Local review setup now always announces
 password `preview`; this preference is recorded in AGENTS.md.
+
+## Existing-browser cache correction
+
+Owner testing in an already open Firefox tab reproduced a mixed-version page:
+new controls were visible, but cached older scripts still rendered the continuous
+gradient and did not wire those controls. A hard refresh restored the new code,
+confirming the cause. Fresh Chrome sessions had not exercised that upgrade path.
+
+The shell and mutable assets now require cache revalidation. The stylesheet,
+entry script and all local module imports use an explicit matching revision
+query, bypassing previously cached unversioned URLs. The pinned vendor chart
+asset remains immutable. Eight HTTP cases check the cache policies. A new Chrome
+regression first proves that old scripts/styles remain cached after its fixture
+cookie is removed, then loads the current page and verifies grouping and
+highlighting work without clearing the cache. Source data and API contracts are
+unchanged.

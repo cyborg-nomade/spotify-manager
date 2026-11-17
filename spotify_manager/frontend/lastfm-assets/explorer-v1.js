@@ -1,5 +1,5 @@
-import * as charts from "./charts-v1.js";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js";
+import * as charts from "./charts-v1.js?v=2";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=2";
 import {
   element,
   entityButton,
@@ -11,7 +11,7 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js";
+} from "./tables-v1.js?v=2";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);

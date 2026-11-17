@@ -32,6 +32,7 @@ from spotify_manager.bootstrap.web import environment
 from spotify_manager.bootstrap.web import managed_path
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.domain.web_access import LISTENING_ASSETS
+from spotify_manager.domain.web_access import listening_asset_cache_control
 from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
@@ -89,7 +90,7 @@ def listening_explorer_page() -> FileResponse:
     Returns:
         Static companion page; all listening data requires authentication.
     """
-    return FileResponse(LASTFM_HTML)
+    return FileResponse(LASTFM_HTML, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/lastfm/assets/{filename}", include_in_schema=False)
@@ -107,7 +108,10 @@ def listening_explorer_asset(filename: str) -> FileResponse:
     """
     if filename not in LISTENING_ASSETS:
         raise HTTPException(404, "Unknown explorer asset.")
-    return FileResponse(FRONTEND_DIR / "lastfm-assets" / filename)
+    return FileResponse(
+        FRONTEND_DIR / "lastfm-assets" / filename,
+        headers={"Cache-Control": listening_asset_cache_control(filename)},
+    )
 
 
 @app.get(

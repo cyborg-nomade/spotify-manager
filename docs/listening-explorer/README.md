@@ -198,6 +198,13 @@ pages accept `page`, `limit`, and an optional `kind`/`key` pair. Rankings cap at
 at 100 results. Date selections are bounded to 100 years within 1900–2099.
 
 Successful protected responses use `Cache-Control: private, no-store`.
+The shell and mutable application assets send `Cache-Control: no-cache`. The
+entry script, stylesheet and every local module import carry the same explicit
+asset revision (`v=2`), bypassing older cached URLs. The pinned ECharts 6.0.0
+distribution retains an immutable cache policy. A browser upgrade test seeds the
+complete older module/style graph with a long-lived cache, then verifies normal
+navigation loads the current working controls.
+
 Music names are rendered as text, and ECharts uses rich-text canvas tooltips
 rather than parsing names as HTML.
 

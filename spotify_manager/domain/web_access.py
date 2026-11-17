@@ -31,6 +31,20 @@ OPEN_PATHS = frozenset(
 )
 
 
+def listening_asset_cache_control(filename: str) -> str:
+    """Keep mutable explorer code fresh while retaining the pinned chart cache.
+
+    Args:
+        filename: Explicitly allowed explorer asset basename.
+
+    Returns:
+        Revalidation policy for application assets or immutable chart bytes.
+    """
+    if filename == "echarts-6.0.0.min.js":
+        return "public, max-age=31536000, immutable"
+    return "no-cache"
+
+
 def is_open(password: str | None, method: str, path: str) -> bool:
     """Select original ungated requests before observing credentials.
 

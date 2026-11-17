@@ -512,3 +512,69 @@ test("era bands, grouped coordinates and highlighting preserve scores across rel
   await expect(page.locator("#era-threshold")).toHaveValue("4");
   await expect(page.locator("#era-threshold-value")).toHaveText("4%");
 });
+
+test("a warm older asset cache cannot disable the new era controls", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([
+    { name: "legacy_assets", value: "1", url: baseURL },
+  ]);
+  await page.goto("/lastfm?legacy=1");
+  await page.waitForFunction(
+    () =>
+      window.legacyExplorer &&
+      window.legacyCharts &&
+      window.legacyTables &&
+      window.legacyEras,
+  );
+  await context.clearCookies();
+  await page.goto("/lastfm?legacy=1&visit=2");
+  // The server now serves current files at these URLs. Old markers prove the
+  // browser still has the earlier, explicitly cacheable module graph.
+  await page.waitForFunction(
+    () =>
+      window.legacyExplorer &&
+      window.legacyCharts &&
+      window.legacyTables &&
+      window.legacyEras,
+  );
+  await unlock(page);
+  await allTime(page);
+  await page.getByRole("button", { name: "Time capsule", exact: true }).click();
+  await expect(page.locator("#eras-table table")).toBeVisible();
+  expect(
+    await page.evaluate(() => [
+      window.legacyExplorer,
+      window.legacyCharts,
+      window.legacyTables,
+      window.legacyEras,
+    ]),
+  ).toEqual([undefined, undefined, undefined, undefined]);
+  expect(
+    await page
+      .locator(".era-controls")
+      .evaluate((node) => getComputedStyle(node).pointerEvents),
+  ).toBe("auto");
+  await page.getByLabel("Group similar periods", { exact: true }).check();
+  await expect(page.locator("#era-view-description")).toContainText(
+    "Periods are grouped",
+  );
+  expect(new URL(page.url()).searchParams.get("era_order")).toBe("grouped");
+  await page.locator("#era-threshold").focus();
+  await page.keyboard.press("End");
+  await expect(page.locator("#era-threshold-value")).toHaveText("100%");
+  expect(new URL(page.url()).searchParams.get("era_min")).toBe("100");
+  expect(
+    await page
+      .locator("#eras-chart")
+      .evaluate(
+        (node) =>
+          window.echarts.getInstanceByDom(node).getOption().visualMap[0].type,
+      ),
+  ).toBe("piecewise");
+  await expect(page.locator("#eras-table")).toContainText(
+    "Below highlight threshold",
+  );
+});
