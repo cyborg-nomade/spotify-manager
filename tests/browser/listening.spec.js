@@ -339,11 +339,11 @@ test("time capsule handles long and empty ranges, safe names, and mobile period 
   expect(await page.locator("#anniversary-table img").count()).toBe(0);
   expect(await page.evaluate(() => window.musicNameExecuted)).toBeUndefined();
   await page.setViewportSize({ width: 390, height: 844 });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
   await page.screenshot({
     path: test.info().outputPath("time-capsule-mobile.png"),
     fullPage: true,
@@ -577,4 +577,118 @@ test("a warm older asset cache cannot disable the new era controls", async ({
   await expect(page.locator("#eras-table")).toContainText(
     "Below highlight threshold",
   );
+});
+
+test("library bridge keeps name evidence, source dates, CSV and history navigation", async ({
+  page,
+}) => {
+  const failures = [];
+  page.on("pageerror", (error) => failures.push(error.message));
+  await unlock(page);
+  await allTime(page);
+  await page
+    .getByRole("button", { name: "Library bridge", exact: true })
+    .click();
+  await expect(page.locator("#library-table table")).toBeAttached();
+  await expect(page.locator("#library-source")).toContainText(
+    "Saved albums · ready",
+  );
+  await expect(page.locator("#library-source")).toContainText("published");
+  await expect(page.locator("#library-chart canvas")).toHaveCount(1);
+  const libraryBounds = await page.locator("#library-chart").boundingBox();
+  expect(libraryBounds.height).toBeGreaterThan(200);
+  await page.screenshot({
+    path: test.info().outputPath("library-bridge.png"),
+    fullPage: true,
+  });
+  await expect(page.locator("#library-table")).toContainText(
+    "One exact name candidate",
+  );
+  await expect(page.locator("#library-table")).toContainText(
+    "Multiple name candidates",
+  );
+  await page.locator("#library-status").selectOption("ambiguous");
+  await page
+    .locator("#library-filters")
+    .getByRole("button", { name: "Apply", exact: true })
+    .click();
+  await expect(page.locator("#library-table")).not.toContainText(
+    "No exact name match",
+  );
+  await expect(page.locator("#library-table a")).toHaveCount(2);
+  await expect(page).toHaveURL(/library_status=ambiguous/);
+  await page.locator("#library-kind").selectOption("track");
+  const downloading = page.waitForEvent("download");
+  await page.locator("#library-export").click();
+  const downloaded = await downloading;
+  const csv = await readFile(await downloaded.path(), "utf8");
+  expect(csv).toContain('"Collection","Saved albums"');
+  await page.locator("#library-kind").selectOption("album");
+  expect(csv).toContain("Library snapshot");
+  expect(csv).toContain("Current page 1");
+  expect(csv).toContain("ambiguous");
+  expect(csv).toContain("spotify:album:");
+  await page.reload();
+  await expect(page.locator("#library-status")).toHaveValue("ambiguous");
+  await expect(page.locator("#library-table table")).toBeAttached();
+  await page
+    .locator("#library-table")
+    .getByRole("button", { name: "Record 2", exact: false })
+    .first()
+    .click();
+  await expect(page.locator("#detail")).toBeVisible();
+  await expect(page.locator("#detail-title")).toHaveText("Record 2");
+  await page.locator("#close-detail").click();
+  await page.locator("#library-kind").selectOption("artist");
+  await page.locator("#library-status").selectOption("all");
+  await page
+    .locator("#library-filters")
+    .getByRole("button", { name: "Apply", exact: true })
+    .click();
+  await expect(page.locator("#library-source")).toContainText(
+    "Followed artists · missing",
+  );
+  await expect(page.locator("#library-table")).toContainText(
+    "Collection unavailable",
+  );
+  await page.locator("#library-kind").selectOption("track");
+  await page.locator("#library-status").selectOption("name_match");
+  await page
+    .locator("#library-filters")
+    .getByRole("button", { name: "Apply", exact: true })
+    .click();
+  await expect(page.locator("#library-table")).toContainText("=formula");
+  expect(await page.evaluate(() => window.musicNameExecuted)).toBeUndefined();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  expect(failures).toEqual([]);
+});
+
+test("unavailable collection service preserves history and can recover", async ({
+  page,
+}) => {
+  await unlock(page);
+  await allTime(page);
+  await page.route("**/lastfm/analytics/library/status*", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Collection service unavailable" }),
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Library bridge", exact: true })
+    .click();
+  await expect(page.locator("#library-message")).toContainText(
+    "Your listening history is still available",
+  );
+  await expect(page.locator("#metric-plays")).toHaveText("781");
+  await expect(page.locator("#library-export")).toBeDisabled();
+  await page.unroute("**/lastfm/analytics/library/status*");
+  await page.locator("#library-refresh").click();
+  await expect(page.locator("#library-table table")).toBeAttached();
 });

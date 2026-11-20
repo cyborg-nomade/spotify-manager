@@ -1721,6 +1721,32 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_library_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_library_status",
+    "path": "/lastfm/analytics/library/status",
+    "response_model": "LibraryStatus",
+    "source_line": 69,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_library",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_library",
+    "path": "/lastfm/analytics/library",
+    "response_model": "ListeningEnvelope[LibraryComparison]",
+    "source_line": 212,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening.listening_status",
     "include_in_schema": true,
     "methods": [

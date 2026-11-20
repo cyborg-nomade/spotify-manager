@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=2" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=3" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=2"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=3"></script>
   </head>
   <body>
     <div class="shell">
@@ -173,6 +173,7 @@
             ><button data-tab="discovery">Discoveries</button
             ><button data-tab="rediscovery">Rediscover</button
             ><button data-tab="capsule">Time capsule</button
+            ><button data-tab="library">Library bridge</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -585,6 +586,112 @@
                 </button>
                 <div id="eras-table" class="table-scroll"></div>
               </details>
+            </article>
+          </section>
+          <section
+            id="tab-library"
+            class="tab-content"
+            aria-label="Current library comparisons"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">COLLECTION / LISTENING HISTORY</p>
+                  <h2>Library bridge</h2>
+                </div>
+                <button
+                  class="icon-button"
+                  data-chart-export="library"
+                  aria-label="Download library coverage PNG"
+                >
+                  PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Compare the selected listening history with your published
+                Spotify collections. These are collection snapshots at their
+                publication dates, even when you explore an earlier listening
+                period. Albums mean saved albums; tracks mean liked tracks;
+                artists mean follows.
+              </p>
+              <form id="library-filters" class="control-line">
+                <label
+                  >Collection<select id="library-kind">
+                    <option value="album">Saved albums</option>
+                    <option value="track">Liked tracks</option>
+                    <option value="artist">Followed artists</option>
+                  </select></label
+                >
+                <label
+                  >Name evidence<select id="library-status">
+                    <option value="all">All evidence</option>
+                    <option value="name_match">One exact name candidate</option>
+                    <option value="unmatched">No exact name match</option>
+                    <option value="ambiguous">Multiple name candidates</option>
+                    <option value="unavailable">Collection unavailable</option>
+                  </select></label
+                >
+                <label
+                  >Minimum selected plays<input
+                    id="library-minimum"
+                    type="number"
+                    min="1"
+                    max="100000000"
+                    value="1"
+                    required
+                /></label>
+                <label
+                  >Search music / artist<input
+                    id="library-search"
+                    type="search"
+                    maxlength="100"
+                /></label>
+                <button type="submit" class="small-button">Apply</button>
+                <button id="library-refresh" type="button" class="small-button">
+                  Check publications
+                </button>
+              </form>
+              <p id="library-source" class="chart-description"></p>
+              <p
+                id="library-message"
+                class="chart-description"
+                role="status"
+              ></p>
+              <div id="library-chart" class="chart medium-chart"></div>
+              <p class="chart-description">
+                Coverage counts historical entities meeting the play threshold,
+                before the evidence and search filters. Missing album names are
+                excluded; the album metric above reports those plays separately.
+                Name matching retains accents and punctuation, and never strips
+                edition labels.
+              </p>
+              <details>
+                <summary>Coverage table</summary>
+                <div id="library-coverage-table" class="table-scroll"></div>
+              </details>
+              <div class="control-line">
+                <button
+                  id="library-export"
+                  data-csv="library"
+                  type="button"
+                  class="small-button"
+                >
+                  Export current page CSV
+                </button>
+                <button
+                  id="library-previous"
+                  type="button"
+                  class="small-button"
+                >
+                  Previous
+                </button>
+                <span id="library-page" aria-live="polite"></span>
+                <button id="library-next" type="button" class="small-button">
+                  Next
+                </button>
+              </div>
+              <div id="library-table" class="table-scroll"></div>
             </article>
           </section>
           <footer>

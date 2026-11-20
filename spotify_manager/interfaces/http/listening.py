@@ -28,12 +28,16 @@ from spotify_manager.application.listening import get_listening_overview
 from spotify_manager.application.listening import get_listening_rankings
 from spotify_manager.application.listening import get_listening_records
 from spotify_manager.application.listening import get_listening_rediscovery
+from spotify_manager.application.listening_library import get_listening_library
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningNotReadyError
 from spotify_manager.application.listening_ports import ListeningStatus
 from spotify_manager.application.listening_ports import ListeningVersionError
 from spotify_manager.domain.listening_capsule_values import ListeningAnniversaries
 from spotify_manager.domain.listening_capsule_values import ListeningEras
+from spotify_manager.domain.listening_library_values import LibraryComparison
+from spotify_manager.domain.listening_library_values import LibraryMatch
+from spotify_manager.domain.listening_library_values import LibraryOptions
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntitySelection
 from spotify_manager.domain.listening_values import ListeningActivity
@@ -49,6 +53,8 @@ from spotify_manager.domain.listening_values import ListeningRediscovery
 from spotify_manager.domain.listening_values import RankingOptions
 from spotify_manager.domain.listening_values import RecordOptions
 from spotify_manager.domain.listening_values import RediscoveryOptions
+from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
+from spotify_manager.infrastructure.listening.library_runtime import LibraryStatus
 from spotify_manager.infrastructure.listening.reader import ListeningIndex
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 from spotify_manager.interfaces.http.presenters.listening import ListeningEnvelope
@@ -58,6 +64,49 @@ from spotify_manager.interfaces.http.presenters.listening import present_listeni
 router = APIRouter(prefix="/lastfm/analytics", tags=["Listening Explorer"])
 _KEY = r"^[0-9a-f]{64}$"
 _SNAPSHOT = r"^v1-[0-9a-f]{64}$"
+
+
+@router.get("/library/status")
+async def listening_library_status(
+    request: Request, response: Response, refresh: bool = False
+) -> LibraryStatus:
+    """Report collection coverage independently of recorded-history readiness.
+
+    Args:
+        request: Owner of the configured collection runtime.
+        response: Response receiving the private cache policy.
+        refresh: Request a new publication check without duplicate workers.
+
+    Returns:
+        Current collection token, publication coverage and recovery information.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    runtime = cast(LibraryRuntime, request.app.state.listening_library)
+    return runtime.status(refresh=refresh)
+
+
+def library_options(
+    kind: EntityKind = "album",
+    status: LibraryMatch | Literal["all"] = "all",
+    minimum_plays: Annotated[int, Query(ge=1, le=100000000)] = 1,
+    q: Annotated[str, Query(max_length=100)] = "",
+    page: Annotated[int, Query(ge=1, le=100000)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> LibraryOptions:
+    """Collect bounded current-collection comparison values.
+
+    Args:
+        kind: Followed artists, saved albums or liked tracks.
+        status: Evidence category or all categories.
+        minimum_plays: Inclusive selected-play threshold.
+        q: Search in original entity and artist names.
+        page: One-based result page.
+        limit: Maximum returned rows.
+
+    Returns:
+        Explicit comparison and pagination options.
+    """
+    return LibraryOptions(kind, status, minimum_plays, q, page, limit)
 
 
 def _runtime(request: Request) -> ListeningRuntime:
@@ -158,6 +207,32 @@ def ranking_options(
 type QueryDep = Annotated[ListeningQuery, Depends(listening_query)]
 type IndexDep = Annotated[ListeningIndex, Depends(listening_index)]
 type RankingDep = Annotated[RankingOptions, Depends(ranking_options)]
+
+
+@router.get("/library")
+def listening_library(
+    request: Request,
+    query: QueryDep,
+    index: IndexDep,
+    options: Annotated[LibraryOptions, Depends(library_options)],
+    library_snapshot: Annotated[str, Query(pattern=r"^l1-[0-9a-f]{64}$")],
+) -> ListeningEnvelope[LibraryComparison]:
+    """Compare pinned history and collection publications with explicit evidence.
+
+    Args:
+        request: Configured collection generation owner.
+        query: Validated listening selection, separate from collection dates.
+        index: Pinned complete history generation.
+        options: Collection, evidence/search filters and bounded pagination.
+        library_snapshot: Explicit independently pinned collection generation.
+
+    Returns:
+        Evidence, coverage and both publication identities.
+    """
+    runtime = cast(LibraryRuntime, request.app.state.listening_library)
+    catalog = runtime.acquire(library_snapshot)
+    result = get_listening_library(index, catalog, query, options)
+    return present_listening(index, query, result)
 
 
 @router.get("/status")

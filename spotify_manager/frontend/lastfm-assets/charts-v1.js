@@ -1,5 +1,5 @@
-import { download, number, percent } from "./tables-v1.js?v=2";
-import { eraBands, eraCells } from "./eras-v1.js?v=2";
+import { download, number, percent } from "./tables-v1.js?v=3";
+import { eraBands, eraCells } from "./eras-v1.js?v=3";
 
 const instances = new Map();
 const palette = [
@@ -757,6 +757,60 @@ export function eras(data, context, view) {
           comparison: params.data.originalRow,
         });
     },
+  );
+}
+
+export function library(data, context) {
+  const names = {
+    name_match: "One exact name",
+    unmatched: "No exact name",
+    ambiguous: "Multiple candidates",
+    unavailable: "Unavailable",
+  };
+  const colors = {
+    name_match: "#6caed6",
+    unmatched: "#f0d783",
+    ambiguous: "#efa78a",
+    unavailable: "#89959c",
+  };
+  chart(
+    "library",
+    "Historical entities · current collection name evidence",
+    {
+      grid: { top: 80, bottom: 55, left: 145, right: 24 },
+      xAxis: { ...axes(), type: "value", minInterval: 1 },
+      yAxis: {
+        ...axes(),
+        type: "category",
+        inverse: true,
+        data: data.coverage.map((item) => names[item.status]),
+      },
+      series: [
+        {
+          type: "bar",
+          data: data.coverage.map((item) => ({
+            value: item.entities,
+            status: item.status,
+            itemStyle: { color: colors[item.status] },
+          })),
+          label: { show: true, position: "right", color: "#edf3ee" },
+        },
+      ],
+      graphic: [
+        {
+          type: "text",
+          left: 0,
+          bottom: 2,
+          style: {
+            text: `Collection published ${data.source.published_at || "unknown"}\n${data.source.state} · name evidence; membership is not historical`,
+            fill: "#a6b7bc",
+            fontSize: 11,
+          },
+        },
+      ],
+    },
+    context,
+    (params) => select({ type: "library-status", status: params.data.status }),
   );
 }
 

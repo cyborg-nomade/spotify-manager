@@ -18,9 +18,11 @@ from fastapi.responses import Response
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.domain.web_access import LISTENING_ASSETS
 from spotify_manager.domain.web_access import listening_asset_cache_control
+from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.interfaces.http.listening import router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
+from tests.support.listening_library import publish_collection
 
 
 FRONTEND = Path(__file__).resolve().parents[2] / "spotify_manager" / "frontend"
@@ -69,10 +71,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     with TemporaryDirectory(prefix="listening-browser-") as directory:
         fixture = listening_fixture(Path(directory))
         fixture.publish(browser_rows())
+        publish_collection(
+            fixture,
+            "albums",
+            [
+                {
+                    "artist": "Alpha",
+                    "album": "Record 0",
+                    "uri": "spotify:album:" + "a" * 22,
+                },
+                {
+                    "artist": "Delta",
+                    "album": "Record 2",
+                    "uri": "spotify:album:" + "b" * 22,
+                },
+                {
+                    "artist": "Delta",
+                    "album": "Record 2",
+                    "uri": "spotify:album:" + "c" * 22,
+                },
+            ],
+        )
+        publish_collection(
+            fixture,
+            "tracks",
+            [
+                {
+                    "artist": '<img src=x onerror="window.musicNameExecuted=true">',
+                    "track": "=formula",
+                    "uri": "spotify:track:" + "d" * 22,
+                },
+            ],
+        )
         app.state.listening = fixture.runtime
+        app.state.listening_library = LibraryRuntime(fixture.service)
         try:
             yield
         finally:
+            await app.state.listening_library.close()
             await fixture.runtime.close()
 
 
