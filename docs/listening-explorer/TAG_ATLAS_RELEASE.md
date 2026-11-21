@@ -80,8 +80,11 @@ the new calculation, application and concrete cache/provider modules.
 The real published history contains 339,344 scrobbles and 15,696 artist
 identities. Both allocation modes reconcile all 339,344 plays over 229 monthly
 buckets with an empty metadata cache. The preview password gate and private
-response headers pass. No history-derived names were sent to a metadata provider
-for this verification. A live twenty-five-artist batch awaits explicit approval:
-automatic approval review rejected that test because it would disclose selected
-artist names from private listening history to Last.fm. Synthetic provider
-fixtures exercise successful batches, failure, cancellation and chart updates.
+response headers pass. Following explicit owner approval, one live batch looked
+up the twenty-five highest-play artist names. All twenty-five returned tags,
+covering 94,235 selected plays (27.8%). Both allocation modes still reconcile
+339,344 plays across 229 months, with the same history checksum. A fresh cache
+reader restores all twenty-five observations with the identical metadata token;
+the API key is absent from the cache. The populated graph, leading-tag mode and
+share display were checked in the real-history preview. Synthetic provider
+fixtures also exercise failure, cancellation and metadata expiry.
