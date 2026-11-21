@@ -272,9 +272,9 @@ status. Both releases were approved by the owner and verified on the deployed
 Space before merge.
 
 
-## Library Bridge candidate
+## Library Bridge release
 
-The next [review candidate](LIBRARY_BRIDGE_RELEASE.md) compares the selected
+The [approved release](LIBRARY_BRIDGE_RELEASE.md) compares the selected
 listening history with published saved albums, liked tracks and followed
 artists. Collection publication dates are independent of listening dates.
 Coverage distinguishes exact normalized name candidates, unresolved names,

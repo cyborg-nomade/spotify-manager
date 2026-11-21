@@ -381,4 +381,4 @@ similarity of full artist-share vectors). Empty comparisons and partial source
 coverage are explicit. See the [feature guide](listening-explorer/README.md#time-capsule)
 for date semantics, matrix bounds, drill-down controls and exports.
 
-The next [Library Bridge candidate](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) adds current-publication collection comparisons to the Listening Explorer, with independently pinned sources, explicit name evidence and failure recovery.
+The deployed [Library Bridge release](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) adds current-publication collection comparisons to the Listening Explorer, with independently pinned sources, explicit name evidence and failure recovery.

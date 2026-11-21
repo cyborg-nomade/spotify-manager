@@ -1,12 +1,16 @@
-# Listening Explorer: Library Bridge review candidate
+# Listening Explorer: Library Bridge release verification
 
-Date: 20 November 2026. Branch: `codex/listening-library-bridge`.
+Date: 21 November 2026. Branch: `codex/listening-library-bridge`.
 
 The owner selected current-library comparisons for the next item after the
 approved Time Capsule release. The preceding release's post-merge CI passed.
-This candidate adds a Library Bridge tab to the existing explorer.
+The owner approved PR #92 on 21 November 2026. The Library Bridge runtime
+was deployed and verified before merge.
 
-Review: **http://127.0.0.1:8765/lastfm?tab=library&preset=all**.
+Deployed: **https://cyborg-nomade-spotify-manager.hf.space/lastfm?tab=library&preset=all**
+(private Space; existing application password applies).
+
+Local review: **http://127.0.0.1:8765/lastfm?tab=library&preset=all**.
 Local password: **`preview`**. The launcher prints the URL and password on every
 start. Review runs the built wheel from an isolated temporary installation so
 normal startup hydration preserves source-checkout mirrors.
@@ -79,8 +83,10 @@ container; its rendered dimensions are now asserted in the browser suite.
 Ruff, package/strict business typing, structure and callback checks pass. All
 11 frozen-interface checks pass. Wheel smoke checks **777 packaged Python/frontend
 files** against source and retains the 45 existing commands and both entry points.
-Hosted full randomized compatibility and independent coverage checks remain
-required before the review handoff; final results appear in the PR.
+The approved runtime passes all three [hosted quality checks](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44771094682):
+**12,713 randomized tests**, independent statement/branch coverage floors,
+thirteen browser scenarios, seven JavaScript checks, typing, architecture
+and packaging. The PR records checks for the final release-documentation commit.
 
 ## Published-source check
 
@@ -108,6 +114,50 @@ Source dates and checksums are retained in the local ignored benchmark report.
 
 ## Release boundary
 
-This candidate awaits owner review before deployment or merge. Production remains
-on the approved Time Capsule release. No canonical data or shared-state
-migration is needed. Rollback restores code and discards derived caches.
+The owner approved this release after local review. No canonical-data or
+shared-state migration was needed. Rollback restores code and discards derived
+caches; durable datasets remain independent of the Space code.
+
+
+## Approved deployment
+
+Approved runtime: `dabad6bbd31071e9b2d0fea5a9816e6ad96e25b3`.
+Space revision `cdd3c0cf9d63c8a70fe68bce3304a62157d54b4c` replaces
+`375836dd33bfcd6227010de29ed4fde568262fe8`. Exactly **14 runtime files** were
+uploaded with an optimistic parent guard; every deployed byte was read back
+against the approved Git source. Previous bytes were retained locally for code
+rollback. Both datasets retained their predeployment revisions:
+
+- State: `a2ee4809e9414b993c95583f75a4a50d8f461e39`.
+- Library data: `16c52efa18ae5c790b19b5a7871f6c29ae5cf322`.
+
+The [read-only preflight](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44889205495)
+confirmed healthy access, all four durable artifacts and no active jobs across
+20 routine endpoints. The [authenticated postdeployment verifier](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44889586926)
+then passed existing explorer checks and all new collection checks:
+
+- All analytical totals agree across **339,344 published scrobbles**.
+- Musical Eras retains all 229 periods; raw weighted-share and anniversary
+  checks, yearly fallback, entity details and original records pass.
+- All three collection coverage totals reconcile to the selected history,
+  excluding the explicitly reported missing-album plays for saved albums.
+- Candidate names, distinct IDs, bounded evidence, ambiguity filters, applied
+  options and independently pinned source tokens agree.
+- Both new data routes reject missing application credentials.
+- Source-download checksum and unchanged shared state after reads pass.
+- Eight live HTTP shell/module/style routes match approved bytes and cache
+  policies, including the new helper and pinned vendor library.
+
+An initial temporary verifier incorrectly treated artist display context as a
+second artist-identity component. A dimension-specific identity probe isolated
+that verifier error. The corrected verifier checks artist names alone and
+artist/title pairs for albums and tracks; production code was unchanged.
+
+Verified history token:
+`v1-ebabfbb0f0d26e62da8d7bc091fcc5bb52d9db697eeb6177ebf0d7a6ef5ca324`.
+Verified collection token:
+`l1-0592adc4603551ae3398f3973e0511738307baaf956f9aa88a0eca4846194015`.
+The Space remains private. Verification uses existing read-only Actions
+credentials on an isolated temporary branch, without refreshes, synchronization,
+playlist changes or state publication. The temporary branch/worktree is removed
+after release.

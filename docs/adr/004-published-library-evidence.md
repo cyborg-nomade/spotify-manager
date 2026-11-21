@@ -1,6 +1,6 @@
 # ADR 004: Compare published collections using explicit name evidence
 
-**Status:** Accepted for the Library Bridge implementation; release awaits review.
+**Status:** Accepted; Library Bridge approved, deployed and verified on 21 November 2026.
 **Date:** 20 November 2026.
 
 ## Context

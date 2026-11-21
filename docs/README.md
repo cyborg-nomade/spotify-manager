@@ -12,7 +12,7 @@ evolution, discovery, and forgotten-favorite views over verified published
 history. Its [approved plan](listening-explorer/IMPLEMENTATION_PLAN.md) and
 [release record](listening-explorer/RELEASE_VERIFICATION.md) describe the scope
 and verification. The deployed [Time Capsule release](listening-explorer/TIME_CAPSULE_RELEASE.md)
-adds Musical Eras and On This Day. The next [Library Bridge candidate](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) compares selected history with published Spotify collections using explicit name evidence.
+adds Musical Eras and On This Day. The deployed [Library Bridge release](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) compares selected history with published Spotify collections using explicit name evidence.
 
 ## Reading paths
 
