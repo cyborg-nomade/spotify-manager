@@ -16,11 +16,14 @@ from fastapi.testclient import TestClient
 
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.domain.listening_time import listening_identity
+from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 from spotify_manager.interfaces.http.listening import router
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
+from tests.support.listening_library import album
+from tests.support.listening_library import publish_collection
 
 
 class DelayedListeningRuntime(ListeningRuntime):
@@ -37,6 +40,8 @@ async def http_lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        if hasattr(app.state, "listening_library"):
+            await app.state.listening_library.close()
         runtime = cast(ListeningRuntime, app.state.listening)
         await runtime.close()
 
@@ -45,8 +50,10 @@ async def http_lifespan(app: FastAPI) -> AsyncIterator[None]:
 def listening_http(tmp_path: Path) -> Iterator[tuple[TestClient, ListeningFixture]]:
     fixture = listening_fixture(tmp_path)
     fixture.publish(sample_history())
+    publish_collection(fixture, "albums", [album()])
     app = FastAPI(lifespan=http_lifespan)
     app.state.listening = fixture.runtime
+    app.state.listening_library = LibraryRuntime(fixture.service)
     app.include_router(router)
     app.add_middleware(PasswordMiddleware, password="listening-password")
     with TestClient(app) as client:
@@ -225,3 +232,85 @@ def test_explicit_refresh_is_read_only(
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     assert fixture.service.snapshot().revision == revision
+
+
+def ready_library(client: TestClient) -> str:
+    """Wait for a complete collection generation independently of history."""
+    deadline = monotonic() + 10
+    while monotonic() < deadline:
+        response = client.get("/lastfm/analytics/library/status")
+        assert response.status_code == 200
+        status = response.json()
+        if status["snapshot"] is not None:
+            return str(status["snapshot"])
+        assert status["state"] == "building"
+        sleep(0.01)
+    raise AssertionError("Collection publication did not become ready.")
+
+
+def test_library_comparison_pins_both_sources_and_keeps_selected_counts(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Reconcile names and plays through the actual gated HTTP resource path."""
+    client, fixture = listening_http
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    before = fixture.service.snapshot().revision
+    response = client.get("/lastfm/analytics/library", params=params)
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
+    body = response.json()
+    assert body["snapshot"] == params["snapshot"]
+    data = body["data"]
+    assert data["library_snapshot"] == params["library_snapshot"]
+    assert data["source"]["state"] == "ready"
+    assert sum(item["plays"] for item in data["coverage"]) == 6
+    assert data["items"][0]["history"]["plays"] == 4
+    assert data["items"][0]["status"] == "name_match"
+    params["from"] = params["to"]
+    narrow = client.get("/lastfm/analytics/library", params=params).json()["data"]
+    assert narrow["items"][0]["history"]["plays"] == 1
+    assert fixture.service.snapshot().revision == before
+
+
+@pytest.mark.parametrize(
+    "extra,code",
+    [
+        ({"kind": "unknown"}, 422),
+        ({"status": "present"}, 422),
+        ({"minimum_plays": 0}, 422),
+        ({"limit": 101}, 422),
+        ({"library_snapshot": "invalid"}, 422),
+        ({"library_snapshot": "l1-" + "0" * 64}, 409),
+    ],
+)
+def test_library_comparison_rejects_invalid_or_expired_versions(
+    listening_http: tuple[TestClient, ListeningFixture],
+    extra: dict[str, object],
+    code: int,
+) -> None:
+    """Protect bounded comparison options and independent generation identity."""
+    client, _fixture = listening_http
+    params = {
+        **ready_parameters(client),
+        "library_snapshot": ready_library(client),
+        **extra,
+    }
+    assert client.get("/lastfm/analytics/library", params=params).status_code == code
+
+
+def test_missing_library_is_unknown_and_new_routes_remain_gated(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Unavailable follows do not imply absence and no new data route bypasses auth."""
+    client, _fixture = listening_http
+    params = {
+        **ready_parameters(client),
+        "library_snapshot": ready_library(client),
+        "kind": "artist",
+    }
+    result = client.get("/lastfm/analytics/library", params=params).json()["data"]
+    assert result["source"]["state"] == "missing"
+    assert all(item["status"] == "unavailable" for item in result["items"])
+    client.headers.pop("X-App-Password")
+    assert client.get("/lastfm/analytics/library/status").status_code == 401
+    assert client.get("/lastfm/analytics/library", params=params).status_code == 401

@@ -200,7 +200,7 @@ at 100 results. Date selections are bounded to 100 years within 1900–2099.
 Successful protected responses use `Cache-Control: private, no-store`.
 The shell and mutable application assets send `Cache-Control: no-cache`. The
 entry script, stylesheet and every local module import carry the same explicit
-asset revision (`v=2`), bypassing older cached URLs. The pinned ECharts 6.0.0
+asset revision (`v=3`), bypassing older cached URLs. The pinned ECharts 6.0.0
 distribution retains an immutable cache policy. A browser upgrade test seeds the
 complete older module/style graph with a long-lived cache, then verifies normal
 navigation loads the current working controls.
@@ -270,3 +270,27 @@ See [the approved plan](IMPLEMENTATION_PLAN.md) and
 [Time Capsule release verification](TIME_CAPSULE_RELEASE.md) for scope, evidence, and release
 status. Both releases were approved by the owner and verified on the deployed
 Space before merge.
+
+
+## Library Bridge release
+
+The [approved release](LIBRARY_BRIDGE_RELEASE.md) compares the selected
+listening history with published saved albums, liked tracks and followed
+artists. Collection publication dates are independent of listening dates.
+Coverage distinguishes exact normalized name candidates, unresolved names,
+multiple Spotify candidates and unavailable sources. Unmatched names never
+establish absence, and name matches never establish verified cross-service
+identity. Edition labels, accents and punctuation remain significant.
+
+The Library Bridge tab includes a coverage chart/table, evidence and search
+filters, selected-play thresholds, pagination, history detail navigation,
+Spotify candidate links, URL restoration, PNG and current-page CSV. CSV includes
+both publication identities, collection date, evidence settings and page scope.
+The two new protected read-only routes are `/lastfm/analytics/library/status`
+and `/lastfm/analytics/library`; comparison requests pin `library_snapshot`
+in addition to the existing history `snapshot`. Collection failures preserve
+historical views. The Check publications control retries independently.
+
+See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
+immutable multi-artifact acquisition. Genre enrichment, fuzzy resolution,
+playlists and routine launch controls remain separate follow-ups.

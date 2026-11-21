@@ -2417,6 +2417,159 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LibraryComparison": {
+        "description": "Present a bounded comparison with both source identities intact.\n\nArgs:\n    library_snapshot: Pinned mirror generation separate from history.\n    revision: Pinned publication manifest revision.\n    source: Selected collection's provenance and availability.\n    coverage: Disjoint counts before status/search filtering.\n    items: One deterministic page of evidence rows.\n    total: Number of rows after search/status filtering.\n    page: One-based page.\n    limit: Requested page size.\n    options: Applied comparison options, independent of unsubmitted UI edits.",
+        "properties": {
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryCoverage"
+            },
+            "title": "Coverage",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryComparisonItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "library_snapshot": {
+            "title": "Library Snapshot",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "options": {
+            "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MirrorSource"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "library_snapshot",
+          "revision",
+          "source",
+          "coverage",
+          "items",
+          "total",
+          "page",
+          "limit",
+          "options"
+        ],
+        "title": "LibraryComparison",
+        "type": "object"
+      },
+      "LibraryComparisonItem": {
+        "description": "Pair recorded counts with bounded and explicitly uncertain evidence.\n\nArgs:\n    history: Selected recorded plays and their actual bounds.\n    status: Exact-name evidence, never a verified cross-service identity.\n    candidates: At most five distinct matching Spotify identities.\n    candidate_count: Full distinct candidate count before display bounding.",
+        "properties": {
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryEntry"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "history": {
+            "$ref": "#/components/schemas/EntityLifetime"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LibraryMatch"
+          }
+        },
+        "required": [
+          "history",
+          "status",
+          "candidates",
+          "candidate_count"
+        ],
+        "title": "LibraryComparisonItem",
+        "type": "object"
+      },
+      "LibraryCoverage": {
+        "description": "Count one disjoint evidence category before search and status filtering.\n\nArgs:\n    status: Evidence category.\n    entities: Distinct historical entities meeting the play threshold.\n    plays: Recorded plays for those entities.",
+        "properties": {
+          "entities": {
+            "title": "Entities",
+            "type": "integer"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LibraryMatch"
+          }
+        },
+        "required": [
+          "status",
+          "entities",
+          "plays"
+        ],
+        "title": "LibraryCoverage",
+        "type": "object"
+      },
+      "LibraryEntry": {
+        "description": "Retain exact names and a validated Spotify identity as match evidence.\n\nArgs:\n    kind: Collection dimension.\n    key: Analytics-normalized artist or artist/title identity.\n    name: Published artist, album, or track display name.\n    artist: Published artist context, empty for artist follows.\n    uri: Validated Spotify URI; source album IDs are never substituted.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EntityKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "name",
+          "artist",
+          "uri"
+        ],
+        "title": "LibraryEntry",
+        "type": "object"
+      },
+      "LibraryMatch": {
+        "enum": [
+          "name_match",
+          "unmatched",
+          "ambiguous",
+          "unavailable"
+        ],
+        "type": "string"
+      },
       "LibraryMirrorFilesStatus": {
         "description": "Update status for the files consumed by New Wine.",
         "properties": {
@@ -2432,6 +2585,100 @@
           "files"
         ],
         "title": "LibraryMirrorFilesStatus",
+        "type": "object"
+      },
+      "LibraryOptions": {
+        "description": "Bound a current-collection comparison over the selected history.\n\nArgs:\n    kind: Collection dimension.\n    status: Evidence category or all categories.\n    minimum_plays: Inclusive selected-play threshold.\n    search: Case-insensitive display name or artist substring.\n    page: One-based page.\n    limit: Maximum returned rows.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/EntityKind",
+            "default": "album"
+          },
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "minimum_plays": {
+            "default": 1,
+            "title": "Minimum Plays",
+            "type": "integer"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "search": {
+            "default": "",
+            "title": "Search",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LibraryMatch"
+              },
+              {
+                "const": "all",
+                "type": "string"
+              }
+            ],
+            "default": "all",
+            "title": "Status"
+          }
+        },
+        "title": "LibraryOptions",
+        "type": "object"
+      },
+      "LibraryStatus": {
+        "description": "Expose publication readiness without clearing available history.\n\nArgs:\n    state: Initial build/error or usable current/stale evidence.\n    snapshot: Pinned collection generation when available.\n    sources: Coverage of all three collection publications.\n    message: Data-free recovery explanation.\n    checking: Whether a background revision check is running.",
+        "properties": {
+          "checking": {
+            "title": "Checking",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/MirrorSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "building",
+              "stale",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot",
+          "sources",
+          "message",
+          "checking"
+        ],
+        "title": "LibraryStatus",
         "type": "object"
       },
       "ListeningActivity": {
@@ -2769,6 +3016,27 @@
           "related"
         ],
         "title": "ListeningEntity",
+        "type": "object"
+      },
+      "ListeningEnvelope_LibraryComparison_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LibraryComparison"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[LibraryComparison]",
         "type": "object"
       },
       "ListeningEnvelope_ListeningActivity_": {
@@ -3495,6 +3763,75 @@
           "checking"
         ],
         "title": "ListeningStatus",
+        "type": "object"
+      },
+      "MirrorSource": {
+        "description": "Describe one published collection independently of listening dates.\n\nArgs:\n    kind: Artist follows, saved albums, or liked tracks.\n    state: Whether the complete publication was verified and decoded.\n    published_at: Publication timestamp, not historical membership time.\n    sha256: Expected complete artifact identity when published.\n    source: Publication provenance label.\n    entries: Unique Spotify identities in a verified publication.\n    message: Data-free coverage explanation.",
+        "properties": {
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EntityKind"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "missing",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "state",
+          "published_at",
+          "sha256",
+          "source",
+          "entries",
+          "message"
+        ],
+        "title": "MirrorSource",
         "type": "object"
       },
       "NewKidsChoiceRequest": {
@@ -12005,6 +12342,268 @@
           }
         },
         "summary": "Listening Evolution",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/library": {
+      "get": {
+        "description": "Compare pinned history and collection publications with explicit evidence.\n\nArgs:\n    request: Configured collection generation owner.\n    query: Validated listening selection, separate from collection dates.\n    index: Pinned complete history generation.\n    options: Collection, evidence/search filters and bounded pagination.\n    library_snapshot: Explicit independently pinned collection generation.\n\nReturns:\n    Evidence, coverage and both publication identities.",
+        "operationId": "listening_library_lastfm_analytics_library_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "album",
+              "enum": [
+                "artist",
+                "album",
+                "track"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LibraryMatch"
+                },
+                {
+                  "const": "all",
+                  "type": "string"
+                }
+              ],
+              "default": "all",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_plays",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000000,
+              "minimum": 1,
+              "title": "Minimum Plays",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_LibraryComparison_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Library",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/library/status": {
+      "get": {
+        "description": "Report collection coverage independently of recorded-history readiness.\n\nArgs:\n    request: Owner of the configured collection runtime.\n    response: Response receiving the private cache policy.\n    refresh: Request a new publication check without duplicate workers.\n\nReturns:\n    Current collection token, publication coverage and recovery information.",
+        "operationId": "listening_library_status_lastfm_analytics_library_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Library Status",
         "tags": [
           "Listening Explorer"
         ]

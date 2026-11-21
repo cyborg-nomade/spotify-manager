@@ -112,6 +112,28 @@ class LibraryDataService:
         self, name: ArtifactName, destination: Path
     ) -> ArtifactMetadata | None:
         current = self.snapshot()
+        return self.export_at_snapshot(name, destination, current)
+
+    def export_at_snapshot(
+        self,
+        name: ArtifactName,
+        destination: Path,
+        snapshot: LibraryDataSnapshot,
+    ) -> ArtifactMetadata | None:
+        """Restore verified bytes from an explicitly pinned manifest revision.
+
+        Args:
+            name: Canonical artifact to read.
+            destination: Caller-owned path outside managed working files.
+            snapshot: Validated immutable manifest shared by a multi-file read.
+
+        Returns:
+            Verified publication metadata, or None for an unpublished artifact.
+
+        Raises:
+            LibraryDataError: The revision cannot be restored or verified.
+        """
+        current = snapshot
         metadata = artifact_metadata(current.document, name)
         if metadata is None:
             return None

@@ -1,5 +1,6 @@
-import * as charts from "./charts-v1.js?v=2";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=2";
+import * as charts from "./charts-v1.js?v=3";
+import * as library from "./library-v1.js?v=3";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=3";
 import {
   element,
   entityButton,
@@ -11,11 +12,18 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js?v=2";
+} from "./tables-v1.js?v=3";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
-const tabs = ["overview", "taste", "discovery", "rediscovery", "capsule"];
+const tabs = [
+  "overview",
+  "taste",
+  "discovery",
+  "rediscovery",
+  "capsule",
+  "library",
+];
 const weekdays = [
   "Monday",
   "Tuesday",
@@ -50,6 +58,9 @@ const state = {
   eraOrder: [],
   groupedOrder: null,
   rankingPage: 1,
+  libraryPage: 1,
+  libraryForce: false,
+  libraryTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
     ? { kind: parameters.get("kind"), key: parameters.get("entity") }
@@ -99,6 +110,7 @@ function showLogin(message = "") {
   state.controller?.abort();
   state.detailController?.abort();
   clearTimeout(state.pollTimer);
+  clearTimeout(state.libraryTimer);
   localStorage.removeItem("sm_pw");
   charts.clearCharts();
   if ($("detail").open) $("detail").close();
@@ -196,6 +208,7 @@ function applyPreset(preset) {
         : shiftDay(state.to, 1 - Number(preset));
   state.preset = preset;
   state.rankingPage = 1;
+  state.libraryPage = 1;
 }
 
 function configure() {
@@ -337,6 +350,12 @@ function persist() {
     tab: state.tab,
   };
   if (state.preset) values.preset = state.preset;
+  if (state.tab === "library") {
+    values.library_kind = $("library-kind").value;
+    values.library_status = $("library-status").value;
+    values.library_min = $("library-minimum").value;
+    if ($("library-search").value) values.library_q = $("library-search").value;
+  }
   if (state.tab === "capsule" && state.eraReference)
     values.era_ref = state.eraReference;
   if (state.tab === "capsule") {
@@ -356,6 +375,47 @@ function persist() {
   for (const [key, value] of Object.entries(values))
     url.searchParams.set(key, value);
   history.replaceState(null, "", url);
+}
+
+function libraryQuery() {
+  return {
+    kind: $("library-kind").value,
+    status: $("library-status").value,
+    minimum_plays: $("library-minimum").value,
+    q: $("library-search").value,
+    page: state.libraryPage,
+    limit: 25,
+  };
+}
+
+async function loadLibrary() {
+  try {
+    const status = await request(
+      "/lastfm/analytics/library/status",
+      { refresh: state.libraryForce },
+      state.controller.signal,
+    );
+    state.libraryForce = false;
+    if (!status.snapshot)
+      return { unavailable: status.message, checking: status.checking };
+    const result = await analytics("library", {
+      ...libraryQuery(),
+      library_snapshot: status.snapshot,
+    });
+    if (status.state === "stale") result.unavailable = status.message;
+    return result;
+  } catch (error) {
+    if (
+      error.name === "AbortError" ||
+      error.status === 401 ||
+      error.status === 409
+    )
+      throw error;
+    return {
+      unavailable:
+        "Collection evidence could not be loaded. Your listening history is still available. Use Check publications to retry.",
+    };
+  }
 }
 
 function showTab() {
@@ -381,6 +441,7 @@ function renderChips() {
       state.artist = null;
       state.artistName = "";
       state.rankingPage = 1;
+      state.libraryPage = 1;
       loadSelection();
     });
     container.append(button);
@@ -404,6 +465,11 @@ function loading(value) {
   document
     .querySelectorAll("[data-csv],[data-chart-export]")
     .forEach((button) => (button.disabled = value));
+  if (!value && state.tab === "library") {
+    $("library-export").disabled = !state.data.library?.items;
+    document.querySelector('[data-chart-export="library"]').disabled =
+      !state.data.library?.items;
+  }
 }
 
 function clearResults() {
@@ -417,6 +483,7 @@ function clearResults() {
 
 async function loadSelection(recoverVersion = true) {
   if (!state.snapshot) return;
+  clearTimeout(state.libraryTimer);
   state.controller?.abort();
   state.detailController?.abort();
   const revision = ++state.revision;
@@ -444,6 +511,7 @@ async function loadSelection(recoverVersion = true) {
       tasks.push(analytics("rediscovery", rediscoveryQuery()));
     if (state.tab === "capsule")
       tasks.push(analytics("on-this-day"), analytics("eras"));
+    if (state.tab === "library") tasks.push(loadLibrary());
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -495,6 +563,18 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "library") {
+    state.data.library = results[0];
+    library.render(
+      results[0],
+      results[0].source?.kind || $("library-kind").value,
+      ctx,
+    );
+    if (results[0].checking)
+      state.libraryTimer = setTimeout(() => {
+        if (state.tab === "library" && state.authenticated) loadSelection();
+      }, 2000);
+  }
   if (state.tab === "capsule") renderCapsule(results[0], results[1]);
   if (state.tab === "overview") {
     state.data.activity = results[0];
@@ -670,6 +750,7 @@ async function selectPeriod(start, end) {
   state.selected = null;
   state.tab = "overview";
   state.rankingPage = 1;
+  state.libraryPage = 1;
   charts.clearCharts();
   await loadSelection();
   await openRecords();
@@ -911,6 +992,7 @@ async function openEntity(kind, key) {
         state.artistName = data.lifetime.name;
         $("detail").close();
         state.rankingPage = 1;
+        state.libraryPage = 1;
         loadSelection();
       });
       $("detail-facts").append(button);
@@ -978,6 +1060,7 @@ function selectRhythm(weekday, hour) {
   state.weekday = Number(weekday);
   state.hour = Number(hour);
   state.rankingPage = 1;
+  state.libraryPage = 1;
   loadSelection();
 }
 
@@ -985,6 +1068,20 @@ function exportData(name) {
   const data = state.data;
   let headers = [],
     rows = [];
+  if (name === "library" && data.library?.items) {
+    headers = [
+      "History key",
+      "Name",
+      "Artist",
+      "Selected plays",
+      "First selected UTC milliseconds",
+      "Last selected UTC milliseconds",
+      "Name evidence",
+      "Distinct candidates",
+      "Displayed Spotify candidate URIs",
+    ];
+    rows = library.csv(data.library);
+  }
   if (name === "calendar" && data.activity) {
     headers = [
       "Local date",
@@ -1170,6 +1267,8 @@ function exportData(name) {
   }
   if (headers.length) {
     const ctx = context();
+    if (name === "library")
+      ctx.notes = library.notes(data.library, data.library.options);
     if (name === "anniversaries")
       ctx.from = data.anniversaries.observed_from || ctx.from;
     if (name === "eras")
@@ -1231,6 +1330,7 @@ async function searchArtists() {
         state.artistName = item.name;
         target.hidden = true;
         state.rankingPage = 1;
+        state.libraryPage = 1;
         loadSelection();
       });
       target.append(button);
@@ -1273,6 +1373,7 @@ $("filters").addEventListener("submit", (event) => {
   state.timezoneNotice = "";
   state.preset = null;
   state.rankingPage = 1;
+  state.libraryPage = 1;
   loadSelection();
 });
 $("timezone").addEventListener("input", () =>
@@ -1285,6 +1386,7 @@ $("reset").addEventListener("click", () => {
   state.hour = null;
   state.timezone = "Europe/Berlin";
   state.rankingPage = 1;
+  state.libraryPage = 1;
   applyPreset("year");
   loadSelection();
 });
@@ -1297,10 +1399,12 @@ $("artist-search").addEventListener("keydown", (event) => {
 });
 $("rank-kind").addEventListener("change", () => {
   state.rankingPage = 1;
+  state.libraryPage = 1;
   loadSelection();
 });
 $("rank-order").addEventListener("change", () => {
   state.rankingPage = 1;
+  state.libraryPage = 1;
   loadSelection();
 });
 let rankTimer;
@@ -1308,6 +1412,7 @@ $("rank-search").addEventListener("input", () => {
   clearTimeout(rankTimer);
   rankTimer = setTimeout(() => {
     state.rankingPage = 1;
+    state.libraryPage = 1;
     loadSelection();
   }, 300);
 });
@@ -1348,6 +1453,23 @@ $("evolution-mode").addEventListener("change", () => {
 });
 $("rediscovery-filters").addEventListener("submit", (event) => {
   event.preventDefault();
+  loadSelection();
+});
+$("library-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.libraryPage = 1;
+  loadSelection();
+});
+$("library-refresh").addEventListener("click", () => {
+  state.libraryForce = true;
+  loadSelection();
+});
+$("library-previous").addEventListener("click", () => {
+  state.libraryPage--;
+  loadSelection();
+});
+$("library-next").addEventListener("click", () => {
+  state.libraryPage++;
   loadSelection();
 });
 $("close-detail").addEventListener("click", () => $("detail").close());
@@ -1405,6 +1527,11 @@ document.addEventListener("listening:select", (event) => {
     renderEraTable(detail.comparison);
     persist();
   }
+  if (detail.type === "library-status") {
+    $("library-status").value = detail.status;
+    state.libraryPage = 1;
+    loadSelection();
+  }
   if (detail.type === "entity") openEntity(detail.kind, detail.key);
   if (detail.type === "day") selectDay(detail.day);
   if (detail.type === "rhythm") selectRhythm(detail.weekday, detail.hour);
@@ -1413,4 +1540,17 @@ window.addEventListener("resize", charts.resizeCharts);
 setInterval(() => {
   if (state.authenticated && !document.hidden) checkStatus();
 }, 60000);
+for (const [id, key] of [
+  ["library-kind", "library_kind"],
+  ["library-status", "library_status"],
+]) {
+  const value = parameters.get(key);
+  if ([...$(id).options].some((option) => option.value === value))
+    $(id).value = value;
+}
+$("library-minimum").value = Math.max(
+  1,
+  Math.min(100000000, Number(parameters.get("library_min")) || 1),
+);
+$("library-search").value = (parameters.get("library_q") || "").slice(0, 100);
 authenticate();
