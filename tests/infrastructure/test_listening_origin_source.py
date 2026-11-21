@@ -194,3 +194,12 @@ async def test_cancelled_public_read_drains_before_releasing_provider_ownership(
     release.set()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+def test_conflicting_duplicate_ids_do_not_arbitrarily_choose_a_country() -> None:
+    """Repeated provider IDs must agree before a single country can be counted."""
+    conflicting = {**row(), "country": "GB"}
+    with pytest.raises(OriginSourceError):
+        parse_artist_origins({"count": 2, "artists": [row(), conflicting]}, artist())
+    multi = parse_artist_origins({"count": 1, "artists": [conflicting]}, artist())
+    assert multi.candidates[0].countries == ("BR", "GB")

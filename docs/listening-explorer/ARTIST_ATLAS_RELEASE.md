@@ -83,7 +83,7 @@ URL restoration, escaped names, mobile layout and unavailable outlines/metadata.
 The review PR records final test, package and real-history preview results.
 
 
-Local verification: 57 focused feature tests pass, with full statement and
+Local verification: 58 focused feature tests pass, with full statement and
 branch coverage for the new domain, provider and cache modules, and 99.83%
 combined coverage across those modules and the enrichment stage. All seventeen
 browser scenarios plus seven JavaScript checks pass, including the existing

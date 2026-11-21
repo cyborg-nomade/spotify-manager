@@ -100,6 +100,9 @@ def _matches(rows: list[object], artist: RankedEntity) -> tuple[OriginCandidate,
         if listening_identity((_text(raw, "name"),)) != artist.key:
             continue
         candidate = origin_candidate(raw)
+        existing = result.get(candidate.mbid)
+        if existing is not None and existing != candidate:
+            raise OriginSourceError("Public candidate evidence conflicted.")
         result.setdefault(candidate.mbid, candidate)
     return tuple(result[key] for key in sorted(result))
 
