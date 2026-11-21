@@ -1789,6 +1789,35 @@
         "title": "CountResult",
         "type": "object"
       },
+      "CountryListening": {
+        "description": "Count artists with one exact-name candidate and one reported country.\n\nArgs:\n    code: Original provider country code.\n    plays: Actual selected plays; each qualifying play appears once.\n    artists: Distinct qualifying history artists.\n    share: Share of all selected plays, including unknown metadata.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "plays",
+          "artists",
+          "share"
+        ],
+        "title": "CountryListening",
+        "type": "object"
+      },
       "DiscographyArtistResult": {
         "description": "One artist selected for the next discography batch.",
         "properties": {
@@ -3205,6 +3234,27 @@
         "title": "ListeningEnvelope[ListeningEvolution]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningOrigins_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningOrigins"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningOrigins]",
+        "type": "object"
+      },
       "ListeningEnvelope_ListeningOverview_": {
         "properties": {
           "data": {
@@ -3501,6 +3551,91 @@
           "build_seconds"
         ],
         "title": "ListeningMetadata",
+        "type": "object"
+      },
+      "ListeningOrigins": {
+        "description": "Present complete country totals and bounded supporting evidence.\n\nArgs:\n    metadata_snapshot: Independently pinned country metadata generation.\n    countries: Complete country totals before evidence filtering.\n    available_countries: Codes across all candidates, including ambiguous evidence.\n    coverage: Complete selected listening and lookup coverage.\n    items: Current artist page.\n    total: Artists matching applied evidence/search filters.\n    page: One-based page.\n    limit: Requested maximum rows.\n    options: Actual applied filters.\n    retrieved_from: Earliest relevant lookup date.\n    retrieved_through: Latest relevant lookup date.",
+        "properties": {
+          "available_countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Available Countries",
+            "type": "array"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryListening"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/OriginCoverage"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OriginArtist"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/OriginOptions"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "retrieved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved From"
+          },
+          "retrieved_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved Through"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metadata_snapshot",
+          "countries",
+          "available_countries",
+          "coverage",
+          "items",
+          "total",
+          "page",
+          "limit",
+          "options",
+          "retrieved_from",
+          "retrieved_through"
+        ],
+        "title": "ListeningOrigins",
         "type": "object"
       },
       "ListeningOverview": {
@@ -4763,6 +4898,289 @@
           "action"
         ],
         "title": "NewWineTrackResult",
+        "type": "object"
+      },
+      "OriginArtist": {
+        "description": "Connect actual selected plays with bounded geographic name evidence.\n\nArgs:\n    artist: Exact historical count and share.\n    evidence: Single country, multiple, absent, or unresolved metadata.\n    candidates: Bounded original provider candidates.\n    candidate_count: Distinct exact-name matches found before truncation.\n    fetched_at: Retrieval date, independent of listening dates.",
+        "properties": {
+          "artist": {
+            "$ref": "#/components/schemas/RankedEntity"
+          },
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/OriginCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/OriginEvidence"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "required": [
+          "artist",
+          "evidence",
+          "candidates",
+          "candidate_count",
+          "fetched_at"
+        ],
+        "title": "OriginArtist",
+        "type": "object"
+      },
+      "OriginCandidate": {
+        "description": "Retain one exact-name MusicBrainz candidate and its reported places.\n\nArgs:\n    mbid: Provider artist identity, not an asserted history identity.\n    name: Original provider artist name.\n    description: Provider disambiguation text.\n    artist_type: Person, group or other source type.\n    area: Main associated area, not necessarily birth or formation origin.\n    begin_area: Reported birth or formation place, when supplied.\n    countries: Distinct reported country codes; never inferred from tags.",
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "artist_type": {
+            "title": "Artist Type",
+            "type": "string"
+          },
+          "begin_area": {
+            "title": "Begin Area",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "mbid": {
+            "title": "Mbid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mbid",
+          "name",
+          "description",
+          "artist_type",
+          "area",
+          "begin_area",
+          "countries"
+        ],
+        "title": "OriginCandidate",
+        "type": "object"
+      },
+      "OriginCoverage": {
+        "description": "Preserve complete history and separate unresolved geographic evidence.\n\nArgs:\n    plays: All selected scrobbles.\n    artists: All selected artist identities.\n    country_plays: Plays with one candidate and one geographic country code.\n    country_artists: Artists supporting the country totals.\n    looked_up_artists: Artists with any completed lookup.\n    outcomes: Complete artist and play totals for each evidence category.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "country_artists": {
+            "title": "Country Artists",
+            "type": "integer"
+          },
+          "country_plays": {
+            "title": "Country Plays",
+            "type": "integer"
+          },
+          "looked_up_artists": {
+            "title": "Looked Up Artists",
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/OriginOutcome"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plays",
+          "artists",
+          "country_plays",
+          "country_artists",
+          "looked_up_artists",
+          "outcomes"
+        ],
+        "title": "OriginCoverage",
+        "type": "object"
+      },
+      "OriginEvidence": {
+        "enum": [
+          "single_country",
+          "multiple_countries",
+          "no_country",
+          "unmatched",
+          "ambiguous",
+          "incomplete",
+          "missing"
+        ],
+        "type": "string"
+      },
+      "OriginFetchState": {
+        "enum": [
+          "idle",
+          "running",
+          "cancelling",
+          "cancelled",
+          "complete",
+          "error"
+        ],
+        "type": "string"
+      },
+      "OriginFetchStatus": {
+        "description": "Describe explicit enrichment work separately from history availability.\n\nArgs:\n    state: Current batch lifecycle.\n    configured: Whether public provider reads are configured.\n    total: Number of requested artists.\n    completed: Number of complete lookup outcomes saved.\n    message: Data-free progress, recovery or cancellation explanation.\n    metadata_snapshot: Last complete metadata generation.\n    cached_artists: Number of cached lookup outcomes.\n    history_snapshot: Source generation that selected this batch.\n    cache_available: Whether derived storage initialized successfully.",
+        "properties": {
+          "cache_available": {
+            "title": "Cache Available",
+            "type": "boolean"
+          },
+          "cached_artists": {
+            "title": "Cached Artists",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "history_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Snapshot"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/OriginFetchState"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "configured",
+          "total",
+          "completed",
+          "message",
+          "metadata_snapshot",
+          "cached_artists",
+          "history_snapshot",
+          "cache_available"
+        ],
+        "title": "OriginFetchStatus",
+        "type": "object"
+      },
+      "OriginOptions": {
+        "description": "Filter supporting artists without changing the complete map totals.\n\nArgs:\n    country: Optional reported two-letter country code.\n    evidence: Specific evidence outcome or all artists.\n    search: Artist display-name substring.\n    page: One-based artist page.\n    limit: Maximum returned artists.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OriginEvidence"
+              },
+              {
+                "const": "all",
+                "type": "string"
+              }
+            ],
+            "default": "all",
+            "title": "Evidence"
+          },
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "search": {
+            "default": "",
+            "title": "Search",
+            "type": "string"
+          }
+        },
+        "title": "OriginOptions",
+        "type": "object"
+      },
+      "OriginOutcome": {
+        "description": "Reconcile one evidence category with actual listening counts.\n\nArgs:\n    evidence: Category identity.\n    artists: Distinct selected artists.\n    plays: Their complete selected scrobbles.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/OriginEvidence"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidence",
+          "artists",
+          "plays"
+        ],
+        "title": "OriginOutcome",
         "type": "object"
       },
       "PalaceAlbumRefreshResult": {
@@ -13109,6 +13527,408 @@
         "summary": "Listening On This Day",
         "tags": [
           "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/origins": {
+      "get": {
+        "description": "Apply only pinned cached country associations to the selected recorded history.\n\nArgs:\n    request: Cache resource owner.\n    query: Validated listening selection.\n    index: Pinned complete history generation.\n    options: Applied allocation and evidence filters.\n    metadata_snapshot: Independently pinned cached metadata generation.\n\nReturns:\n    Complete allocations, explicit unknowns and bounded supporting evidence.",
+        "operationId": "listening_origins_lastfm_analytics_origins_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "metadata_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^o1-[0-9a-f]{64}$",
+              "title": "Metadata Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "evidence",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OriginEvidence"
+                },
+                {
+                  "const": "all",
+                  "type": "string"
+                }
+              ],
+              "default": "all",
+              "title": "Evidence"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningOrigins_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Origins",
+        "tags": [
+          "Listening Explorer countries"
+        ]
+      }
+    },
+    "/lastfm/analytics/origins/cancel": {
+      "post": {
+        "description": "Cancel only the metadata batch, retaining completed cached observations.\n\nArgs:\n    request: Configured named enrichment application stage.\n    response: Response receiving private cache policy.\n\nReturns:\n    Cancellation progress without changing canonical data or routine jobs.",
+        "operationId": "cancel_listening_origins_lastfm_analytics_origins_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Listening Origins",
+        "tags": [
+          "Listening Explorer countries"
+        ]
+      }
+    },
+    "/lastfm/analytics/origins/refresh": {
+      "post": {
+        "description": "Explicitly request one bounded highest-play missing/stale artist batch.\n\nArgs:\n    request: Configured named enrichment application stage.\n    response: Response receiving private cache policy.\n    query: Listening selection used only to select artist names.\n    index: Pinned source for batch selection.\n    limit: Maximum public provider requests.\n    force: Refresh recently cached observations as well.\n\nReturns:\n    Accepted batch progress or the already-running batch without duplication.\n\nRaises:\n    HTTPException: Provider configuration is unavailable.",
+        "operationId": "fetch_listening_origins_lastfm_analytics_origins_refresh_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Listening Origins",
+        "tags": [
+          "Listening Explorer countries"
+        ]
+      }
+    },
+    "/lastfm/analytics/origins/status": {
+      "get": {
+        "description": "Read cache identity and explicit-batch progress without provider calls.\n\nArgs:\n    request: Configured named application stage owner.\n    response: Response receiving private cache policy.\n\nReturns:\n    Lookup progress and a complete metadata token, even for an empty cache.",
+        "operationId": "listening_origin_status_lastfm_analytics_origins_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listening Origin Status",
+        "tags": [
+          "Listening Explorer countries"
         ]
       }
     },

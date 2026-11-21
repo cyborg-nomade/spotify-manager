@@ -1,0 +1,9 @@
+Made with Natural Earth. Public-domain 1:110m country outlines.
+Source: https://raw.githubusercontent.com/nvkelso/natural-earth-vector/9380cca83db5f9aef52d5e762765100745f84b27/geojson/ne_110m_admin_0_countries.geojson
+Pinned revision: 9380cca83db5f9aef52d5e762765100745f84b27
+Upstream SHA-256: 6866c877d39cba9c357620878839b336d569f8c662d3cfab4cb1dbe2d39c977f
+Bundled SHA-256: b064f9018df5422c59399cad41b8bceabb4a58ea863d909f2af17e49c118b6ae
+Modification: retained original geometries and only country code/name properties.
+ISO_A2_EH preserves France and Norway codes; non-ISO outlines retain distinct
+Natural Earth identifiers. Small or historical countries may appear only in tables.
+Terms: https://www.naturalearthdata.com/about/terms-of-use/

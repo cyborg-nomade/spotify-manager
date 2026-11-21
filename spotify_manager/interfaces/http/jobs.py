@@ -44,6 +44,7 @@ from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
 from spotify_manager.bootstrap.listening_explorer import listening_library_runtime
+from spotify_manager.bootstrap.listening_origins import listening_origin_enrichment
 from spotify_manager.bootstrap.listening_tags import listening_tag_enrichment
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
@@ -2072,6 +2073,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _app.state.listening = listening_explorer_runtime()
     _app.state.listening_library = listening_library_runtime()
     _app.state.listening_tags = listening_tag_enrichment()
+    _app.state.listening_origins = listening_origin_enrichment()
     try:
         async with ExecutionRuntime() as runtime:
             _app.state.execution = runtime
@@ -2081,6 +2083,13 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 async def _close_listening_resources(app: FastAPI) -> None:
+    try:
+        await app.state.listening_origins.close()
+    finally:
+        await _close_remaining_listening_resources(app)
+
+
+async def _close_remaining_listening_resources(app: FastAPI) -> None:
     try:
         await app.state.listening_tags.close()
     finally:
