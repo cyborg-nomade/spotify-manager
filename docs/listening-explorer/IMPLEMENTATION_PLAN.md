@@ -260,6 +260,12 @@ After reviewing the core page, select specific enrichment views based on use. Ad
 
 Acceptance: historical exploration remains usable without enrichment services, failures never erase available counts, and uncertain matches/metadata do not become asserted facts.
 
+Delivery: Library Bridge was approved, deployed, verified and merged in PR #92
+on 21 November 2026. The next increment, [Tag Atlas](TAG_ATLAS_RELEASE.md), applies
+current community labels with bounded explicit lookups and separate metadata
+versions; it is prepared for owner review. Maps, covers, fuzzy resolution and
+playlist/routine actions remain separately scoped.
+
 ## 7. Verification and completion criteria
 
 Use small, hand-calculated fixtures for analytical rules and purpose-built integration checks for stateful behavior:

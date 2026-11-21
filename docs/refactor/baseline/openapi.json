@@ -1756,6 +1756,25 @@
         "title": "CommandResult",
         "type": "object"
       },
+      "CommunityTag": {
+        "description": "Retain a source tag label with stable identity.\n\nArgs:\n    key: Normalized label identity.\n    name: Original community label, not an asserted genre classification.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "CommunityTag",
+        "type": "object"
+      },
       "CountResult": {
         "description": "Number of artists in the YourLibrary file.",
         "properties": {
@@ -3270,6 +3289,27 @@
         "title": "ListeningEnvelope[ListeningRediscovery]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningTags_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningTags"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningTags]",
+        "type": "object"
+      },
       "ListeningEras": {
         "description": "Compare full artist-share vectors using weighted Jaccard similarity.\n\nArgs:\n    grain: Months, or years for selections exceeding 240 months.\n    periods: Chronological calendar periods, including empty ones.\n    similarities: Symmetric row/column matrix; empty comparisons are None.",
         "properties": {
@@ -3763,6 +3803,91 @@
           "checking"
         ],
         "title": "ListeningStatus",
+        "type": "object"
+      },
+      "ListeningTags": {
+        "description": "Present allocations with bounded supporting artists and applied options.\n\nArgs:\n    metadata_snapshot: Independently pinned cached metadata generation.\n    periods: Calendar months for aligned series.\n    series: Allocated counts preserving all selected plays.\n    coverage: Actual listening and unknown-metadata coverage.\n    items: Current bounded artist-evidence page.\n    total: Artists matching the evidence filter.\n    page: One-based page.\n    limit: Requested page size.\n    options: Actual applied allocation and evidence options.\n    retrieved_from: Earliest cached lookup used by this selected history.\n    retrieved_through: Latest cached lookup used by this selected history.",
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/TagCoverage"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TagArtist"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/TagOptions"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "periods": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "retrieved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved From"
+          },
+          "retrieved_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved Through"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/TagSeries"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metadata_snapshot",
+          "periods",
+          "series",
+          "coverage",
+          "items",
+          "total",
+          "page",
+          "limit",
+          "options",
+          "retrieved_from",
+          "retrieved_through"
+        ],
+        "title": "ListeningTags",
         "type": "object"
       },
       "MirrorSource": {
@@ -6632,6 +6757,256 @@
         ],
         "title": "SomethingOldTrackResult",
         "type": "object"
+      },
+      "TagArtist": {
+        "description": "Connect selected actual plays to their current metadata evidence.\n\nArgs:\n    artist: Selected artist count and share.\n    state: Cached lookup outcome or metadata missing.\n    tags: Source labels before allocation truncation.\n    fetched_at: Retrieval date when looked up.\n    source_url: Credential-free public artist page.",
+        "properties": {
+          "artist": {
+            "$ref": "#/components/schemas/RankedEntity"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TagState"
+              },
+              {
+                "const": "missing",
+                "type": "string"
+              }
+            ],
+            "title": "State"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityTag"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "artist",
+          "state",
+          "tags",
+          "fetched_at",
+          "source_url"
+        ],
+        "title": "TagArtist",
+        "type": "object"
+      },
+      "TagCoverage": {
+        "description": "Keep actual listening and metadata availability separate.\n\nArgs:\n    plays: Exact selected scrobbles.\n    tagged_plays: Actual plays from artists with verified available tags.\n    artists: Distinct selected artist identities.\n    tagged_artists: Artists with verified tags.\n    looked_up_artists: Artists with any completed lookup outcome.\n    empty_artists: Verified artists with no tags.\n    unresolved_artists: Provider identities not safely corroborated.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "empty_artists": {
+            "title": "Empty Artists",
+            "type": "integer"
+          },
+          "looked_up_artists": {
+            "title": "Looked Up Artists",
+            "type": "integer"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "tagged_artists": {
+            "title": "Tagged Artists",
+            "type": "integer"
+          },
+          "tagged_plays": {
+            "title": "Tagged Plays",
+            "type": "integer"
+          },
+          "unresolved_artists": {
+            "title": "Unresolved Artists",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plays",
+          "tagged_plays",
+          "artists",
+          "tagged_artists",
+          "looked_up_artists",
+          "empty_artists",
+          "unresolved_artists"
+        ],
+        "title": "TagCoverage",
+        "type": "object"
+      },
+      "TagFetchState": {
+        "enum": [
+          "idle",
+          "running",
+          "cancelling",
+          "cancelled",
+          "complete",
+          "error"
+        ],
+        "type": "string"
+      },
+      "TagFetchStatus": {
+        "description": "Describe explicit enrichment work separately from history availability.\n\nArgs:\n    state: Current batch lifecycle.\n    configured: Whether public provider reads are configured.\n    total: Number of requested artists.\n    completed: Number of complete lookup outcomes saved.\n    message: Data-free progress, recovery or cancellation explanation.\n    metadata_snapshot: Last complete metadata generation.\n    cached_artists: Number of cached lookup outcomes.\n    history_snapshot: Source generation that selected this batch.\n    cache_available: Whether derived storage initialized successfully.",
+        "properties": {
+          "cache_available": {
+            "title": "Cache Available",
+            "type": "boolean"
+          },
+          "cached_artists": {
+            "title": "Cached Artists",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "history_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Snapshot"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TagFetchState"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "configured",
+          "total",
+          "completed",
+          "message",
+          "metadata_snapshot",
+          "cached_artists",
+          "history_snapshot",
+          "cache_available"
+        ],
+        "title": "TagFetchStatus",
+        "type": "object"
+      },
+      "TagOptions": {
+        "description": "Specify allocation and a bounded artist-evidence page.\n\nArgs:\n    per_artist: Primary tag or equal allocation among up to three tags.\n    tag: Optional stable tag identity, including unknown.\n    search: Display artist substring.\n    page: One-based evidence page.\n    limit: Maximum returned artists.",
+        "properties": {
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "per_artist": {
+            "default": 3,
+            "enum": [
+              1,
+              3
+            ],
+            "title": "Per Artist",
+            "type": "integer"
+          },
+          "search": {
+            "default": "",
+            "title": "Search",
+            "type": "string"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          }
+        },
+        "title": "TagOptions",
+        "type": "object"
+      },
+      "TagSeries": {
+        "description": "Allocate complete selected play counts without double counting tags.\n\nArgs:\n    key: Tag identity, other, or unknown.\n    name: Source display label or explicit residual category.\n    counts: Aligned allocated plays, possibly fractional in three-tag mode.",
+        "properties": {
+          "counts": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "counts"
+        ],
+        "title": "TagSeries",
+        "type": "object"
+      },
+      "TagState": {
+        "enum": [
+          "tagged",
+          "empty",
+          "unresolved"
+        ],
+        "type": "string"
       },
       "TrackMatchChoiceRequest": {
         "description": "Select a track ID or submit an empty choice for no match.",
@@ -13450,6 +13825,402 @@
         "summary": "Listening Status",
         "tags": [
           "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/tags": {
+      "get": {
+        "description": "Apply only pinned cached community tags to the selected recorded history.\n\nArgs:\n    request: Cache resource owner.\n    query: Validated listening selection.\n    index: Pinned complete history generation.\n    options: Applied allocation and evidence filters.\n    metadata_snapshot: Independently pinned cached metadata generation.\n\nReturns:\n    Complete allocations, explicit unknowns and bounded supporting evidence.",
+        "operationId": "listening_tags_lastfm_analytics_tags_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "metadata_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^t1-[0-9a-f]{64}$",
+              "title": "Metadata Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "per_artist",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "maximum": 3,
+              "minimum": 1,
+              "title": "Per Artist",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(other|unknown|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningTags_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Tags",
+        "tags": [
+          "Listening Explorer tags"
+        ]
+      }
+    },
+    "/lastfm/analytics/tags/cancel": {
+      "post": {
+        "description": "Cancel only the metadata batch, retaining completed cached observations.\n\nArgs:\n    request: Configured named enrichment application stage.\n    response: Response receiving private cache policy.\n\nReturns:\n    Cancellation progress without changing canonical data or routine jobs.",
+        "operationId": "cancel_listening_tags_lastfm_analytics_tags_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Listening Tags",
+        "tags": [
+          "Listening Explorer tags"
+        ]
+      }
+    },
+    "/lastfm/analytics/tags/refresh": {
+      "post": {
+        "description": "Explicitly request one bounded highest-play missing/stale artist batch.\n\nArgs:\n    request: Configured named enrichment application stage.\n    response: Response receiving private cache policy.\n    query: Listening selection used only to select artist names.\n    index: Pinned source for batch selection.\n    limit: Maximum public provider requests.\n    force: Refresh recently cached observations as well.\n\nReturns:\n    Accepted batch progress or the already-running batch without duplication.\n\nRaises:\n    HTTPException: Provider configuration is unavailable.",
+        "operationId": "fetch_listening_tags_lastfm_analytics_tags_refresh_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Listening Tags",
+        "tags": [
+          "Listening Explorer tags"
+        ]
+      }
+    },
+    "/lastfm/analytics/tags/status": {
+      "get": {
+        "description": "Read cache identity and explicit-batch progress without provider calls.\n\nArgs:\n    request: Configured named application stage owner.\n    response: Response receiving private cache policy.\n\nReturns:\n    Lookup progress and a complete metadata token, even for an empty cache.",
+        "operationId": "listening_tag_status_lastfm_analytics_tags_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listening Tag Status",
+        "tags": [
+          "Listening Explorer tags"
         ]
       }
     },

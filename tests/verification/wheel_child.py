@@ -89,11 +89,12 @@ def main() -> int:
     _check_entrypoints()
     from spotify_manager import api
 
-    assert len(api.app.routes) == 133  # Includes the explorer's lazy feature router.
+    assert len(api.app.routes) == 134  # Includes the explorer and tag lazy routers.
     assert "/lastfm/analytics/overview" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/tags/refresh" in api.app.openapi()["paths"]
     from spotify_manager import web
 
-    assert len(api.app.routes) == 143  # Web adds ten shell, asset and Genre routes.
+    assert len(api.app.routes) == 144  # Web adds ten shell, asset and Genre routes.
     assert vars(web)["app"] is api.app
     _check_web_assets(site)
     _check_module_origins(site)

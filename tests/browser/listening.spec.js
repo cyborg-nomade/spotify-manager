@@ -692,3 +692,114 @@ test("unavailable collection service preserves history and can recover", async (
   await page.locator("#library-refresh").click();
   await expect(page.locator("#library-table table")).toBeAttached();
 });
+
+test("tag atlas reconciles coverage, exports applied metadata and fetches only on request", async ({
+  page,
+}) => {
+  const failures = [];
+  page.on("pageerror", (error) => failures.push(error.message));
+  await unlock(page);
+  await allTime(page);
+  await page
+    .getByRole("button", { name: "Tags & genres", exact: true })
+    .click();
+  await expect(page.locator("#tag-coverage")).toContainText("312 of 781");
+  await expect(page.locator("#tag-progress")).toContainText("idle");
+  await expect(page.locator("#tags-chart canvas")).toHaveCount(1);
+  expect(
+    (await page.locator("#tags-chart").boundingBox()).height,
+  ).toBeGreaterThan(200);
+  await page.screenshot({
+    path: test.info().outputPath("tag-atlas.png"),
+    fullPage: true,
+  });
+  await page.locator("#tag-per-artist").selectOption("1");
+  await page
+    .getByRole("button", { name: "Apply tag filters", exact: true })
+    .click();
+  await expect(page).toHaveURL(/tags_per_artist=1/);
+  await expect(page.locator("#workspace")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await page.locator("#tag-filter").selectOption("unknown");
+  await page
+    .getByRole("button", { name: "Apply tag filters", exact: true })
+    .click();
+  await expect(page.locator("#tag-artists-table")).toContainText(
+    "Looked up · no tags",
+  );
+  await expect(page.locator("#tag-artists-table")).not.toContainText(
+    "Available tags",
+  );
+  const downloading = page.waitForEvent("download");
+  await page.getByText("Monthly allocation table", { exact: true }).click();
+  await page.locator('[data-csv="tags"]').click();
+  const csv = await readFile(await (await downloading).path(), "utf8");
+  expect(csv).toContain("Metadata snapshot");
+  expect(csv).toContain("Leading tag per artist");
+  expect(csv).toContain("Unknown / no tags");
+  await page.reload();
+  await expect(page.locator("#tag-per-artist")).toHaveValue("1");
+  await expect(page.locator("#tag-filter")).toHaveValue("unknown");
+  await expect(page.locator("#tag-artists-table table")).toBeAttached();
+  await page.locator("#tag-fetch").click();
+  await expect(page.locator("#tag-progress")).toContainText("complete", {
+    timeout: 15000,
+  });
+  await expect(page.locator("#tag-coverage")).toContainText("625 of 781");
+  await page.locator("#tag-filter").selectOption("");
+  await page
+    .getByRole("button", { name: "Apply tag filters", exact: true })
+    .click();
+  await expect(page.locator("#tag-artists-table")).toContainText("onerror");
+  expect(await page.locator("#tag-artists-table img").count()).toBe(0);
+  expect(await page.evaluate(() => window.musicNameExecuted)).toBeUndefined();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  expect(failures).toEqual([]);
+});
+
+test("tag metadata expiry retries independently and outage preserves historical totals", async ({
+  page,
+}) => {
+  await unlock(page);
+  await allTime(page);
+  let rejected = false;
+  await page.route("**/lastfm/analytics/tags?*", async (route) => {
+    if (!rejected) {
+      rejected = true;
+      await route.fulfill({
+        status: 409,
+        headers: { "X-Listening-Conflict": "tags" },
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Tag metadata version expired." }),
+      });
+    } else await route.continue();
+  });
+  await page
+    .getByRole("button", { name: "Tags & genres", exact: true })
+    .click();
+  await expect(page.locator("#tag-artists-table table")).toBeAttached();
+  await expect(page.locator("#metric-plays")).toHaveText("781");
+  await page.unroute("**/lastfm/analytics/tags?*");
+  await page.route("**/lastfm/analytics/tags/status", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Cache unavailable" }),
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Apply tag filters", exact: true })
+    .click();
+  await expect(page.locator("#tag-progress")).toContainText(
+    "listening history remains available",
+  );
+  await expect(page.locator("#metric-plays")).toHaveText("781");
+  await expect(page.locator('[data-csv="tags"]')).toBeDisabled();
+});
