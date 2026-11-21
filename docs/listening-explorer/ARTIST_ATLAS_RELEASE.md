@@ -97,7 +97,7 @@ during preparation; no history-derived artist names were sent in that probe.
 Controlled tests verify the safe failure path. The PR records subsequent
 provider availability and any separately approved real-history lookup test.
 
-The isolated real-history preview reconciles all 339,344 scrobbles and 15,696
+The isolated real-history preview reconciles all 339,356 scrobbles and 15,696
 artist identities across complete evidence outcomes. Its initially empty country
 cache remains explicit, with no provider reads during page rendering. All four
 new route gates and private response headers pass. The preceding 25 local tag
