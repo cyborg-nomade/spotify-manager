@@ -1955,6 +1955,58 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_origins.listening_origin_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_origin_status",
+    "path": "/lastfm/analytics/origins/status",
+    "response_model": "OriginFetchStatus",
+    "source_line": 63,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_origins.listening_origins",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_origins",
+    "path": "/lastfm/analytics/origins",
+    "response_model": "ListeningEnvelope[ListeningOrigins]",
+    "source_line": 80,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_origins.fetch_listening_origins",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "fetch_listening_origins",
+    "path": "/lastfm/analytics/origins/refresh",
+    "response_model": "OriginFetchStatus",
+    "source_line": 111,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_origins.cancel_listening_origins",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_listening_origins",
+    "path": "/lastfm/analytics/origins/cancel",
+    "response_model": "OriginFetchStatus",
+    "source_line": 148,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [

@@ -293,7 +293,7 @@ in addition to the existing history `snapshot`. Collection failures preserve
 historical views. The Check publications control retries independently.
 
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
-immutable multi-artifact acquisition. Genre enrichment, fuzzy resolution,
+immutable multi-artifact acquisition. Further enrichment and fuzzy resolution,
 playlists and routine launch controls remain separate follow-ups.
 
 
@@ -316,3 +316,22 @@ available. History remains usable when enrichment is unavailable. See the
 [release record](TAG_ATLAS_RELEASE.md) for configuration, cache lifetime, endpoint
 contracts and validation, and [ADR 005](../adr/005-current-community-tag-evidence.md)
 for evidence limits. The release was approved, deployed and verified before merge.
+
+
+## Artist Atlas review
+
+**Artist map** shows current MusicBrainz country associations for artists in the
+selected history. A complete search with one exact-name candidate and one country
+supports country totals; ambiguous names, multiple countries and missing or
+incomplete evidence remain separate. Country associations do not prove historical
+origin, nationality, or where you listened.
+
+Switch selected plays/artist counts, pan/zoom, select a country, inspect original
+provider candidates and open recorded history. Complete country/coverage tables,
+CSV and PNG retain source dates and versions. No metadata searches happen on page
+load. Explicit batches of 10 or 25 artists expand coverage through MusicBrainz.
+The locally bundled map needs no remote tiles and has a table fallback.
+
+See [the review record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
+and [ADR 006](../adr/006-artist-country-associations.md) for evidence limits.
+This release awaits owner approval before deployment.

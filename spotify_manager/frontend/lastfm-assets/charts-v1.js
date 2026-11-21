@@ -1,5 +1,5 @@
-import { download, number, percent } from "./tables-v1.js?v=4";
-import { eraBands, eraCells } from "./eras-v1.js?v=4";
+import { download, number, percent } from "./tables-v1.js?v=5";
+import { eraBands, eraCells } from "./eras-v1.js?v=5";
 
 const instances = new Map();
 const palette = [
@@ -917,4 +917,80 @@ export function resizeCharts() {
 export function clearCharts() {
   for (const instance of instances.values()) instance.dispose();
   instances.clear();
+}
+
+export function origins(data, world, metric, context) {
+  window.echarts.registerMap("artist-world-v1", world);
+  const labels = new Map(
+    world.features.map((item) => [item.properties.name, item.properties.label]),
+  );
+  const values = data.countries
+    .filter((item) => labels.has(item.code))
+    .map((item) => ({
+      name: item.code,
+      value: item[metric],
+    }));
+  const maximum = Math.max(1, ...values.map((item) => item.value));
+  const option = {
+    title: {
+      ...base("", context).title,
+      text: `Reported country associations · ${metric === "plays" ? "selected plays" : "artists"}`,
+    },
+    visualMap: {
+      min: 0,
+      max: maximum,
+      left: 0,
+      bottom: 45,
+      calculable: true,
+      text: ["More", "Fewer"],
+      textStyle: { color: "#a6b7bc" },
+      inRange: { color: ["#243c43", "#438a7d", "#a9eed7"] },
+    },
+    tooltip: {
+      ...base("", context).tooltip,
+      formatter: (item) =>
+        `${labels.get(item.name) || item.name}\n${Number.isFinite(item.value) ? number(item.value) : "No single-country evidence"} ${Number.isFinite(item.value) ? metric : ""}`,
+    },
+    series: [
+      {
+        type: "map",
+        map: "artist-world-v1",
+        preserveAspect: true,
+        aspectScale: 1,
+        roam: true,
+        top: 55,
+        bottom: 45,
+        left: 55,
+        right: 5,
+        scaleLimit: { min: 1, max: 12 },
+        itemStyle: {
+          areaColor: "#1c3037",
+          borderColor: "#4a6065",
+          borderWidth: 0.5,
+        },
+        emphasis: {
+          label: { show: false },
+          itemStyle: { areaColor: "#d9b979" },
+        },
+        select: { disabled: true },
+        data: values,
+      },
+    ],
+    graphic: [
+      {
+        type: "text",
+        left: 0,
+        bottom: 1,
+        style: {
+          text: `MusicBrainz current name evidence · Natural Earth outlines\nHistory ${context.snapshot.slice(0, 15)}… · Metadata ${data.metadata_snapshot.slice(0, 15)}…\nRetrieved ${data.retrieved_from?.slice(0, 10) || "Not looked up"} → ${data.retrieved_through?.slice(0, 10) || "Not looked up"} · unknowns retained`,
+          fill: "#789096",
+          fontSize: 8,
+        },
+      },
+    ],
+  };
+  chart("origins", "Artist country associations", option, context, (item) => {
+    if (/^[A-Z]{2}$/.test(item.name))
+      select({ type: "origin-country", country: item.name });
+  });
 }

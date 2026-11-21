@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=4" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=5" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=4"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=5"></script>
   </head>
   <body>
     <div class="shell">
@@ -175,6 +175,7 @@
             ><button data-tab="capsule">Time capsule</button
             ><button data-tab="library">Library bridge</button
             ><button data-tab="tags">Tags &amp; genres</button
+            ><button data-tab="origins">Artist map</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -826,6 +827,171 @@
                 </button>
               </div>
               <div id="tag-artists-table" class="table-scroll"></div>
+            </article>
+          </section>
+          <section
+            id="tab-origins"
+            class="tab-content"
+            aria-label="Artist country associations"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">ARTISTS / REPORTED PLACES</p>
+                  <h2>Artist atlas</h2>
+                </div>
+                <button
+                  class="icon-button"
+                  data-chart-export="origins"
+                  aria-label="Download artist map PNG"
+                >
+                  PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Explore countries associated with artists in your selected
+                listening. Current MusicBrainz metadata is applied to historical
+                plays. A country association is not necessarily birthplace or
+                formation origin, nationality, or where you listened. Multiple
+                candidates and countries stay explicit.
+              </p>
+              <p class="chart-description">
+                Artist metadata from
+                <a
+                  href="https://musicbrainz.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >MusicBrainz</a
+                >. Loading this view uses cached metadata only. Explicit lookups
+                send artist names, not your scrobble records or account history,
+                to MusicBrainz.
+              </p>
+              <form id="origin-filters" class="control-line">
+                <label
+                  >Map values<select id="origin-metric">
+                    <option value="plays">Selected plays</option>
+                    <option value="artists">Artists</option>
+                  </select></label
+                >
+                <label
+                  >Country evidence<select id="origin-country">
+                    <option value="">All countries and unknowns</option>
+                  </select></label
+                >
+                <label
+                  >Artist evidence<select id="origin-evidence">
+                    <option value="all">All artist evidence</option>
+                    <option value="single_country">
+                      One candidate · one country
+                    </option>
+                    <option value="multiple_countries">
+                      One candidate · multiple countries
+                    </option>
+                    <option value="no_country">
+                      One candidate · no country
+                    </option>
+                    <option value="ambiguous">Multiple name candidates</option>
+                    <option value="unmatched">No exact-name candidate</option>
+                    <option value="incomplete">Search incomplete</option>
+                    <option value="missing">Not looked up</option>
+                  </select></label
+                >
+                <label
+                  >Search artists<input
+                    id="origin-search"
+                    type="search"
+                    maxlength="100"
+                /></label>
+                <button type="submit" class="small-button">
+                  Apply map filters
+                </button>
+              </form>
+              <p id="origin-coverage" class="chart-description"></p>
+              <p id="origin-source" class="chart-description"></p>
+              <div id="origins-chart" class="chart origin-map-chart"></div>
+              <p class="chart-description">
+                Country totals use only one exact-name candidate with one
+                reported country. All other plays remain in the evidence table.
+                Select a country to inspect supporting artists, or pan and zoom
+                the map. Small or historical countries may appear only in the
+                complete country table. Outlines:
+                <a
+                  href="https://www.naturalearthdata.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Natural Earth</a
+                >
+                ·
+                <a href="/lastfm/assets/NATURAL-EARTH-NOTICE.txt"
+                  >Source notes</a
+                >.
+              </p>
+              <button data-csv="origins" class="small-button">
+                Export all country counts CSV
+              </button>
+              <details>
+                <summary>Country counts and complete coverage</summary>
+                <div id="origin-countries-table" class="table-scroll"></div>
+                <div id="origin-coverage-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">DATED / CANDIDATE EVIDENCE</p>
+                  <h2>Expand country coverage</h2>
+                </div>
+              </header>
+              <p class="chart-description">
+                Fetch up to 25 highest-play artists in this selection whose
+                country metadata is missing or at least 30 days old. Requests
+                are sequential and spaced at least one second apart, including
+                between batches. Completed cache entries survive cancellation
+                and process restarts; a Space rebuild can reset this derived
+                cache. Search results are name candidates, not verified artist
+                identities.
+              </p>
+              <div class="control-line">
+                <label
+                  >Artists per batch<select id="origin-batch-size">
+                    <option value="10">Up to 10</option>
+                    <option value="25" selected>Up to 25</option>
+                  </select></label
+                ><label class="tag-force-label"
+                  ><input id="origin-force" type="checkbox" />Refresh recently
+                  cached countries too</label
+                ><button id="origin-fetch" type="button" class="small-button">
+                  Fetch public country metadata</button
+                ><button
+                  id="origin-cancel"
+                  type="button"
+                  class="small-button"
+                  disabled
+                >
+                  Cancel country lookup
+                </button>
+              </div>
+              <p
+                id="origin-progress"
+                class="chart-description"
+                role="status"
+              ></p>
+              <div class="control-line">
+                <button data-csv="origin-artists" class="small-button">
+                  Export country artist page CSV</button
+                ><button
+                  id="origin-previous"
+                  type="button"
+                  class="small-button"
+                >
+                  Previous</button
+                ><span id="origin-page" aria-live="polite"></span
+                ><button id="origin-next" type="button" class="small-button">
+                  Next
+                </button>
+              </div>
+              <div id="origin-artists-table" class="table-scroll"></div>
             </article>
           </section>
           <footer>
