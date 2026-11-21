@@ -1,6 +1,7 @@
-import * as charts from "./charts-v1.js?v=3";
-import * as library from "./library-v1.js?v=3";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=3";
+import * as charts from "./charts-v1.js?v=4";
+import * as library from "./library-v1.js?v=4";
+import * as tags from "./tags-v1.js?v=4";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=4";
 import {
   element,
   entityButton,
@@ -12,7 +13,7 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js?v=3";
+} from "./tables-v1.js?v=4";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
@@ -23,6 +24,7 @@ const tabs = [
   "rediscovery",
   "capsule",
   "library",
+  "tags",
 ];
 const weekdays = [
   "Monday",
@@ -61,6 +63,8 @@ const state = {
   libraryPage: 1,
   libraryForce: false,
   libraryTimer: null,
+  tagPage: 1,
+  tagTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
     ? { kind: parameters.get("kind"), key: parameters.get("entity") }
@@ -111,6 +115,7 @@ function showLogin(message = "") {
   state.detailController?.abort();
   clearTimeout(state.pollTimer);
   clearTimeout(state.libraryTimer);
+  clearTimeout(state.tagTimer);
   localStorage.removeItem("sm_pw");
   charts.clearCharts();
   if ($("detail").open) $("detail").close();
@@ -124,9 +129,10 @@ function showLogin(message = "") {
   banner("Your archive is locked.");
 }
 
-async function request(path, query, signal) {
+async function request(path, query, signal, method = "GET") {
   const suffix = query ? `?${new URLSearchParams(query)}` : "";
   const response = await fetch(path + suffix, {
+    method,
     headers: { "X-App-Password": state.password },
     signal,
     cache: "no-store",
@@ -141,7 +147,10 @@ async function request(path, query, signal) {
       typeof body.detail === "string"
         ? body.detail
         : "Check the selected dates, timezone, and filter values.";
-    throw Object.assign(new Error(message), { status: response.status });
+    throw Object.assign(new Error(message), {
+      status: response.status,
+      conflict: response.headers.get("X-Listening-Conflict"),
+    });
   }
   return body;
 }
@@ -209,6 +218,7 @@ function applyPreset(preset) {
   state.preset = preset;
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
 }
 
 function configure() {
@@ -356,6 +366,12 @@ function persist() {
     values.library_min = $("library-minimum").value;
     if ($("library-search").value) values.library_q = $("library-search").value;
   }
+  if (state.tab === "tags") {
+    values.tags_per_artist = $("tag-per-artist").value;
+    values.tag_display = $("tag-display").value;
+    if ($("tag-filter").value) values.tag = $("tag-filter").value;
+    if ($("tag-search").value) values.tag_q = $("tag-search").value;
+  }
   if (state.tab === "capsule" && state.eraReference)
     values.era_ref = state.eraReference;
   if (state.tab === "capsule") {
@@ -418,6 +434,102 @@ async function loadLibrary() {
   }
 }
 
+function tagQuery() {
+  const values = {
+    per_artist: $("tag-per-artist").value,
+    q: $("tag-search").value,
+    page: state.tagPage,
+    limit: 25,
+  };
+  if ($("tag-filter").value) values.tag = $("tag-filter").value;
+  return values;
+}
+
+async function loadTags(recoverMetadata = true) {
+  try {
+    const status = await request(
+      "/lastfm/analytics/tags/status",
+      null,
+      state.controller.signal,
+    );
+    const data = await analytics("tags", {
+      ...tagQuery(),
+      metadata_snapshot: status.metadata_snapshot,
+    });
+    return { ...data, lookup: status };
+  } catch (error) {
+    if (error.status === 409 && error.conflict === "tags") {
+      if (recoverMetadata) return loadTags(false);
+      return {
+        unavailable:
+          "Tag metadata changed repeatedly. History remains available; retry this view shortly.",
+      };
+    }
+    if (
+      error.name === "AbortError" ||
+      error.status === 401 ||
+      error.status === 409
+    )
+      throw error;
+    return {
+      unavailable:
+        "Cached tag metadata is unavailable. Your listening history remains available; retry this view later.",
+    };
+  }
+}
+
+function scheduleTagPoll() {
+  clearTimeout(state.tagTimer);
+  state.tagTimer = setTimeout(pollTagLookup, 2000);
+}
+
+async function pollTagLookup() {
+  if (state.tab !== "tags" || !state.authenticated) return;
+  const epoch = state.epoch;
+  try {
+    const status = await request(
+      "/lastfm/analytics/tags/status",
+      null,
+      state.controller?.signal,
+    );
+    if (epoch !== state.epoch || state.tab !== "tags") return;
+    tags.progress(status);
+    if (["running", "cancelling"].includes(status.state) || $("detail").open)
+      scheduleTagPoll();
+    else if (status.metadata_snapshot !== state.data.tags?.metadata_snapshot)
+      await loadSelection();
+  } catch (error) {
+    if (error.status !== 401 && error.name !== "AbortError")
+      $("tag-progress").textContent =
+        "Lookup progress is unavailable. Cached history remains visible; retry later.";
+  }
+}
+
+async function tagAction(cancel = false) {
+  try {
+    const parameters = cancel
+      ? null
+      : query({
+          limit: $("tag-batch-size").value,
+          force: $("tag-force").checked,
+        });
+    const status = await request(
+      `/lastfm/analytics/tags/${cancel ? "cancel" : "refresh"}`,
+      parameters,
+      undefined,
+      "POST",
+    );
+    if (!state.authenticated || state.tab !== "tags") return;
+    tags.progress(status);
+    scheduleTagPoll();
+  } catch (error) {
+    if (error.status !== 401)
+      $("tag-progress").textContent =
+        error.message ||
+        "Tag lookup could not start. Cached history remains available.";
+  }
+}
+
 function showTab() {
   for (const tab of tabs) $("tab-" + tab).hidden = state.tab !== tab;
   document.querySelectorAll("[data-tab]").forEach((button) => {
@@ -442,6 +554,7 @@ function renderChips() {
       state.artistName = "";
       state.rankingPage = 1;
       state.libraryPage = 1;
+      state.tagPage = 1;
       loadSelection();
     });
     container.append(button);
@@ -470,6 +583,11 @@ function loading(value) {
     document.querySelector('[data-chart-export="library"]').disabled =
       !state.data.library?.items;
   }
+  if (!value && state.tab === "tags") {
+    document
+      .querySelectorAll("#tab-tags [data-csv], #tab-tags [data-chart-export]")
+      .forEach((button) => (button.disabled = !state.data.tags?.items));
+  }
 }
 
 function clearResults() {
@@ -484,6 +602,7 @@ function clearResults() {
 async function loadSelection(recoverVersion = true) {
   if (!state.snapshot) return;
   clearTimeout(state.libraryTimer);
+  clearTimeout(state.tagTimer);
   state.controller?.abort();
   state.detailController?.abort();
   const revision = ++state.revision;
@@ -512,6 +631,7 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "capsule")
       tasks.push(analytics("on-this-day"), analytics("eras"));
     if (state.tab === "library") tasks.push(loadLibrary());
+    if (state.tab === "tags") tasks.push(loadTags());
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -563,6 +683,12 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "tags") {
+    state.data.tags = results[0];
+    tags.render(results[0], ctx);
+    if (["running", "cancelling"].includes(results[0].lookup?.state))
+      scheduleTagPoll();
+  }
   if (state.tab === "library") {
     state.data.library = results[0];
     library.render(
@@ -751,6 +877,7 @@ async function selectPeriod(start, end) {
   state.tab = "overview";
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   charts.clearCharts();
   await loadSelection();
   await openRecords();
@@ -993,6 +1120,7 @@ async function openEntity(kind, key) {
         $("detail").close();
         state.rankingPage = 1;
         state.libraryPage = 1;
+        state.tagPage = 1;
         loadSelection();
       });
       $("detail-facts").append(button);
@@ -1061,6 +1189,7 @@ function selectRhythm(weekday, hour) {
   state.hour = Number(hour);
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   loadSelection();
 }
 
@@ -1068,6 +1197,22 @@ function exportData(name) {
   const data = state.data;
   let headers = [],
     rows = [];
+  if (name === "tags" && data.tags?.items) {
+    headers = ["Month", ...data.tags.series.map((series) => series.name)];
+    rows = tags.evolutionCSV(data.tags);
+  }
+  if (name === "tag-artists" && data.tags?.items) {
+    headers = [
+      "Artist key",
+      "Artist",
+      "Actual selected plays",
+      "Metadata coverage",
+      "Ranked current community tags",
+      "Retrieved at",
+      "Source URL",
+    ];
+    rows = tags.artistsCSV(data.tags);
+  }
   if (name === "library" && data.library?.items) {
     headers = [
       "History key",
@@ -1267,6 +1412,18 @@ function exportData(name) {
   }
   if (headers.length) {
     const ctx = context();
+    if (["tags", "tag-artists"].includes(name)) {
+      ctx.notes = tags.notes(data.tags);
+      if (name === "tag-artists")
+        ctx.notes.push(
+          ["Evidence filter", data.tags.options.tag || "All artists"],
+          ["Artist search", data.tags.options.search],
+          [
+            "Export scope",
+            `Current page ${data.tags.page}; ${data.tags.total} matching artists`,
+          ],
+        );
+    }
     if (name === "library")
       ctx.notes = library.notes(data.library, data.library.options);
     if (name === "anniversaries")
@@ -1331,6 +1488,7 @@ async function searchArtists() {
         target.hidden = true;
         state.rankingPage = 1;
         state.libraryPage = 1;
+        state.tagPage = 1;
         loadSelection();
       });
       target.append(button);
@@ -1374,6 +1532,7 @@ $("filters").addEventListener("submit", (event) => {
   state.preset = null;
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   loadSelection();
 });
 $("timezone").addEventListener("input", () =>
@@ -1387,6 +1546,7 @@ $("reset").addEventListener("click", () => {
   state.timezone = "Europe/Berlin";
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   applyPreset("year");
   loadSelection();
 });
@@ -1400,11 +1560,13 @@ $("artist-search").addEventListener("keydown", (event) => {
 $("rank-kind").addEventListener("change", () => {
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   loadSelection();
 });
 $("rank-order").addEventListener("change", () => {
   state.rankingPage = 1;
   state.libraryPage = 1;
+  state.tagPage = 1;
   loadSelection();
 });
 let rankTimer;
@@ -1413,6 +1575,7 @@ $("rank-search").addEventListener("input", () => {
   rankTimer = setTimeout(() => {
     state.rankingPage = 1;
     state.libraryPage = 1;
+    state.tagPage = 1;
     loadSelection();
   }, 300);
 });
@@ -1458,6 +1621,7 @@ $("rediscovery-filters").addEventListener("submit", (event) => {
 $("library-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   state.libraryPage = 1;
+  state.tagPage = 1;
   loadSelection();
 });
 $("library-refresh").addEventListener("click", () => {
@@ -1470,6 +1634,25 @@ $("library-previous").addEventListener("click", () => {
 });
 $("library-next").addEventListener("click", () => {
   state.libraryPage++;
+  loadSelection();
+});
+$("tag-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.tagPage = 1;
+  loadSelection();
+});
+$("tag-display").addEventListener("change", () => {
+  if (state.data.tags?.items) tags.render(state.data.tags, context());
+  persist();
+});
+$("tag-fetch").addEventListener("click", () => tagAction());
+$("tag-cancel").addEventListener("click", () => tagAction(true));
+$("tag-previous").addEventListener("click", () => {
+  state.tagPage--;
+  loadSelection();
+});
+$("tag-next").addEventListener("click", () => {
+  state.tagPage++;
   loadSelection();
 });
 $("close-detail").addEventListener("click", () => $("detail").close());
@@ -1530,6 +1713,12 @@ document.addEventListener("listening:select", (event) => {
   if (detail.type === "library-status") {
     $("library-status").value = detail.status;
     state.libraryPage = 1;
+    state.tagPage = 1;
+    loadSelection();
+  }
+  if (detail.type === "tag") {
+    $("tag-filter").value = detail.key;
+    state.tagPage = 1;
     loadSelection();
   }
   if (detail.type === "entity") openEntity(detail.kind, detail.key);
@@ -1553,4 +1742,15 @@ $("library-minimum").value = Math.max(
   Math.min(100000000, Number(parameters.get("library_min")) || 1),
 );
 $("library-search").value = (parameters.get("library_q") || "").slice(0, 100);
+$("tag-per-artist").value =
+  parameters.get("tags_per_artist") === "1" ? "1" : "3";
+$("tag-display").value =
+  parameters.get("tag_display") === "share" ? "share" : "count";
+$("tag-search").value = (parameters.get("tag_q") || "").slice(0, 100);
+if (/^(unknown|other|[0-9a-f]{64})$/.test(parameters.get("tag") || "")) {
+  $("tag-filter").append(
+    new Option("Selected evidence tag", parameters.get("tag")),
+  );
+  $("tag-filter").value = parameters.get("tag");
+}
 authenticate();

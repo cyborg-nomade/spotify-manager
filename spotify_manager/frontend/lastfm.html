@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=3" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=4" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=3"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=4"></script>
   </head>
   <body>
     <div class="shell">
@@ -174,6 +174,7 @@
             ><button data-tab="rediscovery">Rediscover</button
             ><button data-tab="capsule">Time capsule</button
             ><button data-tab="library">Library bridge</button
+            ><button data-tab="tags">Tags &amp; genres</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -692,6 +693,139 @@
                 </button>
               </div>
               <div id="library-table" class="table-scroll"></div>
+            </article>
+          </section>
+          <section
+            id="tab-tags"
+            class="tab-content"
+            aria-label="Current community tag atlas"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">CURRENT LABELS / HISTORICAL PLAYS</p>
+                  <h2>Community tag atlas</h2>
+                </div>
+                <button
+                  class="icon-button"
+                  data-chart-export="tags"
+                  aria-label="Download tag evolution PNG"
+                >
+                  PNG
+                </button>
+              </header>
+              <p class="chart-description">
+                Current community tags are applied to your selected historical
+                listening. Tags may describe genres, eras or other community
+                labels; they do not establish an artist’s historical genre.
+                Every play stays visible, including Unknown / no tags.
+              </p>
+              <p class="chart-description">
+                Tags powered by
+                <a
+                  href="https://www.last.fm"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Last.fm</a
+                >. Loading this view uses cached metadata only. Explicit lookups
+                send artist names, not scrobble records or account history, to
+                Last.fm.
+              </p>
+              <form id="tag-filters" class="control-line">
+                <label
+                  >Tags per artist<select id="tag-per-artist">
+                    <option value="3">Top three · equal allocation</option>
+                    <option value="1">Leading tag</option>
+                  </select></label
+                >
+                <label
+                  >Chart values<select id="tag-display">
+                    <option value="count">Allocated plays</option>
+                    <option value="share">Share of selected plays</option>
+                  </select></label
+                >
+                <label
+                  >Artist evidence<select id="tag-filter">
+                    <option value="">All artist evidence</option>
+                  </select></label
+                >
+                <label
+                  >Search artists<input
+                    id="tag-search"
+                    type="search"
+                    maxlength="100"
+                /></label>
+                <button type="submit" class="small-button">
+                  Apply tag filters
+                </button>
+              </form>
+              <p id="tag-coverage" class="chart-description"></p>
+              <p id="tag-source" class="chart-description"></p>
+              <div id="tags-chart" class="chart tall-chart"></div>
+              <p class="chart-description">
+                Top eight tag labels remain fixed across the selection;
+                remaining labels form Other tags. Three-tag mode divides each
+                play equally among available leading tags, so allocated values
+                can be fractional. Leading-tag mode assigns each play once.
+                Select a colored area or use Artist evidence to inspect
+                supporting artists and their recorded history.
+              </p>
+              <details>
+                <summary>Monthly allocation table</summary>
+                <button data-csv="tags" class="small-button">
+                  Export full allocation CSV
+                </button>
+                <div id="tag-evolution-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">DATED / SOURCE-AWARE METADATA</p>
+                  <h2>Expand tag coverage</h2>
+                </div>
+              </header>
+              <p class="chart-description">
+                Fetch the highest-play artists in this selection whose metadata
+                is missing or at least 30 days old. Each explicit batch makes at
+                most 50 sequential public reads, spaced at least one second
+                apart. Completed cache entries survive cancellation and process
+                restarts; a Space rebuild can reset this derived cache.
+              </p>
+              <div class="control-line">
+                <label
+                  >Artists per batch<select id="tag-batch-size">
+                    <option value="10">Up to 10</option>
+                    <option value="25" selected>Up to 25</option>
+                    <option value="50">Up to 50</option>
+                  </select></label
+                ><label class="tag-force-label"
+                  ><input id="tag-force" type="checkbox" />Refresh recently
+                  cached tags too</label
+                ><button id="tag-fetch" type="button" class="small-button">
+                  Fetch public artist tags</button
+                ><button
+                  id="tag-cancel"
+                  type="button"
+                  class="small-button"
+                  disabled
+                >
+                  Cancel lookup
+                </button>
+              </div>
+              <p id="tag-progress" class="chart-description" role="status"></p>
+              <div class="control-line">
+                <button data-csv="tag-artists" class="small-button">
+                  Export artist page CSV</button
+                ><button id="tag-previous" type="button" class="small-button">
+                  Previous</button
+                ><span id="tag-page" aria-live="polite"></span
+                ><button id="tag-next" type="button" class="small-button">
+                  Next
+                </button>
+              </div>
+              <div id="tag-artists-table" class="table-scroll"></div>
             </article>
           </section>
           <footer>

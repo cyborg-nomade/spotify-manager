@@ -134,7 +134,9 @@ for storage, error and review details.
 It provides calendar/rhythm, rankings, artist evolution, entity details,
 discovery cohorts, period comparisons, and forgotten favorites on a separate
 responsive page. It reads the published history, uses one snapshot token across
-widgets, and makes no live Last.fm/Spotify calls. Filters and selected entities
+widgets, and uses cached data when rendering. The Tags & genres view can
+explicitly fetch bounded public Last.fm metadata batches; viewing history makes
+no live music API calls. Filters and selected entities
 are restored from the URL; charts have table alternatives and CSV/PNG exports.
 Only the new page's source is modularized; the existing cockpit remains intact.
 
@@ -382,3 +384,7 @@ coverage are explicit. See the [feature guide](listening-explorer/README.md#time
 for date semantics, matrix bounds, drill-down controls and exports.
 
 The deployed [Library Bridge release](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) adds current-publication collection comparisons to the Listening Explorer, with independently pinned sources, explicit name evidence and failure recovery.
+
+The deployed [Tag Atlas release](listening-explorer/TAG_ATLAS_RELEASE.md) adds current
+community-tag allocations, explicit unknown coverage, and optional bounded
+metadata lookups. The owner approved the release before deployment and verification.

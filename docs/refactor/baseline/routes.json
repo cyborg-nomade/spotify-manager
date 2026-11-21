@@ -1903,6 +1903,58 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_tags.listening_tag_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_tag_status",
+    "path": "/lastfm/analytics/tags/status",
+    "response_model": "TagFetchStatus",
+    "source_line": 62,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_tags.listening_tags",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_tags",
+    "path": "/lastfm/analytics/tags",
+    "response_model": "ListeningEnvelope[ListeningTags]",
+    "source_line": 77,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_tags.fetch_listening_tags",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "fetch_listening_tags",
+    "path": "/lastfm/analytics/tags/refresh",
+    "response_model": "TagFetchStatus",
+    "source_line": 108,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_tags.cancel_listening_tags",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_listening_tags",
+    "path": "/lastfm/analytics/tags/cancel",
+    "response_model": "TagFetchStatus",
+    "source_line": 145,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [

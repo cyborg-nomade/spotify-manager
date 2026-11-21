@@ -259,8 +259,9 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are deployed. Genre enrichment, artist-origin maps, covers/collages, Spotify-library
-matching, playlists, and session inference remain optional follow-ups. The
+The approved core and discovery/rediscovery views are deployed. Artist-origin maps, covers/collages, playlists, and session inference remain
+optional follow-ups. Library Bridge adds published Spotify-library comparisons;
+Tag Atlas adds current community-tag enrichment. The
 Time Capsule release adds Musical Eras and On This Day. The current export
 cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
@@ -294,3 +295,24 @@ historical views. The Check publications control retries independently.
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
 immutable multi-artifact acquisition. Genre enrichment, fuzzy resolution,
 playlists and routine launch controls remain separate follow-ups.
+
+
+## Tag Atlas release
+
+**Tags & genres** applies current cached Last.fm community labels to monthly
+listening. Choose a leading label or equal allocation among up to three labels,
+and allocated plays or share. Eight leading tags, Other and Unknown account for
+all selected plays. These labels describe current community metadata, rather
+than verified genres at the time of listening.
+
+Coverage distinguishes artists with tags, verified empty tags, unresolved names,
+and artists never looked up. Retrieval dates and source links accompany the
+evidence. Opening the page only reads cached metadata. Expand coverage with an
+explicit batch of 10, 25 or 50 artists, or cancel while retaining completed work.
+Recent observations are skipped for thirty days unless force refresh is chosen.
+
+Tag/search filters, pagination, history details, URL restoration, CSV and PNG are
+available. History remains usable when enrichment is unavailable. See the
+[release record](TAG_ATLAS_RELEASE.md) for configuration, cache lifetime, endpoint
+contracts and validation, and [ADR 005](../adr/005-current-community-tag-evidence.md)
+for evidence limits. The release was approved, deployed and verified before merge.

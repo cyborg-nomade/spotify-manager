@@ -10,6 +10,7 @@ LISTENING_ASSETS = frozenset(
         "charts-v1.js",
         "eras-v1.js",
         "library-v1.js",
+        "tags-v1.js",
         "tables-v1.js",
         "explorer-v1.css",
         "echarts-6.0.0.min.js",

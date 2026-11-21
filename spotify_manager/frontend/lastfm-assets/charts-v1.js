@@ -1,5 +1,5 @@
-import { download, number, percent } from "./tables-v1.js?v=3";
-import { eraBands, eraCells } from "./eras-v1.js?v=3";
+import { download, number, percent } from "./tables-v1.js?v=4";
+import { eraBands, eraCells } from "./eras-v1.js?v=4";
 
 const instances = new Map();
 const palette = [
@@ -811,6 +811,85 @@ export function library(data, context) {
     },
     context,
     (params) => select({ type: "library-status", status: params.data.status }),
+  );
+}
+
+export function tags(data, mode, context) {
+  const totals = data.periods.map((_, index) =>
+    data.series.reduce((sum, series) => sum + series.counts[index], 0),
+  );
+  chart(
+    "tags",
+    mode === "share"
+      ? "Current community tags · allocated share"
+      : "Current community tags · allocated plays",
+    {
+      legend: {
+        top: 58,
+        type: "scroll",
+        textStyle: { color: "#a6b7bc", fontSize: 11 },
+      },
+      grid: { left: 52, right: 18, top: 94, bottom: 55 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: data.periods,
+        boundaryGap: false,
+      },
+      yAxis: {
+        ...axes(),
+        type: "value",
+        max: mode === "share" ? 1 : undefined,
+        axisLabel: {
+          ...axes().axisLabel,
+          formatter:
+            mode === "share"
+              ? (value) => `${Math.round(value * 100)}%`
+              : undefined,
+        },
+      },
+      tooltip: { ...base("", context).tooltip, trigger: "axis" },
+      series: data.series.map((series, index) => ({
+        id: series.key,
+        name: series.name,
+        type: "line",
+        stack: "allocated",
+        showSymbol: false,
+        areaStyle: { opacity: 0.65 },
+        lineStyle: { width: 1 },
+        itemStyle: {
+          color:
+            series.key === "unknown"
+              ? "#62767d"
+              : series.key === "other"
+                ? "#426fa3"
+                : palette[index % palette.length],
+        },
+        data: series.counts.map((count, position) =>
+          mode === "share"
+            ? totals[position]
+              ? count / totals[position]
+              : 0
+            : Math.round(count * 1000) / 1000,
+        ),
+      })),
+      graphic: [
+        {
+          type: "text",
+          left: 0,
+          bottom: 1,
+          style: {
+            text: `${data.options.per_artist === 1 ? "Leading tag" : "Up to three tags · equal allocation"} · Unknown retained\nMetadata ${data.metadata_snapshot.slice(0, 18)}… · current labels applied historically`,
+            fill: "#a6b7bc",
+            fontSize: 10,
+          },
+        },
+      ],
+    },
+    context,
+    (params) => {
+      if (params.seriesId) select({ type: "tag", key: params.seriesId });
+    },
   );
 }
 

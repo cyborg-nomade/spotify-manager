@@ -16,13 +16,19 @@ from fastapi.responses import FileResponse
 from fastapi.responses import Response
 
 from spotify_manager._auth import PasswordMiddleware
+from spotify_manager.application import listening_tags as tag_application
+from spotify_manager.application.listening_tags import ListeningTagEnrichment
 from spotify_manager.domain.web_access import LISTENING_ASSETS
 from spotify_manager.domain.web_access import listening_asset_cache_control
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
+from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
 from spotify_manager.interfaces.http.listening import router
+from spotify_manager.interfaces.http.listening_tags import router as tag_router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
 from tests.support.listening_library import publish_collection
+from tests.support.listening_tags import FixtureTagSource
+from tests.support.listening_tags import tag_metadata
 
 
 FRONTEND = Path(__file__).resolve().parents[2] / "spotify_manager" / "frontend"
@@ -105,9 +111,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         app.state.listening = fixture.runtime
         app.state.listening_library = LibraryRuntime(fixture.service)
+        cache = ArtistTagCache(Path(directory) / "tag-cache")
+        cache.write(tag_metadata("Alpha"))
+        cache.write(tag_metadata("Béta", ("Jazz",)))
+        cache.write(tag_metadata("Gamma", (), "empty"))
+        tag_application.REQUEST_INTERVAL = 0.01
+        app.state.listening_tags = ListeningTagEnrichment(cache, FixtureTagSource())
         try:
             yield
         finally:
+            await app.state.listening_tags.close()
             await app.state.listening_library.close()
             await fixture.runtime.close()
 
@@ -115,6 +128,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(PasswordMiddleware, password="browser-test-password")
 app.include_router(router)
+app.include_router(tag_router)
 
 
 @app.get("/lastfm/assets/{filename}")

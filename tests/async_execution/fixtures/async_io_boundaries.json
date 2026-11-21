@@ -1048,5 +1048,15 @@
     "owner": "spotify_manager.infrastructure.listening.library_runtime.LibraryRuntime._refresh",
     "function": "self.refresh_source",
     "reason": "asyncio.to_thread requires the concrete publication reader to restore and verify three immutable collection artifacts off the event loop. Bounded capacity and runtime ownership remain held until the worker finishes, including cancellation; no application stage or supplied workflow is executed."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.tag_source.LastFmTagSource.fetch",
+    "function": "self.read",
+    "reason": "asyncio.to_thread requires this fixed public Last.fm read resource to perform bounded HTTP and parsing off the event loop. Capacity is retained until the worker drains, including cancellation; no application stage is executed."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.tag_cache.ArtistTagCache.save",
+    "function": "self.write",
+    "reason": "asyncio.to_thread requires this concrete SQLite cache operation to commit and publish a complete derived metadata generation off the event loop. Capacity remains held until the worker drains, including cancellation; canonical data and application stages are not written or executed."
   }
 ]
