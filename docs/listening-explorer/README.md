@@ -261,7 +261,7 @@ latency; verify the same paths after the approved Space deployment.
 
 The approved core and discovery/rediscovery views are deployed. Artist-origin maps, covers/collages, playlists, and session inference remain
 optional follow-ups. Library Bridge adds published Spotify-library comparisons;
-Tag Atlas is prepared for review as the next community-tag enrichment view. The
+Tag Atlas adds current community-tag enrichment. The
 Time Capsule release adds Musical Eras and On This Day. The current export
 cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
@@ -297,7 +297,7 @@ immutable multi-artifact acquisition. Genre enrichment, fuzzy resolution,
 playlists and routine launch controls remain separate follow-ups.
 
 
-## Tag Atlas review
+## Tag Atlas release
 
 **Tags & genres** applies current cached Last.fm community labels to monthly
 listening. Choose a leading label or equal allocation among up to three labels,
@@ -313,6 +313,6 @@ Recent observations are skipped for thirty days unless force refresh is chosen.
 
 Tag/search filters, pagination, history details, URL restoration, CSV and PNG are
 available. History remains usable when enrichment is unavailable. See the
-[review record](TAG_ATLAS_RELEASE.md) for configuration, cache lifetime, endpoint
+[release record](TAG_ATLAS_RELEASE.md) for configuration, cache lifetime, endpoint
 contracts and validation, and [ADR 005](../adr/005-current-community-tag-evidence.md)
-for evidence limits. This release awaits approval before deployment.
+for evidence limits. The release was approved, deployed and verified before merge.

@@ -1,6 +1,6 @@
 # ADR 005: Apply current community tags with explicit unknown coverage
 
-**Status:** Proposed for owner review in the Tag Atlas release.
+**Status:** Accepted; Tag Atlas approved, deployed and verified on 21 November 2026.
 **Date:** 21 November 2026.
 
 ## Context

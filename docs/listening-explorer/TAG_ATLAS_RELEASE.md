@@ -1,7 +1,10 @@
-# Listening Explorer: Tag Atlas review
+# Listening Explorer: Tag Atlas release verification
 
 Date: 21 November 2026. Branch: `codex/listening-tag-atlas`.
-Status: implementation prepared for owner review; deployment requires approval.
+Status: owner approved PR #93 on 21 November 2026; runtime deployed and verified.
+
+Deployed: **https://cyborg-nomade-spotify-manager.hf.space/lastfm?tab=tags&preset=all**
+(private Space; existing application password applies).
 
 The preceding Library Bridge release is deployed and PR #92 is merged. This
 release follows with current community-tag enrichment, as described in
@@ -88,3 +91,38 @@ reader restores all twenty-five observations with the identical metadata token;
 the API key is absent from the cache. The populated graph, leading-tag mode and
 share display were checked in the real-history preview. Synthetic provider
 fixtures also exercise failure, cancellation and metadata expiry.
+
+## Approved deployment
+
+Approved runtime: `7db633cc2830b2f7adff6631496cce1aa9472cad`.
+Space revision `47cc639db9ea2967cba8b8fdeef7edc869f9ff62` replaces
+`cdd3c0cf9d63c8a70fe68bce3304a62157d54b4c`. Exactly seventeen runtime files
+were uploaded with an optimistic parent guard, then read back against the
+approved Git bytes. Previous bytes and newly introduced paths are recorded for
+rollback. The Space remains private. Durable revisions are unchanged:
+
+- State: `a2ee4809e9414b993c95583f75a4a50d8f461e39`.
+- Library data: `16c52efa18ae5c790b19b5a7871f6c29ae5cf322`.
+
+[Approved-head CI](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44894144242)
+passed 12,767 tests, every independent coverage floor, 475 architecture/dependency
+checks, fifteen browser scenarios, seven JavaScript checks and the wheel smoke.
+The final documentation commit changes no runtime files; its CI and the
+fifteen-minute health observation are recorded in the review PR.
+
+Read-only preflight and postdeployment verification used existing local access
+credentials without logging them. Both checks reconciled all 339,344 scrobbles,
+entity records, anniversary counts, 229 Musical Eras periods and all three
+published collection comparisons. The history download checksum and shared-state
+revision remained unchanged. Eight live HTTP shell/module/style routes match
+the approved source bytes. Both tag allocation modes preserve all 339,344 plays;
+all four tag routes reject missing application credentials. No production
+provider batch was started. The new production cache is empty, so all plays are
+explicitly Unknown until the owner requests lookups; the approved local preview
+observations are independent of that cache.
+
+Rollback is warranted if authentication permits a data-gate bypass, analytical
+totals disagree, a critical view fails, or health requests repeatedly fail after
+startup. Restore the preceding code bytes and remove only the newly introduced
+runtime paths, using the retained manifest and optimistic revision guard.
+Canonical data and shared state require no rollback or migration.

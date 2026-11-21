@@ -385,6 +385,6 @@ for date semantics, matrix bounds, drill-down controls and exports.
 
 The deployed [Library Bridge release](listening-explorer/LIBRARY_BRIDGE_RELEASE.md) adds current-publication collection comparisons to the Listening Explorer, with independently pinned sources, explicit name evidence and failure recovery.
 
-The [Tag Atlas review](listening-explorer/TAG_ATLAS_RELEASE.md) adds current
+The deployed [Tag Atlas release](listening-explorer/TAG_ATLAS_RELEASE.md) adds current
 community-tag allocations, explicit unknown coverage, and optional bounded
-metadata lookups. It awaits owner approval before deployment.
+metadata lookups. The owner approved the release before deployment and verification.
