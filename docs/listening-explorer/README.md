@@ -260,7 +260,7 @@ latency; verify the same paths after the approved Space deployment.
 ## Follow-up scope
 
 The approved core and discovery/rediscovery views are deployed. Playlists and
-session inference remain optional follow-ups. Album Quilt is prepared for review
+session inference remain follow-ups. Album Quilt is deployed
 with independent representative-artwork caching. Library Bridge adds published
 Spotify-library comparisons;
 Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
@@ -340,7 +340,7 @@ and [ADR 006](../adr/006-artist-country-associations.md) for evidence limits.
 The owner approved this release and its bounded MusicBrainz test before deployment.
 
 
-## Album Quilt review
+## Album Quilt release
 
 **Album quilt** arranges the selected top albums into 3×3, 4×4, 5×5 or 7×7 tiles.
 Search album/artist names, toggle captions and open original recorded history.
@@ -355,6 +355,6 @@ Ambiguous/incomplete names stay unresolved. Current source links, retrieval date
 coverage and independent versions accompany the quilt. PNG embeds available local
 images and uses labelled placeholders for unavailable art; CSV exports every tile.
 
-See [the review record](ALBUM_QUILT_RELEASE.md) and
+See [the release record](ALBUM_QUILT_RELEASE.md) and
 [ADR 007](../adr/007-representative-album-covers.md) for evidence, cache lifetime,
-protected routes and provider boundaries. This candidate awaits owner review.
+protected routes and provider boundaries. The owner approved the release; the runtime was deployed and verified before merge.

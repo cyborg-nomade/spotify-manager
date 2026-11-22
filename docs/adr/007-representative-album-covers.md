@@ -1,6 +1,6 @@
 # ADR 007: Cache representative album covers with explicit name evidence
 
-**Status:** Proposed for owner review in Album Quilt.
+**Status:** Accepted by the owner in Album Quilt PR #95 on 22 November 2026.
 **Date:** 22 November 2026.
 
 ## Context

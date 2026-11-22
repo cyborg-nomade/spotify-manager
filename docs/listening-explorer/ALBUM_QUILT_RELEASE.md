@@ -1,7 +1,7 @@
-# Listening Explorer: Album Quilt review
+# Listening Explorer: Album Quilt release
 
 Date: 22 November 2026. Branch: `codex/listening-album-quilt`.
-Status: implementation candidate; deployment and merge require owner approval.
+Status: owner approved PR #95; approved runtime deployed and verified before merge.
 
 Artist Atlas PR #94 was approved, deployed and verified before merge
 `86d364ffe548d0b7f0e83c9d044fc77406f32f03`. The deployed private Space revision
@@ -135,3 +135,31 @@ and documented digit strings normalize to the same stored string identity.
 Booleans, fractions, negative and oversized IDs are rejected. The first attempts
 encountered provider-unavailable responses before a successful complete read.
 No private names, counts or scrobbles were submitted.
+
+## Approved deployment
+
+The owner approved PR #95 on 22 November 2026. Runtime
+`ac01cf91b91719da2fc4f1a6621d28aeb58e57f2` was deployed to private Space revision
+`e8e80d09d7f83b7be2ef0bc9a987077f8d0f0c31`, replacing
+`72745965aeab3ff821001dd1fdd1b0d14d5b8695`. All 28 changed runtime/dependency
+files match their immutable approved Git blobs, including the locked Pillow
+installation files. Rollback retains the actual previous bytes and the prior
+absence of newly added files. Canonical data and shared state need no migration.
+
+Durable dataset revisions remained unchanged across deployment:
+state `d8a45063e7710d9c47b0cf85dbc0a29007f63460` and data
+`06229351587e1c3e9bd7a7e9005004502cdc6700`. The Space remains private and running.
+The live shell and eleven assets match the approved source. Production checks
+reconcile all 339,401 plays, exact quilt/core ranking agreement at all four sizes,
+coverage outcomes and all five new authentication gates. Existing analytical
+views, original records, 229-period Musical Eras, anniversaries, all three library
+comparisons and both tag-allocation modes also reconcile. Source download checksum
+and shared-state revision are preserved. No production provider batch was started.
+
+[Approved-runtime CI](https://github.com/cyborg-nomade/spotify-manager/actions/runs/45012331018)
+passes 12,948 tests and all independent coverage, typing, architecture, browser,
+interface and wheel gates. This release record changes documentation only; the
+deployed runtime stays pinned to the approved commit. The final PR records the
+post-deployment fifteen-minute health observation and merge outcome. Any failed
+health check, broken protected view, altered durable authority or source-byte
+mismatch blocks merge and requires investigation or rollback to the retained bytes.
