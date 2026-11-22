@@ -1,5 +1,5 @@
-import { download, number, percent } from "./tables-v1.js?v=6";
-import { eraBands, eraCells } from "./eras-v1.js?v=6";
+import { download, number, percent } from "./tables-v1.js?v=7";
+import { eraBands, eraCells } from "./eras-v1.js?v=7";
 
 const instances = new Map();
 const palette = [
@@ -917,6 +917,75 @@ export function resizeCharts() {
 export function clearCharts() {
   for (const instance of instances.values()) instance.dispose();
   instances.clear();
+}
+
+export function sessionStarts(data, context) {
+  chart(
+    "session-starts",
+    `${data.grain === "week" ? "Weekly" : "Monthly"} session starts`,
+    {
+      animation: false,
+      grid: { left: 48, right: 16, top: 72, bottom: 55 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: data.buckets.map((item) => item.label),
+        axisLabel: { color: "#94aab0", fontSize: 9, hideOverlap: true },
+      },
+      yAxis: { ...axes(), type: "value", name: "Sessions", minInterval: 1 },
+      tooltip: {
+        ...base("", context).tooltip,
+        formatter: (params) =>
+          `${params.name}\n${number(params.value)} session starts\n${number(data.buckets[params.dataIndex].plays)} recorded plays in these groups`,
+      },
+      series: [
+        {
+          type: "bar",
+          name: "Session starts",
+          data: data.buckets.map((item) => item.sessions),
+          itemStyle: { color: "#8cddc5" },
+        },
+      ],
+    },
+    context,
+  );
+}
+
+export function sessionSizes(data, context) {
+  chart(
+    "session-sizes",
+    "Recorded plays per session",
+    {
+      animation: false,
+      grid: { left: 48, right: 16, top: 72, bottom: 55 },
+      xAxis: {
+        ...axes(),
+        type: "category",
+        data: data.sizes.map((item) => item.label),
+      },
+      yAxis: { ...axes(), type: "value", name: "Sessions", minInterval: 1 },
+      tooltip: {
+        ...base("", context).tooltip,
+        formatter: (params) =>
+          `${params.name} recorded plays per session\n${number(params.value)} sessions\n${number(data.sizes[params.dataIndex].plays)} recorded plays`,
+      },
+      series: [
+        {
+          type: "bar",
+          name: "Sessions",
+          data: data.sizes.map((item) => item.sessions),
+          itemStyle: { color: "#adc1ee" },
+        },
+      ],
+    },
+    context,
+  );
+}
+
+export function sessionImage(id) {
+  return instances
+    .get(id)
+    ?.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#14232a" });
 }
 
 export function origins(data, world, metric, context) {

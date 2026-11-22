@@ -22,6 +22,7 @@ ALLOWED_IMPORTS = {
     "hmac",
     "math",
     "re",
+    "statistics",  # Pure medians of recorded counts/spans; no runtime resources.
     "typing",
     "unicodedata",  # Pure Unicode identity rules; no external services.
     "unidecode",

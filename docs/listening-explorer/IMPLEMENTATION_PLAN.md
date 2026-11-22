@@ -266,8 +266,14 @@ PR #93, applying current community labels with bounded explicit lookups and
 separate metadata versions. Its runtime is deployed and verified. [Artist Atlas](ARTIST_ATLAS_RELEASE.md),
 approved in PR #94 on 22 November 2026, maps current country-association evidence
 with explicit unresolved coverage. Its approved runtime was deployed and verified before merge.
-[Album Quilt](ALBUM_QUILT_RELEASE.md) was approved in PR #95 on 22 November 2026; its runtime was deployed and verified before merge. The optional listening-session explorer is the next increment. Fuzzy
+[Album Quilt](ALBUM_QUILT_RELEASE.md) was approved in PR #95 on 22 November 2026; its runtime was deployed and verified before merge. Listening Sessions follows as the approved next increment. Fuzzy
 resolution and playlist/routine actions remain separately scoped.
+
+[Listening Sessions](SESSIONS_RELEASE.md) was approved in PR #96 on 22 November
+2026. It adds selected-record gap groups and original-record navigation without
+provider lookups or inferred playback duration. Its approved runtime is deployed
+and verified. The owner requested a pause after release cleanup, before starting another
+item. Dense/race views and Spotify actions remain separately scoped and unstarted.
 
 ## 7. Verification and completion criteria
 

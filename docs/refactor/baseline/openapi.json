@@ -3515,6 +3515,48 @@
         "title": "ListeningEnvelope[ListeningRediscovery]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningSessionDetail_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningSessionDetail"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningSessionDetail]",
+        "type": "object"
+      },
+      "ListeningEnvelope_ListeningSessions_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningSessions"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningSessions]",
+        "type": "object"
+      },
       "ListeningEnvelope_ListeningTags_": {
         "properties": {
           "data": {
@@ -4121,6 +4163,120 @@
           "counts"
         ],
         "title": "ListeningSeries",
+        "type": "object"
+      },
+      "ListeningSession": {
+        "description": "Summarize consecutive selected records separated by bounded UTC gaps.\n\nArgs:\n    window: First and last recorded timestamps, not playback boundaries.\n    plays: Recorded rows, including timestamp ties and duplicates.\n    artists: Distinct analytics artist identities.\n    tracks: Distinct artist-qualified track identities.\n    leading_artist: Most frequent artist, with first-observed tie breaking.\n    selection_first: First group in this selection; earlier context is absent.\n    selection_last: Last group in this selection; later context is absent.",
+        "properties": {
+          "artists": {
+            "title": "Artists",
+            "type": "integer"
+          },
+          "leading_artist": {
+            "$ref": "#/components/schemas/RankedEntity"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "selection_first": {
+            "default": false,
+            "title": "Selection First",
+            "type": "boolean"
+          },
+          "selection_last": {
+            "default": false,
+            "title": "Selection Last",
+            "type": "boolean"
+          },
+          "tracks": {
+            "title": "Tracks",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/SessionWindow"
+          }
+        },
+        "required": [
+          "window",
+          "plays",
+          "artists",
+          "tracks",
+          "leading_artist"
+        ],
+        "title": "ListeningSession",
+        "type": "object"
+      },
+      "ListeningSessionDetail": {
+        "description": "Keep one inferred group's definition beside its original recorded rows.\n\nArgs:\n    session: Exact group within the pinned selection and gap threshold.\n    gap_minutes: Applied adjacent UTC-gap threshold.\n    records: Bounded chronological source rows with stable source-order ties.",
+        "properties": {
+          "gap_minutes": {
+            "title": "Gap Minutes",
+            "type": "integer"
+          },
+          "records": {
+            "$ref": "#/components/schemas/ListeningRecords"
+          },
+          "session": {
+            "$ref": "#/components/schemas/ListeningSession"
+          }
+        },
+        "required": [
+          "session",
+          "gap_minutes",
+          "records"
+        ],
+        "title": "ListeningSessionDetail",
+        "type": "object"
+      },
+      "ListeningSessions": {
+        "description": "Present bounded groups with complete coverage and chart alternatives.\n\nArgs:\n    items: One explicitly ordered group page.\n    summary: Full selection and minimum-size coverage.\n    options: Exact applied grouping and page options.\n    grain: Monday-based week or calendar month for session starts.\n    buckets: Complete matching start buckets independent of pagination.\n    sizes: Disjoint size bands independent of pagination.",
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/SessionBucket"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "grain": {
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ListeningSession"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/components/schemas/SessionOptions"
+          },
+          "sizes": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSize"
+            },
+            "title": "Sizes",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SessionSummary"
+          }
+        },
+        "required": [
+          "items",
+          "summary",
+          "options",
+          "grain",
+          "buckets",
+          "sizes"
+        ],
+        "title": "ListeningSessions",
         "type": "object"
       },
       "ListeningStatus": {
@@ -6908,6 +7064,148 @@
           "exists"
         ],
         "title": "ServerFileStatus",
+        "type": "object"
+      },
+      "SessionBucket": {
+        "description": "Count matching groups by the first selected record's local week or month.\n\nArgs:\n    label: Monday ISO date or ISO month, including empty buckets.\n    sessions: Number of matching groups beginning in this bucket.\n    plays: Complete selected rows belonging to those groups.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "sessions",
+          "plays"
+        ],
+        "title": "SessionBucket",
+        "type": "object"
+      },
+      "SessionOptions": {
+        "description": "Select a gap, minimum size and bounded session page.\n\nArgs:\n    gap_minutes: A strictly larger adjacent gap starts a new group.\n    minimum_plays: Inclusive minimum recorded rows per group.\n    order: Most recent first, or largest groups first.\n    page: One-based group page.\n    limit: Maximum returned groups.",
+        "properties": {
+          "gap_minutes": {
+            "default": 30,
+            "title": "Gap Minutes",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "minimum_plays": {
+            "default": 1,
+            "title": "Minimum Plays",
+            "type": "integer"
+          },
+          "order": {
+            "default": "recent",
+            "enum": [
+              "recent",
+              "plays"
+            ],
+            "title": "Order",
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          }
+        },
+        "title": "SessionOptions",
+        "type": "object"
+      },
+      "SessionSize": {
+        "description": "Keep exact group and record totals for one disjoint size band.\n\nArgs:\n    label: Inclusive recorded-row size band.\n    sessions: Number of matching groups in this band.\n    plays: Selected recorded rows belonging to these groups.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "sessions",
+          "plays"
+        ],
+        "title": "SessionSize",
+        "type": "object"
+      },
+      "SessionSummary": {
+        "description": "Reconcile complete selected rows and groups surviving the size filter.\n\nArgs:\n    selected_plays: All records matching the shared selection.\n    selected_sessions: All inferred groups before the minimum-size filter.\n    matching_plays: Records in groups meeting the minimum size.\n    matching_sessions: Groups meeting the minimum size before pagination.\n    median_plays: Median rows per matching group, or zero.\n    median_span_ms: Median first-to-last timestamp span, or zero.",
+        "properties": {
+          "matching_plays": {
+            "title": "Matching Plays",
+            "type": "integer"
+          },
+          "matching_sessions": {
+            "title": "Matching Sessions",
+            "type": "integer"
+          },
+          "median_plays": {
+            "title": "Median Plays",
+            "type": "number"
+          },
+          "median_span_ms": {
+            "title": "Median Span Ms",
+            "type": "number"
+          },
+          "selected_plays": {
+            "title": "Selected Plays",
+            "type": "integer"
+          },
+          "selected_sessions": {
+            "title": "Selected Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selected_plays",
+          "selected_sessions",
+          "matching_plays",
+          "matching_sessions",
+          "median_plays",
+          "median_span_ms"
+        ],
+        "title": "SessionSummary",
+        "type": "object"
+      },
+      "SessionWindow": {
+        "description": "Identify a group within its exact history, filters and gap definition.\n\nArgs:\n    first_ms: First recorded timestamp and context-dependent group identifier.\n    last_ms: Last recorded timestamp, inclusive.",
+        "properties": {
+          "first_ms": {
+            "title": "First Ms",
+            "type": "integer"
+          },
+          "last_ms": {
+            "title": "Last Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "first_ms",
+          "last_ms"
+        ],
+        "title": "SessionWindow",
         "type": "object"
       },
       "SharedStateNamespaceReplaceRequest": {
@@ -15433,6 +15731,371 @@
         "summary": "Listening Scrobbles",
         "tags": [
           "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/sessions": {
+      "get": {
+        "description": "Present inferred groups using only the shared selection's recorded rows.\n\nArgs:\n    query: Exact dates, timezone and optional artist/rhythm filters.\n    index: Complete pinned history generation.\n    options: Explicit recorded-gap rule and bounded group page.\n\nReturns:\n    Reconciled selected and matching totals, trends, sizes and a group page.",
+        "operationId": "listening_sessions_lastfm_analytics_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "gap_minutes",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 240,
+              "minimum": 1,
+              "title": "Gap Minutes",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_plays",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000000,
+              "minimum": 1,
+              "title": "Minimum Plays",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "recent",
+              "enum": [
+                "recent",
+                "plays"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningSessions_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Sessions",
+        "tags": [
+          "Listening Explorer sessions"
+        ]
+      }
+    },
+    "/lastfm/analytics/sessions/{first_ms}/records": {
+      "get": {
+        "description": "Open original rows only when the identifier starts an inferred group.\n\nArgs:\n    first_ms: First selected recorded timestamp identifying this group.\n    query: The same shared selection used for grouping.\n    index: Pinned immutable history generation.\n    gap_minutes: The same strictly greater UTC-gap split threshold.\n    page: One-based chronological record page.\n    limit: At most 200 original rows.\n\nReturns:\n    Exact group and source records, preserving duplicates and timestamp ties.",
+        "operationId": "listening_session_records_lastfm_analytics_sessions__first_ms__records_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "first_ms",
+            "required": true,
+            "schema": {
+              "maximum": 4102444799999,
+              "minimum": 0,
+              "title": "First Ms",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "gap_minutes",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 240,
+              "minimum": 1,
+              "title": "Gap Minutes",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningSessionDetail_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Session Records",
+        "tags": [
+          "Listening Explorer sessions"
         ]
       }
     },
