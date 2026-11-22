@@ -259,8 +259,10 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are deployed. Covers/collages, playlists, and session inference remain
-optional follow-ups. Library Bridge adds published Spotify-library comparisons;
+The approved core and discovery/rediscovery views are deployed. Playlists and
+session inference remain follow-ups. Album Quilt is deployed
+with independent representative-artwork caching. Library Bridge adds published
+Spotify-library comparisons;
 Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
 country associations. The
 Time Capsule release adds Musical Eras and On This Day. The current export
@@ -336,3 +338,23 @@ The locally bundled map needs no remote tiles and has a table fallback.
 See [the release record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
 and [ADR 006](../adr/006-artist-country-associations.md) for evidence limits.
 The owner approved this release and its bounded MusicBrainz test before deployment.
+
+
+## Album Quilt release
+
+**Album quilt** arranges the selected top albums into 3×3, 4×4, 5×5 or 7×7 tiles.
+Search album/artist names, toggle captions and open original recorded history.
+Missing art keeps its tile and rank. Complete scope counts distinguish selected,
+displayed, outside-quilt and missing-album plays.
+
+The page only reads cached art. Explicit five/ten-album batches send visible
+titles and artist credits to MusicBrainz and fetch representative Cover Art
+Archive/Internet Archive thumbnails. One exact title/complete-credit candidate
+supports current representative artwork; it does not verify the edition heard.
+Ambiguous/incomplete names stay unresolved. Current source links, retrieval dates,
+coverage and independent versions accompany the quilt. PNG embeds available local
+images and uses labelled placeholders for unavailable art; CSV exports every tile.
+
+See [the release record](ALBUM_QUILT_RELEASE.md) and
+[ADR 007](../adr/007-representative-album-covers.md) for evidence, cache lifetime,
+protected routes and provider boundaries. The owner approved the release; the runtime was deployed and verified before merge.

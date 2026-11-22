@@ -1,4 +1,4 @@
-import * as charts from "./charts-v1.js?v=5";
+import * as charts from "./charts-v1.js?v=6";
 import {
   element,
   entityButton,
@@ -6,7 +6,7 @@ import {
   percent,
   recordedTime,
   renderTable,
-} from "./tables-v1.js?v=5";
+} from "./tables-v1.js?v=6";
 
 const $ = (id) => document.getElementById(id);
 const outcomes = {

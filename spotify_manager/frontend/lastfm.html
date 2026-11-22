@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=5" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=6" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=5"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=6"></script>
   </head>
   <body>
     <div class="shell">
@@ -176,6 +176,7 @@
             ><button data-tab="library">Library bridge</button
             ><button data-tab="tags">Tags &amp; genres</button
             ><button data-tab="origins">Artist map</button
+            ><button data-tab="quilt">Album quilt</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -994,6 +995,148 @@
               <div id="origin-artists-table" class="table-scroll"></div>
             </article>
           </section>
+          <section
+            id="tab-quilt"
+            class="tab-content"
+            aria-label="Album quilt"
+            hidden
+          >
+            <article class="panel quilt-panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">ALBUMS / A VISUAL MEMORY</p>
+                  <h2>Album quilt</h2>
+                </div>
+                <div class="panel-actions">
+                  <button id="quilt-csv" data-quilt-export class="small-button">
+                    Export quilt CSV
+                  </button>
+                  <button
+                    id="quilt-png"
+                    data-quilt-export
+                    class="icon-button"
+                    aria-label="Download album quilt PNG"
+                  >
+                    ↓ PNG
+                  </button>
+                </div>
+              </header>
+              <p class="chart-description">
+                The albums in your selected listening, ranked by recorded plays.
+                Every album keeps its place when artwork is missing. Select a
+                tile to open its recorded history.
+              </p>
+              <form id="quilt-filters" class="control-line">
+                <label
+                  >Quilt size<select id="quilt-size">
+                    <option value="9">3 × 3 · 9 albums</option>
+                    <option value="16" selected>4 × 4 · 16 albums</option>
+                    <option value="25">5 × 5 · 25 albums</option>
+                    <option value="49">7 × 7 · 49 albums</option>
+                  </select></label
+                >
+                <label
+                  >Search albums or artists<input
+                    type="search"
+                    id="quilt-search"
+                    maxlength="100"
+                /></label>
+                <button type="submit" class="small-button">
+                  Apply quilt filters
+                </button>
+                <label class="tag-force-label"
+                  ><input type="checkbox" id="quilt-labels" checked /> Show tile
+                  captions</label
+                >
+              </form>
+              <p id="quilt-coverage" class="chart-description"></p>
+              <div
+                id="quilt-grid"
+                class="quilt-grid"
+                role="list"
+                aria-label="Ranked album tiles"
+              ></div>
+              <p
+                id="quilt-images"
+                class="chart-description"
+                role="status"
+                aria-live="polite"
+              ></p>
+              <p id="quilt-source" class="chart-description"></p>
+              <button id="quilt-retry" class="quiet">
+                Reload cached artwork
+              </button>
+              <details>
+                <summary>Album evidence and artwork sources</summary>
+                <p class="chart-description">
+                  Covers represent a current MusicBrainz release group supported
+                  by one exact title and complete artist-credit candidate. They
+                  do not identify the edition you heard. Edition labels, accents
+                  and punctuation are preserved; uncertain names remain
+                  placeholders. Artwork comes from the Cover Art Archive’s
+                  representative release, with its original source linked below.
+                  CSV and PNG retain dates, versions and interpretation.
+                </p>
+                <div id="quilt-table" class="table-scroll"></div>
+                <div id="quilt-coverage-table" class="table-scroll"></div>
+              </details>
+            </article>
+            <article class="panel">
+              <p class="eyebrow">CURRENT / REPRESENTATIVE ARTWORK</p>
+              <h2>Bring the covers into view</h2>
+              <p class="chart-description">
+                Opening this view reads cached artwork only. Explicit lookups
+                send album titles and artist names from the displayed quilt to
+                <a
+                  href="https://musicbrainz.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >MusicBrainz</a
+                >, then request public covers from the
+                <a
+                  href="https://coverartarchive.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Cover Art Archive</a
+                >
+                and Internet Archive. No play counts, scrobble records or
+                account identifiers are sent. These are current representative
+                covers, rather than historical artwork.
+              </p>
+              <div class="control-line">
+                <label
+                  >Albums per batch<select id="quilt-batch-size">
+                    <option value="5">Up to 5</option>
+                    <option value="10" selected>Up to 10</option>
+                  </select></label
+                >
+                <label class="tag-force-label"
+                  ><input type="checkbox" id="quilt-force" /> Refresh recently
+                  cached covers too</label
+                >
+                <button id="quilt-fetch" class="small-button">
+                  Fetch public album covers</button
+                ><button id="quilt-cancel" class="quiet" disabled>
+                  Cancel cover lookup
+                </button>
+              </div>
+              <p
+                id="quilt-progress"
+                class="chart-description"
+                role="status"
+                aria-live="polite"
+              ></p>
+              <p class="chart-description">
+                Recent observations are reused for 30 days. Country and cover
+                lookups share MusicBrainz’s request limit. Completed
+                observations and images survive cancellation; the separate
+                256-album cache evicts its oldest entries and can reset after a
+                Space rebuild. Unavailable images stay as placeholders,
+                including in exports.
+              </p>
+            </article>
+          </section>
+
           <footer>
             <p>
               One scrobble is one recorded play. Gaps may reflect missing

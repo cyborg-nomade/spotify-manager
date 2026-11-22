@@ -265,8 +265,8 @@ on 21 November 2026. [Tag Atlas](TAG_ATLAS_RELEASE.md) followed in approved
 PR #93, applying current community labels with bounded explicit lookups and
 separate metadata versions. Its runtime is deployed and verified. [Artist Atlas](ARTIST_ATLAS_RELEASE.md),
 approved in PR #94 on 22 November 2026, maps current country-association evidence
-with explicit unresolved coverage. Its approved runtime is deployed; production
-verification precedes merge. Album Quilt is the next planned increment. Fuzzy
+with explicit unresolved coverage. Its approved runtime was deployed and verified before merge.
+[Album Quilt](ALBUM_QUILT_RELEASE.md) was approved in PR #95 on 22 November 2026; its runtime was deployed and verified before merge. The optional listening-session explorer is the next increment. Fuzzy
 resolution and playlist/routine actions remain separately scoped.
 
 ## 7. Verification and completion criteria

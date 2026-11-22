@@ -1,5 +1,5 @@
-import { download, number, percent } from "./tables-v1.js?v=5";
-import { eraBands, eraCells } from "./eras-v1.js?v=5";
+import { download, number, percent } from "./tables-v1.js?v=6";
+import { eraBands, eraCells } from "./eras-v1.js?v=6";
 
 const instances = new Map();
 const palette = [

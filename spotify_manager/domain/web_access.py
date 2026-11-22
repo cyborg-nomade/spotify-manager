@@ -12,6 +12,7 @@ LISTENING_ASSETS = frozenset(
         "library-v1.js",
         "tags-v1.js",
         "origins-v1.js",
+        "quilt-v1.js",
         "world-110m-v1.geojson",
         "NATURAL-EARTH-NOTICE.txt",
         "tables-v1.js",

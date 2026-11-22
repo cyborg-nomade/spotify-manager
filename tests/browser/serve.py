@@ -16,20 +16,26 @@ from fastapi.responses import FileResponse
 from fastapi.responses import Response
 
 from spotify_manager._auth import PasswordMiddleware
+from spotify_manager.application import listening_covers as cover_application
 from spotify_manager.application import listening_origins as origin_application
 from spotify_manager.application import listening_tags as tag_application
+from spotify_manager.application.listening_covers import ListeningCoverEnrichment
 from spotify_manager.application.listening_origins import ListeningOriginEnrichment
 from spotify_manager.application.listening_tags import ListeningTagEnrichment
 from spotify_manager.domain.web_access import LISTENING_ASSETS
 from spotify_manager.domain.web_access import listening_asset_cache_control
+from spotify_manager.infrastructure.listening.cover_cache import AlbumCoverCache
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.origin_cache import ArtistOriginCache
 from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
 from spotify_manager.interfaces.http.listening import router
 from spotify_manager.interfaces.http.listening_origins import router as origin_router
+from spotify_manager.interfaces.http.listening_quilt import router as quilt_router
 from spotify_manager.interfaces.http.listening_tags import router as tag_router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
+from tests.support.listening_covers import FixtureCoverSource
+from tests.support.listening_covers import cover_result
 from tests.support.listening_library import publish_collection
 from tests.support.listening_origins import FixtureOriginSource
 from tests.support.listening_origins import origin_metadata
@@ -75,6 +81,39 @@ def browser_rows() -> list[dict[str, object]]:
         )
     )
     return rows
+
+
+def cover_stage(root: Path, now: str) -> ListeningCoverEnrichment:
+    """Own synthetic representative covers independently of published history."""
+    cover_cache = AlbumCoverCache(root / "cover-cache")
+    colors = (
+        "#93674e",
+        "#426e7c",
+        "#837555",
+        "#83616d",
+        "#4b7770",
+        "#656c87",
+        "#9a694c",
+    )
+    for index in range(7):
+        cover_cache.write(
+            cover_result(
+                f"Record {index}", "Alpha", fetched_at=now, color=colors[index]
+            )
+        )
+        cover_cache.write(
+            cover_result(
+                f"Record {index}",
+                "Béta",
+                fetched_at=now,
+                color=colors[(index + 3) % 7],
+            )
+        )
+    cover_cache.write(cover_result("Record 0", "Gamma", "no_cover", fetched_at=now))
+    cover_cache.write(cover_result("Record 1", "Delta", "ambiguous", 2, now))
+    cover_cache.write(cover_result("Record 2", "Old Favorite", "incomplete", 1, now))
+    cover_application.REQUEST_INTERVAL = 0.01
+    return ListeningCoverEnrichment(cover_cache, FixtureCoverSource())
 
 
 @asynccontextmanager
@@ -140,9 +179,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.listening_origins = ListeningOriginEnrichment(
             origin_cache, FixtureOriginSource()
         )
+        app.state.listening_covers = cover_stage(Path(directory), now)
         try:
             yield
         finally:
+            await app.state.listening_covers.close()
             await app.state.listening_origins.close()
             await app.state.listening_tags.close()
             await app.state.listening_library.close()
@@ -154,6 +195,7 @@ app.add_middleware(PasswordMiddleware, password="browser-test-password")
 app.include_router(router)
 app.include_router(tag_router)
 app.include_router(origin_router)
+app.include_router(quilt_router)
 
 
 @app.get("/lastfm/assets/{filename}")

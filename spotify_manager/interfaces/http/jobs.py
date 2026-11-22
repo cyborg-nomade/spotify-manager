@@ -42,6 +42,7 @@ from spotify_manager.application.ports.spotify_client import SpotifyClient as Sp
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.bootstrap.execution import current_execution
+from spotify_manager.bootstrap.listening_covers import listening_cover_enrichment
 from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
 from spotify_manager.bootstrap.listening_explorer import listening_library_runtime
 from spotify_manager.bootstrap.listening_origins import listening_origin_enrichment
@@ -73,6 +74,9 @@ from spotify_manager.core.state.runtime import get_state_service as get_state_se
 from spotify_manager.infrastructure.async_signal import AsyncSignal as Event
 from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.flush_mode_schema import FlushModeDefinition
+from spotify_manager.infrastructure.listening.musicbrainz_gate import (
+    MusicBrainzRequestGate,
+)
 from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
@@ -2073,7 +2077,9 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _app.state.listening = listening_explorer_runtime()
     _app.state.listening_library = listening_library_runtime()
     _app.state.listening_tags = listening_tag_enrichment()
-    _app.state.listening_origins = listening_origin_enrichment()
+    gate = MusicBrainzRequestGate()
+    _app.state.listening_origins = listening_origin_enrichment(gate)
+    _app.state.listening_covers = listening_cover_enrichment(gate)
     try:
         async with ExecutionRuntime() as runtime:
             _app.state.execution = runtime
@@ -2083,6 +2089,13 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 async def _close_listening_resources(app: FastAPI) -> None:
+    try:
+        await app.state.listening_covers.close()
+    finally:
+        await _close_country_resources(app)
+
+
+async def _close_country_resources(app: FastAPI) -> None:
     try:
         await app.state.listening_origins.close()
     finally:

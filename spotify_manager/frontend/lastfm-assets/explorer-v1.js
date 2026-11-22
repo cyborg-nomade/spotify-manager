@@ -1,8 +1,9 @@
-import * as charts from "./charts-v1.js?v=5";
-import * as library from "./library-v1.js?v=5";
-import * as tags from "./tags-v1.js?v=5";
-import * as origins from "./origins-v1.js?v=5";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=5";
+import * as charts from "./charts-v1.js?v=6";
+import * as library from "./library-v1.js?v=6";
+import * as tags from "./tags-v1.js?v=6";
+import * as origins from "./origins-v1.js?v=6";
+import * as quilt from "./quilt-v1.js?v=6";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=6";
 import {
   element,
   entityButton,
@@ -14,7 +15,7 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js?v=5";
+} from "./tables-v1.js?v=6";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
@@ -27,6 +28,7 @@ const tabs = [
   "library",
   "tags",
   "origins",
+  "quilt",
 ];
 const weekdays = [
   "Monday",
@@ -68,6 +70,7 @@ const state = {
   tagPage: 1,
   originPage: 1,
   originTimer: null,
+  quiltTimer: null,
   tagTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -116,11 +119,13 @@ function showLogin(message = "") {
   state.data = {};
   state.detailData = null;
   state.controller?.abort();
+  quilt.reset();
   state.detailController?.abort();
   clearTimeout(state.pollTimer);
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
   clearTimeout(state.originTimer);
+  clearTimeout(state.quiltTimer);
   localStorage.removeItem("sm_pw");
   charts.clearCharts();
   if ($("detail").open) $("detail").close();
@@ -372,6 +377,11 @@ function persist() {
     values.library_min = $("library-minimum").value;
     if ($("library-search").value) values.library_q = $("library-search").value;
   }
+  if (state.tab === "quilt") {
+    values.quilt_size = $("quilt-size").value;
+    values.quilt_labels = String($("quilt-labels").checked);
+    if ($("quilt-search").value) values.quilt_q = $("quilt-search").value;
+  }
   if (state.tab === "origins") {
     values.origin_metric = $("origin-metric").value;
     values.origin_evidence = $("origin-evidence").value;
@@ -494,6 +504,7 @@ async function loadTags(recoverMetadata = true) {
 function scheduleTagPoll() {
   clearTimeout(state.tagTimer);
   clearTimeout(state.originTimer);
+  clearTimeout(state.quiltTimer);
   state.tagTimer = setTimeout(pollTagLookup, 2000);
 }
 
@@ -541,6 +552,92 @@ async function tagAction(cancel = false) {
       $("tag-progress").textContent =
         error.message ||
         "Tag lookup could not start. Cached history remains available.";
+  }
+}
+
+function quiltQuery() {
+  return { size: $("quilt-size").value, q: $("quilt-search").value };
+}
+
+async function loadQuilt(recoverMetadata = true) {
+  try {
+    const status = await request(
+      "/lastfm/analytics/quilt/status",
+      null,
+      state.controller.signal,
+    );
+    const data = await analytics("quilt", {
+      ...quiltQuery(),
+      metadata_snapshot: status.metadata_snapshot,
+    });
+    return { ...data, lookup: status };
+  } catch (error) {
+    if (error.status === 409 && error.conflict === "covers") {
+      if (recoverMetadata) return loadQuilt(false);
+      return {
+        unavailable:
+          "Cover metadata changed repeatedly. Your listening history remains available; reload the quilt shortly.",
+      };
+    }
+    if (error.name === "AbortError" || [401, 409].includes(error.status))
+      throw error;
+    return {
+      unavailable:
+        "Cached cover metadata is unavailable. Your listening history remains available; retry this view later.",
+    };
+  }
+}
+
+function scheduleQuiltPoll() {
+  clearTimeout(state.quiltTimer);
+  state.quiltTimer = setTimeout(pollQuiltLookup, 2000);
+}
+
+async function pollQuiltLookup() {
+  if (state.tab !== "quilt" || !state.authenticated) return;
+  const epoch = state.epoch;
+  try {
+    const status = await request(
+      "/lastfm/analytics/quilt/status",
+      null,
+      state.controller?.signal,
+    );
+    if (epoch !== state.epoch || state.tab !== "quilt") return;
+    quilt.progress(status);
+    if (["running", "cancelling"].includes(status.state) || $("detail").open)
+      scheduleQuiltPoll();
+    else if (status.metadata_snapshot !== state.data.quilt?.metadata_snapshot)
+      await loadSelection();
+  } catch (error) {
+    if (error.status !== 401 && error.name !== "AbortError")
+      $("quilt-progress").textContent =
+        "Cover lookup progress is unavailable. Cached artwork and recorded history remain available; retry later.";
+  }
+}
+
+async function quiltAction(cancel = false) {
+  try {
+    const parameters = cancel
+      ? null
+      : query({
+          ...quiltQuery(),
+          limit: $("quilt-batch-size").value,
+          force: $("quilt-force").checked,
+        });
+    const status = await request(
+      `/lastfm/analytics/quilt/${cancel ? "cancel" : "refresh"}`,
+      parameters,
+      undefined,
+      "POST",
+    );
+    if (!state.authenticated || state.tab !== "quilt") return;
+    quilt.progress(status);
+    scheduleQuiltPoll();
+  } catch (error) {
+    if (error.status !== 401)
+      $("quilt-progress").textContent =
+        error.message ||
+        "Cover lookup could not start. Cached artwork remains available.";
   }
 }
 
@@ -594,6 +691,7 @@ async function loadOrigins(recoverMetadata = true) {
 
 function scheduleOriginPoll() {
   clearTimeout(state.originTimer);
+  clearTimeout(state.quiltTimer);
   state.originTimer = setTimeout(pollOriginLookup, 2000);
 }
 
@@ -691,7 +789,7 @@ function loading(value) {
   $("workspace").setAttribute("aria-busy", String(value));
   for (const tab of tabs) $("tab-" + tab).inert = value;
   document
-    .querySelectorAll("[data-csv],[data-chart-export]")
+    .querySelectorAll("[data-csv],[data-chart-export],[data-quilt-export]")
     .forEach((button) => (button.disabled = value));
   if (!value && state.tab === "library") {
     $("library-export").disabled = !state.data.library?.items;
@@ -702,6 +800,10 @@ function loading(value) {
     document
       .querySelectorAll("#tab-tags [data-csv], #tab-tags [data-chart-export]")
       .forEach((button) => (button.disabled = !state.data.tags?.items));
+  }
+  if (!value && state.tab === "quilt") {
+    $("quilt-png").disabled = !state.data.quilt?.items?.length;
+    $("quilt-csv").disabled = !state.data.quilt?.items;
   }
   if (!value && state.tab === "origins") {
     document
@@ -726,7 +828,9 @@ async function loadSelection(recoverVersion = true) {
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
   clearTimeout(state.originTimer);
+  clearTimeout(state.quiltTimer);
   state.controller?.abort();
+  quilt.reset();
   state.detailController?.abort();
   const revision = ++state.revision;
   state.controller = new AbortController();
@@ -756,6 +860,7 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "library") tasks.push(loadLibrary());
     if (state.tab === "tags") tasks.push(loadTags());
     if (state.tab === "origins") tasks.push(loadOrigins());
+    if (state.tab === "quilt") tasks.push(loadQuilt());
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -807,6 +912,13 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "quilt") {
+    state.data.quilt = results[0];
+    charts.clearCharts();
+    quilt.render(results[0], ctx, state.password, state.controller.signal);
+    if (["running", "cancelling"].includes(results[0].lookup?.state))
+      scheduleQuiltPoll();
+  }
   if (state.tab === "origins") {
     state.data.origins = results[0];
     origins.render(results[0], ctx);
@@ -1811,6 +1923,38 @@ $("library-next").addEventListener("click", () => {
   state.libraryPage++;
   loadSelection();
 });
+document.addEventListener("listening-auth-required", () =>
+  showLogin("Enter your app password to continue."),
+);
+$("quilt-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadSelection();
+});
+$("quilt-size").addEventListener("change", () => loadSelection());
+$("quilt-labels").addEventListener("change", () => {
+  quilt.labels();
+  persist();
+});
+$("quilt-fetch").addEventListener("click", () => quiltAction());
+$("quilt-cancel").addEventListener("click", () => quiltAction(true));
+$("quilt-retry").addEventListener("click", () => loadSelection());
+$("quilt-csv").addEventListener("click", () => {
+  if (state.data.quilt?.items) quilt.csv(state.data.quilt, context());
+});
+$("quilt-png").addEventListener("click", async () => {
+  if (!state.data.quilt?.items?.length) return;
+  $("quilt-png").disabled = true;
+  try {
+    await quilt.png(state.data.quilt, context());
+  } catch {
+    $("quilt-images").textContent =
+      "The image export could not finish. Retry or export the complete quilt CSV.";
+  } finally {
+    $("quilt-png").disabled =
+      !state.authenticated || !state.data.quilt?.items?.length;
+  }
+});
+
 $("origin-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   state.originPage = 1;
@@ -1963,6 +2107,14 @@ if (/^(unknown|other|[0-9a-f]{64})$/.test(parameters.get("tag") || "")) {
   );
   $("tag-filter").value = parameters.get("tag");
 }
+$("quilt-size").value = ["9", "16", "25", "49"].includes(
+  parameters.get("quilt_size"),
+)
+  ? parameters.get("quilt_size")
+  : "16";
+$("quilt-search").value = (parameters.get("quilt_q") || "").slice(0, 100);
+$("quilt-labels").checked = parameters.get("quilt_labels") !== "false";
+
 $("origin-metric").value =
   parameters.get("origin_metric") === "artists" ? "artists" : "plays";
 $("origin-search").value = (parameters.get("origin_q") || "").slice(0, 100);
