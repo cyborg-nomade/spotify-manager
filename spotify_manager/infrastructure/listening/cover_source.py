@@ -56,6 +56,8 @@ def _front(payload: dict[str, object]) -> tuple[str, str] | None:
 
 
 def _image_id(value: object) -> str:
+    if type(value) is int:
+        value = str(value)
     if isinstance(value, str) and re.fullmatch(r"[0-9]{1,30}", value):
         return value
     raise CoverSourceError("Public artwork identity was invalid.")

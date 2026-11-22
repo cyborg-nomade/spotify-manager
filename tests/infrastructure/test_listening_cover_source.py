@@ -233,7 +233,7 @@ def artwork(front: bool = True, approved: bool = True) -> dict[str, object]:
         "release": "http://musicbrainz.org/release/" + release,
         "images": [
             {
-                "id": "12345",
+                "id": 12345,
                 "front": front,
                 "approved": approved,
                 "image": "https://untrusted.invalid/ignored",
@@ -679,3 +679,37 @@ async def test_worker_capacity_wait_cannot_consume_the_shared_spacing_interval(
     async with gate:
         starts.append(time.monotonic())
     assert starts[1] - starts[0] >= 0.02
+
+
+@pytest.mark.parametrize("image_id", [12345, "12345"])
+def test_archive_numeric_and_string_image_ids_share_canonical_provenance(
+    image_id: int | str,
+) -> None:
+    """Current numeric IDs and documented string IDs identify the same thumbnail.
+
+    Args:
+        image_id: Actual or documented public archive identifier representation.
+    """
+    payload = artwork()
+    payload["images"] = [{"front": True, "approved": True, "id": image_id}]
+    reads = PublicReads([{"count": 1, "release-groups": [row()]}, payload, jpeg()])
+    result = MusicBrainzCoverSource(MusicBrainzRequestGate(), reads).read(album())
+    assert result.metadata.artwork is not None
+    assert result.metadata.artwork.image_id == "12345"
+    assert reads.urls[-1].endswith("/12345-250.jpg")
+
+
+@pytest.mark.parametrize("image_id", [True, -1, 1.5, None, 10**30, "1" * 31])
+def test_archive_ids_reject_booleans_negative_fractional_and_oversized_values(
+    image_id: object,
+) -> None:
+    """Normalizing numeric provider IDs must not accept malformed URL identities.
+
+    Args:
+        image_id: Invalid external archive identifier.
+    """
+    payload = artwork()
+    payload["images"] = [{"front": True, "approved": True, "id": image_id}]
+    reads = PublicReads([{"count": 1, "release-groups": [row()]}, payload])
+    with pytest.raises(CoverSourceError):
+        MusicBrainzCoverSource(MusicBrainzRequestGate(), reads).read(album())

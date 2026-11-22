@@ -90,7 +90,7 @@ Fred Giannelli / Main Tenance exact search returned one candidate with no curren
 cover, and the documented archive thumbnail redirected successfully and validated
 as a 10,703-byte JPEG. No private titles or listening history were submitted.
 
-Local focused verification passes 107 tests: the new domain, provider, image
+Local focused verification passes 115 tests: the new domain, provider, image
 validation, cache and codec modules have complete statement/branch coverage.
 The combined focused report is 99.87%, with all statements covered. Twenty browser
 scenarios plus seven JavaScript checks pass, including preceding explorer views.
@@ -118,9 +118,20 @@ The sample labels its synthetic albums, covers, counts and simulated fetches.
 No private album names have been sent to the public cover services by this test.
 
 The local full regression run passed 12,936 tests and all independent coverage
-floors. Subsequent malformed-provider cases pass in the 107 focused tests; final
+floors. Subsequent malformed-provider cases pass in the 115 focused tests; final
 CI reruns the complete final source on the review commit. Architecture/bootstrap
 and lifespan checks pass 162 tests. The final 811-file wheel, both entry points
 and all 45 commands pass in an isolated installation. All twenty browser scenarios
 and seven JavaScript checks pass, including real PNG/CSV downloads and readable
 placeholder exports. Review captures show both installed-wheel previews.
+
+
+A positive live check uses the documented release-group MBID
+`48140466-cff6-3222-bd55-63c27e43190d`, independently of private history. Its
+published title/credit passes the normal exact-name search, archive-index lookup,
+validated redirects and JPEG decoder, producing a ready 10,703-byte cover. The
+archive currently returns numeric image IDs; both bounded nonnegative integers
+and documented digit strings normalize to the same stored string identity.
+Booleans, fractions, negative and oversized IDs are rejected. The first attempts
+encountered provider-unavailable responses before a successful complete read.
+No private names, counts or scrobbles were submitted.
