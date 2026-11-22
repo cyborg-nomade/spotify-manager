@@ -1,7 +1,7 @@
-# Listening Explorer: Listening Sessions review
+# Listening Explorer: Listening Sessions release
 
 Date: 22 November 2026. Branch: `codex/listening-sessions`.
-Status: implementation candidate; owner review precedes deployment and merge.
+Status: owner approved PR #96; approved runtime deployed and verified before merge.
 
 Album Quilt PR #95 was approved and deployed to private Hugging Face revision
 `e8e80d09d7f83b7be2ef0bc9a987077f8d0f0c31` before merge
@@ -134,8 +134,64 @@ Labelled synthetic review: **http://127.0.0.1:8766/lastfm?tab=sessions&preset=al
 Password for both: **`preview`**, explicitly set and printed by each launcher.
 The real preview uses the verified publication, with hydration/caches outside
 source mirrors. The sample explicitly labels its synthetic history and metadata.
-The candidate remains undeployed and unmerged pending owner approval.
+The owner approved the candidate on 22 November 2026. Deployment and final verification are recorded below.
 
 The PNG timing regression compares immediate and settled exports with motion
 allowed; session bars remain complete without waiting for animation. Album Quilt
 post-merge checks also pass in runs 45044916187 and 45044922953.
+
+
+## Approved deployment
+
+The owner approved PR #96 on 22 November 2026. Approved runtime
+`0fe2b4acbfa02a04dc4ef1b39e4836fcde46cccf` is deployed to private Space revision
+`882c7980da6ab49b3dddb1a4896ba85102fb5ecc`, replacing
+`e8e80d09d7f83b7be2ef0bc9a987077f8d0f0c31`. All 17 changed runtime files read
+back byte-for-byte from their immutable approved Git blobs. The preceding actual
+bytes and absence of new files are retained for rollback. The live shell and all
+twelve assets, including the new session module, match approved source. The Space
+is private and running. No new dependency or canonical migration is involved.
+
+Durable authorities remain unchanged across this deployment:
+state `7042f413e88d116a1dd9e5abc06ab71d96990cb8` and data
+`2a3532f0aea6d2fe707df827cfb875a7395bd9e8`. A newer publication arrived since
+review. Preflight initially encountered older ready analytics alongside its new
+source download; a completed publication check refreshed the entire generation
+before deployment. The verified current snapshot is
+`v1-83d622052a6906efcccf757714114c47fae5605c2ec5a3adbb9ef2ab5d03eb55`,
+with 339,411 plays, ten more than the review publication above.
+
+Independent production reconciliation against the checksum-verified raw source:
+
+| Gap | Inferred groups | Groups with at least three plays | Plays in those groups |
+| --- | --- | --- | --- |
+| 15 minutes | 25,300 | 19,587 | 331,960 |
+| 30 minutes | 18,523 | 15,640 | 335,620 |
+| 60 minutes | 13,763 | 12,053 | 337,156 |
+
+Every top-100 group boundary/count, complete chart total, median and every
+original record of the largest group at each threshold agrees with an independent
+sort/partition. Both new password gates pass. Existing overview/activity/rankings,
+entity records, 229-period eras, anniversaries, all three library comparisons,
+both tag-allocation modes, country coverage and all four quilt sizes also
+reconcile. Source download checksum and shared-state revision are preserved.
+The rebuilt collection generation is independently pinned to
+`l1-c69d5584380c61b722c0bf746785ee990a6e45a9828691ca5c7c20f313f71bd3`.
+
+The Space rebuild reset the temporary tag cache: preflight allocated tags to
+102,054 selected plays; postflight has zero tagged plays and accounts for all
+339,411 plays explicitly as unknown. This is the documented rebuild behavior of
+derived enrichment caches. All historical records remain intact. Only explicit lookup
+controls refill them; verification starts no provider batch or automatic refetch.
+Cache formats and canonical authorities need no migration.
+
+[Approved-runtime CI](https://github.com/cyborg-nomade/spotify-manager/actions/runs/45047520259)
+passes 13,005 tests and every independent coverage, browser, typing, architecture,
+interface and wheel gate. The deployment-record commit changes documentation only;
+the live runtime remains pinned to the approved commit. The PR records the final
+fifteen-minute health observation and merge result. Failed health checks, broken
+protected views, mismatched runtime bytes or altered durable authorities block
+merge and require investigation or rollback to the retained bytes.
+
+After merge and cleanup, the owner requested a pause before any next item. No
+follow-up implementation has been started.

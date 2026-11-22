@@ -1,6 +1,6 @@
 # ADR 008: Infer sessions from gaps between selected recorded timestamps
 
-**Status:** Proposed for owner review in Listening Sessions.
+**Status:** Accepted by the owner in Listening Sessions PR #96 on 22 November 2026.
 **Date:** 22 November 2026.
 
 ## Context

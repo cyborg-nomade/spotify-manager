@@ -257,7 +257,7 @@ response size, derived disk usage, and peak process memory. It does not print
 music names or credentials. Warm local timings do not establish deployment
 latency; verify the same paths after the approved Space deployment.
 
-## Listening Sessions review
+## Listening Sessions release
 
 The **Sessions** tab groups consecutive selected records by an adjustable gap.
 See all selected and matching counts, weekly/monthly starts, size bands, ordered
@@ -269,16 +269,15 @@ changes without an artificial split.
 First-to-last spans include pauses and are not time listened. A singleton has
 zero recorded span and unknown duration. URL restoration and contextual CSV/PNG
 exports retain the inference rule. No provider or new data disclosure is needed.
-See the [review record](SESSIONS_RELEASE.md) and
-[ADR 008](../adr/008-recorded-listening-sessions.md). This candidate awaits owner
-approval before deployment or merge.
+See the [release record](SESSIONS_RELEASE.md) and
+[ADR 008](../adr/008-recorded-listening-sessions.md). The owner approved this release;
+the approved runtime was deployed and verified before merge.
 
 ## Follow-up scope
 
 The approved core and discovery/rediscovery views are deployed. Playlists and
-further optional dense/race views remain follow-ups. Listening Sessions is prepared
-for review; Album Quilt is deployed
-with independent representative-artwork caching. Library Bridge adds published
+further optional dense/race views remain follow-ups. Listening Sessions is deployed.
+Album Quilt keeps representative artwork in an independent derived cache. Library Bridge adds published
 Spotify-library comparisons;
 Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
 country associations. The
