@@ -1,7 +1,8 @@
-import * as charts from "./charts-v1.js?v=4";
-import * as library from "./library-v1.js?v=4";
-import * as tags from "./tags-v1.js?v=4";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=4";
+import * as charts from "./charts-v1.js?v=5";
+import * as library from "./library-v1.js?v=5";
+import * as tags from "./tags-v1.js?v=5";
+import * as origins from "./origins-v1.js?v=5";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=5";
 import {
   element,
   entityButton,
@@ -13,7 +14,7 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js?v=4";
+} from "./tables-v1.js?v=5";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
@@ -25,6 +26,7 @@ const tabs = [
   "capsule",
   "library",
   "tags",
+  "origins",
 ];
 const weekdays = [
   "Monday",
@@ -64,6 +66,8 @@ const state = {
   libraryForce: false,
   libraryTimer: null,
   tagPage: 1,
+  originPage: 1,
+  originTimer: null,
   tagTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -116,6 +120,7 @@ function showLogin(message = "") {
   clearTimeout(state.pollTimer);
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
+  clearTimeout(state.originTimer);
   localStorage.removeItem("sm_pw");
   charts.clearCharts();
   if ($("detail").open) $("detail").close();
@@ -219,6 +224,7 @@ function applyPreset(preset) {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
 }
 
 function configure() {
@@ -366,6 +372,13 @@ function persist() {
     values.library_min = $("library-minimum").value;
     if ($("library-search").value) values.library_q = $("library-search").value;
   }
+  if (state.tab === "origins") {
+    values.origin_metric = $("origin-metric").value;
+    values.origin_evidence = $("origin-evidence").value;
+    if ($("origin-country").value)
+      values.origin_country = $("origin-country").value;
+    if ($("origin-search").value) values.origin_q = $("origin-search").value;
+  }
   if (state.tab === "tags") {
     values.tags_per_artist = $("tag-per-artist").value;
     values.tag_display = $("tag-display").value;
@@ -480,6 +493,7 @@ async function loadTags(recoverMetadata = true) {
 
 function scheduleTagPoll() {
   clearTimeout(state.tagTimer);
+  clearTimeout(state.originTimer);
   state.tagTimer = setTimeout(pollTagLookup, 2000);
 }
 
@@ -530,6 +544,106 @@ async function tagAction(cancel = false) {
   }
 }
 
+function originQuery() {
+  const values = {
+    evidence: $("origin-evidence").value,
+    q: $("origin-search").value,
+    page: state.originPage,
+    limit: 25,
+  };
+  if ($("origin-country").value) values.country = $("origin-country").value;
+  return values;
+}
+
+async function loadOrigins(recoverMetadata = true) {
+  try {
+    const status = await request(
+      "/lastfm/analytics/origins/status",
+      null,
+      state.controller.signal,
+    );
+    const data = await analytics("origins", {
+      ...originQuery(),
+      metadata_snapshot: status.metadata_snapshot,
+    });
+    return {
+      ...data,
+      lookup: status,
+      map_ready: await origins.prepare(state.controller.signal),
+    };
+  } catch (error) {
+    if (error.status === 409 && error.conflict === "origins") {
+      if (recoverMetadata) return loadOrigins(false);
+      return {
+        unavailable:
+          "Country metadata changed repeatedly. History remains available; retry this view shortly.",
+      };
+    }
+    if (
+      error.name === "AbortError" ||
+      error.status === 401 ||
+      error.status === 409
+    )
+      throw error;
+    return {
+      unavailable:
+        "Cached country metadata is unavailable. Your listening history remains available; retry this view later.",
+    };
+  }
+}
+
+function scheduleOriginPoll() {
+  clearTimeout(state.originTimer);
+  state.originTimer = setTimeout(pollOriginLookup, 2000);
+}
+
+async function pollOriginLookup() {
+  if (state.tab !== "origins" || !state.authenticated) return;
+  const epoch = state.epoch;
+  try {
+    const status = await request(
+      "/lastfm/analytics/origins/status",
+      null,
+      state.controller?.signal,
+    );
+    if (epoch !== state.epoch || state.tab !== "origins") return;
+    origins.progress(status);
+    if (["running", "cancelling"].includes(status.state) || $("detail").open)
+      scheduleOriginPoll();
+    else if (status.metadata_snapshot !== state.data.origins?.metadata_snapshot)
+      await loadSelection();
+  } catch (error) {
+    if (error.status !== 401 && error.name !== "AbortError")
+      $("origin-progress").textContent =
+        "Lookup progress is unavailable. Cached history remains visible; retry later.";
+  }
+}
+
+async function originAction(cancel = false) {
+  try {
+    const parameters = cancel
+      ? null
+      : query({
+          limit: $("origin-batch-size").value,
+          force: $("origin-force").checked,
+        });
+    const status = await request(
+      `/lastfm/analytics/origins/${cancel ? "cancel" : "refresh"}`,
+      parameters,
+      undefined,
+      "POST",
+    );
+    if (!state.authenticated || state.tab !== "origins") return;
+    origins.progress(status);
+    scheduleOriginPoll();
+  } catch (error) {
+    if (error.status !== 401)
+      $("origin-progress").textContent =
+        error.message ||
+        "Origin lookup could not start. Cached history remains available.";
+  }
+}
+
 function showTab() {
   for (const tab of tabs) $("tab-" + tab).hidden = state.tab !== tab;
   document.querySelectorAll("[data-tab]").forEach((button) => {
@@ -555,6 +669,7 @@ function renderChips() {
       state.rankingPage = 1;
       state.libraryPage = 1;
       state.tagPage = 1;
+      state.originPage = 1;
       loadSelection();
     });
     container.append(button);
@@ -588,6 +703,13 @@ function loading(value) {
       .querySelectorAll("#tab-tags [data-csv], #tab-tags [data-chart-export]")
       .forEach((button) => (button.disabled = !state.data.tags?.items));
   }
+  if (!value && state.tab === "origins") {
+    document
+      .querySelectorAll("#tab-origins [data-csv]")
+      .forEach((button) => (button.disabled = !state.data.origins?.items));
+    document.querySelector('[data-chart-export="origins"]').disabled =
+      !state.data.origins?.items || !state.data.origins?.map_ready;
+  }
 }
 
 function clearResults() {
@@ -603,6 +725,7 @@ async function loadSelection(recoverVersion = true) {
   if (!state.snapshot) return;
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
+  clearTimeout(state.originTimer);
   state.controller?.abort();
   state.detailController?.abort();
   const revision = ++state.revision;
@@ -632,6 +755,7 @@ async function loadSelection(recoverVersion = true) {
       tasks.push(analytics("on-this-day"), analytics("eras"));
     if (state.tab === "library") tasks.push(loadLibrary());
     if (state.tab === "tags") tasks.push(loadTags());
+    if (state.tab === "origins") tasks.push(loadOrigins());
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -683,6 +807,12 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "origins") {
+    state.data.origins = results[0];
+    origins.render(results[0], ctx);
+    if (["running", "cancelling"].includes(results[0].lookup?.state))
+      scheduleOriginPoll();
+  }
   if (state.tab === "tags") {
     state.data.tags = results[0];
     tags.render(results[0], ctx);
@@ -878,6 +1008,7 @@ async function selectPeriod(start, end) {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   charts.clearCharts();
   await loadSelection();
   await openRecords();
@@ -1121,6 +1252,7 @@ async function openEntity(kind, key) {
         state.rankingPage = 1;
         state.libraryPage = 1;
         state.tagPage = 1;
+        state.originPage = 1;
         loadSelection();
       });
       $("detail-facts").append(button);
@@ -1190,6 +1322,7 @@ function selectRhythm(weekday, hour) {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 }
 
@@ -1197,6 +1330,28 @@ function exportData(name) {
   const data = state.data;
   let headers = [],
     rows = [];
+  if (name === "origins" && data.origins?.items) {
+    headers = [
+      "Reported code",
+      "Reported country",
+      "Selected plays",
+      "Artists",
+      "Share of all selected plays",
+    ];
+    rows = origins.countriesCSV(data.origins);
+  }
+  if (name === "origin-artists" && data.origins?.items) {
+    headers = [
+      "Artist key",
+      "Artist",
+      "Actual selected plays",
+      "Name/country evidence",
+      "Exact-name candidates found",
+      "Candidate IDs and reported places",
+      "Retrieved at",
+    ];
+    rows = origins.artistsCSV(data.origins);
+  }
   if (name === "tags" && data.tags?.items) {
     headers = ["Month", ...data.tags.series.map((series) => series.name)];
     rows = tags.evolutionCSV(data.tags);
@@ -1412,6 +1567,19 @@ function exportData(name) {
   }
   if (headers.length) {
     const ctx = context();
+    if (["origins", "origin-artists"].includes(name)) {
+      ctx.notes = origins.notes(data.origins);
+      if (name === "origin-artists")
+        ctx.notes.push(
+          ["Country filter", data.origins.options.country || "All countries"],
+          ["Evidence filter", data.origins.options.evidence],
+          ["Artist search", data.origins.options.search],
+          [
+            "Export scope",
+            `Current page ${data.origins.page}; ${data.origins.total} matching artists`,
+          ],
+        );
+    }
     if (["tags", "tag-artists"].includes(name)) {
       ctx.notes = tags.notes(data.tags);
       if (name === "tag-artists")
@@ -1489,6 +1657,7 @@ async function searchArtists() {
         state.rankingPage = 1;
         state.libraryPage = 1;
         state.tagPage = 1;
+        state.originPage = 1;
         loadSelection();
       });
       target.append(button);
@@ -1533,6 +1702,7 @@ $("filters").addEventListener("submit", (event) => {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 });
 $("timezone").addEventListener("input", () =>
@@ -1547,6 +1717,7 @@ $("reset").addEventListener("click", () => {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   applyPreset("year");
   loadSelection();
 });
@@ -1561,12 +1732,14 @@ $("rank-kind").addEventListener("change", () => {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 });
 $("rank-order").addEventListener("change", () => {
   state.rankingPage = 1;
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 });
 let rankTimer;
@@ -1576,6 +1749,7 @@ $("rank-search").addEventListener("input", () => {
     state.rankingPage = 1;
     state.libraryPage = 1;
     state.tagPage = 1;
+    state.originPage = 1;
     loadSelection();
   }, 300);
 });
@@ -1622,6 +1796,7 @@ $("library-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   state.libraryPage = 1;
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 });
 $("library-refresh").addEventListener("click", () => {
@@ -1636,9 +1811,29 @@ $("library-next").addEventListener("click", () => {
   state.libraryPage++;
   loadSelection();
 });
+$("origin-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.originPage = 1;
+  loadSelection();
+});
+$("origin-metric").addEventListener("change", () => {
+  if (state.data.origins?.items) origins.render(state.data.origins, context());
+  persist();
+});
+$("origin-fetch").addEventListener("click", () => originAction());
+$("origin-cancel").addEventListener("click", () => originAction(true));
+$("origin-previous").addEventListener("click", () => {
+  state.originPage--;
+  loadSelection();
+});
+$("origin-next").addEventListener("click", () => {
+  state.originPage++;
+  loadSelection();
+});
 $("tag-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   state.tagPage = 1;
+  state.originPage = 1;
   loadSelection();
 });
 $("tag-display").addEventListener("change", () => {
@@ -1714,11 +1909,26 @@ document.addEventListener("listening:select", (event) => {
     $("library-status").value = detail.status;
     state.libraryPage = 1;
     state.tagPage = 1;
+    state.originPage = 1;
+    loadSelection();
+  }
+  if (detail.type === "origin-country") {
+    if (
+      ![...$("origin-country").options].some(
+        (option) => option.value === detail.country,
+      )
+    )
+      $("origin-country").append(
+        new Option(origins.countryName(detail.country), detail.country),
+      );
+    $("origin-country").value = detail.country;
+    state.originPage = 1;
     loadSelection();
   }
   if (detail.type === "tag") {
     $("tag-filter").value = detail.key;
     state.tagPage = 1;
+    state.originPage = 1;
     loadSelection();
   }
   if (detail.type === "entity") openEntity(detail.kind, detail.key);
@@ -1752,5 +1962,23 @@ if (/^(unknown|other|[0-9a-f]{64})$/.test(parameters.get("tag") || "")) {
     new Option("Selected evidence tag", parameters.get("tag")),
   );
   $("tag-filter").value = parameters.get("tag");
+}
+$("origin-metric").value =
+  parameters.get("origin_metric") === "artists" ? "artists" : "plays";
+$("origin-search").value = (parameters.get("origin_q") || "").slice(0, 100);
+if (
+  [...$("origin-evidence").options].some(
+    (option) => option.value === parameters.get("origin_evidence"),
+  )
+)
+  $("origin-evidence").value = parameters.get("origin_evidence");
+if (/^[A-Z]{2}$/.test(parameters.get("origin_country") || "")) {
+  $("origin-country").append(
+    new Option(
+      origins.countryName(parameters.get("origin_country")),
+      parameters.get("origin_country"),
+    ),
+  );
+  $("origin-country").value = parameters.get("origin_country");
 }
 authenticate();

@@ -803,3 +803,156 @@ test("tag metadata expiry retries independently and outage preserves historical 
   await expect(page.locator("#metric-plays")).toHaveText("781");
   await expect(page.locator('[data-csv="tags"]')).toBeDisabled();
 });
+
+test("artist atlas maps only single-country evidence and keeps source-aware exports and controls", async ({
+  page,
+}) => {
+  const failures = [];
+  page.on("pageerror", (error) => failures.push(error.message));
+  await unlock(page);
+  await allTime(page);
+  await page.getByRole("button", { name: "Artist map", exact: true }).click();
+  await expect(page.locator("#origin-coverage")).toContainText("313 of 781");
+  await expect(page.locator("#origins-chart canvas")).toHaveCount(1);
+  await expect(page.locator("#origin-progress")).toContainText("idle");
+  await page.screenshot({
+    path: test.info().outputPath("artist-atlas.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("combobox", { name: "Map values", exact: true })
+    .selectOption("artists");
+  await expect(page).toHaveURL(/origin_metric=artists/);
+  await page.locator("#origins-chart").scrollIntoViewIfNeeded();
+  const point = await page
+    .locator("#origins-chart")
+    .evaluate((node) =>
+      window.echarts
+        .getInstanceByDom(node)
+        .convertToPixel({ seriesIndex: 0 }, [-52, -10]),
+    );
+  const box = await page.locator("#origins-chart").boundingBox();
+  await page.mouse.click(box.x + point[0], box.y + point[1]);
+  await expect(page).toHaveURL(/origin_country=BR/);
+  await expect(page.locator("#origin-artists-table")).toContainText("Alpha");
+  await expect(page.locator("#origin-artists-table")).not.toContainText("Béta");
+  await page
+    .getByRole("combobox", { name: "Country evidence", exact: true })
+    .selectOption("");
+  await page
+    .getByRole("combobox", { name: "Artist evidence", exact: true })
+    .selectOption("ambiguous");
+  await page
+    .getByRole("button", { name: "Apply map filters", exact: true })
+    .click();
+  await expect(page.locator("#origin-artists-table")).toContainText("Delta");
+  await expect(page.locator("#origin-artists-table")).toContainText(
+    "Multiple name candidates",
+  );
+  const downloading = page.waitForEvent("download");
+  await page
+    .getByRole("button", {
+      name: "Export country artist page CSV",
+      exact: true,
+    })
+    .click();
+  const csv = await readFile(await (await downloading).path(), "utf8");
+  expect(csv).toContain("MusicBrainz exact-name artist search");
+  expect(csv).toContain("ambiguous");
+  expect(csv).toContain("o1-");
+  expect(csv).toContain("Current page 1; 1 matching artists");
+  await page.reload();
+  await expect(page.locator("#origin-artists-table")).toContainText("Delta");
+  await expect(
+    page.getByRole("combobox", { name: "Map values", exact: true }),
+  ).toHaveValue("artists");
+  await page
+    .getByRole("combobox", { name: "Artist evidence", exact: true })
+    .selectOption("all");
+  await page
+    .getByRole("button", { name: "Apply map filters", exact: true })
+    .click();
+  const link = page.locator("#origin-artists-table a").first();
+  await expect(link).toHaveAttribute(
+    "href",
+    /^https:\/\/musicbrainz\.org\/artist\/[a-f0-9-]{36}$/,
+  );
+  await page
+    .getByRole("button", { name: "Fetch public country metadata", exact: true })
+    .click();
+  await expect(page.locator("#origin-progress")).toContainText("complete");
+  await expect(page.locator("#origin-coverage")).toContainText("339 of 781");
+  await page.getByRole("button", { name: "Alpha", exact: true }).click();
+  await expect(page.locator("#detail")).toBeVisible();
+  await page.locator("#close-detail").click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  const ratio = await page.locator("#origins-chart").evaluate((node) => {
+    const chart = window.echarts.getInstanceByDom(node);
+    const a = chart.convertToPixel({ seriesIndex: 0 }, [-52, -10]);
+    const b = chart.convertToPixel({ seriesIndex: 0 }, [-51, -9]);
+    return Math.abs((b[0] - a[0]) / (b[1] - a[1]));
+  });
+  expect(ratio).toBeCloseTo(1, 4);
+  expect(await page.evaluate(() => window.musicNameExecuted)).toBeUndefined();
+  expect(failures).toEqual([]);
+});
+
+test("artist metadata expiry and missing map outlines preserve history and table evidence", async ({
+  page,
+}) => {
+  await page.route("**/lastfm/assets/world-110m-v1.geojson", (route) =>
+    route.fulfill({ status: 503, body: "unavailable" }),
+  );
+  let expired = false;
+  await page.route("**/lastfm/analytics/origins?*", async (route) => {
+    if (!expired) {
+      expired = true;
+      await route.fulfill({
+        status: 409,
+        headers: { "X-Listening-Conflict": "origins" },
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Expired country metadata" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await unlock(page);
+  await allTime(page);
+  await page.getByRole("button", { name: "Artist map", exact: true }).click();
+  await expect(page.locator("#origin-coverage")).toContainText("of 781");
+  await expect(page.locator("#origins-chart")).toContainText(
+    "Map outlines are unavailable",
+  );
+  await expect(
+    page.getByRole("button", { name: "Download artist map PNG", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", {
+      name: "Export all country counts CSV",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await expect(page.locator("#metric-plays")).toHaveText("781");
+  await page.route("**/lastfm/analytics/origins/status", (route) =>
+    route.fulfill({ status: 503, body: "unavailable" }),
+  );
+  await page
+    .getByRole("button", { name: "Apply map filters", exact: true })
+    .click();
+  await expect(page.locator("#origin-coverage")).toContainText(
+    "metadata unavailable",
+  );
+  await expect(page.locator("#metric-plays")).toHaveText("781");
+  await expect(
+    page.getByRole("button", {
+      name: "Export all country counts CSV",
+      exact: true,
+    }),
+  ).toBeDisabled();
+});

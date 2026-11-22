@@ -259,9 +259,10 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are deployed. Artist-origin maps, covers/collages, playlists, and session inference remain
+The approved core and discovery/rediscovery views are deployed. Covers/collages, playlists, and session inference remain
 optional follow-ups. Library Bridge adds published Spotify-library comparisons;
-Tag Atlas adds current community-tag enrichment. The
+Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
+country associations. The
 Time Capsule release adds Musical Eras and On This Day. The current export
 cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
@@ -293,7 +294,7 @@ in addition to the existing history `snapshot`. Collection failures preserve
 historical views. The Check publications control retries independently.
 
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
-immutable multi-artifact acquisition. Genre enrichment, fuzzy resolution,
+immutable multi-artifact acquisition. Further enrichment and fuzzy resolution,
 playlists and routine launch controls remain separate follow-ups.
 
 
@@ -316,3 +317,22 @@ available. History remains usable when enrichment is unavailable. See the
 [release record](TAG_ATLAS_RELEASE.md) for configuration, cache lifetime, endpoint
 contracts and validation, and [ADR 005](../adr/005-current-community-tag-evidence.md)
 for evidence limits. The release was approved, deployed and verified before merge.
+
+
+## Artist Atlas release
+
+**Artist map** shows current MusicBrainz country associations for artists in the
+selected history. A complete search with one exact-name candidate and one country
+supports country totals; ambiguous names, multiple countries and missing or
+incomplete evidence remain separate. Country associations do not prove historical
+origin, nationality, or where you listened.
+
+Switch selected plays/artist counts, pan/zoom, select a country, inspect original
+provider candidates and open recorded history. Complete country/coverage tables,
+CSV and PNG retain source dates and versions. No metadata searches happen on page
+load. Explicit batches of 10 or 25 artists expand coverage through MusicBrainz.
+The locally bundled map needs no remote tiles and has a table fallback.
+
+See [the release record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
+and [ADR 006](../adr/006-artist-country-associations.md) for evidence limits.
+The owner approved this release and its bounded MusicBrainz test before deployment.

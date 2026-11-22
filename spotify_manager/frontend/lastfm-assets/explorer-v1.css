@@ -963,3 +963,11 @@ dialog::backdrop {
   height: 18px;
   accent-color: var(--accent);
 }
+
+.origin-map-chart {
+  height: 460px;
+}
+#origin-artists-table p {
+  margin: 0 0 0.5rem;
+  max-width: 48rem;
+}

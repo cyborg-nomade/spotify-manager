@@ -388,3 +388,7 @@ The deployed [Library Bridge release](listening-explorer/LIBRARY_BRIDGE_RELEASE.
 The deployed [Tag Atlas release](listening-explorer/TAG_ATLAS_RELEASE.md) adds current
 community-tag allocations, explicit unknown coverage, and optional bounded
 metadata lookups. The owner approved the release before deployment and verification.
+
+The deployed [Artist Atlas release](listening-explorer/ARTIST_ATLAS_RELEASE.md) adds
+current country associations, a locally bundled map, complete coverage tables,
+and optional bounded MusicBrainz searches. The owner approved the release before deployment; final verification precedes merge.
