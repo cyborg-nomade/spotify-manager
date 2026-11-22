@@ -1068,5 +1068,15 @@
     "owner": "spotify_manager.infrastructure.listening.origin_cache.ArtistOriginCache.save",
     "function": "self.write",
     "reason": "asyncio.to_thread requires the concrete SQLite resource to persist one validated country observation and publish a complete generation off the event loop. Capacity remains held through cancellation; no canonical data or application stage is written or executed."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.cover_source.MusicBrainzCoverSource.fetch",
+    "function": "self.read",
+    "reason": "asyncio.to_thread requires the concrete bounded cover provider/cache resource operation to finish off the event loop. Shared request spacing and bounded capacity remain owned until the worker drains, including cancellation; no application stage or canonical data write is executed."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.cover_cache.AlbumCoverCache.save",
+    "function": "self.write",
+    "reason": "asyncio.to_thread requires the concrete bounded cover provider/cache resource operation to finish off the event loop. Shared request spacing and bounded capacity remain owned until the worker drains, including cancellation; no application stage or canonical data write is executed."
   }
 ]

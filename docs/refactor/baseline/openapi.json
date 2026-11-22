@@ -1818,6 +1818,161 @@
         "title": "CountryListening",
         "type": "object"
       },
+      "CoverArtwork": {
+        "description": "Identify the specific release and image representing a release group.\n\nArgs:\n    release_mbid: Cover Art Archive's representative release.\n    image_id: Original archive image identifier.\n    sha256: Content identity of the validated JPEG thumbnail.\n    width: Encoded pixel width.\n    height: Encoded pixel height.",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "image_id": {
+            "title": "Image Id",
+            "type": "string"
+          },
+          "release_mbid": {
+            "title": "Release Mbid",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "release_mbid",
+          "image_id",
+          "sha256",
+          "width",
+          "height"
+        ],
+        "title": "CoverArtwork",
+        "type": "object"
+      },
+      "CoverCandidate": {
+        "description": "Retain one exact title/artist-credit candidate without asserting identity.\n\nArgs:\n    mbid: MusicBrainz release-group identity.\n    title: Original album title, preserving edition labels.\n    artist: Complete credited artist name, including join phrases.\n    description: Provider disambiguation.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "mbid": {
+            "title": "Mbid",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mbid",
+          "title",
+          "artist",
+          "description"
+        ],
+        "title": "CoverCandidate",
+        "type": "object"
+      },
+      "CoverEvidence": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CoverState"
+          },
+          {
+            "const": "missing",
+            "type": "string"
+          }
+        ]
+      },
+      "CoverFetchState": {
+        "enum": [
+          "idle",
+          "running",
+          "cancelling",
+          "cancelled",
+          "complete",
+          "error"
+        ],
+        "type": "string"
+      },
+      "CoverFetchStatus": {
+        "description": "Describe explicit enrichment work separately from history availability.\n\nArgs:\n    state: Current batch lifecycle.\n    configured: Whether public provider reads are configured.\n    total: Number of requested albums.\n    completed: Number of complete lookup outcomes saved.\n    message: Data-free progress, recovery or cancellation explanation.\n    metadata_snapshot: Last complete metadata generation.\n    cached_albums: Number of cached lookup outcomes.\n    history_snapshot: Source generation that selected this batch.\n    cache_available: Whether derived storage initialized successfully.",
+        "properties": {
+          "cache_available": {
+            "title": "Cache Available",
+            "type": "boolean"
+          },
+          "cached_albums": {
+            "title": "Cached Albums",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "history_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Snapshot"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CoverFetchState"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "configured",
+          "total",
+          "completed",
+          "message",
+          "metadata_snapshot",
+          "cached_albums",
+          "history_snapshot",
+          "cache_available"
+        ],
+        "title": "CoverFetchStatus",
+        "type": "object"
+      },
+      "CoverState": {
+        "enum": [
+          "ready",
+          "no_cover",
+          "unmatched",
+          "ambiguous",
+          "incomplete"
+        ],
+        "type": "string"
+      },
       "DiscographyArtistResult": {
         "description": "One artist selected for the next discography batch.",
         "properties": {
@@ -3276,6 +3431,27 @@
         "title": "ListeningEnvelope[ListeningOverview]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningQuilt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningQuilt"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningQuilt]",
+        "type": "object"
+      },
       "ListeningEnvelope_ListeningRanking_": {
         "properties": {
           "data": {
@@ -3723,6 +3899,60 @@
           "end"
         ],
         "title": "ListeningQuery",
+        "type": "object"
+      },
+      "ListeningQuilt": {
+        "description": "Present a bounded ranked cover quilt with complete scope and provenance.\n\nArgs:\n    metadata_snapshot: Independent immutable cover generation.\n    items: Ranked visible albums, including placeholders.\n    options: Applied size and search.\n    coverage: Full selection and displayed artwork counts.\n    retrieved_from: Earliest displayed lookup instant.\n    retrieved_through: Latest displayed lookup instant.",
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/QuiltCoverage"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuiltAlbum"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "metadata_snapshot": {
+            "title": "Metadata Snapshot",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/QuiltOptions"
+          },
+          "retrieved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved From"
+          },
+          "retrieved_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved Through"
+          }
+        },
+        "required": [
+          "metadata_snapshot",
+          "items",
+          "options",
+          "coverage",
+          "retrieved_from",
+          "retrieved_through"
+        ],
+        "title": "ListeningQuilt",
         "type": "object"
       },
       "ListeningRanking": {
@@ -5827,6 +6057,162 @@
           "score"
         ],
         "title": "QueuePendingChoice",
+        "type": "object"
+      },
+      "QuiltAlbum": {
+        "description": "Connect one actual ranked history album to optional current cover evidence.\n\nArgs:\n    album: Exact selected count/share and original display names.\n    evidence: Cached outcome or never looked up.\n    candidates: Original provider name candidates.\n    candidate_count: Number found before the display bound.\n    fetched_at: Retrieval time, independent of listening dates.\n    artwork: Representative release artwork, when supported.",
+        "properties": {
+          "album": {
+            "$ref": "#/components/schemas/RankedEntity"
+          },
+          "artwork": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverArtwork"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CoverCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/CoverEvidence"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "required": [
+          "album",
+          "evidence",
+          "candidates",
+          "candidate_count",
+          "fetched_at",
+          "artwork"
+        ],
+        "title": "QuiltAlbum",
+        "type": "object"
+      },
+      "QuiltCoverage": {
+        "description": "Separate whole-selection counts, displayed listening and cover availability.\n\nArgs:\n    plays: All selected plays, including blank albums.\n    album_plays: Plays with recorded album names.\n    missing_album_plays: Plays lacking an album name.\n    albums: All selected named album identities.\n    matching_albums: Albums matching the optional quilt search.\n    shown_plays: Actual plays represented by visible tiles.\n    artwork_albums: Visible albums with supported artwork.\n    artwork_plays: Visible plays with supported artwork.\n    outcomes: Complete displayed-album and play reconciliation.",
+        "properties": {
+          "album_plays": {
+            "title": "Album Plays",
+            "type": "integer"
+          },
+          "albums": {
+            "title": "Albums",
+            "type": "integer"
+          },
+          "artwork_albums": {
+            "title": "Artwork Albums",
+            "type": "integer"
+          },
+          "artwork_plays": {
+            "title": "Artwork Plays",
+            "type": "integer"
+          },
+          "matching_albums": {
+            "title": "Matching Albums",
+            "type": "integer"
+          },
+          "missing_album_plays": {
+            "title": "Missing Album Plays",
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/QuiltOutcome"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "shown_plays": {
+            "title": "Shown Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plays",
+          "album_plays",
+          "missing_album_plays",
+          "albums",
+          "matching_albums",
+          "shown_plays",
+          "artwork_albums",
+          "artwork_plays",
+          "outcomes"
+        ],
+        "title": "QuiltCoverage",
+        "type": "object"
+      },
+      "QuiltOptions": {
+        "description": "Choose a bounded ranked quilt while retaining album/artist context.\n\nArgs:\n    size: Maximum visible albums in a square layout.\n    search: Title or artist substring; preserves accents and editions.",
+        "properties": {
+          "search": {
+            "default": "",
+            "title": "Search",
+            "type": "string"
+          },
+          "size": {
+            "default": 16,
+            "enum": [
+              9,
+              16,
+              25,
+              49
+            ],
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "title": "QuiltOptions",
+        "type": "object"
+      },
+      "QuiltOutcome": {
+        "description": "Count one artwork outcome within the displayed quilt.\n\nArgs:\n    evidence: Lookup/artwork outcome.\n    albums: Displayed album identities in this category.\n    plays: Actual selected plays belonging to those albums.",
+        "properties": {
+          "albums": {
+            "title": "Albums",
+            "type": "integer"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/CoverEvidence"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidence",
+          "albums",
+          "plays"
+        ],
+        "title": "QuiltOutcome",
         "type": "object"
       },
       "RankedEntity": {
@@ -14057,6 +14443,452 @@
         "summary": "Listening Overview",
         "tags": [
           "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/quilt": {
+      "get": {
+        "description": "Present a ranked quilt using only pinned historical counts and cached art.\n\nArgs:\n    request: Configured cover stage owner.\n    query: Validated shared listening selection.\n    index: Complete pinned history generation.\n    options: Bounded quilt size and search.\n    metadata_snapshot: Independent pinned cover generation.\n\nReturns:\n    Exact selected counts, visible albums and explicit artwork outcomes.",
+        "operationId": "listening_quilt_lastfm_analytics_quilt_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "metadata_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^c1-[0-9a-f]{64}$",
+              "title": "Metadata Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Square tile count: 9, 16, 25 or 49.",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 16,
+              "description": "Square tile count: 9, 16, 25 or 49.",
+              "enum": [
+                9,
+                16,
+                25,
+                49
+              ],
+              "maximum": 49,
+              "minimum": 9,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningQuilt_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Quilt",
+        "tags": [
+          "Listening Explorer covers"
+        ]
+      }
+    },
+    "/lastfm/analytics/quilt/cancel": {
+      "post": {
+        "description": "Cancel only cover work while retaining every completed observation/image.\n\nArgs:\n    request: Configured named enrichment stage owner.\n    response: Response receiving private cache policy.\n\nReturns:\n    Cancellation progress with completed cached artwork retained.",
+        "operationId": "cancel_listening_covers_lastfm_analytics_quilt_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Listening Covers",
+        "tags": [
+          "Listening Explorer covers"
+        ]
+      }
+    },
+    "/lastfm/analytics/quilt/images/{album_key}": {
+      "get": {
+        "description": "Serve only validated local bytes pinned to an authenticated cover generation.\n\nArgs:\n    request: Cache resource owner.\n    album_key: Original history identity; never an arbitrary external URL.\n    metadata_snapshot: Exact cover generation binding metadata and bytes.\n\nReturns:\n    Private JPEG bytes with content sniffing disabled.\n\nRaises:\n    HTTPException: The generation expired or this album has no cached art.",
+        "operationId": "listening_cover_image_lastfm_analytics_quilt_images__album_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_key",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Album Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metadata_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^c1-[0-9a-f]{64}$",
+              "title": "Metadata Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Cover Image",
+        "tags": [
+          "Listening Explorer covers"
+        ]
+      }
+    },
+    "/lastfm/analytics/quilt/refresh": {
+      "post": {
+        "description": "Explicitly start one bounded lookup using names from the displayed quilt.\n\nArgs:\n    request: Configured named enrichment stage owner.\n    response: Response receiving private cache policy.\n    batch: Captured names selected by the synchronous framework dependency.\n\nReturns:\n    Accepted progress or the current batch without duplication.\n\nRaises:\n    HTTPException: Lookup resources are unavailable.",
+        "operationId": "fetch_listening_covers_lastfm_analytics_quilt_refresh_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Square tile count: 9, 16, 25 or 49.",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 16,
+              "description": "Square tile count: 9, 16, 25 or 49.",
+              "enum": [
+                9,
+                16,
+                25,
+                49
+              ],
+              "maximum": 49,
+              "minimum": 9,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Listening Covers",
+        "tags": [
+          "Listening Explorer covers"
+        ]
+      }
+    },
+    "/lastfm/analytics/quilt/status": {
+      "get": {
+        "description": "Read cache identity and batch progress without external provider calls.\n\nArgs:\n    request: Configured named stage owner.\n    response: Response receiving private cache policy.\n\nReturns:\n    Explicit lookup lifecycle and a complete independent metadata token.",
+        "operationId": "listening_cover_status_lastfm_analytics_quilt_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listening Cover Status",
+        "tags": [
+          "Listening Explorer covers"
         ]
       }
     },

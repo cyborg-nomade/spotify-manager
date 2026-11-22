@@ -392,3 +392,7 @@ metadata lookups. The owner approved the release before deployment and verificat
 The deployed [Artist Atlas release](listening-explorer/ARTIST_ATLAS_RELEASE.md) adds
 current country associations, a locally bundled map, complete coverage tables,
 and optional bounded MusicBrainz searches. The owner approved the release before deployment; final verification precedes merge.
+
+The [Album Quilt review](listening-explorer/ALBUM_QUILT_RELEASE.md) adds ranked
+album covers, explicit bounded lookups, labelled missing-art tiles and CSV/PNG
+exports that retain every displayed album. It awaits owner approval.

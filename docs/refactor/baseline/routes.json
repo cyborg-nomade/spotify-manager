@@ -2007,6 +2007,71 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.listening_cover_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_cover_status",
+    "path": "/lastfm/analytics/quilt/status",
+    "response_model": "CoverFetchStatus",
+    "source_line": 85,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.listening_quilt",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_quilt",
+    "path": "/lastfm/analytics/quilt",
+    "response_model": "ListeningEnvelope[ListeningQuilt]",
+    "source_line": 102,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.listening_cover_image",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_cover_image",
+    "path": "/lastfm/analytics/quilt/images/{album_key}",
+    "response_model": null,
+    "source_line": 128,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.fetch_listening_covers",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "fetch_listening_covers",
+    "path": "/lastfm/analytics/quilt/refresh",
+    "response_model": "CoverFetchStatus",
+    "source_line": 193,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.cancel_listening_covers",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_listening_covers",
+    "path": "/lastfm/analytics/quilt/cancel",
+    "response_model": "CoverFetchStatus",
+    "source_line": 219,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [

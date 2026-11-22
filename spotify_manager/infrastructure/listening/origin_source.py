@@ -3,7 +3,6 @@
 import asyncio
 import json
 import re
-import time
 from datetime import UTC
 from datetime import datetime
 from typing import cast
@@ -21,13 +20,15 @@ from spotify_manager.domain.listening_origin_values import OriginState
 from spotify_manager.domain.listening_time import listening_identity
 from spotify_manager.domain.listening_values import RankedEntity
 from spotify_manager.infrastructure.async_work import blocking_capacity
+from spotify_manager.infrastructure.listening.musicbrainz_gate import (
+    MusicBrainzRequestGate,
+)
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
 API_URL = "https://musicbrainz.org/ws/2/artist/"
 USER_AGENT = "spotify-manager/0.1.0 (https://github.com/cyborg-nomade/spotify-manager)"
 MAX_RESPONSE_BYTES = 1048576
-REQUEST_INTERVAL = 1.1
 
 
 def _text(raw: dict[str, object], name: str) -> str:
@@ -165,10 +166,13 @@ def _payload(request: Request) -> dict[str, object]:
 class MusicBrainzOriginSource:
     """Own fixed public searches; no account, history or location is submitted."""
 
-    def __init__(self) -> None:
-        """Initialize one sequential provider resource and persistent spacing."""
-        self._lock = asyncio.Lock()
-        self._next_request = 0.0
+    def __init__(self, gate: MusicBrainzRequestGate | None = None) -> None:
+        """Bind a shared provider gate, or own one for a standalone resource.
+
+        Args:
+            gate: Application-owned limiter shared with album-cover searches.
+        """
+        self._gate = gate or MusicBrainzRequestGate()
 
     @property
     def configured(self) -> bool:
@@ -206,9 +210,7 @@ class MusicBrainzOriginSource:
         Raises:
             OriginSourceError: The concrete provider read failed.
         """
-        async with self._lock:
-            await asyncio.sleep(max(0, self._next_request - time.monotonic()))
-            self._next_request = time.monotonic() + REQUEST_INTERVAL
+        async with self._gate:
             async with blocking_capacity():
                 worker = asyncio.create_task(asyncio.to_thread(self.read, artist))
                 return await finish_blocking(worker)

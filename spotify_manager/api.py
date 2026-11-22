@@ -60,6 +60,9 @@ from spotify_manager.interfaces.http.listening import router as listening_router
 from spotify_manager.interfaces.http.listening_origins import (
     router as listening_origins_router,
 )
+from spotify_manager.interfaces.http.listening_quilt import (
+    router as listening_quilt_router,
+)
 from spotify_manager.interfaces.http.listening_tags import (
     router as listening_tags_router,
 )
@@ -2630,3 +2633,4 @@ app.include_router(listening_router)
 app.include_router(listening_tags_router)
 
 app.include_router(listening_origins_router)
+app.include_router(listening_quilt_router)

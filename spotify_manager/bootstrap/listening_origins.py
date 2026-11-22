@@ -7,6 +7,9 @@ from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
 from spotify_manager.application.listening_origins import ListeningOriginEnrichment
+from spotify_manager.infrastructure.listening.musicbrainz_gate import (
+    MusicBrainzRequestGate,
+)
 from spotify_manager.infrastructure.listening.origin_cache import ArtistOriginCache
 from spotify_manager.infrastructure.listening.origin_source import (
     MusicBrainzOriginSource,
@@ -20,8 +23,13 @@ class OriginEnvironment(BaseSettings):
     listening_origin_cache_dir: Path = Path(gettempdir()) / "spotify-listening-origins"
 
 
-def listening_origin_enrichment() -> ListeningOriginEnrichment:
+def listening_origin_enrichment(
+    gate: MusicBrainzRequestGate | None = None,
+) -> ListeningOriginEnrichment:
     """Own the country cache and public read provider for the web lifetime.
+
+    Args:
+        gate: App-owned provider limiter shared with album cover searches.
 
     Returns:
         Named explicit enrichment stage, separate from tags and canonical files.
@@ -29,5 +37,5 @@ def listening_origin_enrichment() -> ListeningOriginEnrichment:
     settings = OriginEnvironment()
     return ListeningOriginEnrichment(
         ArtistOriginCache(settings.listening_origin_cache_dir),
-        MusicBrainzOriginSource(),
+        MusicBrainzOriginSource(gate),
     )

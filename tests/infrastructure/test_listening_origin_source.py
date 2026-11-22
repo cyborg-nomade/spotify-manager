@@ -16,6 +16,7 @@ import pytest
 from spotify_manager.application.listening_origin_ports import OriginSourceError
 from spotify_manager.domain.listening_origin_values import ArtistOriginMetadata
 from spotify_manager.domain.listening_values import RankedEntity
+from spotify_manager.infrastructure.listening import musicbrainz_gate
 from spotify_manager.infrastructure.listening import origin_source
 from spotify_manager.infrastructure.listening.origin_source import (
     MusicBrainzOriginSource,
@@ -154,7 +155,7 @@ async def test_request_spacing_survives_independent_batches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """One provider resource enforces spacing even when callers start fresh batches."""
-    monkeypatch.setattr(origin_source, "REQUEST_INTERVAL", 0.025)
+    monkeypatch.setattr(musicbrainz_gate, "REQUEST_INTERVAL", 0.025)
     source = TimedSource()
     await source.fetch(artist())
     await asyncio.gather(source.fetch(artist("Beta")), source.fetch(artist("Gamma")))
