@@ -660,3 +660,22 @@ def test_invalid_provider_redirect_becomes_a_safe_stopped_batch_error() -> None:
     with pytest.raises(CoverSourceError) as error:
         InvalidUrlReads().read_bytes("https://coverartarchive.org/test", 100)
     assert "test-only-secret" not in str(error.value)
+
+
+async def test_worker_capacity_wait_cannot_consume_the_shared_spacing_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A delayed request still leaves the required interval before the next view.
+
+    Args:
+        monkeypatch: Scoped replacement of the provider spacing interval.
+    """
+    monkeypatch.setattr(musicbrainz_gate, "REQUEST_INTERVAL", 0.025)
+    gate = MusicBrainzRequestGate()
+    starts: list[float] = []
+    async with gate:
+        await asyncio.sleep(0.04)
+        starts.append(time.monotonic())
+    async with gate:
+        starts.append(time.monotonic())
+    assert starts[1] - starts[0] >= 0.02

@@ -24,7 +24,6 @@ class MusicBrainzRequestGate:
         await self._lock.acquire()
         try:
             await asyncio.sleep(max(0, self._next_request - time.monotonic()))
-            self._next_request = time.monotonic() + REQUEST_INTERVAL
         except asyncio.CancelledError:
             self._lock.release()
             raise
@@ -35,4 +34,5 @@ class MusicBrainzRequestGate:
         Args:
             _exc: Context-manager exception details supplied by Python.
         """
+        self._next_request = time.monotonic() + REQUEST_INTERVAL
         self._lock.release()

@@ -90,7 +90,7 @@ Fred Giannelli / Main Tenance exact search returned one candidate with no curren
 cover, and the documented archive thumbnail redirected successfully and validated
 as a 10,703-byte JPEG. No private titles or listening history were submitted.
 
-Local focused verification passes 106 tests: the new domain, provider, image
+Local focused verification passes 107 tests: the new domain, provider, image
 validation, cache and codec modules have complete statement/branch coverage.
 The combined focused report is 99.87%, with all statements covered. Twenty browser
 scenarios plus seven JavaScript checks pass, including preceding explorer views.
@@ -118,7 +118,7 @@ The sample labels its synthetic albums, covers, counts and simulated fetches.
 No private album names have been sent to the public cover services by this test.
 
 The local full regression run passed 12,936 tests and all independent coverage
-floors. Subsequent malformed-provider cases pass in the 106 focused tests; final
+floors. Subsequent malformed-provider cases pass in the 107 focused tests; final
 CI reruns the complete final source on the review commit. Architecture/bootstrap
 and lifespan checks pass 162 tests. The final 811-file wheel, both entry points
 and all 45 commands pass in an isolated installation. All twenty browser scenarios

@@ -52,7 +52,8 @@ Pillow dependency avoids maintaining a bespoke image parser.
 Bootstrap owns one MusicBrainz request gate shared by the country and cover
 resources. Serialize starts at least 1.1 seconds apart across views and batches.
 Hold the gate and bounded blocking capacity until active reads drain, including
-cancellation. A named application stage directly calls its source and cache
+cancellation. Start the next spacing interval after that drain, so waiting for
+worker capacity cannot spend the interval before an actual request begins. A named application stage directly calls its source and cache
 resources. Sync FastAPI dependencies capture selected album counts off the event
 loop; async endpoints only start/cancel owned background work. Job shutdown still
 precedes enrichment, collection and history cleanup.
