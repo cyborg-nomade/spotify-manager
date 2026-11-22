@@ -953,6 +953,25 @@ dialog::backdrop {
   }
 }
 
+.session-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.session-metrics strong {
+  display: block;
+  color: var(--mint, #8cddc5);
+  font:
+    28px Georgia,
+    serif;
+  margin-bottom: 5px;
+}
+.session-metrics span {
+  color: #94aab0;
+  font-size: 12px;
+}
+
 .tag-force-label {
   display: inline-flex;
   align-items: center;

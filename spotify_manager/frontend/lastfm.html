@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=6" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=7" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=6"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=7"></script>
   </head>
   <body>
     <div class="shell">
@@ -177,6 +177,7 @@
             ><button data-tab="tags">Tags &amp; genres</button
             ><button data-tab="origins">Artist map</button
             ><button data-tab="quilt">Album quilt</button
+            ><button data-tab="sessions">Sessions</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -1134,6 +1135,159 @@
                 Space rebuild. Unavailable images stay as placeholders,
                 including in exports.
               </p>
+            </article>
+          </section>
+
+          <section
+            id="tab-sessions"
+            class="tab-content"
+            aria-label="Listening sessions"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <div>
+                  <p class="eyebrow">09 / BETWEEN THE RECORDS</p>
+                  <h2>Listening sessions</h2>
+                </div>
+              </header>
+              <p class="chart-description">
+                Group consecutive selected records by the gap between their
+                timestamps. A gap strictly greater than your threshold starts a
+                new session; equal gaps stay together. These are inferred
+                groups, not measured continuous listening.
+              </p>
+              <form id="session-filters" class="control-line">
+                <label for="session-gap">Gap (minutes)</label
+                ><input
+                  id="session-gap"
+                  type="number"
+                  min="1"
+                  max="240"
+                  step="1"
+                  value="30"
+                  required
+                />
+                <label for="session-minimum">Minimum plays</label
+                ><input
+                  id="session-minimum"
+                  type="number"
+                  min="1"
+                  max="100000000"
+                  step="1"
+                  value="1"
+                  required
+                />
+                <label for="session-order">Order</label
+                ><select id="session-order">
+                  <option value="recent">Most recent</option>
+                  <option value="plays">Most plays</option>
+                </select>
+                <button type="submit" class="small-button">Apply</button>
+              </form>
+              <p class="chart-description">
+                Only records matching the date, artist and rhythm filters are
+                grouped. Filters can split activity or cut its edges. Midnight
+                and daylight-saving changes do not split a group by themselves.
+                The first and last selected groups may continue outside this
+                selection.
+              </p>
+              <div id="session-metrics" class="session-metrics"></div>
+              <p
+                id="session-coverage"
+                class="chart-description"
+                role="status"
+              ></p>
+            </article>
+            <div class="overview-grid">
+              <article class="panel">
+                <header class="panel-heading">
+                  <h2>Session starts over time</h2>
+                  <button class="icon-button" data-session-export="starts">
+                    ↓ PNG
+                  </button>
+                </header>
+                <p class="chart-description">
+                  Every matching group belongs to the local week or month of its
+                  first selected record, including groups crossing midnight.
+                  Charts cover all matching groups, independently of the list
+                  page.
+                </p>
+                <div id="session-starts-chart" class="chart medium-chart"></div>
+                <details>
+                  <summary>Session start data</summary>
+                  <button class="small-button" data-session-export="buckets">
+                    Export CSV
+                  </button>
+                  <div id="session-starts-table" class="table-scroll"></div>
+                </details>
+              </article>
+              <article class="panel">
+                <header class="panel-heading">
+                  <h2>A few songs or a long run?</h2>
+                  <button class="icon-button" data-session-export="sizes">
+                    ↓ PNG
+                  </button>
+                </header>
+                <p class="chart-description">
+                  Session size counts recorded rows. Repeated plays and
+                  duplicate records count; the missing length of the final track
+                  is never estimated.
+                </p>
+                <div id="session-sizes-chart" class="chart medium-chart"></div>
+                <details>
+                  <summary>Session size data</summary>
+                  <button class="small-button" data-session-export="sizes-csv">
+                    Export CSV
+                  </button>
+                  <div id="session-sizes-table" class="table-scroll"></div>
+                </details>
+              </article>
+            </div>
+            <article class="panel">
+              <header class="panel-heading">
+                <h2>Recorded sessions</h2>
+                <button
+                  id="session-csv"
+                  class="small-button"
+                  data-session-export="groups"
+                >
+                  Export page CSV
+                </button>
+              </header>
+              <div id="sessions-table" class="table-scroll"></div>
+              <div class="pagination">
+                <button id="session-previous" class="quiet">← Previous</button
+                ><span id="session-page"></span
+                ><button id="session-next" class="quiet">Next →</button>
+              </div>
+            </article>
+            <article
+              id="session-detail"
+              class="panel"
+              aria-labelledby="session-detail-title"
+              hidden
+            >
+              <header class="panel-heading">
+                <h2 id="session-detail-title">Session records</h2>
+                <button id="session-close" class="quiet">Close ×</button>
+              </header>
+              <p id="session-detail-description" class="chart-description"></p>
+              <p
+                id="session-record-status"
+                class="chart-description"
+                role="status"
+              ></p>
+              <button class="small-button" data-session-export="records">
+                Export record page CSV
+              </button>
+              <div id="session-records-table" class="table-scroll"></div>
+              <div class="pagination">
+                <button id="session-record-previous" class="quiet">
+                  ← Previous</button
+                ><span id="session-record-page"></span
+                ><button id="session-record-next" class="quiet">Next →</button>
+              </div>
             </article>
           </section>
 

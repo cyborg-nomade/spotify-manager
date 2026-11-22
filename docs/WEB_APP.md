@@ -396,3 +396,8 @@ and optional bounded MusicBrainz searches. The owner approved the release before
 The deployed [Album Quilt release](listening-explorer/ALBUM_QUILT_RELEASE.md) adds ranked
 album covers, explicit bounded lookups, labelled missing-art tiles and CSV/PNG
 exports that retain every displayed album. The owner approved this release before deployment and verification.
+
+The [Listening Sessions candidate](listening-explorer/SESSIONS_RELEASE.md) adds
+configurable selected-record gap groups, complete start/size charts and original
+chronological record pages. Observed spans are not listening duration. This
+candidate awaits owner review before deployment or merge.

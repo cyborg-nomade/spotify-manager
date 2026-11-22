@@ -1,11 +1,11 @@
-import * as charts from "./charts-v1.js?v=6";
+import * as charts from "./charts-v1.js?v=7";
 import {
   element,
   entityButton,
   number,
   recordedTime,
   renderTable,
-} from "./tables-v1.js?v=6";
+} from "./tables-v1.js?v=7";
 
 export const labels = {
   name_match: "One exact name candidate",

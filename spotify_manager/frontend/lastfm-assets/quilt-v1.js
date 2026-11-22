@@ -5,7 +5,7 @@ import {
   number,
   recordedTime,
   renderTable,
-} from "./tables-v1.js?v=6";
+} from "./tables-v1.js?v=7";
 
 const $ = (id) => document.getElementById(id);
 const HEADER_HEIGHT = 260;

@@ -31,6 +31,7 @@ from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
 from spotify_manager.interfaces.http.listening import router
 from spotify_manager.interfaces.http.listening_origins import router as origin_router
 from spotify_manager.interfaces.http.listening_quilt import router as quilt_router
+from spotify_manager.interfaces.http.listening_sessions import router as session_router
 from spotify_manager.interfaces.http.listening_tags import router as tag_router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
@@ -196,6 +197,7 @@ app.include_router(router)
 app.include_router(tag_router)
 app.include_router(origin_router)
 app.include_router(quilt_router)
+app.include_router(session_router)
 
 
 @app.get("/lastfm/assets/{filename}")

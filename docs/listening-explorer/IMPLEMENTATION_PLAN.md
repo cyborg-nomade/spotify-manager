@@ -269,6 +269,12 @@ with explicit unresolved coverage. Its approved runtime was deployed and verifie
 [Album Quilt](ALBUM_QUILT_RELEASE.md) was approved in PR #95 on 22 November 2026; its runtime was deployed and verified before merge. The optional listening-session explorer is the next increment. Fuzzy
 resolution and playlist/routine actions remain separately scoped.
 
+The [Listening Sessions candidate](SESSIONS_RELEASE.md) follows Album Quilt on
+its dedicated branch. It adds selected-record gap groups and original-record
+navigation without provider lookups or inferred playback duration. Owner review
+is required before its deployment or merge. Dense/race views and Spotify actions
+remain separately scoped.
+
 ## 7. Verification and completion criteria
 
 Use small, hand-calculated fixtures for analytical rules and purpose-built integration checks for stateful behavior:

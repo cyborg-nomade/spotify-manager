@@ -1,9 +1,10 @@
-import * as charts from "./charts-v1.js?v=6";
-import * as library from "./library-v1.js?v=6";
-import * as tags from "./tags-v1.js?v=6";
-import * as origins from "./origins-v1.js?v=6";
-import * as quilt from "./quilt-v1.js?v=6";
-import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=6";
+import * as charts from "./charts-v1.js?v=7";
+import * as library from "./library-v1.js?v=7";
+import * as tags from "./tags-v1.js?v=7";
+import * as origins from "./origins-v1.js?v=7";
+import * as quilt from "./quilt-v1.js?v=7";
+import * as sessions from "./sessions-v1.js?v=7";
+import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
   element,
   entityButton,
@@ -15,7 +16,7 @@ import {
   recordsTable,
   renderTable,
   returnRate,
-} from "./tables-v1.js?v=6";
+} from "./tables-v1.js?v=7";
 
 const $ = (id) => document.getElementById(id);
 const parameters = new URLSearchParams(location.search);
@@ -29,6 +30,7 @@ const tabs = [
   "tags",
   "origins",
   "quilt",
+  "sessions",
 ];
 const weekdays = [
   "Monday",
@@ -63,6 +65,14 @@ const state = {
   ),
   eraOrder: [],
   groupedOrder: null,
+  sessionPage: 1,
+  sessionRecordPage: 1,
+  selectedSession: /^\d{1,13}$/.test(parameters.get("session") || "")
+    ? parameters.get("session")
+    : null,
+  sessionContext: null,
+  sessionController: null,
+  sessionDetail: null,
   rankingPage: 1,
   libraryPage: 1,
   libraryForce: false,
@@ -114,12 +124,16 @@ function showLogin(message = "") {
   state.epoch++;
   state.authenticated = false;
   state.password = "";
+  state.selectedSession = null;
   state.snapshot = null;
   state.metadata = null;
   state.data = {};
   state.detailData = null;
   state.controller?.abort();
   quilt.reset();
+  sessions.reset();
+  state.sessionController?.abort();
+  state.sessionDetail = null;
   state.detailController?.abort();
   clearTimeout(state.pollTimer);
   clearTimeout(state.libraryTimer);
@@ -376,6 +390,12 @@ function persist() {
     values.library_status = $("library-status").value;
     values.library_min = $("library-minimum").value;
     if ($("library-search").value) values.library_q = $("library-search").value;
+  }
+  if (state.tab === "sessions") {
+    values.session_gap = $("session-gap").value;
+    values.session_min = $("session-minimum").value;
+    values.session_order = $("session-order").value;
+    if (state.selectedSession !== null) values.session = state.selectedSession;
   }
   if (state.tab === "quilt") {
     values.quilt_size = $("quilt-size").value;
@@ -789,8 +809,17 @@ function loading(value) {
   $("workspace").setAttribute("aria-busy", String(value));
   for (const tab of tabs) $("tab-" + tab).inert = value;
   document
-    .querySelectorAll("[data-csv],[data-chart-export],[data-quilt-export]")
+    .querySelectorAll(
+      "[data-csv],[data-chart-export],[data-quilt-export],[data-session-export]",
+    )
     .forEach((button) => (button.disabled = value));
+  if (!value && state.tab === "sessions") {
+    document.querySelectorAll("[data-session-export]").forEach((button) => {
+      button.disabled =
+        !state.data.sessions ||
+        (button.dataset.sessionExport === "records" && !state.sessionDetail);
+    });
+  }
   if (!value && state.tab === "library") {
     $("library-export").disabled = !state.data.library?.items;
     document.querySelector('[data-chart-export="library"]').disabled =
@@ -831,6 +860,9 @@ async function loadSelection(recoverVersion = true) {
   clearTimeout(state.quiltTimer);
   state.controller?.abort();
   quilt.reset();
+  sessions.reset();
+  state.sessionController?.abort();
+  state.sessionDetail = null;
   state.detailController?.abort();
   const revision = ++state.revision;
   state.controller = new AbortController();
@@ -841,6 +873,14 @@ async function loadSelection(recoverVersion = true) {
     state.hour = null;
   }
   configure();
+  const sessionContext = JSON.stringify(
+    query({ gap_minutes: $("session-gap").value }),
+  );
+  if (state.sessionContext && state.sessionContext !== sessionContext) {
+    state.selectedSession = null;
+    state.sessionPage = 1;
+  }
+  state.sessionContext = sessionContext;
   persist();
   loading(true);
   try {
@@ -861,10 +901,14 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "tags") tasks.push(loadTags());
     if (state.tab === "origins") tasks.push(loadOrigins());
     if (state.tab === "quilt") tasks.push(loadQuilt());
+    if (state.tab === "sessions")
+      tasks.push(analytics("sessions", sessionQuery()));
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
     renderView(results.slice(1));
+    if (state.tab === "sessions" && state.selectedSession !== null)
+      await loadSessionRecords();
     if (state.selected && !$("detail").open)
       await openEntity(state.selected.kind, state.selected.key);
   } catch (error) {
@@ -912,6 +956,10 @@ function renderOverview(data) {
 
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "sessions") {
+    state.data.sessions = results[0];
+    sessions.render(results[0], ctx);
+  }
   if (state.tab === "quilt") {
     state.data.quilt = results[0];
     charts.clearCharts();
@@ -1276,6 +1324,96 @@ function renderRediscovery() {
       number(item.days_since_last),
     ]),
   );
+}
+
+function boundedInteger(value, minimum, maximum, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= minimum && number <= maximum
+    ? number
+    : fallback;
+}
+
+function sessionQuery() {
+  return {
+    gap_minutes: $("session-gap").value,
+    minimum_plays: $("session-minimum").value,
+    order: $("session-order").value,
+    page: state.sessionPage,
+    limit: 25,
+  };
+}
+
+function closeSession() {
+  state.sessionController?.abort();
+  state.selectedSession = null;
+  state.sessionDetail = null;
+  $("session-detail").hidden = true;
+  $("session-records-table").replaceChildren();
+  document.querySelector('[data-session-export="records"]').disabled = true;
+  persist();
+}
+
+async function loadSessionRecords(scroll = false) {
+  state.sessionController?.abort();
+  if (
+    state.selectedSession === null ||
+    !state.authenticated ||
+    state.tab !== "sessions"
+  )
+    return;
+  const selected = state.selectedSession;
+  const revision = state.revision;
+  state.sessionController = new AbortController();
+  const signal = state.sessionController.signal;
+  state.sessionDetail = null;
+  $("session-detail").hidden = false;
+  $("session-records-table").replaceChildren();
+  $("session-record-status").textContent = "Loading recorded session rows…";
+  document.querySelector('[data-session-export="records"]').disabled = true;
+  persist();
+  try {
+    const data = await analytics(
+      `sessions/${selected}/records`,
+      {
+        gap_minutes: $("session-gap").value,
+        page: state.sessionRecordPage,
+        limit: 50,
+      },
+      signal,
+    );
+    if (
+      signal.aborted ||
+      revision !== state.revision ||
+      selected !== state.selectedSession
+    )
+      return;
+    state.sessionDetail = data;
+    sessions.renderRecords(data, context());
+    document.querySelector('[data-session-export="records"]').disabled = false;
+    if (scroll) $("session-detail").scrollIntoView({ block: "start" });
+  } catch (error) {
+    if (signal.aborted || revision !== state.revision || error.status === 401)
+      return;
+    $("session-record-status").textContent =
+      error.status === 404
+        ? "This session is absent from the selected records and gap. Choose a session from the list."
+        : "Session records are unavailable. Choose the session again to retry.";
+  }
+}
+
+async function exportSessions(kind) {
+  const data = state.data.sessions;
+  if (!data) return;
+  if (!["starts", "sizes"].includes(kind)) {
+    sessions.csv(kind, data, context(), state.sessionDetail);
+    return;
+  }
+  try {
+    await sessions.png(kind, data, context());
+  } catch {
+    $("session-coverage").textContent =
+      "The chart image could not be exported. Retry or export its complete data CSV.";
+  }
 }
 
 function rankingQuery() {
@@ -1926,6 +2064,36 @@ $("library-next").addEventListener("click", () => {
 document.addEventListener("listening-auth-required", () =>
   showLogin("Enter your app password to continue."),
 );
+$("session-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.sessionPage = 1;
+  closeSession();
+  loadSelection();
+});
+$("session-order").addEventListener("change", () => {
+  if ($("session-filters").reportValidity()) {
+    state.sessionPage = 1;
+    loadSelection();
+  }
+});
+$("session-previous").addEventListener("click", () => {
+  state.sessionPage--;
+  loadSelection();
+});
+$("session-next").addEventListener("click", () => {
+  state.sessionPage++;
+  loadSelection();
+});
+$("session-record-previous").addEventListener("click", () => {
+  state.sessionRecordPage--;
+  loadSessionRecords();
+});
+$("session-record-next").addEventListener("click", () => {
+  state.sessionRecordPage++;
+  loadSessionRecords();
+});
+$("session-close").addEventListener("click", closeSession);
+
 $("quilt-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   loadSelection();
@@ -2018,6 +2186,11 @@ document.addEventListener("click", (event) => {
     applyPreset(button.dataset.preset);
     loadSelection();
   }
+  if (button?.dataset.session) {
+    state.selectedSession = button.dataset.session;
+    state.sessionRecordPage = 1;
+    loadSessionRecords(true);
+  }
   if (button?.dataset.tab) {
     if (state.tab !== button.dataset.tab) charts.clearCharts();
     state.tab = button.dataset.tab;
@@ -2038,6 +2211,8 @@ document.addEventListener("click", (event) => {
           ? state.data.anniversaries?.observed_from || state.from
           : state.from,
     });
+  if (button?.dataset.sessionExport && state.data.sessions)
+    exportSessions(button.dataset.sessionExport);
   if (button?.dataset.csv) exportData(button.dataset.csv);
   if (!event.target.closest(".artist-control"))
     $("artist-results").hidden = true;
@@ -2107,6 +2282,21 @@ if (/^(unknown|other|[0-9a-f]{64})$/.test(parameters.get("tag") || "")) {
   );
   $("tag-filter").value = parameters.get("tag");
 }
+$("session-gap").value = boundedInteger(
+  parameters.get("session_gap"),
+  1,
+  240,
+  30,
+);
+$("session-minimum").value = boundedInteger(
+  parameters.get("session_min"),
+  1,
+  100000000,
+  1,
+);
+$("session-order").value =
+  parameters.get("session_order") === "plays" ? "plays" : "recent";
+
 $("quilt-size").value = ["9", "16", "25", "49"].includes(
   parameters.get("quilt_size"),
 )

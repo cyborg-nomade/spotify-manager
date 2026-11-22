@@ -11,6 +11,7 @@ from threading import RLock
 
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningMetadata
+from spotify_manager.domain.listening_session_values import SessionWindow
 from spotify_manager.domain.listening_values import ArtistPlay
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntityLifetime
@@ -274,6 +275,34 @@ class ListeningIndex:
                 "SELECT COUNT(*)" + JOIN + where.sql, where.parameters
             ).fetchone()[0]
             rows = connection.execute(sql, parameters)
+            items = tuple(ListeningRecord(*row) for row in rows)
+        return ListeningRecords(items, total, options.page, options.limit)
+
+    def session_records(
+        self, query: ListeningQuery, window: SessionWindow, options: RecordOptions
+    ) -> ListeningRecords:
+        """Read only selected rows between this group's inclusive recorded bounds.
+
+        Args:
+            query: Exact dates and artist/rhythm selection used to form the group.
+            window: First and last recorded UTC milliseconds, inclusive.
+            options: Bounded chronological source-record page.
+
+        Returns:
+            Original rows ordered by timestamp, then source ordinal, and full count.
+        """
+        where = listening_where(query)
+        predicate = where.sql + " AND p.ts>=? AND p.ts<=?"
+        parameters = where.parameters + (window.first_ms, window.last_ms)
+        sql = "SELECT p.ordinal, p.ts, a.key, p.artist, p.album, p.track" + JOIN
+        sql += " JOIN entities a ON a.id=p.artist_id" + predicate
+        sql += " ORDER BY p.ts, p.ordinal LIMIT ? OFFSET ?"
+        page = (options.limit, (options.page - 1) * options.limit)
+        with self.connection(query) as connection:
+            total = connection.execute(
+                "SELECT COUNT(*)" + JOIN + predicate, parameters
+            ).fetchone()[0]
+            rows = connection.execute(sql, parameters + page)
             items = tuple(ListeningRecord(*row) for row in rows)
         return ListeningRecords(items, total, options.page, options.limit)
 

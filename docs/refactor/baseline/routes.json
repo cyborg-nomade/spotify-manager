@@ -2072,6 +2072,32 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_sessions.listening_sessions",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_sessions",
+    "path": "/lastfm/analytics/sessions",
+    "response_model": "ListeningEnvelope[ListeningSessions]",
+    "source_line": 52,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_sessions.listening_session_records",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_session_records",
+    "path": "/lastfm/analytics/sessions/{first_ms}/records",
+    "response_model": "ListeningEnvelope[ListeningSessionDetail]",
+    "source_line": 73,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.index",
     "include_in_schema": false,
     "methods": [
