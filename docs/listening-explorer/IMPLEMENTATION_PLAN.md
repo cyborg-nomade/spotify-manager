@@ -263,10 +263,11 @@ Acceptance: historical exploration remains usable without enrichment services, f
 Delivery: Library Bridge was approved, deployed, verified and merged in PR #92
 on 21 November 2026. [Tag Atlas](TAG_ATLAS_RELEASE.md) followed in approved
 PR #93, applying current community labels with bounded explicit lookups and
-separate metadata versions. Its runtime is deployed and verified. The next increment, [Artist Atlas](ARTIST_ATLAS_RELEASE.md), maps current
-country-association evidence with explicit unresolved coverage and is prepared
-for review. Covers, fuzzy resolution and playlist/routine actions remain
-separately scoped.
+separate metadata versions. Its runtime is deployed and verified. [Artist Atlas](ARTIST_ATLAS_RELEASE.md),
+approved in PR #94 on 22 November 2026, maps current country-association evidence
+with explicit unresolved coverage. Its approved runtime is deployed; production
+verification precedes merge. Album Quilt is the next planned increment. Fuzzy
+resolution and playlist/routine actions remain separately scoped.
 
 ## 7. Verification and completion criteria
 

@@ -389,6 +389,6 @@ The deployed [Tag Atlas release](listening-explorer/TAG_ATLAS_RELEASE.md) adds c
 community-tag allocations, explicit unknown coverage, and optional bounded
 metadata lookups. The owner approved the release before deployment and verification.
 
-The [Artist Atlas review](listening-explorer/ARTIST_ATLAS_RELEASE.md) adds
+The deployed [Artist Atlas release](listening-explorer/ARTIST_ATLAS_RELEASE.md) adds
 current country associations, a locally bundled map, complete coverage tables,
-and optional bounded MusicBrainz searches. It awaits owner approval.
+and optional bounded MusicBrainz searches. The owner approved the release before deployment; final verification precedes merge.

@@ -1,6 +1,6 @@
 # ADR 006: Map current country associations with explicit name evidence
 
-**Status:** Proposed for owner review in Artist Atlas.
+**Status:** Accepted by the owner in PR #94 on 22 November 2026.
 **Date:** 21 November 2026.
 
 ## Context

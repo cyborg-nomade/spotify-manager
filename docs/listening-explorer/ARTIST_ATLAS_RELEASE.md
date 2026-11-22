@@ -1,7 +1,8 @@
-# Listening Explorer: Artist Atlas review
+# Listening Explorer: Artist Atlas release verification
 
-Date: 21 November 2026. Branch: `codex/listening-artist-atlas`.
-Status: prepared for owner review; deployment and merge require approval.
+Date: 22 November 2026. Branch: `codex/listening-artist-atlas`.
+Status: owner approved PR #94 and its bounded MusicBrainz test on 22 November
+2026; approved runtime deployed. Final production checks precede merge.
 
 Tag Atlas was approved, deployed, verified and merged in PR #93 before this
 branch started from clean updated master. This increment implements the next
@@ -103,3 +104,46 @@ cache remains explicit, with no provider reads during page rendering. All four
 new route gates and private response headers pass. The preceding 25 local tag
 observations remain available in their independent cache. Mobile map proportions
 are preserved; browser checks exercise an actual country-shape selection.
+
+
+## Approved deployment
+
+Approved runtime: `b3d415f19e69985d7db7c8fc23c65c3f1ccb6b2c`.
+Space revision `72745965aeab3ff821001dd1fdd1b0d14d5b8695` replaces
+`47cc639db9ea2967cba8b8fdeef7edc869f9ff62`. Twenty runtime files were
+uploaded with an optimistic parent guard and read back against exact approved
+Git bytes. The Space remains private. Rollback bytes and new paths are retained.
+Durable revisions were unchanged by deployment:
+
+- State: `d8a45063e7710d9c47b0cf85dbc0a29007f63460`.
+- Library data: `06229351587e1c3e9bd7a7e9005004502cdc6700`.
+
+[Approved-head CI](https://github.com/cyborg-nomade/spotify-manager/actions/runs/44930057377)
+passed 12,829 tests, every independent coverage floor, architecture and typing,
+seventeen browser scenarios, seven JavaScript checks and the 797-file wheel.
+The final documentation commit changes no runtime files. Its CI, final protected
+production checks and fifteen-minute health observation are recorded in PR #94
+before merge.
+
+The approved local live test made fifteen HTTP attempts, all confined to the
+captured highest-play twenty-five artists. It retained eight observations:
+three single-country candidates, four ambiguous names and one incomplete search.
+Single-country evidence accounts for 11,006 plays. All seven evidence outcomes
+reconcile all 339,401 selected plays and 15,697 artists. Intermittent provider
+connection failures stopped batches safely; individual diagnostic responses also
+succeeded. This is partial coverage, rather than a completed twenty-five-artist
+batch. Private names and queries are excluded from release evidence. No provider
+lookup was started in production. The local preview cache and production cache
+are independent.
+
+Read-only preflight reconciled all 339,401 published scrobbles, original entity
+records, anniversaries, 229 Musical Eras periods, both tag allocation modes and
+all three collection comparisons. The history download checksum and shared state
+were preserved. An initial older ready history generation was replaced by the
+normal lazy publication check before the successful complete verification.
+
+Rollback is warranted if the application data gate can be bypassed, analytical
+totals disagree, a critical view fails, or health repeatedly fails after startup.
+Restore previous runtime bytes and remove only newly introduced paths using the
+retained manifest and optimistic parent guard. Canonical data and shared state
+require no migration or rollback.

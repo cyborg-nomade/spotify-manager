@@ -259,9 +259,10 @@ latency; verify the same paths after the approved Space deployment.
 
 ## Follow-up scope
 
-The approved core and discovery/rediscovery views are deployed. Artist-origin maps, covers/collages, playlists, and session inference remain
+The approved core and discovery/rediscovery views are deployed. Covers/collages, playlists, and session inference remain
 optional follow-ups. Library Bridge adds published Spotify-library comparisons;
-Tag Atlas adds current community-tag enrichment. The
+Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
+country associations. The
 Time Capsule release adds Musical Eras and On This Day. The current export
 cannot establish listening minutes,
 skips, completion rates, mood, or historical location.
@@ -318,7 +319,7 @@ contracts and validation, and [ADR 005](../adr/005-current-community-tag-evidenc
 for evidence limits. The release was approved, deployed and verified before merge.
 
 
-## Artist Atlas review
+## Artist Atlas release
 
 **Artist map** shows current MusicBrainz country associations for artists in the
 selected history. A complete search with one exact-name candidate and one country
@@ -332,6 +333,6 @@ CSV and PNG retain source dates and versions. No metadata searches happen on pag
 load. Explicit batches of 10 or 25 artists expand coverage through MusicBrainz.
 The locally bundled map needs no remote tiles and has a table fallback.
 
-See [the review record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
+See [the release record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
 and [ADR 006](../adr/006-artist-country-associations.md) for evidence limits.
-This release awaits owner approval before deployment.
+The owner approved this release and its bounded MusicBrainz test before deployment.
