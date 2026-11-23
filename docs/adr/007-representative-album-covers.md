@@ -36,9 +36,10 @@ ambiguous and incomplete searches remain separate. For a unique group, read the
 Cover Art Archive's representative-release index and choose its first approved
 main-front entry in archive order. Retain the actual release MBID, image ID,
 retrieval date, dimensions and image SHA-256. A documented 404 or no approved
-front becomes explicit unavailable artwork. Transport, malformed-response and
-image-validation errors stop the batch and retain prior complete observations.
-No hidden retries or alternative-edition searches occur.
+front becomes explicit unavailable artwork. [Shared retry rules](../listening-explorer/PROVIDER_RELIABILITY.md)
+cover temporary failures. An exhausted retry, malformed response or invalid image
+stops the batch and retains prior complete observations. Each attempt uses the
+same exact title and credit.
 
 Use the archive's fixed 250px JPEG endpoint. Follow at most four redirects through
 validated HTTPS MusicBrainz, Cover Art Archive or Internet Archive hosts, upgrading

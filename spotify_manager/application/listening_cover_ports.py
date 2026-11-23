@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 from typing import Protocol
 
+from spotify_manager.application.listening_provider_error import ListeningProviderError
 from spotify_manager.domain.listening_cover_values import CoverCatalog
 from spotify_manager.domain.listening_cover_values import CoverFetchResult
 from spotify_manager.domain.listening_values import RankedEntity
@@ -14,7 +15,7 @@ type CoverFetchState = Literal[
 ]
 
 
-class CoverSourceError(RuntimeError):
+class CoverSourceError(ListeningProviderError):
     """A provider lookup failed without invalidating available cached metadata."""
 
 

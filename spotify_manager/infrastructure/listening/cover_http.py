@@ -11,6 +11,8 @@ import httpx
 
 from spotify_manager.application.listening_cover_ports import CoverSourceError
 from spotify_manager.infrastructure.listening.origin_source import USER_AGENT
+from spotify_manager.infrastructure.listening.provider_retry import RETRYABLE_STATUSES
+from spotify_manager.infrastructure.listening.provider_retry import retry_after_seconds
 
 
 MAX_IMAGE_BYTES = 131072
@@ -62,7 +64,9 @@ def _content(response: httpx.Response, limit: int, deadline: float) -> bytes:
 
 def _check_budget(deadline: float) -> None:
     if time.monotonic() >= deadline:
-        raise CoverSourceError("Public artwork response exceeded its time budget.")
+        raise CoverSourceError(
+            "Public artwork response exceeded its time budget.", temporary=True
+        )
 
 
 class CoverHttpReads:
@@ -85,6 +89,15 @@ class CoverHttpReads:
         try:
             with httpx.Client(timeout=15, follow_redirects=False) as client:
                 return self._read(client, target, limit)
+        except httpx.TimeoutException, httpx.ReadError, httpx.RemoteProtocolError:
+            raise CoverSourceError(
+                "Public artwork service connection was interrupted.", temporary=True
+            ) from None
+        except httpx.ConnectError as error:
+            raise CoverSourceError(
+                "Public artwork service could not connect.",
+                temporary="CERTIFICATE_VERIFY_FAILED" not in str(error),
+            ) from None
         except httpx.HTTPError, httpx.InvalidURL, OSError:
             raise CoverSourceError(
                 "Public artwork service could not connect."
@@ -121,7 +134,11 @@ class CoverHttpReads:
                 raise CoverSourceError("Public artwork redirect was invalid.")
             return location
         if response.status_code != 200:
-            raise CoverSourceError("Public artwork service is unavailable.")
+            raise CoverSourceError(
+                "Public artwork service is unavailable.",
+                temporary=response.status_code in RETRYABLE_STATUSES,
+                retry_after=retry_after_seconds(response.headers.get("Retry-After")),
+            )
         if response.headers.get("Content-Encoding", "identity").lower() != "identity":
             raise CoverSourceError("Public artwork encoding was unsupported.")
         return _content(response, limit, deadline)

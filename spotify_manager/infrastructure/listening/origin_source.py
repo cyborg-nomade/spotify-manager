@@ -5,6 +5,8 @@ import json
 import re
 from datetime import UTC
 from datetime import datetime
+from http.client import RemoteDisconnected
+from ssl import SSLError
 from typing import cast
 from urllib.error import HTTPError
 from urllib.error import URLError
@@ -23,6 +25,11 @@ from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.listening.musicbrainz_gate import (
     MusicBrainzRequestGate,
 )
+from spotify_manager.infrastructure.listening.musicbrainz_gate import (
+    ProviderCooldownError,
+)
+from spotify_manager.infrastructure.listening.provider_retry import RETRYABLE_STATUSES
+from spotify_manager.infrastructure.listening.provider_retry import retry_after_seconds
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
@@ -148,7 +155,24 @@ def _payload(request: Request) -> dict[str, object]:
     try:
         with urlopen(request, timeout=15) as response:
             content = response.read(MAX_RESPONSE_BYTES + 1)
-    except HTTPError, URLError, TimeoutError, OSError:
+    except HTTPError as error:
+        retry_after = error.headers.get("Retry-After") if error.headers else None
+        raise OriginSourceError(
+            "Public MusicBrainz search was unavailable.",
+            temporary=error.code in RETRYABLE_STATUSES,
+            retry_after=retry_after_seconds(retry_after),
+        ) from None
+    except URLError as error:
+        raise OriginSourceError(
+            "Public MusicBrainz search could not connect.",
+            temporary=isinstance(error.reason, OSError)
+            and not isinstance(error.reason, SSLError),
+        ) from None
+    except TimeoutError, ConnectionError, RemoteDisconnected:
+        raise OriginSourceError(
+            "Public MusicBrainz search could not connect.", temporary=True
+        ) from None
+    except OSError:
         raise OriginSourceError(
             "Public MusicBrainz search could not connect."
         ) from None
@@ -199,7 +223,7 @@ class MusicBrainzOriginSource:
         return parse_artist_origins(_payload(request), artist)
 
     async def fetch(self, artist: RankedEntity) -> ArtistOriginMetadata:
-        """Space requests across batches and drain a bounded blocking operation.
+        """Retry temporary reads through the shared request gate.
 
         Args:
             artist: Captured artist name; no listening records are transmitted.
@@ -210,7 +234,20 @@ class MusicBrainzOriginSource:
         Raises:
             OriginSourceError: The concrete provider read failed.
         """
-        async with self._gate:
-            async with blocking_capacity():
-                worker = asyncio.create_task(asyncio.to_thread(self.read, artist))
-                return await finish_blocking(worker)
+        attempt = 1
+        while True:
+            try:
+                return await self._attempt(artist)
+            except ProviderCooldownError:
+                raise OriginSourceError(
+                    "MusicBrainz requested a longer pause. Try again later."
+                ) from None
+            except OriginSourceError as error:
+                if not self._gate.schedule_retry(error, attempt):
+                    raise
+            attempt += 1
+
+    async def _attempt(self, artist: RankedEntity) -> ArtistOriginMetadata:
+        async with self._gate, blocking_capacity():
+            worker = asyncio.create_task(asyncio.to_thread(self.read, artist))
+            return await finish_blocking(worker)

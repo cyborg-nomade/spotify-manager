@@ -122,7 +122,8 @@ class ListeningCoverEnrichment:
         self._history = request.history_snapshot
         self._state = "running"
         self._message = (
-            "Fetching public cover metadata; existing history stays available."
+            "Fetching public cover metadata. Temporary provider failures "
+            "automatically retry up to twice."
         )
         self._task = asyncio.create_task(self._run(request), name="listening-covers")
         return self.status()
@@ -136,11 +137,15 @@ class ListeningCoverEnrichment:
                 "Lookup cancelled; completed cached observations are retained."
             )
             raise
-        except CoverSourceError, CoverCacheError:
+        except CoverSourceError:
             self._state = "error"
             self._message = (
-                "Cover lookup unavailable; completed metadata is retained. Retry later."
+                "The provider could not finish this batch. Completed cover "
+                "lookups are saved. Try Fetch again later."
             )
+        except CoverCacheError:
+            self._state = "error"
+            self._message = "Cover metadata could not be saved to the local cache."
         else:
             self._state = "complete"
             self._message = (

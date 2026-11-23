@@ -38,9 +38,11 @@ GETs only read the independent derived cache. Explicit batches select up to
 25 highest-play missing or thirty-day-old artists from one pinned history
 selection. One owned stage runs at a time. The public source resource also
 serializes requests and spaces starts by at least 1.1 seconds across batches,
-with a descriptive User-Agent, bounded one-MiB responses, fifteen-second socket
-timeouts and no hidden retries. Provider errors stop the batch while retaining
-complete cached entries. Cancellation drains active blocking reads or commits.
+with a descriptive User-Agent, bounded one-MiB responses and fifteen-second
+socket timeouts. [Shared retry rules](../listening-explorer/PROVIDER_RELIABILITY.md)
+cover temporary failures. An exhausted or permanent error stops the batch and
+retains complete cached entries. Cancellation drains active blocking reads or
+commits.
 Bootstrap owns resource construction; application code directly calls named
 resources and fixed domain rules. Shutdown drains origins before tags,
 collections and history, after routine jobs have closed.

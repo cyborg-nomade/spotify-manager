@@ -1060,7 +1060,7 @@
     "reason": "asyncio.to_thread requires this concrete SQLite cache operation to commit and publish a complete derived metadata generation off the event loop. Capacity remains held until the worker drains, including cancellation; canonical data and application stages are not written or executed."
   },
   {
-    "owner": "spotify_manager.infrastructure.listening.origin_source.MusicBrainzOriginSource.fetch",
+    "owner": "spotify_manager.infrastructure.listening.origin_source.MusicBrainzOriginSource._attempt",
     "function": "self.read",
     "reason": "asyncio.to_thread requires this concrete fixed-provider resource to execute one bounded MusicBrainz HTTP read off the event loop. Request spacing and worker capacity remain owned until cancellation drains; no application stage is executed."
   },
@@ -1070,7 +1070,7 @@
     "reason": "asyncio.to_thread requires the concrete SQLite resource to persist one validated country observation and publish a complete generation off the event loop. Capacity remains held through cancellation; no canonical data or application stage is written or executed."
   },
   {
-    "owner": "spotify_manager.infrastructure.listening.cover_source.MusicBrainzCoverSource.fetch",
+    "owner": "spotify_manager.infrastructure.listening.cover_source.MusicBrainzCoverSource._attempt",
     "function": "self.read",
     "reason": "asyncio.to_thread requires the concrete bounded cover provider/cache resource operation to finish off the event loop. Shared request spacing and bounded capacity remain owned until the worker drains, including cancellation; no application stage or canonical data write is executed."
   },

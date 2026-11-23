@@ -121,7 +121,8 @@ class ListeningOriginEnrichment:
         self._history = request.history_snapshot
         self._state = "running"
         self._message = (
-            "Fetching public country metadata; existing history stays available."
+            "Fetching public country metadata. Temporary provider failures "
+            "automatically retry up to twice."
         )
         self._task = asyncio.create_task(self._run(request), name="listening-origins")
         return self.status()
@@ -135,12 +136,15 @@ class ListeningOriginEnrichment:
                 "Lookup cancelled; completed cached observations are retained."
             )
             raise
-        except OriginSourceError, OriginCacheError:
+        except OriginSourceError:
             self._state = "error"
             self._message = (
-                "Country lookup unavailable; completed metadata is retained. "
-                "Retry later."
+                "The provider could not finish this batch. Completed country "
+                "lookups are saved. Try Fetch again later."
             )
+        except OriginCacheError:
+            self._state = "error"
+            self._message = "Country metadata could not be saved to the local cache."
         else:
             self._state = "complete"
             self._message = (
