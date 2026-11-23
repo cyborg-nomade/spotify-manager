@@ -1,9 +1,8 @@
-"""Synchronize annual charts before reconciling their ordered destination markers."""
+"""Synchronize annual charts and return their resolved markers in rank order."""
 
 from dataclasses import dataclass
 from typing import Literal
 
-from spotify_manager.application.new_year_membership import AnnualMembership
 from spotify_manager.application.new_year_membership import RetryCall
 from spotify_manager.application.new_year_sources import named_playlist
 from spotify_manager.application.new_year_values import RetrospectivePlan
@@ -20,30 +19,25 @@ class AnnualCharts:
 
     Args:
         catalog: Named external catalog observations used by this stage.
-        membership: Original retry-aware destination membership reconciler.
         retry: Original caller retry around complete ensure-chart attempts.
     """
 
     catalog: AnnualChartCatalog
-    membership: AnnualMembership
     retry: RetryCall
 
-    async def run(
-        self,
-        plan: RetrospectivePlan,
-        year: int,
-        kind: ChartKind,
-        limit: int,
-        destination: str,
-    ) -> None:
-        """Ensure the chart, synchronize rank order, then add absent markers.
+    async def synchronize(
+        self, plan: RetrospectivePlan, year: int, kind: ChartKind, limit: int
+    ) -> list[str]:
+        """Create or synchronize the chart in rank order.
 
         Args:
             plan: Original complete resolved plan.
             year: Original source year.
             kind: Original chart category.
             limit: Original category count used only in the chart name.
-            destination: Original category destination identity.
+
+        Returns:
+            Resolved markers in rank order, including repeated matches.
         """
         name = f"top {limit} {year} {kind}"
         for attempt in self.retry.attempts("finding or creating yearly chart"):
@@ -51,11 +45,11 @@ class AnnualCharts:
                 response = await self._ensure(name, kind, year)
         playlist = response
         uris = accepted_uris(plan[kind])
-        uris = list(dict.fromkeys(uris))
+        chart_uris = list(dict.fromkeys(uris))
         current = [track.uri for track in (await self.catalog.playlist(playlist))]
-        if current != uris:
-            await self.catalog.replace(playlist, uris)
-        await self.membership.run(destination, uris)
+        if current != chart_uris:
+            await self.catalog.replace(playlist, chart_uris)
+        return uris
 
     async def _ensure(self, name: str, kind: ChartKind, year: int) -> str:
         existing = named_playlist((await self.catalog.owned()), name)

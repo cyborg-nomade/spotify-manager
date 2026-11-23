@@ -15,6 +15,7 @@ from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
 from spotify_manager.infrastructure.golden_records import artist_search
 from spotify_manager.infrastructure.legacy.new_year_resources import AnnualResources
+from spotify_manager.infrastructure.spotify_async.client import AsyncSpotify
 
 
 @dataclass(frozen=True)
@@ -190,6 +191,18 @@ class LegacyAnnualSpotify:
         from spotify_manager.routines.new_year import _move_position
 
         await _move_position(self.sp, playlist, position)
+
+    async def append_once(self, playlist: str, uris: list[str]) -> None:
+        """Leave retry decisions for an ordered append to the application.
+
+        Args:
+            playlist: Destination playlist identity.
+            uris: Ordered URI batch, including repeats.
+        """
+        if isinstance(self.sp, AsyncSpotify):
+            await self.sp.append_playlist_uris_once(playlist, uris)
+            return
+        await self.append(playlist, uris, False)
 
 
 @dataclass(frozen=True)

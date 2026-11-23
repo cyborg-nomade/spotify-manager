@@ -151,10 +151,12 @@ class NativeSpotifyTransport:
             headers=headers,
             content=request_body(request),
         )
-        response = await self._send(wire)
+        response = await self._send(wire, request.retry_http_status)
         return decode_response(response)
 
-    async def _send(self, request: httpx.Request) -> httpx.Response:
+    async def _send(
+        self, request: httpx.Request, retry_http_status: bool
+    ) -> httpx.Response:
         retry = self.profile.adapter()
         while True:
             try:
@@ -164,7 +166,9 @@ class NativeSpotifyTransport:
                 continue
             except httpx.TransportError as error:
                 raise transport_error(error) from error
-            if not retry.is_retry(request.method, response.status_code):
+            if not retry_http_status or not retry.is_retry(
+                request.method, response.status_code
+            ):
                 return response
             retry = await retry_status(retry, response, self.wait)
 

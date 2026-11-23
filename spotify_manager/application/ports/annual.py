@@ -107,6 +107,14 @@ class AnnualPlaylist(Protocol):
             position: Observed current marker position.
         """
 
+    async def append_once(self, playlist: str, uris: list[str]) -> None:
+        """Append in order and leave ambiguous responses for playlist reconciliation.
+
+        Args:
+            playlist: Destination playlist identity.
+            uris: Ordered URI batch, including repeats.
+        """
+
 
 class AnnualChartCatalog(Protocol):
     """Named original external observations for the corresponding annual stage."""

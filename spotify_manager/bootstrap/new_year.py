@@ -89,7 +89,7 @@ def compose(
     discoveries = AnnualDiscoveries(resources, Queue3Presenter(echo))
     catalog = LegacyAnnualCatalog(sp, retry, resources)
     members = AnnualMembership(catalog, retry)
-    charts = AnnualCharts(catalog, members, retry)
+    charts = AnnualCharts(catalog, retry)
     planner = AnnualPlanning(
         history_refresh(
             lastfm,

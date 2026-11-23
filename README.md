@@ -1604,13 +1604,14 @@ rebuilds Last.fm history from the API, so old edits and deletions are reflected.
 It then:
 
 1. Creates or updates `top 50 YEAR tracks` in scrobble rank order and adds those
-   tracks to **a blast from the past**.
+   tracks to the end of **a blast from the past** in rank order, including repeats.
 2. Creates or updates `top 20 YEAR albums` using each album's first track and adds
    those tracks to **palace of memory**.
 3. Moves representative tracks for the top five artists to the top of
    **memory lane**, reusing an existing artist marker when available.
 4. Runs the existing previous-year **Great Discoveries → the queue 3** import.
-5. Copies all playable tracks from **Obsessions YEAR** to **a blast from the past**.
+5. Appends every playable track from **Obsessions YEAR** to **a blast from the past**
+   in playlist order, including repeats and tracks already added by step 1.
 
 Calendar boundaries use Europe/Berlin. Track identity is artist + title; album
 identity is artist + album. Album ranking counts individual track scrobbles,
@@ -1622,15 +1623,17 @@ The yearly source playlists must be owned by the operator and named exactly
 `Great Discoveries YEAR` and `Obsessions YEAR` (case-insensitive). Missing or
 ambiguous sources or unresolved Spotify matches stop the workflow with a named
 error. Annual charts are private when created; existing same-name owned charts
-are synchronized to the ranked selection. Other destination playlists preserve
-their contents and receive only missing tracks.
+are synchronized to the ranked selection. **Palace of memory** and **memory lane**
+continue to add only missing tracks.
 
 The `new_year` shared-state namespace stores the resolved plan and completed
-steps by source year. Re-running an interrupted job resumes the plan; re-running
-a completed year is a no-op. Dry runs don't create playlists, write completion
-state, or publish rebuilt history. Cancellation and page-reload reconnection are
-available in the panel. The separate Queue 3 `Import prev.` button is removed;
-the CLI/API import remains available for compatibility.
+steps by source year. Re-running an interrupted job resumes the plan without
+appending a Blast segment twice. Plans already in progress before repeat support
+finish with the original duplicate check. Re-running a completed year is a no-op.
+Dry runs don't create playlists, write completion state, or publish rebuilt history.
+Cancellation and page-reload reconnection are available in the panel. The separate
+Queue 3 `Import prev.` button is removed; the CLI/API import remains available for
+compatibility.
 
 ```console
 just new-year                         # preview the previous year

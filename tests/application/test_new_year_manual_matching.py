@@ -51,9 +51,7 @@ def _workflow(edge: AnnualObservations, choices: CatalogChoices) -> NewYear:
     return NewYear(
         memory,
         planner,
-        AnnualExecution(
-            memory, AnnualCharts(memory, members, retry), members, discoveries
-        ),
+        AnnualExecution(memory, AnnualCharts(memory, retry), members, discoveries),
         discoveries,
     )
 

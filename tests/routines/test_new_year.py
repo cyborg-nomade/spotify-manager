@@ -270,12 +270,55 @@ async def test_automatic_retry_rechecks_membership_and_playlist_creation(
     Args:
         annual: Original annual playlist and accepted-effect fixture.
     """
+    song = "spotify:track:song"
+    obsession = "spotify:track:obsession"
+    annual.contents["blast"] = [song, obsession]
+    annual.contents["obs"] = [obsession, song, obsession]
     responses = LostAnnualResponses(annual.memory)
     annual.sp._post.side_effect = responses.post
     annual.sp.user_playlist_create.side_effect = responses.create
     (await run(annual, dry_run=False, retry_call=RetryRuntimeOnce()))
-    assert annual.contents["blast"] == ["spotify:track:song", "spotify:track:obsession"]
+    assert annual.contents["blast"] == [
+        song,
+        obsession,
+        song,
+        obsession,
+        song,
+        obsession,
+    ]
     assert len([p for p in annual.playlists if p.name.startswith("top")]) == 2
+
+
+@pytest.mark.parametrize("edit_playlist", [False, True])
+async def test_resume_ordered_obsessions_after_lost_batch_response(
+    annual: SimpleNamespace, edit_playlist: bool
+) -> None:
+    """Reconcile a written batch of repeats before appending the rest.
+
+    Args:
+        annual: Annual playlist and accepted-effect fixture.
+        edit_playlist: Whether the destination changes before resuming.
+    """
+    song = "spotify:track:song"
+    obsession = "spotify:track:obsession"
+    ordered = [obsession, song] * 51
+    annual.contents["blast"] = [song]
+    annual.contents["obs"] = ordered
+    annual.sp._post.side_effect = LostObsessionsBatch(annual.memory).post
+    with pytest.raises(RuntimeError, match="response lost"):
+        await run(annual, dry_run=False)
+    assert annual.contents["blast"] == [song, song, *ordered[:100]]
+
+    annual.sp._post.side_effect = annual.memory.post
+    if edit_playlist:
+        annual.contents["blast"].append("spotify:track:other")
+        before = list(annual.mutations)
+        with pytest.raises(new_year.NewYearError, match="playlist changed"):
+            await run(annual, dry_run=False)
+        assert annual.mutations == before
+        return
+    assert (await run(annual, dry_run=False))["done"]
+    assert annual.contents["blast"] == [song, song, *ordered]
 
 
 async def test_existing_chart_is_synchronized_instead_of_appended(annual):
@@ -511,6 +554,31 @@ class LostAnnualResponses:
             self.lost.add(name)
             raise RuntimeError("response lost")
         return result
+
+
+@dataclass(frozen=True)
+class LostObsessionsBatch:
+    """Lose the response to the first full Obsessions batch after accepting it.
+
+    Args:
+        memory: Accepted SDK effects.
+    """
+
+    memory: AnnualMemory
+
+    def post(self, path: str, payload: dict[str, Any]) -> None:
+        """Accept each append and interrupt after the full batch.
+
+        Args:
+            path: SDK request path.
+            payload: External SDK write payload.
+
+        Raises:
+            RuntimeError: Spotify accepted the 100-track batch but lost the response.
+        """
+        self.memory.post(path, payload)
+        if path == "playlists/blast/items" and len(payload["uris"]) == 100:
+            raise RuntimeError("response lost")
 
 
 @dataclass
