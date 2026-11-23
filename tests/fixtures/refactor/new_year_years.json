@@ -316,6 +316,10 @@
             "obsession"
           ]
         },
+        "blast_offsets": {
+          "top tracks": 0,
+          "Obsessions": 2
+        },
         "done": true
       },
       "trace": [
@@ -537,7 +541,8 @@
                     "obsession",
                     "obsession"
                   ]
-                }
+                },
+                "blast_offsets": {}
               }
             }
           }
@@ -608,11 +613,84 @@
           "cancel"
         ],
         [
+          "playlist",
+          "blast"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
+                }
+              }
+            }
+          }
+        ],
+        [
           "cancel"
         ],
         [
           "retry",
-          "adding retrospective tracks"
+          "appending ordered retrospective tracks"
         ],
         [
           "playlist",
@@ -694,6 +772,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -852,6 +933,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -1000,6 +1084,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -1084,6 +1171,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -1097,11 +1187,90 @@
           "Running: Obsessions"
         ],
         [
+          "playlist",
+          "blast"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
+                }
+              }
+            }
+          }
+        ],
+        [
           "cancel"
         ],
         [
           "retry",
-          "adding retrospective tracks"
+          "appending ordered retrospective tracks"
         ],
         [
           "playlist",
@@ -1112,6 +1281,7 @@
           "playlists/blast/items",
           {
             "uris": [
+              "obsession",
               "obsession"
             ]
           }
@@ -1186,6 +1356,10 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
                 }
               }
             }
@@ -1258,6 +1432,10 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
                 },
                 "done": true
               }
@@ -1335,6 +1513,10 @@
                 "obsession"
               ]
             },
+            "blast_offsets": {
+              "top tracks": 0,
+              "Obsessions": 2
+            },
             "done": true
           }
         }
@@ -1356,6 +1538,7 @@
         "blast": [
           "spotify:track:a-One",
           "spotify:track:b-Two",
+          "obsession",
           "obsession"
         ],
         "chart-3": [
@@ -1728,6 +1911,10 @@
             "obsession"
           ]
         },
+        "blast_offsets": {
+          "top tracks": 0,
+          "Obsessions": 2
+        },
         "done": true
       },
       "trace": [
@@ -1949,7 +2136,8 @@
                     "obsession",
                     "obsession"
                   ]
-                }
+                },
+                "blast_offsets": {}
               }
             }
           }
@@ -2020,11 +2208,84 @@
           "cancel"
         ],
         [
+          "playlist",
+          "blast"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
+                }
+              }
+            }
+          }
+        ],
+        [
           "cancel"
         ],
         [
           "retry",
-          "adding retrospective tracks"
+          "appending ordered retrospective tracks"
         ],
         [
           "playlist",
@@ -2106,6 +2367,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -2264,6 +2528,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -2412,6 +2679,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -2496,6 +2766,9 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0
                 }
               }
             }
@@ -2509,11 +2782,90 @@
           "Running: Obsessions"
         ],
         [
+          "playlist",
+          "blast"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
+                }
+              }
+            }
+          }
+        ],
+        [
           "cancel"
         ],
         [
           "retry",
-          "adding retrospective tracks"
+          "appending ordered retrospective tracks"
         ],
         [
           "playlist",
@@ -2524,6 +2876,7 @@
           "playlists/blast/items",
           {
             "uris": [
+              "obsession",
               "obsession"
             ]
           }
@@ -2598,6 +2951,10 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
                 }
               }
             }
@@ -2670,6 +3027,10 @@
                     "obsession",
                     "obsession"
                   ]
+                },
+                "blast_offsets": {
+                  "top tracks": 0,
+                  "Obsessions": 2
                 },
                 "done": true
               }
@@ -2747,6 +3108,10 @@
                 "obsession"
               ]
             },
+            "blast_offsets": {
+              "top tracks": 0,
+              "Obsessions": 2
+            },
             "done": true
           }
         }
@@ -2768,6 +3133,7 @@
         "blast": [
           "spotify:track:a-One",
           "spotify:track:b-Two",
+          "obsession",
           "obsession"
         ],
         "chart-3": [

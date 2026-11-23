@@ -260,6 +260,15 @@ class MemoryAnnual:
             )
         )
 
+    async def append_once(self, playlist: str, uris: list[str]) -> None:
+        """Record one ordered append at the same simulated Spotify boundary.
+
+        Args:
+            playlist: Destination playlist identity.
+            uris: Ordered URI batch, including repeats.
+        """
+        await self.append(playlist, uris, False)
+
     async def replace(self, playlist: str, uris: list[str]) -> None:
         """Accept original retried complete rank-ordered chart replacement.
 
@@ -376,7 +385,7 @@ async def _run(
     discoveries = cast(AnnualDiscoveries, ScriptedDiscoveries(memory))
     resolution = AnnualResolution(memory)
     members = AnnualMembership(memory, retry)
-    charts = AnnualCharts(memory, members, retry)
+    charts = AnnualCharts(memory, retry)
     planner = AnnualPlanning(
         cast(HistoryRefresh, ScriptedHistory(memory)),
         "listener",

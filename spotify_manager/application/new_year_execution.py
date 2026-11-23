@@ -57,7 +57,9 @@ class AnnualExecution:
             await self.discoveries.run(year + 1, False)
             await checkpoint.complete("Great Discoveries")
         if checkpoint.begin("Obsessions"):
-            await self.membership.run(plan["destinations"]["blast"], plan["obsessions"])
+            await self._append_to_blast(
+                plan, plan["obsessions"], "Obsessions", checkpoint
+            )
             await checkpoint.complete("Obsessions")
         run["done"] = True
         await access.save(state)
@@ -75,10 +77,32 @@ class AnnualExecution:
         step = f"top {kind}"
         if not checkpoint.begin(step):
             return
-        await self.charts.run(
-            plan, year, kind, limit, plan["destinations"][destination]
-        )
+        uris = await self.charts.synchronize(plan, year, kind, limit)
+        if destination == "blast":
+            await self._append_to_blast(plan, uris, step, checkpoint)
+        else:
+            await self.membership.run(plan["destinations"][destination], uris)
         await checkpoint.complete(step)
+
+    async def _append_to_blast(
+        self,
+        plan: RetrospectivePlan,
+        uris: list[str],
+        step: str,
+        checkpoint: AnnualCheckpoint,
+    ) -> None:
+        playlist = plan["destinations"]["blast"]
+        offsets = checkpoint.run.get("blast_offsets")
+        # Older plans may have already written tracks without recording a start.
+        if offsets is None:
+            await self.membership.run(playlist, uris)
+            return
+        if not uris:
+            return
+        if step not in offsets:
+            offsets[step] = await self.membership.playlist_length(playlist)
+            await checkpoint.access.save(checkpoint.state)
+        await self.membership.append_ordered(playlist, uris, offsets[step])
 
     async def _artists(self, plan: RetrospectivePlan) -> None:
         uris = accepted_uris(plan["artists"])

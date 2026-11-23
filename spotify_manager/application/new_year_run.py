@@ -80,6 +80,7 @@ class NewYear:
                 year, preview, destinations, obsessions
             )
             if not preview:
+                run["blast_offsets"] = {}
                 state["years"][str(year)] = run
                 await access.save(state)
         plan = run["plan"]

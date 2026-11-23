@@ -23,12 +23,15 @@ class SpotifyRequest:
         path: Relative API path or complete pagination URL.
         query: Ordered parameters, omitting null values on the wire.
         payload: Original JSON body, including its original empty-body semantics.
+        retry_http_status: Whether the transport can replay on a retryable HTTP
+            status. Writes reconciled by the caller disable this.
     """
 
     method: HttpMethod
     path: str
     query: dict[str, QueryValue] = field(default_factory=dict)
     payload: SpotifyJson = None
+    retry_http_status: bool = True
 
 
 class SpotifyTransport(Protocol):

@@ -34,11 +34,13 @@ class RetrospectiveRun(TypedDict, total=False):
         completed: Original shallow-validated completion list.
         plan: Original resolved plan, retaining original resumed record tolerance.
         done: Original truthiness-based completion authority.
+        blast_offsets: Saved append start for each Blast step on repeat-enabled runs.
     """
 
     completed: list[object]
     plan: RetrospectivePlan
     done: object
+    blast_offsets: dict[str, int]
 
 
 class RetrospectiveState(TypedDict):

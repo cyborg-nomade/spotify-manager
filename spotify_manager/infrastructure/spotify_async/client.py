@@ -450,6 +450,22 @@ class AsyncSpotify:
             {"position": position},
         )
 
+    async def append_playlist_uris_once(self, playlist: str, uris: list[str]) -> None:
+        """Append raw URIs without replaying ambiguous server responses.
+
+        Args:
+            playlist: Destination playlist ID.
+            uris: Ordered playlist items, including repeated URIs.
+        """
+        await self.transport.request(
+            SpotifyRequest(
+                "POST",
+                f"playlists/{playlist}/items",
+                payload={"uris": list[SpotifyJson](uris)},
+                retry_http_status=False,
+            )
+        )
+
     async def search(
         self,
         q: str,

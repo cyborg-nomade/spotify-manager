@@ -1,6 +1,7 @@
 """Exercise original HTTP/error, retry, rotation and ambiguous-write boundaries."""
 
 import asyncio
+import json
 from dataclasses import dataclass
 from dataclasses import field
 
@@ -14,6 +15,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.ports.spotify_async import HttpMethod
 from spotify_manager.application.ports.spotify_async import SpotifyRequest
 from spotify_manager.client import SpotifyAppAuthenticationError
+from spotify_manager.infrastructure.spotify_async.client import AsyncSpotify
 from spotify_manager.infrastructure.spotify_async.retries import RetryProfile
 from tests.spotify_async.memory import ResponseSpec
 from tests.spotify_async.memory import SynchronousRecorder
@@ -118,6 +120,24 @@ def _adapter_delays(retries: int) -> list[float]:
     for index in range(retries):
         delays.append(0 if index == 0 else 0.3 * 2**index)
     return delays
+
+
+async def test_ordered_playlist_append_leaves_server_retry_to_caller() -> None:
+    """Expose the first server error before the transport can replay the write."""
+    memory = transport_memory([ResponseSpec(504), ResponseSpec(201)])
+    uri = "spotify:track:abc"
+    try:
+        with pytest.raises(SpotifyException) as caught:
+            await AsyncSpotify(memory.transport).append_playlist_uris_once(
+                "example", [uri, uri]
+            )
+        assert caught.value.http_status == 504
+        (request,) = memory.http.requests
+        assert request.url.path == "/v1/playlists/example/items"
+        assert request.method == "POST"
+        assert json.loads(request.content) == {"uris": [uri, uri]}
+    finally:
+        await memory.transport.aclose()
 
 
 @pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE"])
