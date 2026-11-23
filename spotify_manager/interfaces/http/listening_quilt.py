@@ -139,7 +139,7 @@ def listening_cover_image(
         metadata_snapshot: Exact cover generation binding metadata and bytes.
 
     Returns:
-        Private JPEG bytes with content sniffing disabled.
+        Private JPEG or PNG bytes with content sniffing disabled.
 
     Raises:
         HTTPException: The generation expired or this album has no cached art.
@@ -154,7 +154,9 @@ def listening_cover_image(
         )
     return Response(
         image,
-        media_type="image/jpeg",
+        media_type="image/png"
+        if image.startswith(b"\x89PNG\r\n\x1a\n")
+        else "image/jpeg",
         headers={
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",

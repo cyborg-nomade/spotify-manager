@@ -95,6 +95,7 @@ def main() -> int:
     assert "/lastfm/analytics/overview" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/tags/refresh" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/origins/refresh" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/origins/backfill" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/quilt/images/{album_key}" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/sessions/{first_ms}/records" in api.app.openapi()["paths"]
     from spotify_manager import web

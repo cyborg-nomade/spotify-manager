@@ -78,13 +78,31 @@ class OriginCache(Protocol):
         """
         ...
 
+    async def install(self, entries: tuple[ArtistOriginMetadata, ...]) -> None:
+        """Install a complete committed checkpoint in the local read cache."""
+        ...
+
+
+class OriginArchive(Protocol):
+    """Keep independently durable country evidence alongside library data."""
+
+    async def restore(self) -> tuple[ArtistOriginMetadata, ...]:
+        """Read a complete durable checkpoint or an empty initial archive."""
+        ...
+
+    async def checkpoint(
+        self, entries: tuple[ArtistOriginMetadata, ...]
+    ) -> tuple[ArtistOriginMetadata, ...]:
+        """Merge and publish observations and return the committed checkpoint."""
+        ...
+
 
 @dataclass(frozen=True)
 class OriginFetchRequest:
     """Capture a bounded batch independently of later filter changes.
 
     Args:
-        artists: At most twenty-five named artists selected by a fixed domain rule.
+        artists: Named artists selected within the requested batch's bounds.
         history_snapshot: Source selection that produced the requested batch.
     """
 
@@ -106,6 +124,7 @@ class OriginFetchStatus:
         cached_artists: Number of cached lookup outcomes.
         history_snapshot: Source generation that selected this batch.
         cache_available: Whether derived storage initialized successfully.
+        durable: Whether the full-history loader has durable storage configured.
     """
 
     state: OriginFetchState
@@ -117,3 +136,4 @@ class OriginFetchStatus:
     cached_artists: int
     history_snapshot: str | None
     cache_available: bool
+    durable: bool = False

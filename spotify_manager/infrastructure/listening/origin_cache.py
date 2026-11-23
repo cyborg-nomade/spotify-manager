@@ -252,3 +252,31 @@ class ArtistOriginCache:
         async with blocking_capacity():
             worker = asyncio.create_task(asyncio.to_thread(self.write, metadata))
             await finish_blocking(worker)
+
+    def _install(self, entries: tuple[ArtistOriginMetadata, ...]) -> None:
+        try:
+            rows = []
+            for entry in entries:
+                document = json.dumps(asdict(entry), ensure_ascii=False)
+                decode_origin_metadata(document)
+                rows.append((entry.artist_key, document, entry.fetched_at))
+            with closing(sqlite3.connect(self._path)) as connection, connection:
+                connection.execute("DELETE FROM observations")
+                connection.executemany(
+                    "INSERT INTO observations VALUES (?, ?, ?)", rows
+                )
+            self._publish(entries)
+        except OSError, sqlite3.Error, ValueError, TypeError:
+            raise OriginCacheError(
+                "Durable country evidence could not be installed locally."
+            ) from None
+
+    async def install(self, entries: tuple[ArtistOriginMetadata, ...]) -> None:
+        """Publish a complete immutable cache generation from a durable checkpoint.
+
+        Args:
+            entries: All committed validated country observations.
+        """
+        async with blocking_capacity():
+            worker = asyncio.create_task(asyncio.to_thread(self._install, entries))
+            await finish_blocking(worker)

@@ -118,8 +118,14 @@ function sourceCell(item) {
       ),
     );
   if (item.artwork) {
-    const link = element("a", "Representative release / artwork");
-    link.href = `https://musicbrainz.org/release/${item.artwork.release_mbid}/cover-art`;
+    const lastfm = item.artwork.source === "lastfm";
+    const link = element(
+      "a",
+      lastfm ? "Last.fm album artwork" : "Representative release / artwork",
+    );
+    link.href = lastfm
+      ? item.artwork.page_url
+      : `https://musicbrainz.org/release/${item.artwork.release_mbid}/cover-art`;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     node.append(link);
@@ -151,8 +157,18 @@ export function render(data, context, password, signal) {
   $("quilt-coverage").textContent =
     `${number(data.items.length)} of ${number(coverage.matching_albums)} matching albums · ${number(coverage.shown_plays)} recorded plays in this quilt. ${number(coverage.artwork_albums)} tiles have cached representative covers. The full selection contains ${number(coverage.plays)} plays: ${number(coverage.album_plays)} with album names and ${number(coverage.missing_album_plays)} without. ${number(coverage.album_plays - coverage.shown_plays)} named-album plays are outside this quilt.`;
   $("quilt-source").textContent = data.retrieved_from
-    ? `Current observations retrieved ${recordedTime(Date.parse(data.retrieved_from), context.timezone)} through ${recordedTime(Date.parse(data.retrieved_through), context.timezone)}. Name evidence does not verify identity or the edition heard. Covers: Cover Art Archive / Internet Archive; names: MusicBrainz.`
+    ? `Current observations retrieved ${recordedTime(Date.parse(data.retrieved_from), context.timezone)} through ${recordedTime(Date.parse(data.retrieved_through), context.timezone)}. Name evidence does not verify identity or the edition heard. Covers: Last.fm or Cover Art Archive / Internet Archive.`
     : "No current cover observations cached for these tiles. Album ranks and recorded plays are complete without artwork.";
+  const attributed = data.items.find(
+    (item) => item.artwork?.source === "lastfm",
+  );
+  if (attributed) {
+    const credit = element("a", "Powered by AudioScrobbler");
+    credit.href = attributed.artwork.page_url;
+    credit.target = "_blank";
+    credit.rel = "noopener noreferrer";
+    $("quilt-source").append(" ", credit);
+  }
   const columns = Math.sqrt(data.options.size);
   $("quilt-grid").style.setProperty("--quilt-columns", columns);
   const nodes = data.items.map((item, index) => tile(item, index + 1));
@@ -266,13 +282,10 @@ async function loadImages(data, nodes, password, signal, current) {
 export function notes(data) {
   return [
     ["Metadata snapshot", data.metadata_snapshot],
-    [
-      "Artwork source",
-      "Cover Art Archive / Internet Archive; name evidence: MusicBrainz",
-    ],
+    ["Artwork source", "Last.fm or Cover Art Archive / Internet Archive"],
     [
       "Interpretation",
-      "Current representative release-group covers supported by one exact title/complete artist-credit candidate. Names do not verify identity or the edition heard.",
+      "Current representative covers supported by exact title and artist credit. Names do not verify identity or the edition heard.",
     ],
     [
       "Retrieved",
@@ -300,6 +313,8 @@ export function csv(data, context) {
     "Release group candidates",
     "Representative release",
     "Archive image ID",
+    "Artwork provider",
+    "Last.fm album page",
     "Image SHA256",
     "Retrieved",
   ];
@@ -320,6 +335,12 @@ export function csv(data, context) {
       .join(" | "),
     item.artwork?.release_mbid || "",
     item.artwork?.image_id || "",
+    item.artwork
+      ? item.artwork.source === "lastfm"
+        ? "Last.fm"
+        : "Cover Art Archive"
+      : "",
+    item.artwork?.page_url || "",
     item.artwork?.sha256 || "",
     item.fetched_at || "",
   ]);
@@ -399,7 +420,7 @@ export async function png(data, context) {
   ctx.fillStyle = "#b7c9c5";
   ctx.font = "13px sans-serif";
   for (const text of [
-    "Current representative covers: Cover Art Archive / Internet Archive. Name evidence: MusicBrainz.",
+    "Current representative covers: Last.fm or Cover Art Archive / Internet Archive.",
     "One exact title/artist-credit candidate does not verify identity or the edition heard.",
     `History: ${context.snapshot}`,
     `Covers: ${data.metadata_snapshot}`,

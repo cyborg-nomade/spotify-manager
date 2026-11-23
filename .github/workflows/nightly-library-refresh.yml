@@ -73,3 +73,7 @@ jobs:
       - name: Check Flush Mode and fully rebuild durable library data
         if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '37 19 * * 6' || github.event.schedule == '37 0 * * 0')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.flush_mode_only && inputs.full_rebuild) }}
         run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG --full-rebuild
+
+      - name: Checkpoint new Artist Map lookups
+        if: ${{ github.event_name == 'schedule' && (github.event.schedule == '17 0 * * 1-6' || github.event.schedule == '37 0 * * 0') }}
+        run: python .github/scripts/nightly_refresh.py --scheduled --artist-origins-only

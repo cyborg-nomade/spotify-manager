@@ -2081,6 +2081,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _app.state.listening_origins = listening_origin_enrichment(gate)
     _app.state.listening_covers = listening_cover_enrichment(gate)
     try:
+        await _app.state.listening_origins.restore()
         async with ExecutionRuntime() as runtime:
             _app.state.execution = runtime
             yield

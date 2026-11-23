@@ -222,6 +222,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/lastfm/analytics/origins/status` | `listening_origin_status` | True |
 | [ ] | api | GET | `/lastfm/analytics/origins` | `listening_origins` | True |
 | [ ] | api | POST | `/lastfm/analytics/origins/refresh` | `fetch_listening_origins` | True |
+| [ ] | api | POST | `/lastfm/analytics/origins/backfill` | `backfill_listening_origins` | True |
 | [ ] | api | POST | `/lastfm/analytics/origins/cancel` | `cancel_listening_origins` | True |
 | [ ] | api | GET | `/lastfm/analytics/quilt/status` | `listening_cover_status` | True |
 | [ ] | api | GET | `/lastfm/analytics/quilt` | `listening_quilt` | True |

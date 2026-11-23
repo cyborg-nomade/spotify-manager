@@ -7,8 +7,11 @@ from pydantic import TypeAdapter
 
 from spotify_manager.domain.listening_cover_values import AlbumCoverMetadata
 from spotify_manager.domain.listening_cover_values import CoverImage
+from spotify_manager.domain.listening_cover_values import LastFmArtwork
 from spotify_manager.domain.listening_time import listening_identity
 from spotify_manager.infrastructure.listening.cover_image import cover_artwork
+from spotify_manager.infrastructure.listening.cover_image import lastfm_album_page
+from spotify_manager.infrastructure.listening.cover_image import lastfm_artwork
 from spotify_manager.infrastructure.listening.cover_image import validate_cover_image
 from spotify_manager.infrastructure.listening.cover_search import cover_mbid
 
@@ -41,6 +44,9 @@ def _coherent(metadata: AlbumCoverMetadata) -> bool:
     state, count = metadata.state, metadata.candidate_count
     if (state == "ready") != (metadata.artwork is not None):
         return False
+    if isinstance(metadata.artwork, LastFmArtwork):
+        page = lastfm_album_page(metadata.artist_name, metadata.album_name)
+        return count == 0 and metadata.artwork.page_url == page
     if state in {"ready", "no_cover"}:
         return count == 1
     if state == "unmatched":
@@ -98,6 +104,13 @@ def decode_cover_image(
         if content is not None:
             raise ValueError("Cached image has no supporting artwork evidence.")
         return None
+    if isinstance(art, LastFmArtwork):
+        if content is None:
+            raise ValueError("Cached Last.fm artwork is missing.")
+        expected, thumbnail = lastfm_artwork(content, art.page_url)
+        if expected != art:
+            raise ValueError("Cached Last.fm artwork bytes and evidence disagree.")
+        return thumbnail
     cover_mbid(art.release_mbid)
     if not re.fullmatch(r"[0-9]{1,30}", art.image_id) or content is None:
         raise ValueError("Cached artwork identity or bytes are invalid.")

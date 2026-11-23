@@ -14,6 +14,11 @@ labels and explicit unknowns rather than inferred origins from names or tags.
 
 ## Decision
 
+The [provider reliability update](../listening-explorer/PROVIDER_RELIABILITY.md)
+adds a protected full-history loader, durable Space checkpoints and nightly
+coverage for artists with no completed result. The evidence rules below apply
+to every lookup.
+
 Label the view **Artist atlas**, describing reported country associations.
 Read current MusicBrainz artist-search metadata only after an explicit protected
 POST. Send the captured artist name and public query options, without account

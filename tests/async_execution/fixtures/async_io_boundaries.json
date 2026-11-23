@@ -1070,6 +1070,26 @@
     "reason": "asyncio.to_thread requires the concrete SQLite resource to persist one validated country observation and publish a complete generation off the event loop. Capacity remains held through cancellation; no canonical data or application stage is written or executed."
   },
   {
+    "owner": "spotify_manager.infrastructure.listening.origin_cache.ArtistOriginCache.install",
+    "function": "self._install",
+    "reason": "asyncio.to_thread requires this concrete SQLite replacement to publish a complete checkpoint off the event loop. The worker drains before capacity is released."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.huggingface.listening_origin_archive.HubOriginArchive.restore",
+    "function": "self._restore",
+    "reason": "asyncio.to_thread requires the synchronous Hub SDK and bounded archive decoder to run off the event loop. Cancellation drains the SDK operation."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.huggingface.listening_origin_archive.HubOriginArchive.checkpoint",
+    "function": "self._publish",
+    "reason": "asyncio.to_thread requires the synchronous Hub SDK to complete an atomic dataset commit off the event loop. Cancellation retains capacity and drains the commit."
+  },
+  {
+    "owner": "spotify_manager.infrastructure.listening.lastfm_cover.LastFmCoverSource.fetch",
+    "function": "self._read",
+    "reason": "asyncio.to_thread requires this bounded Last.fm metadata and thumbnail reader to run off the event loop. Worker capacity stays held through cancellation until the provider read drains."
+  },
+  {
     "owner": "spotify_manager.infrastructure.listening.cover_source.MusicBrainzCoverSource._attempt",
     "function": "self.read",
     "reason": "asyncio.to_thread requires the concrete bounded cover provider/cache resource operation to finish off the event loop. Shared request spacing and bounded capacity remain owned until the worker drains, including cancellation; no application stage or canonical data write is executed."

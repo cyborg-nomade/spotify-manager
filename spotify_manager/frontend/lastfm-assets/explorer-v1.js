@@ -1,8 +1,8 @@
 import * as charts from "./charts-v1.js?v=7";
 import * as library from "./library-v1.js?v=7";
 import * as tags from "./tags-v1.js?v=7";
-import * as origins from "./origins-v1.js?v=7";
-import * as quilt from "./quilt-v1.js?v=7";
+import * as origins from "./origins-v1.js?v=9";
+import * as quilt from "./quilt-v1.js?v=9";
 import * as sessions from "./sessions-v1.js?v=7";
 import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
@@ -629,10 +629,16 @@ async function pollQuiltLookup() {
     );
     if (epoch !== state.epoch || state.tab !== "quilt") return;
     quilt.progress(status);
-    if (["running", "cancelling"].includes(status.state) || $("detail").open)
-      scheduleQuiltPoll();
-    else if (status.metadata_snapshot !== state.data.quilt?.metadata_snapshot)
+    if (
+      !$("detail").open &&
+      status.metadata_snapshot !== state.data.quilt?.metadata_snapshot
+    )
       await loadSelection();
+    else if (
+      ["running", "cancelling"].includes(status.state) ||
+      $("detail").open
+    )
+      scheduleQuiltPoll();
   } catch (error) {
     if (epoch !== state.epoch || state.tab !== "quilt") return;
     if (isTemporaryLookupStatusError(error)) {
@@ -737,10 +743,16 @@ async function pollOriginLookup() {
     );
     if (epoch !== state.epoch || state.tab !== "origins") return;
     origins.progress(status);
-    if (["running", "cancelling"].includes(status.state) || $("detail").open)
-      scheduleOriginPoll();
-    else if (status.metadata_snapshot !== state.data.origins?.metadata_snapshot)
+    if (
+      !$("detail").open &&
+      status.metadata_snapshot !== state.data.origins?.metadata_snapshot
+    )
       await loadSelection();
+    else if (
+      ["running", "cancelling"].includes(status.state) ||
+      $("detail").open
+    )
+      scheduleOriginPoll();
   } catch (error) {
     if (epoch !== state.epoch || state.tab !== "origins") return;
     if (isTemporaryLookupStatusError(error)) {
@@ -754,17 +766,19 @@ async function pollOriginLookup() {
   }
 }
 
-async function originAction(cancel = false) {
+async function originAction(action) {
   try {
-    const parameters = cancel
-      ? null
-      : query({
-          limit: $("origin-batch-size").value,
-          force: $("origin-force").checked,
-        });
+    const parameters = {
+      refresh: query({
+        limit: $("origin-batch-size").value,
+        force: $("origin-force").checked,
+      }),
+      backfill: new URLSearchParams({ snapshot: state.snapshot }),
+      cancel: null,
+    };
     const status = await request(
-      `/lastfm/analytics/origins/${cancel ? "cancel" : "refresh"}`,
-      parameters,
+      `/lastfm/analytics/origins/${action}`,
+      parameters[action],
       undefined,
       "POST",
     );
@@ -2149,8 +2163,9 @@ $("origin-metric").addEventListener("change", () => {
   if (state.data.origins?.items) origins.render(state.data.origins, context());
   persist();
 });
-$("origin-fetch").addEventListener("click", () => originAction());
-$("origin-cancel").addEventListener("click", () => originAction(true));
+$("origin-fetch").addEventListener("click", () => originAction("refresh"));
+$("origin-backfill").addEventListener("click", () => originAction("backfill"));
+$("origin-cancel").addEventListener("click", () => originAction("cancel"));
 $("origin-previous").addEventListener("click", () => {
   state.originPage--;
   loadSelection();

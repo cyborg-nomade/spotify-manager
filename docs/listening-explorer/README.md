@@ -349,6 +349,9 @@ Switch selected plays/artist counts, pan/zoom, select a country, inspect origina
 provider candidates and open recorded history. Complete country/coverage tables,
 CSV and PNG retain source dates and versions. No metadata searches happen on page
 load. Explicit batches of 10 or 25 artists expand coverage through MusicBrainz.
+The Space's **Load all missing artists** action covers the full published
+history, and the nightly refresh adds artists without saved lookup results.
+The Space stores progress in the private data repository.
 The locally bundled map needs no remote tiles and has a table fallback.
 
 See [the release record](ARTIST_ATLAS_RELEASE.md) for configuration and contracts
@@ -363,10 +366,10 @@ Search album/artist names, toggle captions and open original recorded history.
 Missing art keeps its tile and rank. Complete scope counts distinguish selected,
 displayed, outside-quilt and missing-album plays.
 
-The page only reads cached art. Explicit five/ten-album batches send visible
-titles and artist credits to MusicBrainz and fetch representative Cover Art
-Archive/Internet Archive thumbnails. One exact title/complete-credit candidate
-supports current representative artwork; it does not verify the edition heard.
+The page reads cached art. Explicit five/ten-album batches check Last.fm first
+for exact album and artist matches, then use MusicBrainz and Cover Art Archive
+for remaining tiles. Artwork describes a current catalogue match and leaves
+the edition heard unverified.
 Ambiguous/incomplete names stay unresolved. Current source links, retrieval dates,
 coverage and independent versions accompany the quilt. PNG embeds available local
 images and uses labelled placeholders for unavailable art; CSV exports every tile.

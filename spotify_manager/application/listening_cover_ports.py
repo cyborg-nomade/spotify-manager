@@ -50,6 +50,14 @@ class CoverSource(Protocol):
         ...
 
 
+class QuickCoverSource(Protocol):
+    """Find an attributed cover or leave the album for the fallback pass."""
+
+    async def fetch(self, album: RankedEntity) -> CoverFetchResult | None:
+        """Return a corroborated cover, or none if the fallback is needed."""
+        ...
+
+
 class CoverCache(Protocol):
     """Retain complete metadata generations without canonical-data writes."""
 

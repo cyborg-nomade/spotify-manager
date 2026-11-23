@@ -52,6 +52,10 @@ export function progress(status) {
   );
   $("origin-fetch").disabled =
     busy || !status.configured || !status.cache_available;
+  $("origin-backfill").disabled = busy || !status.configured || !status.durable;
+  $("origin-backfill").title = status.durable
+    ? ""
+    : "Full-history loading needs the Space’s durable storage";
   $("origin-cancel").disabled = !busy || status.state === "cancelling";
 }
 
@@ -98,6 +102,7 @@ export function render(data, context) {
     ])
       $(id).replaceChildren();
     $("origin-fetch").disabled = true;
+    $("origin-backfill").disabled = true;
     $("origin-cancel").disabled = true;
     charts.clearCharts();
     $("origins-chart").replaceChildren();

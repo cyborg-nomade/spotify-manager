@@ -14,6 +14,7 @@ from spotify_manager.domain.listening_origin_values import ArtistOriginMetadata
 from spotify_manager.domain.listening_time import listening_identity
 from spotify_manager.domain.listening_values import RankedEntity
 from spotify_manager.infrastructure.listening.origin_cache import ArtistOriginCache
+from tests.support.listening_origins import FixtureOriginArchive
 from tests.support.listening_origins import FixtureOriginSource
 from tests.support.listening_origins import origin_metadata
 
@@ -145,6 +146,55 @@ async def test_cancellation_drains_a_complete_cache_commit_and_counts_it(
     await completed(stage)
     assert stage.status().state == "cancelled"
     assert stage.status().completed == stage.status().cached_artists == 1
+    await stage.close()
+
+
+class FixtureInterruptibleSource(FixtureOriginSource):
+    """Simulate an outage after several lookups in the current checkpoint."""
+
+    def __init__(self) -> None:
+        """Initialize the synthetic provider."""
+        super().__init__()
+        self.stop_at: str | None = "3"
+
+    async def fetch(self, artist: RankedEntity) -> ArtistOriginMetadata:
+        """Fail on the selected name and return an unresolved result for zero."""
+        if artist.name == self.stop_at:
+            raise OriginSourceError("Fixture outage.")
+        if artist.name == "0":
+            return origin_metadata("0", (), "unmatched", 0)
+        return await super().fetch(artist)
+
+
+@pytest.mark.asyncio
+async def test_backfill_checkpoints_partial_progress_and_resumes_after_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Persist completed and unresolved outcomes and retry the interrupted artist."""
+    monkeypatch.setattr(listening_origins, "ORIGIN_CHECKPOINT_SIZE", 2)
+    archive = FixtureOriginArchive()
+    source = FixtureInterruptibleSource()
+    stage = ListeningOriginEnrichment(
+        ArtistOriginCache(tmp_path / "first"), source, archive
+    )
+    await stage.restore()
+    stage.start_backfill(request(5))
+    await completed(stage)
+    assert stage.status().state == "error"
+    assert stage.status().completed == 3
+    assert archive.checkpoints == [("0", "1"), ("2",)]
+    await stage.close()
+    source.stop_at = None
+    stage = ListeningOriginEnrichment(
+        ArtistOriginCache(tmp_path / "second"), source, archive
+    )
+    await stage.restore()
+    assert stage.status().cached_artists == 3
+    assert stage.start_backfill(request(5)).total == 2
+    await completed(stage)
+    assert stage.status().state == "complete"
+    assert archive.checkpoints[-1] == ("3", "4")
+    assert source.names == ["1", "2", "3", "4"]
     await stage.close()
 
 

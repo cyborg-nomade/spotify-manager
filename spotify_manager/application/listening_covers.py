@@ -9,14 +9,17 @@ from spotify_manager.application.listening_cover_ports import CoverFetchState
 from spotify_manager.application.listening_cover_ports import CoverFetchStatus
 from spotify_manager.application.listening_cover_ports import CoverSource
 from spotify_manager.application.listening_cover_ports import CoverSourceError
+from spotify_manager.application.listening_cover_ports import QuickCoverSource
 from spotify_manager.application.listening_ports import ListeningReads
 from spotify_manager.domain.listening_cover_values import CoverArtwork
 from spotify_manager.domain.listening_cover_values import CoverCatalog
 from spotify_manager.domain.listening_cover_values import CoverFetchResult
+from spotify_manager.domain.listening_cover_values import LastFmArtwork
 from spotify_manager.domain.listening_cover_values import ListeningQuilt
 from spotify_manager.domain.listening_cover_values import QuiltOptions
 from spotify_manager.domain.listening_quilt import get_quilt_analysis
 from spotify_manager.domain.listening_values import ListeningQuery
+from spotify_manager.domain.listening_values import RankedEntity
 
 
 REQUEST_INTERVAL = 1.1
@@ -52,15 +55,22 @@ class ListeningCoverEnrichment:
         source: Configured public album-cover read resource.
     """
 
-    def __init__(self, cache: CoverCache, source: CoverSource) -> None:
+    def __init__(
+        self,
+        cache: CoverCache,
+        source: CoverSource,
+        quick_source: QuickCoverSource | None = None,
+    ) -> None:
         """Bind the concrete resources and initialize an idle batch.
 
         Args:
             cache: Derived metadata resource, separate from canonical data.
             source: Public read provider; no account or playlist mutation API.
+            quick_source: Optional first pass before the archive lookup.
         """
         self.cache = cache
         self.source = source
+        self.quick_source = quick_source
         self._task: asyncio.Task[None] | None = None
         self._state: CoverFetchState = "idle"
         self._total = 0
@@ -152,11 +162,33 @@ class ListeningCoverEnrichment:
             )
 
     async def _fetch(self, request: CoverFetchRequest) -> None:
-        for album in request.albums:
+        albums = request.albums
+        if self.quick_source is not None:
+            self._message = "Checking Last.fm for all requested covers first."
+            albums = await self._fetch_quickly(albums, self.quick_source)
+            self._message = (
+                "Checking Cover Art Archive for remaining covers. "
+                "Temporary failures retry automatically."
+            )
+        for album in albums:
             if self._completed:
                 await asyncio.sleep(REQUEST_INTERVAL)
             metadata = await self.source.fetch(album)
             await self._save(metadata)
+
+    async def _fetch_quickly(
+        self, albums: tuple[RankedEntity, ...], source: QuickCoverSource
+    ) -> tuple[RankedEntity, ...]:
+        missing = []
+        for index, album in enumerate(albums):
+            if index:
+                await asyncio.sleep(REQUEST_INTERVAL)
+            result = await source.fetch(album)
+            if result is None:
+                missing.append(album)
+                continue
+            await self._save(result)
+        return tuple(missing)
 
     async def _save(self, metadata: CoverFetchResult) -> None:
         try:
@@ -197,7 +229,7 @@ def get_quilt_image(catalog: CoverCatalog, album_key: str) -> bytes | None:
         album_key: Requested original history identity.
 
     Returns:
-        Validated JPEG bytes, or no image when this album has no supporting art.
+        Validated JPEG or PNG bytes, or no image for this album.
     """
     for item in catalog.entries:
         if item.album_key == album_key:
@@ -205,7 +237,9 @@ def get_quilt_image(catalog: CoverCatalog, album_key: str) -> bytes | None:
     return None
 
 
-def _image_bytes(catalog: CoverCatalog, artwork: CoverArtwork | None) -> bytes | None:
+def _image_bytes(
+    catalog: CoverCatalog, artwork: CoverArtwork | LastFmArtwork | None
+) -> bytes | None:
     if artwork is None:
         return None
     for image in catalog.images:

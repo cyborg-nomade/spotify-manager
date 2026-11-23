@@ -2620,6 +2620,41 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LastFmArtwork": {
+        "description": "Keep an exact Last.fm catalogue match and its intact thumbnail identity.\n\nArgs:\n    source: Explicit provider attribution.\n    page_url: Catalogue page derived from the exact artist and album names.\n    sha256: Content identity of the validated thumbnail.\n    width: Encoded pixel width.\n    height: Encoded pixel height.",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "page_url": {
+            "title": "Page Url",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source": {
+            "const": "lastfm",
+            "title": "Source",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "page_url",
+          "sha256",
+          "width",
+          "height"
+        ],
+        "title": "LastFmArtwork",
+        "type": "object"
+      },
       "LibraryComparison": {
         "description": "Present a bounded comparison with both source identities intact.\n\nArgs:\n    library_snapshot: Pinned mirror generation separate from history.\n    revision: Pinned publication manifest revision.\n    source: Selected collection's provenance and availability.\n    coverage: Disjoint counts before status/search filtering.\n    items: One deterministic page of evidence rows.\n    total: Number of rows after search/status filtering.\n    page: One-based page.\n    limit: Requested page size.\n    options: Applied comparison options, independent of unsubmitted UI edits.",
         "properties": {
@@ -5441,7 +5476,7 @@
         "type": "string"
       },
       "OriginFetchStatus": {
-        "description": "Describe explicit enrichment work separately from history availability.\n\nArgs:\n    state: Current batch lifecycle.\n    configured: Whether public provider reads are configured.\n    total: Number of requested artists.\n    completed: Number of complete lookup outcomes saved.\n    message: Data-free progress, recovery or cancellation explanation.\n    metadata_snapshot: Last complete metadata generation.\n    cached_artists: Number of cached lookup outcomes.\n    history_snapshot: Source generation that selected this batch.\n    cache_available: Whether derived storage initialized successfully.",
+        "description": "Describe explicit enrichment work separately from history availability.\n\nArgs:\n    state: Current batch lifecycle.\n    configured: Whether public provider reads are configured.\n    total: Number of requested artists.\n    completed: Number of complete lookup outcomes saved.\n    message: Data-free progress, recovery or cancellation explanation.\n    metadata_snapshot: Last complete metadata generation.\n    cached_artists: Number of cached lookup outcomes.\n    history_snapshot: Source generation that selected this batch.\n    cache_available: Whether derived storage initialized successfully.\n    durable: Whether the full-history loader has durable storage configured.",
         "properties": {
           "cache_available": {
             "title": "Cache Available",
@@ -5457,6 +5492,11 @@
           },
           "configured": {
             "title": "Configured",
+            "type": "boolean"
+          },
+          "durable": {
+            "default": false,
+            "title": "Durable",
             "type": "boolean"
           },
           "history_snapshot": {
@@ -6227,9 +6267,13 @@
                 "$ref": "#/components/schemas/CoverArtwork"
               },
               {
+                "$ref": "#/components/schemas/LastFmArtwork"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Artwork"
           },
           "candidate_count": {
             "title": "Candidate Count",
@@ -14422,6 +14466,62 @@
         ]
       }
     },
+    "/lastfm/analytics/origins/backfill": {
+      "post": {
+        "description": "Start or resume complete-history enrichment with durable checkpoints.\n\nArgs:\n    request: Configured named enrichment application stage.\n    batch: Missing artists selected independently of the visible filters.\n\nReturns:\n    Accepted progress or the batch already in progress.\n\nRaises:\n    HTTPException: The durable loader is unavailable.",
+        "operationId": "backfill_listening_origins_lastfm_analytics_origins_backfill_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20000,
+              "maximum": 20000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Backfill Listening Origins",
+        "tags": [
+          "Listening Explorer countries"
+        ]
+      }
+    },
     "/lastfm/analytics/origins/cancel": {
       "post": {
         "description": "Cancel only the metadata batch, retaining completed cached observations.\n\nArgs:\n    request: Configured named enrichment application stage.\n    response: Response receiving private cache policy.\n\nReturns:\n    Cancellation progress without changing canonical data or routine jobs.",
@@ -14937,7 +15037,7 @@
     },
     "/lastfm/analytics/quilt/images/{album_key}": {
       "get": {
-        "description": "Serve only validated local bytes pinned to an authenticated cover generation.\n\nArgs:\n    request: Cache resource owner.\n    album_key: Original history identity; never an arbitrary external URL.\n    metadata_snapshot: Exact cover generation binding metadata and bytes.\n\nReturns:\n    Private JPEG bytes with content sniffing disabled.\n\nRaises:\n    HTTPException: The generation expired or this album has no cached art.",
+        "description": "Serve only validated local bytes pinned to an authenticated cover generation.\n\nArgs:\n    request: Cache resource owner.\n    album_key: Original history identity; never an arbitrary external URL.\n    metadata_snapshot: Exact cover generation binding metadata and bytes.\n\nReturns:\n    Private JPEG or PNG bytes with content sniffing disabled.\n\nRaises:\n    HTTPException: The generation expired or this album has no cached art.",
         "operationId": "listening_cover_image_lastfm_analytics_quilt_images__album_key__get",
         "parameters": [
           {

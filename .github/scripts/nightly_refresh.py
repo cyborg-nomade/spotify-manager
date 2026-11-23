@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from urllib.request import Request
 
 from spotify_manager.application import automation_run as workflow
+from spotify_manager.application.automation_artist_origins import refresh_artist_origins
 from spotify_manager.application.automation_values import (
     ACTIVE_STATUSES as ACTIVE_STATUSES,
 )
@@ -358,6 +359,11 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Refresh Flush Mode counts without starting library refresh jobs.",
     )
+    verification.add_argument(
+        "--artist-origins-only",
+        action="store_true",
+        help="Checkpoint new Artist Map lookups from the latest published history.",
+    )
     parser.add_argument(
         "--full-rebuild",
         action="store_true",
@@ -415,6 +421,9 @@ def main(argv: list[str] | None = None) -> int:
             return run_connection_check(client)
         if args.flush_mode_only:
             workflow.refresh_flush_mode(client, _OUTPUT)
+            return 0
+        if args.artist_origins_only:
+            print(refresh_artist_origins(client), flush=True)
             return 0
         return _refresh(client, args, now)
     except AutomationError as exc:

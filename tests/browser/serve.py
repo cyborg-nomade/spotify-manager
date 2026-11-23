@@ -38,6 +38,7 @@ from tests.support.listening import scrobble
 from tests.support.listening_covers import FixtureCoverSource
 from tests.support.listening_covers import cover_result
 from tests.support.listening_library import publish_collection
+from tests.support.listening_origins import FixtureOriginArchive
 from tests.support.listening_origins import FixtureOriginSource
 from tests.support.listening_origins import origin_metadata
 from tests.support.listening_tags import FixtureTagSource
@@ -178,8 +179,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             origin_cache.write(observation)
         origin_application.REQUEST_INTERVAL = 0.01
         app.state.listening_origins = ListeningOriginEnrichment(
-            origin_cache, FixtureOriginSource()
+            origin_cache,
+            FixtureOriginSource(),
+            FixtureOriginArchive(origin_cache.current().entries),
         )
+        await app.state.listening_origins.restore()
         app.state.listening_covers = cover_stage(Path(directory), now)
         try:
             yield

@@ -883,7 +883,7 @@ test("artist atlas maps only single-country evidence and keeps source-aware expo
     { times: 1 },
   );
   await page
-    .getByRole("button", { name: "Fetch public country metadata", exact: true })
+    .getByRole("button", { name: "Load all missing artists", exact: true })
     .click();
   await expect(page.locator("#origin-progress")).toContainText(
     "Checking again",
