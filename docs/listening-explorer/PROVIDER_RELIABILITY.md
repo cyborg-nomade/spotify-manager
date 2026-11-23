@@ -8,12 +8,14 @@ public requests. The public cover example eventually completed the MusicBrainz
 search and the archive redirects and returned a validated 10,703-byte JPEG.
 These probes used documentation examples.
 
-Each explicit fetch can now make up to three attempts for the current artist or
+Each explicit fetch can now make up to six attempts for the current artist or
 album. Timeouts, interrupted connections and HTTP 408, 429, 500, 502, 503 and 504
-qualify. The waits before attempts two and three start at two and four seconds.
-A valid Retry-After header can increase that wait. Longer hints than the
-30-second automatic wait budget end the batch and defer subsequent requests
-until the estimated cooldown is within budget. The shared gate preserves at
+qualify. Default delays before retries are 5, 10, 20, 40 and 60 seconds,
+totalling 135 seconds before the last attempt. A valid Retry-After header can
+increase a wait to two minutes, with up to four minutes of scheduled retry
+delays per item. An over-budget delay ends the batch and preserves the provider
+cooldown for subsequent requests. Response time and work in the other view can
+add to the overall elapsed time. The shared gate preserves at
 least 1.1 seconds between lookups and applies provider cooldown across both
 views. An album retry restarts its exact search and bounded archive reads.
 
@@ -24,9 +26,10 @@ waiting immediately and drains any active blocking read. A failed attempt does
 not create cached absence. Explicit absence and ambiguous results continue to
 follow the existing evidence rules.
 
-Retry runs only inside an explicit fetch. There is no new background polling,
-credential, cache migration or external destination. The existing progress area
-announces bounded retries and distinguishes provider failure from a cache error.
+Provider retries run only inside an explicit fetch. The progress area announces
+the longer wait and shows a safe reason when a lookup stops. If the browser
+temporarily loses the app's local status endpoint, it checks again after five
+seconds while the lookup continues.
 
 Sources: [MusicBrainz rate limiting](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)
 and [Cover Art Archive response contracts](https://musicbrainz.org/doc/Cover_Art_Archive/API).

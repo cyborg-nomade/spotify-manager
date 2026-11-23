@@ -608,9 +608,14 @@ async function loadQuilt(recoverMetadata = true) {
   }
 }
 
-function scheduleQuiltPoll() {
+function scheduleQuiltPoll(delay = 2000) {
   clearTimeout(state.quiltTimer);
-  state.quiltTimer = setTimeout(pollQuiltLookup, 2000);
+  state.quiltTimer = setTimeout(pollQuiltLookup, delay);
+}
+
+function isTemporaryLookupStatusError(error) {
+  if (error.name === "AbortError") return false;
+  return error.status == null || error.status === 429 || error.status >= 500;
 }
 
 async function pollQuiltLookup() {
@@ -629,9 +634,15 @@ async function pollQuiltLookup() {
     else if (status.metadata_snapshot !== state.data.quilt?.metadata_snapshot)
       await loadSelection();
   } catch (error) {
-    if (error.status !== 401 && error.name !== "AbortError")
+    if (epoch !== state.epoch || state.tab !== "quilt") return;
+    if (isTemporaryLookupStatusError(error)) {
       $("quilt-progress").textContent =
-        "Cover lookup progress is unavailable. Cached artwork and recorded history remain available; retry later.";
+        "Cover lookup progress is temporarily unavailable. Checking again…";
+      scheduleQuiltPoll(5000);
+    } else if (error.status !== 401 && error.name !== "AbortError") {
+      $("quilt-progress").textContent =
+        "Cover lookup progress could not be read. Reload the quilt to check again.";
+    }
   }
 }
 
@@ -709,10 +720,10 @@ async function loadOrigins(recoverMetadata = true) {
   }
 }
 
-function scheduleOriginPoll() {
+function scheduleOriginPoll(delay = 2000) {
   clearTimeout(state.originTimer);
   clearTimeout(state.quiltTimer);
-  state.originTimer = setTimeout(pollOriginLookup, 2000);
+  state.originTimer = setTimeout(pollOriginLookup, delay);
 }
 
 async function pollOriginLookup() {
@@ -731,9 +742,15 @@ async function pollOriginLookup() {
     else if (status.metadata_snapshot !== state.data.origins?.metadata_snapshot)
       await loadSelection();
   } catch (error) {
-    if (error.status !== 401 && error.name !== "AbortError")
+    if (epoch !== state.epoch || state.tab !== "origins") return;
+    if (isTemporaryLookupStatusError(error)) {
       $("origin-progress").textContent =
-        "Lookup progress is unavailable. Cached history remains visible; retry later.";
+        "Country lookup progress is temporarily unavailable. Checking again…";
+      scheduleOriginPoll(5000);
+    } else if (error.status !== 401 && error.name !== "AbortError") {
+      $("origin-progress").textContent =
+        "Country lookup progress could not be read. Reload the map to check again.";
+    }
   }
 }
 

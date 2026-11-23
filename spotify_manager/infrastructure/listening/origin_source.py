@@ -30,6 +30,7 @@ from spotify_manager.infrastructure.listening.musicbrainz_gate import (
 )
 from spotify_manager.infrastructure.listening.provider_retry import RETRYABLE_STATUSES
 from spotify_manager.infrastructure.listening.provider_retry import retry_after_seconds
+from spotify_manager.infrastructure.listening.provider_retry import retry_stop_message
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
@@ -235,6 +236,7 @@ class MusicBrainzOriginSource:
             OriginSourceError: The concrete provider read failed.
         """
         attempt = 1
+        waited = 0.0
         while True:
             try:
                 return await self._attempt(artist)
@@ -243,8 +245,14 @@ class MusicBrainzOriginSource:
                     "MusicBrainz requested a longer pause. Try again later."
                 ) from None
             except OriginSourceError as error:
-                if not self._gate.schedule_retry(error, attempt):
+                if not error.temporary:
                     raise
+                delay = self._gate.schedule_retry(error, attempt, waited)
+                if delay is None:
+                    raise OriginSourceError(
+                        retry_stop_message(error.retry_after)
+                    ) from None
+            waited += delay
             attempt += 1
 
     async def _attempt(self, artist: RankedEntity) -> ArtistOriginMetadata:

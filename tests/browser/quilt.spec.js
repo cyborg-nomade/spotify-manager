@@ -59,8 +59,19 @@ test("quilt ranks, captions, album history, explicit fetch and exports work", as
   await expect(page.locator("#quilt-grid .quilt-tile")).toHaveCount(7);
   await page.locator("#quilt-force").check();
   await page.locator("#quilt-batch-size").selectOption("5");
+  await page.route(
+    "**/lastfm/analytics/quilt/status",
+    (route) => route.fulfill({ status: 503, json: { detail: "Busy" } }),
+    { times: 1 },
+  );
   await page.getByRole("button", { name: "Fetch public album covers" }).click();
-  await expect(page.locator("#quilt-progress")).toContainText("complete · 5/5");
+  await expect(page.locator("#quilt-progress")).toContainText("Checking again");
+  await expect(page.locator("#quilt-progress")).toContainText(
+    "complete · 5/5",
+    {
+      timeout: 10000,
+    },
+  );
   await expect(page.locator("#quilt-grid .quilt-tile")).toHaveCount(7);
   await page.locator("#quilt-size").selectOption("9");
   await page.locator("#quilt-labels").uncheck();

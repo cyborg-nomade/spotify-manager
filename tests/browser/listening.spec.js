@@ -877,10 +877,20 @@ test("artist atlas maps only single-country evidence and keeps source-aware expo
     "href",
     /^https:\/\/musicbrainz\.org\/artist\/[a-f0-9-]{36}$/,
   );
+  await page.route(
+    "**/lastfm/analytics/origins/status",
+    (route) => route.fulfill({ status: 503, json: { detail: "Busy" } }),
+    { times: 1 },
+  );
   await page
     .getByRole("button", { name: "Fetch public country metadata", exact: true })
     .click();
-  await expect(page.locator("#origin-progress")).toContainText("complete");
+  await expect(page.locator("#origin-progress")).toContainText(
+    "Checking again",
+  );
+  await expect(page.locator("#origin-progress")).toContainText("complete", {
+    timeout: 10000,
+  });
   await expect(page.locator("#origin-coverage")).toContainText("339 of 781");
   await page.getByRole("button", { name: "Alpha", exact: true }).click();
   await expect(page.locator("#detail")).toBeVisible();

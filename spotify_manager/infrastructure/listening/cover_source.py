@@ -23,6 +23,7 @@ from spotify_manager.infrastructure.listening.musicbrainz_gate import (
 from spotify_manager.infrastructure.listening.musicbrainz_gate import (
     ProviderCooldownError,
 )
+from spotify_manager.infrastructure.listening.provider_retry import retry_stop_message
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
 
 
@@ -155,6 +156,7 @@ class MusicBrainzCoverSource:
             CoverSourceError: A safe provider or image-validation failure.
         """
         attempt = 1
+        waited = 0.0
         while True:
             try:
                 return await self._attempt(album)
@@ -163,8 +165,14 @@ class MusicBrainzCoverSource:
                     "A metadata provider requested a longer pause. Try again later."
                 ) from None
             except CoverSourceError as error:
-                if not self._gate.schedule_retry(error, attempt):
+                if not error.temporary:
                     raise
+                delay = self._gate.schedule_retry(error, attempt, waited)
+                if delay is None:
+                    raise CoverSourceError(
+                        retry_stop_message(error.retry_after)
+                    ) from None
+            waited += delay
             attempt += 1
 
     async def _attempt(self, album: RankedEntity) -> CoverFetchResult:

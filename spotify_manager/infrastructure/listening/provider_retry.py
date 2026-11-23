@@ -6,8 +6,23 @@ from email.utils import parsedate_to_datetime
 
 
 RETRYABLE_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
-MAX_ATTEMPTS = 3
-MAX_AUTOMATIC_WAIT = 30
+RETRY_DELAYS = (5, 10, 20, 40, 60)
+MAX_AUTOMATIC_WAIT = 120
+MAX_RETRY_WAIT_TOTAL = 240
+
+
+def retry_stop_message(retry_after: float) -> str:
+    """Explain why a temporary failure stopped the current lookup.
+
+    Args:
+        retry_after: Minimum delay requested by the last provider response.
+
+    Returns:
+        A safe explanation suitable for the existing progress panel.
+    """
+    if retry_after > MAX_AUTOMATIC_WAIT:
+        return "The provider asked for a longer pause. Try Fetch again later."
+    return "The provider stayed unavailable within the automatic retry limits."
 
 
 def retry_after_seconds(header: str | None) -> float:
