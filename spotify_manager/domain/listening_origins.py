@@ -206,3 +206,26 @@ def origin_fetch_candidates(
         if len(result) == limit:
             break
     return tuple(result)
+
+
+def origin_backfill_candidates(
+    lifetimes: tuple[EntityLifetime, ...], catalog: OriginCatalog, limit: int
+) -> tuple[RankedEntity, ...]:
+    """Choose never-looked-up artists from full history in highest-play order.
+
+    Args:
+        lifetimes: Artist counts from one complete history generation.
+        catalog: Completed outcomes, including unresolved candidates.
+        limit: Maximum missing artists to queue.
+
+    Returns:
+        Deterministic next artists for the full loader or nightly catch-up.
+    """
+    result = []
+    for item in _artists(lifetimes, catalog):
+        if item.evidence != "missing":
+            continue
+        result.append(item.artist)
+        if len(result) == limit:
+            break
+    return tuple(result)

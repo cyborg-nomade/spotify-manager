@@ -47,6 +47,25 @@ class CoverArtwork:
 
 
 @dataclass(frozen=True)
+class LastFmArtwork:
+    """Keep an exact Last.fm catalogue match and its intact thumbnail identity.
+
+    Args:
+        source: Explicit provider attribution.
+        page_url: Catalogue page derived from the exact artist and album names.
+        sha256: Content identity of the validated thumbnail.
+        width: Encoded pixel width.
+        height: Encoded pixel height.
+    """
+
+    source: Literal["lastfm"]
+    page_url: str
+    sha256: str
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
 class AlbumCoverMetadata:
     """Keep a dated bounded search separate from listening observations.
 
@@ -68,7 +87,7 @@ class AlbumCoverMetadata:
     candidates: tuple[CoverCandidate, ...]
     candidate_count: int
     fetched_at: str
-    artwork: CoverArtwork | None = None
+    artwork: CoverArtwork | LastFmArtwork | None = None
 
 
 @dataclass(frozen=True)
@@ -77,7 +96,7 @@ class CoverImage:
 
     Args:
         sha256: Digest binding the image to metadata.
-        content: Bounded JPEG bytes; never serialized into analytical JSON.
+        content: Bounded JPEG or PNG bytes outside the analytical JSON.
     """
 
     sha256: str
@@ -145,7 +164,7 @@ class QuiltAlbum:
     candidates: tuple[CoverCandidate, ...]
     candidate_count: int
     fetched_at: str | None
-    artwork: CoverArtwork | None
+    artwork: CoverArtwork | LastFmArtwork | None
 
 
 @dataclass(frozen=True)

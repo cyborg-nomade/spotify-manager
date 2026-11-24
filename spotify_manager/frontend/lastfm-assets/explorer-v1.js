@@ -1,8 +1,8 @@
 import * as charts from "./charts-v1.js?v=7";
 import * as library from "./library-v1.js?v=7";
 import * as tags from "./tags-v1.js?v=7";
-import * as origins from "./origins-v1.js?v=7";
-import * as quilt from "./quilt-v1.js?v=7";
+import * as origins from "./origins-v1.js?v=9";
+import * as quilt from "./quilt-v1.js?v=10";
 import * as sessions from "./sessions-v1.js?v=7";
 import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
@@ -81,6 +81,7 @@ const state = {
   originPage: 1,
   originTimer: null,
   quiltTimer: null,
+  quiltAutoPending: false,
   tagTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -608,30 +609,96 @@ async function loadQuilt(recoverMetadata = true) {
   }
 }
 
-function scheduleQuiltPoll() {
+function scheduleQuiltPoll(delay = 2000) {
   clearTimeout(state.quiltTimer);
-  state.quiltTimer = setTimeout(pollQuiltLookup, 2000);
+  state.quiltTimer = setTimeout(pollQuiltLookup, delay);
+}
+
+function appliedQuiltQuery() {
+  const { size, search } = state.data.quilt.options;
+  return { size, q: search };
+}
+
+async function updateQuiltArtwork(status, signal) {
+  const data = await analytics(
+    "quilt",
+    { ...appliedQuiltQuery(), metadata_snapshot: status.metadata_snapshot },
+    signal,
+  );
+  if (signal.aborted || state.tab !== "quilt") return;
+  state.data.quilt = { ...data, lookup: status };
+  quilt.render(state.data.quilt, context(), state.password, signal);
+}
+
+async function prefetchQuiltArtwork(signal) {
+  state.quiltAutoPending = false;
+  if (!state.data.quilt?.items?.some((item) => !item.artwork)) return;
+  $("quilt-fetch").disabled = true;
+  try {
+    const status = await request(
+      "/lastfm/analytics/quilt/prefetch",
+      query(appliedQuiltQuery()),
+      signal,
+      "POST",
+    );
+    if (signal.aborted || state.tab !== "quilt") return;
+    quilt.progress(status);
+    if (
+      ["running", "cancelling"].includes(status.state) ||
+      status.metadata_snapshot !== state.data.quilt.metadata_snapshot
+    )
+      scheduleQuiltPoll();
+  } catch (error) {
+    if (signal.aborted || state.tab !== "quilt" || error.status === 401) return;
+    quilt.progress(state.data.quilt.lookup);
+    $("quilt-progress").textContent =
+      "Last.fm could not start automatically. Use Fetch public album covers to try again.";
+  }
+}
+
+function isTemporaryLookupStatusError(error) {
+  if (error.name === "AbortError") return false;
+  return error.status == null || error.status === 429 || error.status >= 500;
 }
 
 async function pollQuiltLookup() {
   if (state.tab !== "quilt" || !state.authenticated) return;
   const epoch = state.epoch;
+  const signal = state.controller.signal;
   try {
     const status = await request(
       "/lastfm/analytics/quilt/status",
       null,
-      state.controller?.signal,
+      signal,
     );
-    if (epoch !== state.epoch || state.tab !== "quilt") return;
+    if (epoch !== state.epoch || signal.aborted || state.tab !== "quilt")
+      return;
     quilt.progress(status);
+    if (
+      !$("detail").open &&
+      state.data.quilt?.items &&
+      status.metadata_snapshot !== state.data.quilt?.metadata_snapshot
+    )
+      await updateQuiltArtwork(status, signal);
+    if (signal.aborted || state.tab !== "quilt") return;
     if (["running", "cancelling"].includes(status.state) || $("detail").open)
       scheduleQuiltPoll();
-    else if (status.metadata_snapshot !== state.data.quilt?.metadata_snapshot)
-      await loadSelection();
+    else if (state.quiltAutoPending) await prefetchQuiltArtwork(signal);
   } catch (error) {
-    if (error.status !== 401 && error.name !== "AbortError")
+    if (epoch !== state.epoch || signal.aborted || state.tab !== "quilt")
+      return;
+    if (error.status === 409 && error.conflict === "covers") {
+      scheduleQuiltPoll();
+      return;
+    }
+    if (isTemporaryLookupStatusError(error)) {
       $("quilt-progress").textContent =
-        "Cover lookup progress is unavailable. Cached artwork and recorded history remain available; retry later.";
+        "Cover lookup progress is temporarily unavailable. Checking again…";
+      scheduleQuiltPoll(5000);
+    } else if (error.status !== 401 && error.name !== "AbortError") {
+      $("quilt-progress").textContent =
+        "Cover lookup progress could not be read. Reload the quilt to check again.";
+    }
   }
 }
 
@@ -640,7 +707,7 @@ async function quiltAction(cancel = false) {
     const parameters = cancel
       ? null
       : query({
-          ...quiltQuery(),
+          ...appliedQuiltQuery(),
           limit: $("quilt-batch-size").value,
           force: $("quilt-force").checked,
         });
@@ -709,10 +776,10 @@ async function loadOrigins(recoverMetadata = true) {
   }
 }
 
-function scheduleOriginPoll() {
+function scheduleOriginPoll(delay = 2000) {
   clearTimeout(state.originTimer);
   clearTimeout(state.quiltTimer);
-  state.originTimer = setTimeout(pollOriginLookup, 2000);
+  state.originTimer = setTimeout(pollOriginLookup, delay);
 }
 
 async function pollOriginLookup() {
@@ -726,28 +793,42 @@ async function pollOriginLookup() {
     );
     if (epoch !== state.epoch || state.tab !== "origins") return;
     origins.progress(status);
-    if (["running", "cancelling"].includes(status.state) || $("detail").open)
-      scheduleOriginPoll();
-    else if (status.metadata_snapshot !== state.data.origins?.metadata_snapshot)
+    if (
+      !$("detail").open &&
+      status.metadata_snapshot !== state.data.origins?.metadata_snapshot
+    )
       await loadSelection();
+    else if (
+      ["running", "cancelling"].includes(status.state) ||
+      $("detail").open
+    )
+      scheduleOriginPoll();
   } catch (error) {
-    if (error.status !== 401 && error.name !== "AbortError")
+    if (epoch !== state.epoch || state.tab !== "origins") return;
+    if (isTemporaryLookupStatusError(error)) {
       $("origin-progress").textContent =
-        "Lookup progress is unavailable. Cached history remains visible; retry later.";
+        "Country lookup progress is temporarily unavailable. Checking again…";
+      scheduleOriginPoll(5000);
+    } else if (error.status !== 401 && error.name !== "AbortError") {
+      $("origin-progress").textContent =
+        "Country lookup progress could not be read. Reload the map to check again.";
+    }
   }
 }
 
-async function originAction(cancel = false) {
+async function originAction(action) {
   try {
-    const parameters = cancel
-      ? null
-      : query({
-          limit: $("origin-batch-size").value,
-          force: $("origin-force").checked,
-        });
+    const parameters = {
+      refresh: query({
+        limit: $("origin-batch-size").value,
+        force: $("origin-force").checked,
+      }),
+      backfill: new URLSearchParams({ snapshot: state.snapshot }),
+      cancel: null,
+    };
     const status = await request(
-      `/lastfm/analytics/origins/${cancel ? "cancel" : "refresh"}`,
-      parameters,
+      `/lastfm/analytics/origins/${action}`,
+      parameters[action],
       undefined,
       "POST",
     );
@@ -860,6 +941,7 @@ async function loadSelection(recoverVersion = true) {
   clearTimeout(state.quiltTimer);
   state.controller?.abort();
   quilt.reset();
+  state.quiltAutoPending = false;
   sessions.reset();
   state.sessionController?.abort();
   state.sessionDetail = null;
@@ -964,8 +1046,12 @@ function renderView(results) {
     state.data.quilt = results[0];
     charts.clearCharts();
     quilt.render(results[0], ctx, state.password, state.controller.signal);
-    if (["running", "cancelling"].includes(results[0].lookup?.state))
+    state.quiltAutoPending = Boolean(results[0].lookup?.cache_available);
+    if (["running", "cancelling"].includes(results[0].lookup?.state)) {
       scheduleQuiltPoll();
+    } else if (state.quiltAutoPending) {
+      void prefetchQuiltArtwork(state.controller.signal);
+    }
   }
   if (state.tab === "origins") {
     state.data.origins = results[0];
@@ -2132,8 +2218,9 @@ $("origin-metric").addEventListener("change", () => {
   if (state.data.origins?.items) origins.render(state.data.origins, context());
   persist();
 });
-$("origin-fetch").addEventListener("click", () => originAction());
-$("origin-cancel").addEventListener("click", () => originAction(true));
+$("origin-fetch").addEventListener("click", () => originAction("refresh"));
+$("origin-backfill").addEventListener("click", () => originAction("backfill"));
+$("origin-cancel").addEventListener("click", () => originAction("cancel"));
 $("origin-previous").addEventListener("click", () => {
   state.originPage--;
   loadSelection();

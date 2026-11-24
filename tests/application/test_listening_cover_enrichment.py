@@ -126,6 +126,33 @@ async def test_cancellation_before_start_finishes_and_bounds_are_enforced(
     await stage.close()
 
 
+class QuickFixtureCover:
+    """Make only the final cover of the synthetic batch available."""
+
+    available = True
+
+    async def fetch(self, album: RankedEntity) -> CoverFetchResult | None:
+        """Return a fast result for the last requested album."""
+        return cover_result(album.name, album.artist) if album.name == "2" else None
+
+
+@pytest.mark.asyncio
+async def test_fast_cover_pass_saves_later_covers_even_if_fallback_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The first slow fallback cannot delay exact matches later in the batch."""
+    monkeypatch.setattr(listening_covers, "REQUEST_INTERVAL", 0)
+    cache = AlbumCoverCache(tmp_path)
+    fallback = FixtureCoverSource(fail=True)
+    stage = ListeningCoverEnrichment(cache, fallback, QuickFixtureCover())
+    stage.start(request(3))
+    await completed(stage)
+    assert stage.status().state == "error" and stage.status().completed == 1
+    assert fallback.names == ["0"]
+    assert tuple(item.album_name for item in cache.current().entries) == ("2",)
+    await stage.close()
+
+
 @pytest.mark.asyncio
 async def test_empty_batch_completes_without_public_reads(tmp_path: Path) -> None:
     """A fully cached selection can finish with no provider traffic.

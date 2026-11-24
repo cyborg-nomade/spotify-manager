@@ -12,6 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from spotify_manager.application import automation_run
+from spotify_manager.application.automation_artist_origins import refresh_artist_origins
 from spotify_manager.domain.flush_mode import FlushState
 from spotify_manager.infrastructure.automation_records import artifact_updates
 from spotify_manager.infrastructure.automation_records import flush_observation
@@ -151,6 +152,39 @@ class FakeClient:
             Validated check response.
         """
         return flush_observation(self.request("POST", "/flush-mode/check"))
+
+
+def test_nightly_artist_map_pins_current_history_and_waits_for_checkpoint() -> None:
+    """Wait for the history index and submit one protected missing-only batch."""
+    snapshot = "v1-" + "c" * 64
+    ready = {"state": "ready", "metadata": {"snapshot": snapshot}}
+    start = {"state": "running", "total": 2, "history_snapshot": snapshot}
+    client = FakeClient(
+        [
+            {"state": "idle", "durable": True},
+            {"state": "building", "checking": True},
+            ready,
+            start,
+            {"state": "complete", "completed": 2},
+        ],
+        remaining=600,
+    )
+    assert refresh_artist_origins(client) == "Artist Map saved 2 new artist lookups."
+    assert client.calls == [
+        ("GET", "/lastfm/analytics/origins/status"),
+        ("GET", "/lastfm/analytics/status?refresh=true"),
+        ("GET", "/lastfm/analytics/status"),
+        ("POST", f"/lastfm/analytics/origins/backfill?snapshot={snapshot}&limit=250"),
+        ("GET", "/lastfm/analytics/origins/status"),
+    ]
+    assert client.sleeps == [5, 10]
+
+
+def test_nightly_artist_map_leaves_existing_backfill_to_complete() -> None:
+    """Nightly scheduling does not interrupt or duplicate the manual loader."""
+    client = FakeClient([{"state": "running", "durable": True}], remaining=600)
+    assert refresh_artist_origins(client) == "An Artist Map lookup is already running."
+    assert client.calls == [("GET", "/lastfm/analytics/origins/status")]
 
 
 def test_start_job_reconnects_to_its_existing_job(nightly: ModuleType) -> None:

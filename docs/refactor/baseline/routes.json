@@ -1994,6 +1994,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_origins.backfill_listening_origins",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "backfill_listening_origins",
+    "path": "/lastfm/analytics/origins/backfill",
+    "response_model": "OriginFetchStatus",
+    "source_line": 170,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening_origins.cancel_listening_origins",
     "include_in_schema": true,
     "methods": [
@@ -2055,6 +2068,19 @@
     "path": "/lastfm/analytics/quilt/refresh",
     "response_model": "CoverFetchStatus",
     "source_line": 193,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.prefetch_lastfm_covers",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "prefetch_lastfm_covers",
+    "path": "/lastfm/analytics/quilt/prefetch",
+    "response_model": "CoverFetchStatus",
+    "source_line": 244,
     "surface": "api"
   },
   {

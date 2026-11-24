@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 from typing import Protocol
 
+from spotify_manager.application.listening_provider_error import ListeningProviderError
 from spotify_manager.domain.listening_cover_values import CoverCatalog
 from spotify_manager.domain.listening_cover_values import CoverFetchResult
 from spotify_manager.domain.listening_values import RankedEntity
@@ -14,7 +15,7 @@ type CoverFetchState = Literal[
 ]
 
 
-class CoverSourceError(RuntimeError):
+class CoverSourceError(ListeningProviderError):
     """A provider lookup failed without invalidating available cached metadata."""
 
 
@@ -46,6 +47,19 @@ class CoverSource(Protocol):
         Raises:
             CoverSourceError: A safe provider or transport failure.
         """
+        ...
+
+
+class QuickCoverSource(Protocol):
+    """Find an attributed cover or leave the album for the fallback pass."""
+
+    @property
+    def available(self) -> bool:
+        """Report whether the provider can accept a request now."""
+        ...
+
+    async def fetch(self, album: RankedEntity) -> CoverFetchResult | None:
+        """Return a corroborated cover, or none if the fallback is needed."""
         ...
 
 
@@ -91,7 +105,7 @@ class CoverFetchRequest:
     """Capture a bounded batch independently of later filter changes.
 
     Args:
-        albums: At most ten named albums selected by a fixed domain rule.
+        albums: Bounded named albums selected from the visible quilt.
         history_snapshot: Source selection that produced the requested batch.
     """
 

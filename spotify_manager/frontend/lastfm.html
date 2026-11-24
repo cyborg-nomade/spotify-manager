@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=7" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=10" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=7"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=11"></script>
   </head>
   <body>
     <div class="shell">
@@ -948,11 +948,14 @@
               <p class="chart-description">
                 Fetch up to 25 highest-play artists in this selection whose
                 country metadata is missing or at least 30 days old. Requests
-                are sequential and spaced at least one second apart, including
-                between batches. Completed cache entries survive cancellation
-                and process restarts; a Space rebuild can reset this derived
-                cache. Search results are name candidates, not verified artist
-                identities.
+                use artist names to find country evidence on MusicBrainz.
+              </p>
+              <p class="chart-description">
+                Load all missing artists to search your full history, regardless
+                of the current dates and filters. MusicBrainz allows roughly one
+                request per second, so the first pass can take several hours.
+                The Space saves completed lookups as it goes. Run the loader
+                again to continue after an interruption.
               </p>
               <div class="control-line">
                 <label
@@ -965,6 +968,13 @@
                   cached countries too</label
                 ><button id="origin-fetch" type="button" class="small-button">
                   Fetch public country metadata</button
+                ><button
+                  id="origin-backfill"
+                  type="button"
+                  class="small-button"
+                  disabled
+                >
+                  Load all missing artists</button
                 ><button
                   id="origin-cancel"
                   type="button"
@@ -1027,7 +1037,7 @@
                 Every album keeps its place when artwork is missing. Select a
                 tile to open its recorded history.
               </p>
-              <form id="quilt-filters" class="control-line">
+              <form id="quilt-filters" class="control-line quilt-controls">
                 <label
                   >Quilt size<select id="quilt-size">
                     <option value="9">3 × 3 · 9 albums</option>
@@ -1036,7 +1046,7 @@
                     <option value="49">7 × 7 · 49 albums</option>
                   </select></label
                 >
-                <label
+                <label class="quilt-search-field"
                   >Search albums or artists<input
                     type="search"
                     id="quilt-search"
@@ -1064,19 +1074,17 @@
                 aria-live="polite"
               ></p>
               <p id="quilt-source" class="chart-description"></p>
-              <button id="quilt-retry" class="quiet">
+              <button id="quilt-retry" type="button" class="small-button">
                 Reload cached artwork
               </button>
               <details>
                 <summary>Album evidence and artwork sources</summary>
                 <p class="chart-description">
-                  Covers represent a current MusicBrainz release group supported
-                  by one exact title and complete artist-credit candidate. They
-                  do not identify the edition you heard. Edition labels, accents
-                  and punctuation are preserved; uncertain names remain
-                  placeholders. Artwork comes from the Cover Art Archive’s
-                  representative release, with its original source linked below.
-                  CSV and PNG retain dates, versions and interpretation.
+                  Last.fm covers require an exact catalogue title and artist
+                  credit. Cover Art Archive covers require a unique MusicBrainz
+                  release group. Edition labels, accents and punctuation are
+                  preserved. Each image links to its source below. CSV and PNG
+                  retain dates, versions and interpretation.
                 </p>
                 <div id="quilt-table" class="table-scroll"></div>
                 <div id="quilt-coverage-table" class="table-scroll"></div>
@@ -1086,14 +1094,17 @@
               <p class="eyebrow">CURRENT / REPRESENTATIVE ARTWORK</p>
               <h2>Bring the covers into view</h2>
               <p class="chart-description">
-                Opening this view reads cached artwork only. Explicit lookups
-                send album titles and artist names from the displayed quilt to
+                Opening this view reuses cached covers and sends the titles and
+                artist credits of visible albums without artwork to
+                <a href="https://www.last.fm/api">Last.fm</a>. Use Fetch to
+                search for remaining artwork through
                 <a
                   href="https://musicbrainz.org"
                   target="_blank"
                   rel="noopener noreferrer"
                   >MusicBrainz</a
-                >, then request public covers from the
+                >
+                and get public covers from the
                 <a
                   href="https://coverartarchive.org"
                   target="_blank"
@@ -1104,7 +1115,7 @@
                 account identifiers are sent. These are current representative
                 covers, rather than historical artwork.
               </p>
-              <div class="control-line">
+              <div class="control-line quilt-controls">
                 <label
                   >Albums per batch<select id="quilt-batch-size">
                     <option value="5">Up to 5</option>
@@ -1115,11 +1126,19 @@
                   ><input type="checkbox" id="quilt-force" /> Refresh recently
                   cached covers too</label
                 >
-                <button id="quilt-fetch" class="small-button">
-                  Fetch public album covers</button
-                ><button id="quilt-cancel" class="quiet" disabled>
-                  Cancel cover lookup
-                </button>
+                <div class="quilt-lookup-actions">
+                  <button id="quilt-fetch" type="button" class="small-button">
+                    Fetch public album covers
+                  </button>
+                  <button
+                    id="quilt-cancel"
+                    type="button"
+                    class="small-button"
+                    disabled
+                  >
+                    Cancel cover lookup
+                  </button>
+                </div>
               </div>
               <p
                 id="quilt-progress"

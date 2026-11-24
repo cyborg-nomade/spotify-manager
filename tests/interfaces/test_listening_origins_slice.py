@@ -21,6 +21,7 @@ from tests.interfaces.test_listening_slice import ready_parameters
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
+from tests.support.listening_origins import FixtureOriginArchive
 from tests.support.listening_origins import FixtureOriginSource
 from tests.support.listening_origins import origin_metadata
 
@@ -29,6 +30,7 @@ from tests.support.listening_origins import origin_metadata
 async def origin_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Drain synthetic metadata work before closing the history fixture."""
     try:
+        await app.state.listening_origins.restore()
         yield
     finally:
         await app.state.listening_origins.close()
@@ -46,7 +48,9 @@ def origin_http(
     fixture = listening_fixture(tmp_path)
     fixture.publish(sample_history())
     source = FixtureOriginSource()
-    stage = ListeningOriginEnrichment(ArtistOriginCache(tmp_path / "tags"), source)
+    stage = ListeningOriginEnrichment(
+        ArtistOriginCache(tmp_path / "tags"), source, FixtureOriginArchive()
+    )
     app = FastAPI(lifespan=origin_lifespan)
     app.state.listening = fixture.runtime
     app.state.listening_origins = stage
@@ -176,3 +180,25 @@ def test_expired_metadata_and_disabled_provider_do_not_break_cached_views(
         == 401
     )
     assert client.post("/lastfm/analytics/origins/cancel").status_code == 401
+
+
+def test_full_history_loader_ignores_dates_and_skips_completed_outcomes(
+    origin_http: tuple[
+        TestClient, ListeningFixture, ListeningOriginEnrichment, FixtureOriginSource
+    ],
+) -> None:
+    """Queue across published history and keep lookups behind authentication."""
+    client, _fixture, _stage, source = origin_http
+    params = {"snapshot": ready_parameters(client)["snapshot"], "from": "2099-01-01"}
+    path = "/lastfm/analytics/origins/backfill"
+    first = client.post(path, params={**params, "limit": 1})
+    assert first.status_code == 200 and first.json()["durable"]
+    assert finished(client)["completed"] == 1
+    assert source.names == ["Alpha"]
+    assert client.post(path, params=params).status_code == 200
+    assert finished(client)["completed"] == 2
+    assert source.names == ["Alpha", "Beta", "Béta"]
+    assert client.post(path, params=params).status_code == 200
+    assert finished(client)["completed"] == 0
+    client.headers.pop("X-App-Password")
+    assert client.post(path, params=params).status_code == 401

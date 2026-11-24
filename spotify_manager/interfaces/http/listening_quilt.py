@@ -139,7 +139,7 @@ def listening_cover_image(
         metadata_snapshot: Exact cover generation binding metadata and bytes.
 
     Returns:
-        Private JPEG bytes with content sniffing disabled.
+        Private JPEG or PNG bytes with content sniffing disabled.
 
     Raises:
         HTTPException: The generation expired or this album has no cached art.
@@ -154,7 +154,9 @@ def listening_cover_image(
         )
     return Response(
         image,
-        media_type="image/jpeg",
+        media_type="image/png"
+        if image.startswith(b"\x89PNG\r\n\x1a\n")
+        else "image/jpeg",
         headers={
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
@@ -214,6 +216,49 @@ async def fetch_listening_covers(
         return _enrichment(request).start(batch)
     except CoverSourceError as error:
         raise HTTPException(503, str(error)) from None
+
+
+def lastfm_cover_batch(
+    request: Request,
+    query: QueryDep,
+    index: IndexDep,
+    options: QuiltDep,
+) -> CoverFetchRequest:
+    """Capture only visible albums without cached artwork.
+
+    Args:
+        request: Named cover stage owner.
+        query: Validated listening selection.
+        index: Pinned complete history resource.
+        options: Applied visible quilt size and search.
+
+    Returns:
+        A bounded batch derived from the ranked quilt on a sync worker.
+    """
+    catalog = _enrichment(request).cache.current()
+    quilt = get_listening_covers(index, catalog, query, options)
+    missing = tuple(item.album for item in quilt.items if item.artwork is None)
+    return CoverFetchRequest(missing, index.metadata.snapshot)
+
+
+@router.post("/prefetch")
+async def prefetch_lastfm_covers(
+    request: Request,
+    response: Response,
+    batch: Annotated[CoverFetchRequest, Depends(lastfm_cover_batch)],
+) -> CoverFetchStatus:
+    """Start a bounded Last.fm-only pass when the explorer displays a quilt.
+
+    Args:
+        request: Configured cover stage owner.
+        response: Response receiving private cache policy.
+        batch: Captured albums without cached artwork in the visible quilt.
+
+    Returns:
+        Progress for a new or already active lookup.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    return _enrichment(request).start_lastfm(batch)
 
 
 @router.post("/cancel")

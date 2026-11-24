@@ -16,8 +16,10 @@ from fastapi import Response
 from spotify_manager.application.listening_origin_ports import OriginFetchRequest
 from spotify_manager.application.listening_origin_ports import OriginFetchStatus
 from spotify_manager.application.listening_origin_ports import OriginSourceError
+from spotify_manager.application.listening_origins import ORIGIN_BACKFILL_LIMIT
 from spotify_manager.application.listening_origins import ListeningOriginEnrichment
 from spotify_manager.application.listening_origins import get_listening_origins
+from spotify_manager.application.listening_origins import prepare_origin_backfill
 from spotify_manager.application.listening_ports import ListeningVersionError
 from spotify_manager.domain.listening_origin_values import ListeningOrigins
 from spotify_manager.domain.listening_origin_values import OriginEvidence
@@ -141,6 +143,51 @@ async def fetch_listening_origins(
     )
     try:
         return stage.start(OriginFetchRequest(selected, index.metadata.snapshot))
+    except OriginSourceError as error:
+        raise HTTPException(503, str(error)) from None
+
+
+def origin_backfill_request(
+    request: Request,
+    index: IndexDep,
+    limit: Annotated[
+        int, Query(ge=1, le=ORIGIN_BACKFILL_LIMIT)
+    ] = ORIGIN_BACKFILL_LIMIT,
+) -> OriginFetchRequest:
+    """Read the missing artists from one pinned, unfiltered history on a worker.
+
+    Args:
+        request: Owner of the current derived country cache.
+        index: Pinned complete history resource.
+        limit: Maximum missing artists to queue.
+
+    Returns:
+        One bounded batch independent of the visible selection.
+    """
+    return prepare_origin_backfill(index, _enrichment(request).cache.current(), limit)
+
+
+@router.post("/backfill")
+async def backfill_listening_origins(
+    request: Request,
+    batch: Annotated[OriginFetchRequest, Depends(origin_backfill_request)],
+) -> OriginFetchStatus:
+    """Start or resume complete-history enrichment with durable checkpoints.
+
+    Args:
+        request: Configured named enrichment application stage.
+        batch: Missing artists selected independently of the visible filters.
+
+    Returns:
+        Accepted progress or the batch already in progress.
+
+    Raises:
+        HTTPException: The durable loader is unavailable.
+    """
+    stage = _enrichment(request)
+    await stage.restore()
+    try:
+        return stage.start_backfill(batch)
     except OriginSourceError as error:
         raise HTTPException(503, str(error)) from None
 
