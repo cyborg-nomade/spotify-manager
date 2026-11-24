@@ -701,6 +701,10 @@ dialog::backdrop {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+.playlist-credit {
+  display: block;
+  color: var(--muted);
+}
 #library-review-status {
   margin-bottom: 8px;
 }

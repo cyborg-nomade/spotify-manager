@@ -69,6 +69,22 @@ function isCurrentReview(review, scope) {
   );
 }
 
+export function playlistReviews(scope) {
+  const prefix = STORAGE_PREFIX + "track:";
+  try {
+    return Object.keys(localStorage)
+      .filter((key) => key.startsWith(prefix))
+      .sort()
+      .map((key) => reviewFor("track", key.slice(prefix.length)))
+      .filter((review) => isCurrentReview(review, scope))
+      .map(({ key, uri }) => ({ key, uri }));
+  } catch {
+    return [];
+  }
+}
+
+export { spotifyLink };
+
 export function storeReview(scope, uri) {
   const { kind, key, historySnapshot, librarySnapshot } = scope;
   const storeKey = STORAGE_PREFIX + reviewKey(kind, key);

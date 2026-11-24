@@ -1,11 +1,13 @@
 import * as charts from "./charts-v1.js?v=12";
-import * as library from "./library-v1.js?v=13";
+import * as library from "./library-v1.js?v=14";
+import * as playlist from "./playlist-preview-v1.js?v=14";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
 import * as sessions from "./sessions-v1.js?v=12";
 import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
+  download,
   element,
   entityButton,
   exportCSV,
@@ -27,6 +29,7 @@ const tabs = [
   "rediscovery",
   "capsule",
   "library",
+  "playlist-preview",
   "tags",
   "origins",
   "quilt",
@@ -79,6 +82,8 @@ const state = {
   libraryForce: false,
   libraryTimer: null,
   libraryReview: null,
+  playlistPage: 1,
+  playlistScope: null,
   tagPage: 1,
   originPage: 1,
   originTimer: null,
@@ -133,6 +138,8 @@ function showLogin(message = "") {
   state.metadata = null;
   state.data = {};
   state.detailData = null;
+  state.playlistScope = null;
+  playlist.render({}, state.timezone);
   closeLibraryReview();
   state.recordScope = null;
   state.controller?.abort();
@@ -159,11 +166,14 @@ function showLogin(message = "") {
   banner("Your archive is locked.");
 }
 
-async function request(path, query, signal, method = "GET") {
+async function request(path, query, signal, method = "GET", options = {}) {
   const suffix = query ? `?${new URLSearchParams(query)}` : "";
+  const headers = { "X-App-Password": state.password };
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
   const response = await fetch(path + suffix, {
     method,
-    headers: { "X-App-Password": state.password },
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
     signal,
     cache: "no-store",
   });
@@ -171,6 +181,7 @@ async function request(path, query, signal, method = "GET") {
     showLogin("Enter your app password to continue.");
     throw Object.assign(new Error("Authentication required."), { status: 401 });
   }
+  if (options.blob && response.ok) return response.blob();
   const body = await response.json();
   if (!response.ok) {
     const message =
@@ -397,6 +408,8 @@ function persist() {
     values.library_min = $("library-minimum").value;
     if ($("library-search").value) values.library_q = $("library-search").value;
   }
+  if (state.tab === "playlist-preview")
+    values.playlist_view = $("playlist-view").value;
   if (state.tab === "sessions") {
     values.session_gap = $("session-gap").value;
     values.session_min = $("session-minimum").value;
@@ -453,14 +466,19 @@ function libraryQuery() {
   };
 }
 
+async function readLibraryStatus(signal) {
+  const status = await request(
+    "/lastfm/analytics/library/status",
+    { refresh: state.libraryForce },
+    signal,
+  );
+  state.libraryForce = false;
+  return status;
+}
+
 async function loadLibrary() {
   try {
-    const status = await request(
-      "/lastfm/analytics/library/status",
-      { refresh: state.libraryForce },
-      state.controller.signal,
-    );
-    state.libraryForce = false;
+    const status = await readLibraryStatus(state.controller.signal);
     if (!status.snapshot)
       return { unavailable: status.message, checking: status.checking };
     const result = await analytics("library", {
@@ -481,6 +499,92 @@ async function loadLibrary() {
         "Collection evidence could not be loaded. Your listening history is still available. Use Check publications to retry.",
     };
   }
+}
+
+async function loadPlaylistPreview() {
+  const signal = state.controller.signal;
+  try {
+    const status = await readLibraryStatus(signal);
+    if (!status.snapshot)
+      return { unavailable: status.message, checking: status.checking };
+    const params = query({ library_snapshot: status.snapshot });
+    const reviews = library.playlistReviews({
+      historySnapshot: params.snapshot,
+      librarySnapshot: params.library_snapshot,
+    });
+    if (reviews.length > 1000)
+      return {
+        unavailable: "This preview supports up to 1,000 current track reviews.",
+      };
+    const body = { reviews };
+    const scope = JSON.stringify({ params, body });
+    if (state.playlistScope !== scope) state.playlistPage = 1;
+    state.playlistScope = scope;
+    const result = await request(
+      "/lastfm/analytics/playlist-preview",
+      { ...params, view: $("playlist-view").value, page: state.playlistPage },
+      signal,
+      "POST",
+      { body },
+    );
+    if (
+      result.snapshot !== params.snapshot ||
+      result.data.library_snapshot !== params.library_snapshot
+    )
+      throw new Error(
+        "The playlist sources changed. Check publication and try again.",
+      );
+    return {
+      ...result.data,
+      exportRequest: { params, body },
+      checking: status.checking,
+      unavailable: status.state === "stale" ? status.message : null,
+    };
+  } catch (error) {
+    if (error.name === "AbortError" || [401, 409].includes(error.status))
+      throw error;
+    return {
+      unavailable: error.message || "The playlist preview could not be loaded.",
+    };
+  }
+}
+
+async function exportPlaylistPreview() {
+  const current = state.data.playlistPreview;
+  if (!current?.summary?.playlist_tracks) return;
+  $("playlist-export").disabled = true;
+  const { params, body } = current.exportRequest;
+  const signal = state.controller.signal;
+  try {
+    const blob = await request(
+      "/lastfm/analytics/playlist-preview/csv",
+      params,
+      signal,
+      "POST",
+      { body, blob: true },
+    );
+    if (!signal.aborted)
+      download(`listening-playlist-${params.from}-${params.to}.csv`, blob);
+  } catch (error) {
+    if (!signal.aborted && error.status !== 401)
+      $("playlist-message").textContent =
+        error.status === 409
+          ? "A publication version expired. Check publication before exporting."
+          : "The playlist CSV could not be downloaded. Try again.";
+  } finally {
+    if (state.data.playlistPreview === current)
+      $("playlist-export").disabled = false;
+  }
+}
+
+function scheduleLibraryRefresh() {
+  state.libraryTimer = setTimeout(() => {
+    if (
+      ["library", "playlist-preview"].includes(state.tab) &&
+      state.authenticated
+    )
+      loadSelection();
+  }, 2000);
 }
 
 function closeLibraryReview() {
@@ -1160,6 +1264,7 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "capsule")
       tasks.push(analytics("on-this-day"), analytics("eras"));
     if (state.tab === "library") tasks.push(loadLibrary());
+    if (state.tab === "playlist-preview") tasks.push(loadPlaylistPreview());
     if (state.tab === "tags") tasks.push(loadTags());
     if (state.tab === "origins") tasks.push(loadOrigins());
     if (state.tab === "quilt") tasks.push(loadQuilt());
@@ -1332,10 +1437,12 @@ function renderView(results) {
       results[0].source?.kind || $("library-kind").value,
       ctx,
     );
-    if (results[0].checking)
-      state.libraryTimer = setTimeout(() => {
-        if (state.tab === "library" && state.authenticated) loadSelection();
-      }, 2000);
+    if (results[0].checking) scheduleLibraryRefresh();
+  }
+  if (state.tab === "playlist-preview") {
+    state.data.playlistPreview = results[0];
+    playlist.render(results[0], ctx.timezone);
+    if (results[0].checking) scheduleLibraryRefresh();
   }
   if (state.tab === "capsule") renderCapsule(results[0], results[1]);
   if (state.tab === "overview") {
@@ -2450,6 +2557,23 @@ $("library-next").addEventListener("click", () => {
   state.libraryPage++;
   loadSelection();
 });
+$("playlist-view").addEventListener("change", () => {
+  state.playlistPage = 1;
+  loadSelection();
+});
+$("playlist-refresh").addEventListener("click", () => {
+  state.libraryForce = true;
+  loadSelection();
+});
+$("playlist-previous").addEventListener("click", () => {
+  state.playlistPage--;
+  loadSelection();
+});
+$("playlist-next").addEventListener("click", () => {
+  state.playlistPage++;
+  loadSelection();
+});
+$("playlist-export").addEventListener("click", exportPlaylistPreview);
 $("library-review-search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (!state.libraryReview) return;
@@ -2702,6 +2826,12 @@ $("library-minimum").value = Math.max(
   Math.min(100000000, Number(parameters.get("library_min")) || 1),
 );
 $("library-search").value = (parameters.get("library_q") || "").slice(0, 100);
+if (
+  ["tracks", "duplicates", "unresolved"].includes(
+    parameters.get("playlist_view"),
+  )
+)
+  $("playlist-view").value = parameters.get("playlist_view");
 $("tag-per-artist").value =
   parameters.get("tags_per_artist") === "1" ? "1" : "3";
 $("tag-display").value =

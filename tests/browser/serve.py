@@ -159,6 +159,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "track": "=formula",
                     "uri": "spotify:track:" + "d" * 22,
                 },
+                {
+                    "artist": "Alpha",
+                    "track": "Song 0",
+                    "uri": "spotify:track:" + "f" * 22,
+                },
+                {
+                    "artist": "Béta",
+                    "track": "Song 1",
+                    "uri": "spotify:track:" + "g" * 22,
+                },
+                {
+                    "artist": "Béta",
+                    "track": "Song 1",
+                    "uri": "spotify:track:" + "h" * 22,
+                },
             ],
         )
         app.state.listening = fixture.runtime

@@ -100,6 +100,8 @@ def main() -> int:
     assert "/lastfm/analytics/quilt/prefetch" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/scrobble-map" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/library/candidates" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/playlist-preview" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/playlist-preview/csv" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/sessions/{first_ms}/records" in api.app.openapi()["paths"]
     from spotify_manager import web
 
@@ -119,6 +121,7 @@ def _check_web_assets(site: Path) -> None:
     assert (frontend / "lastfm-assets/echarts-6.0.0.min.js").is_file()
     assert (frontend / "lastfm-assets/quilt-v1.js").is_file()
     assert (frontend / "lastfm-assets/sessions-v1.js").is_file()
+    assert (frontend / "lastfm-assets/playlist-preview-v1.js").is_file()
 
 
 if __name__ == "__main__":

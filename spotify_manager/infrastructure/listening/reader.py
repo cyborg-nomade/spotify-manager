@@ -12,6 +12,7 @@ from threading import RLock
 
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningMetadata
+from spotify_manager.domain.listening_playlist import RecordedTrack
 from spotify_manager.domain.listening_scrobble_map import HourPlayCount
 from spotify_manager.domain.listening_session_values import SessionWindow
 from spotify_manager.domain.listening_values import ArtistPlay
@@ -239,6 +240,37 @@ class ListeningIndex:
                 sql + where.sql + " GROUP BY e.id ORDER BY e.key", where.parameters
             )
             return tuple(EntityLifetime(*row) for row in rows)
+
+    def ordered_tracks(self, query: ListeningQuery) -> tuple[RecordedTrack, ...]:
+        """Read selected track groups in the order of their first recorded play.
+
+        Args:
+            query: Shared calendar, artist, and rhythm selection.
+
+        Returns:
+            Exact grouped plays, preserving source row order for timestamp ties.
+        """
+        where = listening_where(query)
+        selected = (
+            """
+            SELECT p.track_id, p.ts, p.ordinal,
+                   COUNT(*) OVER (PARTITION BY p.track_id) AS plays,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY p.track_id ORDER BY p.ts, p.ordinal
+                   ) AS first
+        """
+            + JOIN
+            + where.sql
+        )
+        sql = f"""
+            WITH selected AS ({selected})
+            SELECT e.key, e.name, e.artist, s.plays, s.ts FROM selected s
+            JOIN entities e ON e.id=s.track_id WHERE s.first=1
+            ORDER BY s.ts, s.ordinal
+        """
+        with self.connection(query) as connection:
+            rows = connection.execute(sql, where.parameters)
+            return tuple(RecordedTrack(*row) for row in rows)
 
     def entity_lifetime(
         self, query: ListeningQuery, selection: EntitySelection

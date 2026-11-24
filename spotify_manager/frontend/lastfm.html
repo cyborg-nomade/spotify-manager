@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=13" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=14" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=13"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=14"></script>
   </head>
   <body>
     <div class="shell">
@@ -174,6 +174,7 @@
             ><button data-tab="rediscovery">Rediscover</button
             ><button data-tab="capsule">Time capsule</button
             ><button data-tab="library">Library bridge</button
+            ><button data-tab="playlist-preview">Playlist preview</button
             ><button data-tab="tags">Tags &amp; genres</button
             ><button data-tab="origins">Artist map</button
             ><button data-tab="quilt">Album quilt</button
@@ -697,6 +698,64 @@
                 </button>
               </div>
               <div id="library-table" class="table-scroll"></div>
+            </article>
+          </section>
+          <section
+            id="tab-playlist-preview"
+            class="tab-content"
+            aria-label="Playlist preview"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <h2>Playlist preview</h2>
+                <button
+                  id="playlist-export"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Download playlist CSV
+                </button>
+              </header>
+              <p class="chart-description">
+                Propose one Spotify track per match, in order of its first play
+                in this selection. The preview uses published liked tracks and
+                current Library Bridge confirmations.
+              </p>
+              <p id="playlist-source" class="chart-description"></p>
+              <div id="playlist-metrics" class="session-metrics"></div>
+              <div class="control-line">
+                <label
+                  >Show<select id="playlist-view">
+                    <option value="tracks">Proposed tracks</option>
+                    <option value="duplicates">Tracks with repeat plays</option>
+                    <option value="unresolved">Unresolved tracks</option>
+                  </select></label
+                >
+                <button
+                  id="playlist-refresh"
+                  class="small-button"
+                  type="button"
+                >
+                  Check publication
+                </button>
+              </div>
+              <p
+                id="playlist-message"
+                class="chart-description"
+                role="status"
+              ></p>
+              <div id="playlist-table" class="table-scroll"></div>
+              <div class="pagination">
+                <button id="playlist-previous" class="quiet" type="button">
+                  ← Previous
+                </button>
+                <span id="playlist-page" aria-live="polite"></span>
+                <button id="playlist-next" class="quiet" type="button">
+                  Next →
+                </button>
+              </div>
             </article>
           </section>
           <section

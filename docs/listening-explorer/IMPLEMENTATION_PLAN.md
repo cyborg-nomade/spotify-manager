@@ -303,6 +303,10 @@ periods, daylight-saving folds, keyboard access, mobile rendering and export.
    tracks. Show resolved tracks, duplicates and unresolved rows before export.
    Start with CSV and validate that the preview reproduces the same records
    when opened against the same source versions.
+
+   The review build uses published liked-track URIs and current Library Bridge
+   track confirmations. It labels the first-match evidence and exports the
+   full proposal in first-selected-play order with both publication versions.
 3. **Add a confirmed Spotify export.** After the preview is approved, let the
    user choose a new playlist or an existing playlist they can edit. Show the
    exact additions before they confirm. Reuse the existing job lifecycle and

@@ -1,8 +1,10 @@
 """Real analytical HTTP contracts behind the deployed password middleware."""
 
+import csv
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic
@@ -109,6 +111,8 @@ def test_authentication_precedes_any_index_acquisition(
     )
     assert client.get("/lastfm/analytics/overview").status_code == 401
     assert client.get("/lastfm/analytics/scrobble-map").status_code == 401
+    assert client.post("/lastfm/analytics/playlist-preview").status_code == 401
+    assert client.post("/lastfm/analytics/playlist-preview/csv").status_code == 401
     probe.assert_not_called()
 
 
@@ -423,4 +427,89 @@ def test_library_candidates_reject_expired_or_invalid_selections(
     assert (
         client.get("/lastfm/analytics/library/candidates", params=params).status_code
         == code
+    )
+
+
+def test_playlist_csv_replays_the_same_pinned_proposal(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Keep tie order and the full proposal while paging; neutralize CSV formulas."""
+    client, fixture = listening_http
+    fixture.publish(
+        [
+            scrobble("2024-01-03T08:00:00", "Alpha", "=Early"),
+            scrobble("2024-01-01T10:00:00", "Béta", "Other title"),
+            scrobble("2024-01-01T10:00:00", "Alpha", "=Early"),
+            scrobble("2024-01-01T11:00:00", "Alpha", "Edition"),
+            scrobble("2024-01-02T10:00:00", "Unknown", "Missing"),
+        ]
+    )
+    alpha_uri, beta_uri = "spotify:track:" + "a" * 22, "spotify:track:" + "b" * 22
+    publish_collection(
+        fixture,
+        "tracks",
+        [
+            {"artist": "Alpha", "track": "=Early", "uri": alpha_uri},
+            {"artist": "Béta", "track": "Other title", "uri": beta_uri},
+        ],
+    )
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    body = {
+        "reviews": [{"key": listening_identity(("Alpha", "Edition")), "uri": alpha_uri}]
+    }
+    path = "/lastfm/analytics/playlist-preview"
+    revision = fixture.service.snapshot().revision
+    first = client.post(path, params={**params, "limit": 1}, json=body)
+    assert (
+        first.status_code == 200
+        and first.headers["Cache-Control"] == "private, no-store"
+    )
+    assert first.json()["snapshot"] == params["snapshot"]
+    data = first.json()["data"]
+    assert data["library_snapshot"] == params["library_snapshot"]
+    assert data["summary"] == {
+        "selected_plays": 5,
+        "playlist_tracks": 2,
+        "duplicate_plays": 2,
+        "unresolved_tracks": 1,
+        "unresolved_plays": 1,
+    }
+    assert data["items"][0]["track"]["uri"] == beta_uri
+    second = client.post(path, params={**params, "page": 2, "limit": 1}, json=body)
+    assert second.json()["data"]["items"][0]["plays"] == 3
+    export = client.post(path + "/csv", params=params, json=body)
+    assert (
+        export.status_code == 200
+        and export.headers["Cache-Control"] == "private, no-store"
+    )
+    rows = list(csv.reader(StringIO(export.content.decode("utf-8-sig"))))
+    assert [row[1] for row in rows[-2:]] == [beta_uri, alpha_uri]
+    assert rows[-1][2] == "'=Early"
+    assert ["Liked tracks snapshot", params["library_snapshot"]] in rows
+    assert fixture.service.snapshot().revision == revision
+
+
+def test_playlist_requires_current_versions_and_rejects_duplicate_review_keys(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Reject expired sources and protect the bounded list of browser reviews."""
+    client, _fixture = listening_http
+    scope = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    path = "/lastfm/analytics/playlist-preview"
+    empty = client.post(path, params={**scope, "view": "unresolved"}, json={})
+    assert empty.json()["data"]["items"][0]["reason"] == "publication_unavailable"
+    stale = {**scope, "library_snapshot": "l1-" + "0" * 64}
+    assert client.post(path + "/csv", params=stale, json={}).status_code == 409
+    stale = {**scope, "snapshot": "v1-" + "0" * 64}
+    assert client.post(path, params=stale, json={}).status_code == 409
+    choice = {"key": "0" * 64, "uri": "spotify:track:" + "x" * 22}
+    assert (
+        client.post(path, params=scope, json={"reviews": [choice, choice]}).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            path, params=scope, json={"reviews": [{**choice, "uri": "not-a-track"}]}
+        ).status_code
+        == 422
     )
