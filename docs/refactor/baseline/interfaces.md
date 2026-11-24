@@ -206,6 +206,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/lastfm/analytics/status` | `listening_status` | True |
 | [ ] | api | GET | `/lastfm/analytics/overview` | `listening_overview` | True |
 | [ ] | api | GET | `/lastfm/analytics/activity` | `listening_activity` | True |
+| [ ] | api | GET | `/lastfm/analytics/scrobble-map` | `listening_scrobble_map` | True |
 | [ ] | api | GET | `/lastfm/analytics/rankings` | `listening_rankings` | True |
 | [ ] | api | GET | `/lastfm/analytics/evolution` | `listening_evolution` | True |
 | [ ] | api | GET | `/lastfm/analytics/entities/{kind}/{key}` | `listening_entity` | True |

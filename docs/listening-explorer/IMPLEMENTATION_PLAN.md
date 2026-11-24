@@ -96,7 +96,8 @@ For Forgotten Favorites, lifetime plays and last-play dates are calculated from 
 - Album quilt: acquire covers separately, with missing-art fallbacks and an export that still works when images cannot be embedded.
 - Library gaps: compare history to current Spotify mirrors to find historically loved music absent from the current library. Show match confidence and mirror age; unresolved matches remain unresolved.
 - Optional listening-session explorer: group consecutive records with a configurable gap threshold. This is inferred activity, not measured continuous listening time.
-- Optional race chart or dense scrobble map: add after the clearer static comparison views, with pause and reduced-motion support.
+- Dense scrobble map: show local-hour density across the selected calendar and
+  show original points on bounded detail selections.
 
 Exact listening minutes, skips, completion rates, audio features, mood, and historical location are not present in the export. Any later duration-derived number must be described as an estimate with coverage, never as actual time listened. Full-album completion also requires reliable tracklists and edition matching.
 
@@ -272,8 +273,44 @@ resolution and playlist/routine actions remain separately scoped.
 [Listening Sessions](SESSIONS_RELEASE.md) was approved in PR #96 on 22 November
 2026. It adds selected-record gap groups and original-record navigation without
 provider lookups or inferred playback duration. Its approved runtime is deployed
-and verified. The owner requested a pause after release cleanup, before starting another
-item. Dense/race views and Spotify actions remain separately scoped and unstarted.
+and verified. The owner requested a pause after release cleanup before resuming
+with provider reliability and the dense scrobble map.
+
+### Item 5: provider reliability and Scrobble Map
+
+PR #98 was deployed and verified on 24 November 2026 before merge. The quilt
+automatically looks up missing covers in Last.fm. Artist Map has a full-history
+loader, durable checkpoints and nightly coverage for new artists.
+
+Scrobble Map uses published history to show date-by-local-hour density and
+individual recorded plays for shorter selections. Every populated cell opens
+the corresponding records. Acceptance covers exact totals, clipped date
+periods, daylight-saving folds, keyboard access, mobile rendering and export.
+
+### Implementation path for the remaining ideas
+
+1. **Resolve selected library matches.** Add a read-only candidate picker to
+   Library Bridge for ambiguous or unmatched entries. Pin the listening and
+   Spotify publications, show the full credit and edition, and let the user
+   confirm one Spotify identity. Retain the match evidence for later review.
+   Verify that an unresolved or expired candidate stays unresolved.
+2. **Preview a playlist from a selection.** Reuse the active dates, filters and
+   recorded play order to propose an ordered list of unique verified Spotify
+   tracks. Show resolved tracks, duplicates and unresolved rows before export.
+   Start with CSV and validate that the preview reproduces the same records
+   when opened against the same source versions.
+3. **Add a confirmed Spotify export.** After the preview is approved, let the
+   user choose a new playlist or an existing playlist they can edit. Show the
+   exact additions before they confirm. Reuse the existing job lifecycle and
+   preserve progress through retries and partial Spotify responses.
+4. **Link supported selections to cockpit routines.** Start with a link that
+   opens the relevant cockpit workflow with its dry-run options filled in.
+   Keep preview and execution in the existing cockpit confirmation flow.
+   Verify that opening a link leaves jobs idle and that expired selections
+   require a fresh preview.
+
+Review and release each increment independently. Playback duration, skips and
+other listening measures require a source that records those values.
 
 ## 7. Verification and completion criteria
 

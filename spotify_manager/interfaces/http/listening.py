@@ -33,11 +33,13 @@ from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningNotReadyError
 from spotify_manager.application.listening_ports import ListeningStatus
 from spotify_manager.application.listening_ports import ListeningVersionError
+from spotify_manager.application.listening_scrobble_map import get_scrobble_map
 from spotify_manager.domain.listening_capsule_values import ListeningAnniversaries
 from spotify_manager.domain.listening_capsule_values import ListeningEras
 from spotify_manager.domain.listening_library_values import LibraryComparison
 from spotify_manager.domain.listening_library_values import LibraryMatch
 from spotify_manager.domain.listening_library_values import LibraryOptions
+from spotify_manager.domain.listening_scrobble_map import ListeningScrobbleMap
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntitySelection
 from spotify_manager.domain.listening_values import ListeningActivity
@@ -285,6 +287,22 @@ def listening_activity(
     """
     result = get_listening_activity(index, query)
     return present_listening(index, query, result)
+
+
+@router.get("/scrobble-map")
+def listening_scrobble_map(
+    query: QueryDep, index: IndexDep
+) -> ListeningEnvelope[ListeningScrobbleMap]:
+    """Return exact counts by calendar period and local wall-clock hour.
+
+    Args:
+        query: Effective date, timezone and artist or rhythm selection.
+        index: Pinned published history generation.
+
+    Returns:
+        The selected period axis, populated cells and source coverage.
+    """
+    return present_listening(index, query, get_scrobble_map(index, query))
 
 
 @router.get("/rankings")

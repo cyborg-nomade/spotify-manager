@@ -3550,6 +3550,27 @@
         "title": "ListeningEnvelope[ListeningRediscovery]",
         "type": "object"
       },
+      "ListeningEnvelope_ListeningScrobbleMap_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListeningScrobbleMap"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ListeningScrobbleMap]",
+        "type": "object"
+      },
       "ListeningEnvelope_ListeningSessionDetail_": {
         "properties": {
           "data": {
@@ -4173,6 +4194,80 @@
         "title": "ListeningRediscovery",
         "type": "object"
       },
+      "ListeningScrobbleMap": {
+        "description": "Describe sparse scrobble density and the complete selected calendar axis.",
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/ScrobbleMapCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "grain": {
+            "$ref": "#/components/schemas/MapGrain"
+          },
+          "observed_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed From"
+          },
+          "observed_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Through"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/ScrobbleMapPeriod"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ScrobbleMapPoint"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          }
+        },
+        "required": [
+          "grain",
+          "periods",
+          "cells",
+          "plays",
+          "observed_from",
+          "observed_through"
+        ],
+        "title": "ListeningScrobbleMap",
+        "type": "object"
+      },
       "ListeningSeries": {
         "description": "Keep one fixed artist series across all requested temporal buckets.\n\nArgs:\n    key: Stable artist identity, or other for the remainder.\n    name: Display artist or Other label.\n    counts: Recorded plays aligned to the result's temporal buckets.",
         "properties": {
@@ -4445,6 +4540,16 @@
         ],
         "title": "ListeningTags",
         "type": "object"
+      },
+      "MapGrain": {
+        "enum": [
+          "day",
+          "week",
+          "month",
+          "quarter",
+          "year"
+        ],
+        "type": "string"
       },
       "MirrorSource": {
         "description": "Describe one published collection independently of listening dates.\n\nArgs:\n    kind: Artist follows, saved albums, or liked tracks.\n    state: Whether the complete publication was verified and decoded.\n    published_at: Publication timestamp, not historical membership time.\n    sha256: Expected complete artifact identity when published.\n    source: Publication provenance label.\n    entries: Unique Spotify identities in a verified publication.\n    message: Data-free coverage explanation.",
@@ -7078,6 +7183,75 @@
           "action"
         ],
         "title": "SauvignonSelectionResult",
+        "type": "object"
+      },
+      "ScrobbleMapCell": {
+        "description": "Identify a populated date-column and local hour with its exact play count.",
+        "properties": {
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "integer"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period",
+          "hour",
+          "plays"
+        ],
+        "title": "ScrobbleMapCell",
+        "type": "object"
+      },
+      "ScrobbleMapPeriod": {
+        "description": "Keep the inclusive, selection-clipped bounds for one column.",
+        "properties": {
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ScrobbleMapPeriod",
+        "type": "object"
+      },
+      "ScrobbleMapPoint": {
+        "description": "Keep the original timestamp and its position on the local calendar.",
+        "properties": {
+          "local_ms": {
+            "title": "Local Ms",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "integer"
+          },
+          "timestamp_ms": {
+            "title": "Timestamp Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period",
+          "local_ms",
+          "timestamp_ms"
+        ],
+        "title": "ScrobbleMapPoint",
         "type": "object"
       },
       "ServerFileStatus": {
@@ -15803,6 +15977,134 @@
           }
         },
         "summary": "Listening Rediscovery",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/scrobble-map": {
+      "get": {
+        "description": "Return exact counts by calendar period and local wall-clock hour.\n\nArgs:\n    query: Effective date, timezone and artist or rhythm selection.\n    index: Pinned published history generation.\n\nReturns:\n    The selected period axis, populated cells and source coverage.",
+        "operationId": "listening_scrobble_map_lastfm_analytics_scrobble_map_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ListeningScrobbleMap_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Scrobble Map",
         "tags": [
           "Listening Explorer"
         ]

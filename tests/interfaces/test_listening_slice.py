@@ -22,6 +22,7 @@ from spotify_manager.interfaces.http.listening import router
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
+from tests.support.listening import scrobble
 from tests.support.listening_library import album
 from tests.support.listening_library import publish_collection
 
@@ -107,6 +108,7 @@ def test_authentication_precedes_any_index_acquisition(
         == 401
     )
     assert client.get("/lastfm/analytics/overview").status_code == 401
+    assert client.get("/lastfm/analytics/scrobble-map").status_code == 401
     probe.assert_not_called()
 
 
@@ -119,6 +121,7 @@ def test_endpoints_share_one_snapshot_and_exact_filters(
     expected = {
         "overview": "counts",
         "activity": "days",
+        "scrobble-map": "cells",
         "rankings": "items",
         "evolution": "series",
         "scrobbles": "items",
@@ -138,6 +141,42 @@ def test_endpoints_share_one_snapshot_and_exact_filters(
         assert body["filters"]["start"] == params["from"]
         assert field in body["data"]
     assert fixture.service.snapshot().revision == revision
+
+
+def test_map_cell_matches_pinned_records_through_the_repeated_dst_hour(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Count both local 02:00 hours and preserve duplicate times as raw points."""
+    client, fixture = listening_http
+    fixture.publish(
+        [
+            scrobble("2024-10-27T00:30:00"),
+            scrobble("2024-10-27T01:35:00"),
+            scrobble("2024-10-27T01:35:00"),
+            scrobble("2024-10-27T02:05:00", "Béta"),
+        ]
+    )
+    params = ready_parameters(client)
+    params.update({"from": "2024-10-27", "to": "2024-10-27", "tz": "Europe/Berlin"})
+    path = "/lastfm/analytics"
+    mapped = client.get(path + "/scrobble-map", params=params).json()["data"]
+    assert mapped["plays"] == 4 and len(mapped["points"]) == 4
+    assert mapped["cells"] == [
+        {"period": 0, "hour": 2, "plays": 3},
+        {"period": 0, "hour": 3, "plays": 1},
+    ]
+    scoped = {
+        **params,
+        "hour": "2",
+        "weekday": "6",
+        "artist": listening_identity(("Alpha",)),
+    }
+    result = client.get(path + "/scrobble-map", params=scoped).json()["data"]
+    records = client.get(path + "/scrobbles", params=scoped).json()["data"]
+    assert result["plays"] == records["total"] == 3
+    assert sorted(point["timestamp_ms"] for point in result["points"]) == sorted(
+        row["timestamp_ms"] for row in records["items"]
+    )
 
 
 def test_details_and_record_pages_keep_original_names(
