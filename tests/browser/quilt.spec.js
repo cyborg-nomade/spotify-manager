@@ -277,3 +277,33 @@ test("unavailable cover metadata preserves historical views and disables exports
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(page.locator("#tab-overview canvas")).toHaveCount(3);
 });
+
+test("opening a quilt requests artwork automatically for its visible selection", async ({
+  page,
+}) => {
+  const posts = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "POST" && url.pathname.includes("/quilt/"))
+      posts.push(url);
+  });
+  await page.route("**/lastfm/analytics/quilt/prefetch?*", async (route) => {
+    // The local browser fixture's cover source returns immediately without network.
+    const url = new URL(route.request().url());
+    url.pathname = "/lastfm/analytics/quilt/refresh";
+    await route.fulfill({ response: await route.fetch({ url: url.href }) });
+  });
+  await page.goto("/lastfm?tab=quilt&preset=all&quilt_q=Old%20Favorite");
+  await page
+    .getByLabel("App password", { exact: true })
+    .fill("browser-test-password");
+  await page.getByRole("button", { name: "Unlock explorer" }).click();
+  await expect(page.locator("#quilt-progress")).toContainText("complete", {
+    timeout: 10000,
+  });
+  await expect(page.locator("#quilt-grid img").first()).toBeVisible();
+  expect(posts.map((url) => url.pathname)).toEqual([
+    "/lastfm/analytics/quilt/prefetch",
+  ]);
+  expect(posts[0].searchParams.get("q")).toBe("Old Favorite");
+});

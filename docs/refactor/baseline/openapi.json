@@ -15087,6 +15087,165 @@
         ]
       }
     },
+    "/lastfm/analytics/quilt/prefetch": {
+      "post": {
+        "description": "Start a bounded Last.fm-only pass when the explorer displays a quilt.\n\nArgs:\n    request: Configured cover stage owner.\n    response: Response receiving private cache policy.\n    batch: Captured albums without cached artwork in the visible quilt.\n\nReturns:\n    Progress for a new or already active lookup.",
+        "operationId": "prefetch_lastfm_covers_lastfm_analytics_quilt_prefetch_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Square tile count: 9, 16, 25 or 49.",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 16,
+              "description": "Square tile count: 9, 16, 25 or 49.",
+              "enum": [
+                9,
+                16,
+                25,
+                49
+              ],
+              "maximum": 49,
+              "minimum": 9,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverFetchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prefetch Lastfm Covers",
+        "tags": [
+          "Listening Explorer covers"
+        ]
+      }
+    },
     "/lastfm/analytics/quilt/refresh": {
       "post": {
         "description": "Explicitly start one bounded lookup using names from the displayed quilt.\n\nArgs:\n    request: Configured named enrichment stage owner.\n    response: Response receiving private cache policy.\n    batch: Captured names selected by the synchronous framework dependency.\n\nReturns:\n    Accepted progress or the current batch without duplication.\n\nRaises:\n    HTTPException: Lookup resources are unavailable.",

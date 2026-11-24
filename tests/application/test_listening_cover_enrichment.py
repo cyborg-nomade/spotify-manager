@@ -129,6 +129,8 @@ async def test_cancellation_before_start_finishes_and_bounds_are_enforced(
 class QuickFixtureCover:
     """Make only the final cover of the synthetic batch available."""
 
+    available = True
+
     async def fetch(self, album: RankedEntity) -> CoverFetchResult | None:
         """Return a fast result for the last requested album."""
         return cover_result(album.name, album.artist) if album.name == "2" else None

@@ -366,10 +366,10 @@ Search album/artist names, toggle captions and open original recorded history.
 Missing art keeps its tile and rank. Complete scope counts distinguish selected,
 displayed, outside-quilt and missing-album plays.
 
-The page reads cached art. Explicit five/ten-album batches check Last.fm first
-for exact album and artist matches, then use MusicBrainz and Cover Art Archive
-for remaining tiles. Artwork describes a current catalogue match and leaves
-the edition heard unverified.
+The page reads cached art and automatically checks Last.fm for visible albums
+without covers. An explicit five- or ten-album fetch checks Last.fm and then
+uses MusicBrainz and Cover Art Archive for remaining tiles. Artwork describes
+a current catalogue match and leaves the edition heard unverified.
 Ambiguous/incomplete names stay unresolved. Current source links, retrieval dates,
 coverage and independent versions accompany the quilt. PNG embeds available local
 images and uses labelled placeholders for unavailable art; CSV exports every tile.

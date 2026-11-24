@@ -2072,6 +2072,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_quilt.prefetch_lastfm_covers",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "prefetch_lastfm_covers",
+    "path": "/lastfm/analytics/quilt/prefetch",
+    "response_model": "CoverFetchStatus",
+    "source_line": 244,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening_quilt.cancel_listening_covers",
     "include_in_schema": true,
     "methods": [

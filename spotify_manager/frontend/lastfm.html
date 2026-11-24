@@ -8,7 +8,7 @@
     <title>Listening Explorer · Spotify Manager</title>
     <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=10" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=10"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=11"></script>
   </head>
   <body>
     <div class="shell">
@@ -1094,16 +1094,17 @@
               <p class="eyebrow">CURRENT / REPRESENTATIVE ARTWORK</p>
               <h2>Bring the covers into view</h2>
               <p class="chart-description">
-                Opening this view reads cached artwork. Fetch sends the
-                displayed titles and artist credits to
-                <a href="https://www.last.fm/api">Last.fm</a>
-                first. If it has no suitable cover, Fetch searches
+                Opening this view reuses cached covers and sends the titles and
+                artist credits of visible albums without artwork to
+                <a href="https://www.last.fm/api">Last.fm</a>. Use Fetch to
+                search for remaining artwork through
                 <a
                   href="https://musicbrainz.org"
                   target="_blank"
                   rel="noopener noreferrer"
                   >MusicBrainz</a
-                >, then requests public covers from the
+                >
+                and get public covers from the
                 <a
                   href="https://coverartarchive.org"
                   target="_blank"

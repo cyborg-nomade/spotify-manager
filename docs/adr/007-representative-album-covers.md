@@ -14,8 +14,8 @@ artwork must not remove albums from the ranking or prevent an image export.
 ## Decision
 
 The [provider reliability update](../listening-explorer/PROVIDER_RELIABILITY.md)
-checks each batch with Last.fm first. The archive path below remains the
-fallback for albums without usable exact-match Last.fm thumbnails.
+automatically checks Last.fm for visible tiles without artwork. The manual
+fetch checks Last.fm and uses the archive path below for remaining tiles.
 
 Rank exact recorded album/artist identities by selected plays. Offer 3×3, 4×4,
 5×5 and 7×7 quilts, original-history navigation, title/artist search, caption

@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.application import listening_covers
 from spotify_manager.application.listening_covers import ListeningCoverEnrichment
+from spotify_manager.domain.listening_cover_values import CoverFetchResult
+from spotify_manager.domain.listening_values import RankedEntity
 from spotify_manager.infrastructure.listening.cover_cache import AlbumCoverCache
 from spotify_manager.interfaces.http.listening import router as history_router
 from spotify_manager.interfaces.http.listening_quilt import router
@@ -245,6 +247,7 @@ def test_expired_cover_version_is_independent_of_history_and_images(
         ("", "GET"),
         ("/images/" + "0" * 64, "GET"),
         ("/refresh", "POST"),
+        ("/prefetch", "POST"),
         ("/cancel", "POST"),
     ],
 )
@@ -293,3 +296,46 @@ def test_source_unavailability_does_not_block_historical_views(
         client.post("/lastfm/analytics/quilt/refresh", params=params).status_code == 503
     )
     assert client.get("/lastfm/analytics/overview", params=params).status_code == 200
+
+
+class FixtureLastFmCovers:
+    """Return one controlled cover and record the selected album credits."""
+
+    available = True
+
+    def __init__(self) -> None:
+        """Start with no submitted credits."""
+        self.artists: list[str] = []
+
+    async def fetch(self, album: RankedEntity) -> CoverFetchResult | None:
+        """Return synthetic cover evidence for Beta only."""
+        self.artists.append(album.artist)
+        if album.artist != "Beta":
+            return None
+        return cover_result(album.name, album.artist)
+
+
+def test_prefetch_skips_covers_and_recent_misses_without_using_the_archive(
+    cover_http: tuple[
+        TestClient, ListeningFixture, ListeningCoverEnrichment, FixtureCoverSource
+    ],
+) -> None:
+    """Only missing visible artwork is sent to Last.fm during a prefetch."""
+    client, _fixture, stage, archive = cover_http
+    quick = FixtureLastFmCovers()
+    stage.quick_source = quick
+    stage.cache.write(cover_result())
+    params = ready_parameters(client)
+    path = "/lastfm/analytics/quilt"
+    response = client.post(path + "/prefetch", params={**params, "q": "Alpha"})
+    assert response.status_code == 200 and response.json()["state"] == "idle"
+    assert quick.artists == []
+    assert client.post(path + "/prefetch", params=params).status_code == 200
+    status = finished(client)
+    assert (status["total"], status["completed"]) == (2, 1)
+    assert quick.artists == ["Beta", "Béta"] and archive.names == []
+    assert client.post(path + "/prefetch", params=params).json() == status
+    assert quick.artists == ["Beta", "Béta"]
+    assert client.post(path + "/refresh", params={**params, "q": "Béta"}).is_success
+    assert finished(client)["completed"] == 1
+    assert archive.names == ["Record"]

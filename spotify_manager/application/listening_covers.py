@@ -1,6 +1,7 @@
 """Named cached-cover analysis and explicit bounded MusicBrainz enrichment."""
 
 import asyncio
+from time import monotonic
 
 from spotify_manager.application.listening_cover_ports import CoverCache
 from spotify_manager.application.listening_cover_ports import CoverCacheError
@@ -23,6 +24,9 @@ from spotify_manager.domain.listening_values import RankedEntity
 
 
 REQUEST_INTERVAL = 1.1
+LASTFM_RECHECK_SECONDS = 15 * 60
+LASTFM_RECENT_LIMIT = 256
+LASTFM_QUILT_LIMIT = 49
 
 
 def get_listening_covers(
@@ -71,6 +75,7 @@ class ListeningCoverEnrichment:
         self.cache = cache
         self.source = source
         self.quick_source = quick_source
+        self._lastfm_attempts: dict[str, float] = {}
         self._task: asyncio.Task[None] | None = None
         self._state: CoverFetchState = "idle"
         self._total = 0
@@ -127,21 +132,74 @@ class ListeningCoverEnrichment:
             return self.status()
         if len(request.albums) > 10:
             raise ValueError("Choose at most ten albums per lookup batch.")
+        return self._start(request, lastfm_only=False)
+
+    def start_lastfm(self, request: CoverFetchRequest) -> CoverFetchStatus:
+        """Queue missing tiles for a Last.fm-only pass on the displayed quilt.
+
+        Args:
+            request: Missing artwork candidates from one pinned selection.
+
+        Returns:
+            Progress for the owned batch, or the current status when idle.
+
+        Raises:
+            ValueError: The request exceeds the maximum visible quilt size.
+        """
+        if len(request.albums) > LASTFM_QUILT_LIMIT:
+            raise ValueError("Choose at most 49 albums for an automatic cover pass.")
+        if self._closed or self.quick_source is None or not self.quick_source.available:
+            return self.status()
+        if self._task is not None and not self._task.done():
+            return self.status()
+        albums = self._unchecked_albums(request.albums)
+        if not albums or self.cache.current().message:
+            return self.status()
+        return self._start(
+            CoverFetchRequest(albums, request.history_snapshot), lastfm_only=True
+        )
+
+    def _unchecked_albums(
+        self, albums: tuple[RankedEntity, ...]
+    ) -> tuple[RankedEntity, ...]:
+        existing = set()
+        for item in self.cache.current().entries:
+            if item.artwork:
+                existing.add(item.album_key)
+        now = monotonic()
+        result = []
+        for album in albums:
+            if (
+                album.key not in existing
+                and self._lastfm_attempts.get(album.key, now) <= now
+            ):
+                result.append(album)
+        return tuple(result)
+
+    def _start(
+        self, request: CoverFetchRequest, *, lastfm_only: bool
+    ) -> CoverFetchStatus:
         self._total = len(request.albums)
         self._completed = 0
         self._history = request.history_snapshot
         self._state = "running"
         self._message = (
-            "Fetching public cover metadata. Temporary provider failures "
-            "retry automatically and may take a few minutes. "
-            "You can cancel while waiting."
+            "Checking Last.fm for missing covers."
+            if lastfm_only
+            else (
+                "Fetching public cover metadata. Temporary provider failures "
+                "retry automatically and may take a few minutes. "
+                "You can cancel while waiting."
+            )
         )
-        self._task = asyncio.create_task(self._run(request), name="listening-covers")
+        self._task = asyncio.create_task(
+            self._run(request, lastfm_only), name="listening-covers"
+        )
         return self.status()
 
-    async def _run(self, request: CoverFetchRequest) -> None:
+    async def _run(self, request: CoverFetchRequest, lastfm_only: bool) -> None:
         try:
-            await self._fetch(request)
+            await self._fetch(request, lastfm_only)
         except asyncio.CancelledError:
             self._state = "cancelled"
             self._message = (
@@ -156,16 +214,26 @@ class ListeningCoverEnrichment:
             self._message = "Cover metadata could not be saved to the local cache."
         else:
             self._state = "complete"
-            self._message = (
-                "Lookup complete. Cached evidence describes current "
-                "representative artwork."
-            )
+            if lastfm_only:
+                self._message = (
+                    "Last.fm check finished. Use Fetch public album covers to search "
+                    "for remaining artwork."
+                )
+            else:
+                self._message = (
+                    "Lookup complete. Cached evidence describes current "
+                    "representative artwork."
+                )
 
-    async def _fetch(self, request: CoverFetchRequest) -> None:
+    async def _fetch(self, request: CoverFetchRequest, lastfm_only: bool) -> None:
         albums = request.albums
         if self.quick_source is not None:
-            self._message = "Checking Last.fm for all requested covers first."
+            if not lastfm_only:
+                self._message = "Checking Last.fm for all requested covers first."
             albums = await self._fetch_quickly(albums, self.quick_source)
+        if lastfm_only:
+            return
+        if self.quick_source is not None and albums:
             self._message = (
                 "Checking Cover Art Archive for remaining covers. "
                 "Temporary failures retry automatically."
@@ -179,16 +247,26 @@ class ListeningCoverEnrichment:
     async def _fetch_quickly(
         self, albums: tuple[RankedEntity, ...], source: QuickCoverSource
     ) -> tuple[RankedEntity, ...]:
-        missing = []
+        missing: list[RankedEntity] = []
         for index, album in enumerate(albums):
+            if not source.available:
+                return tuple(missing) + albums[index:]
             if index:
                 await asyncio.sleep(REQUEST_INTERVAL)
+            self._record_lastfm_attempt(album.key)
             result = await source.fetch(album)
             if result is None:
                 missing.append(album)
                 continue
             await self._save(result)
         return tuple(missing)
+
+    def _record_lastfm_attempt(self, key: str) -> None:
+        self._lastfm_attempts.pop(key, None)
+        self._lastfm_attempts[key] = monotonic() + LASTFM_RECHECK_SECONDS
+        if len(self._lastfm_attempts) > LASTFM_RECENT_LIMIT:
+            oldest = next(iter(self._lastfm_attempts))
+            del self._lastfm_attempts[oldest]
 
     async def _save(self, metadata: CoverFetchResult) -> None:
         try:

@@ -117,6 +117,10 @@ def _read_album(client: httpx.Client, album: RankedEntity, key: str) -> _LastFmR
             return _LastFmRead(
                 pause=max(60, retry_after_seconds(response.headers.get("Retry-After")))
             )
+        if response.status_code in (408, 500, 502, 503, 504):
+            return _LastFmRead(
+                pause=max(30, retry_after_seconds(response.headers.get("Retry-After")))
+            )
         if response.status_code != 200 or not _cacheable(response.headers):
             return _LastFmRead()
         content = _content(response, MAX_JSON_BYTES, time.monotonic() + 10)
@@ -134,6 +138,11 @@ class LastFmCoverSource:
         """Bind the existing server-only key and initialize the provider pause."""
         self._key = api_key
         self._paused_until = 0.0
+
+    @property
+    def available(self) -> bool:
+        """Report whether Last.fm is configured and its cooldown has elapsed."""
+        return bool(self._key) and time.monotonic() >= self._paused_until
 
     def _read(self, album: RankedEntity) -> _LastFmRead:
         try:
@@ -156,7 +165,7 @@ class LastFmCoverSource:
         Returns:
             Exact Last.fm cover evidence, or none if unavailable.
         """
-        if self._key and time.monotonic() >= self._paused_until:
+        if self.available:
             async with blocking_capacity():
                 task = asyncio.create_task(asyncio.to_thread(self._read, album))
                 result = await finish_blocking(task)

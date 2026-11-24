@@ -36,6 +36,12 @@ and [Cover Art Archive response contracts](https://musicbrainz.org/doc/Cover_Art
 
 ## Last.fm album covers
 
+Opening Album Quilt or applying a new selection queues a Last.fm-only check
+for visible tiles without cached covers. It supports the full displayed quilt,
+up to 49 albums. It skips albums checked within the last 15 minutes in the
+running Space. Successful covers appear in place. The archive fallback runs
+when the listener clicks Fetch.
+
 The quilt checks every requested album with Last.fm before using the archive
 fallback. It accepts a corroborated title and complete artist credit with a
 valid 174-pixel PNG or JPEG from Last.fm's image CDN. It retains the original

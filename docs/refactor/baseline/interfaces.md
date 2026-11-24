@@ -228,6 +228,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/lastfm/analytics/quilt` | `listening_quilt` | True |
 | [ ] | api | GET | `/lastfm/analytics/quilt/images/{album_key}` | `listening_cover_image` | True |
 | [ ] | api | POST | `/lastfm/analytics/quilt/refresh` | `fetch_listening_covers` | True |
+| [ ] | api | POST | `/lastfm/analytics/quilt/prefetch` | `prefetch_lastfm_covers` | True |
 | [ ] | api | POST | `/lastfm/analytics/quilt/cancel` | `cancel_listening_covers` | True |
 | [ ] | api | GET | `/lastfm/analytics/sessions` | `listening_sessions` | True |
 | [ ] | api | GET | `/lastfm/analytics/sessions/{first_ms}/records` | `listening_session_records` | True |

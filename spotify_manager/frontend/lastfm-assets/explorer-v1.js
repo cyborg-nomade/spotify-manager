@@ -81,6 +81,7 @@ const state = {
   originPage: 1,
   originTimer: null,
   quiltTimer: null,
+  quiltAutoPending: false,
   tagTimer: null,
   recordsPage: 1,
   selected: parameters.has("entity")
@@ -629,6 +630,32 @@ async function updateQuiltArtwork(status, signal) {
   quilt.render(state.data.quilt, context(), state.password, signal);
 }
 
+async function prefetchQuiltArtwork(signal) {
+  state.quiltAutoPending = false;
+  if (!state.data.quilt?.items?.some((item) => !item.artwork)) return;
+  $("quilt-fetch").disabled = true;
+  try {
+    const status = await request(
+      "/lastfm/analytics/quilt/prefetch",
+      query(appliedQuiltQuery()),
+      signal,
+      "POST",
+    );
+    if (signal.aborted || state.tab !== "quilt") return;
+    quilt.progress(status);
+    if (
+      ["running", "cancelling"].includes(status.state) ||
+      status.metadata_snapshot !== state.data.quilt.metadata_snapshot
+    )
+      scheduleQuiltPoll();
+  } catch (error) {
+    if (signal.aborted || state.tab !== "quilt" || error.status === 401) return;
+    quilt.progress(state.data.quilt.lookup);
+    $("quilt-progress").textContent =
+      "Last.fm could not start automatically. Use Fetch public album covers to try again.";
+  }
+}
+
 function isTemporaryLookupStatusError(error) {
   if (error.name === "AbortError") return false;
   return error.status == null || error.status === 429 || error.status >= 500;
@@ -653,12 +680,10 @@ async function pollQuiltLookup() {
       status.metadata_snapshot !== state.data.quilt?.metadata_snapshot
     )
       await updateQuiltArtwork(status, signal);
-    if (
-      !signal.aborted &&
-      state.tab === "quilt" &&
-      (["running", "cancelling"].includes(status.state) || $("detail").open)
-    )
+    if (signal.aborted || state.tab !== "quilt") return;
+    if (["running", "cancelling"].includes(status.state) || $("detail").open)
       scheduleQuiltPoll();
+    else if (state.quiltAutoPending) await prefetchQuiltArtwork(signal);
   } catch (error) {
     if (epoch !== state.epoch || signal.aborted || state.tab !== "quilt")
       return;
@@ -916,6 +941,7 @@ async function loadSelection(recoverVersion = true) {
   clearTimeout(state.quiltTimer);
   state.controller?.abort();
   quilt.reset();
+  state.quiltAutoPending = false;
   sessions.reset();
   state.sessionController?.abort();
   state.sessionDetail = null;
@@ -1020,8 +1046,12 @@ function renderView(results) {
     state.data.quilt = results[0];
     charts.clearCharts();
     quilt.render(results[0], ctx, state.password, state.controller.signal);
-    if (["running", "cancelling"].includes(results[0].lookup?.state))
+    state.quiltAutoPending = Boolean(results[0].lookup?.cache_available);
+    if (["running", "cancelling"].includes(results[0].lookup?.state)) {
       scheduleQuiltPoll();
+    } else if (state.quiltAutoPending) {
+      void prefetchQuiltArtwork(state.controller.signal);
+    }
   }
   if (state.tab === "origins") {
     state.data.origins = results[0];
