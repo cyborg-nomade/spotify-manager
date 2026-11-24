@@ -28,6 +28,7 @@ from spotify_manager.application.listening import get_listening_overview
 from spotify_manager.application.listening import get_listening_rankings
 from spotify_manager.application.listening import get_listening_records
 from spotify_manager.application.listening import get_listening_rediscovery
+from spotify_manager.application.listening_library import get_library_candidates
 from spotify_manager.application.listening_library import get_listening_library
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningNotReadyError
@@ -36,6 +37,8 @@ from spotify_manager.application.listening_ports import ListeningVersionError
 from spotify_manager.application.listening_scrobble_map import get_scrobble_map
 from spotify_manager.domain.listening_capsule_values import ListeningAnniversaries
 from spotify_manager.domain.listening_capsule_values import ListeningEras
+from spotify_manager.domain.listening_library_values import LibraryCandidateOptions
+from spotify_manager.domain.listening_library_values import LibraryCandidatePage
 from spotify_manager.domain.listening_library_values import LibraryComparison
 from spotify_manager.domain.listening_library_values import LibraryMatch
 from spotify_manager.domain.listening_library_values import LibraryOptions
@@ -211,6 +214,28 @@ type IndexDep = Annotated[ListeningIndex, Depends(listening_index)]
 type RankingDep = Annotated[RankingOptions, Depends(ranking_options)]
 
 
+def library_candidate_options(
+    kind: EntityKind,
+    key: Annotated[str, Query(pattern=_KEY)],
+    q: Annotated[str, Query(max_length=180)] = "",
+    page: Annotated[int, Query(ge=1, le=100000)] = 1,
+    limit: Annotated[int, Query(ge=1, le=25)] = 12,
+) -> LibraryCandidateOptions:
+    """Validate an explicit history identity and bounded mirror search.
+
+    Args:
+        kind: Followed artist, saved album, or liked track.
+        key: Verified analytics identity selected in Library Bridge.
+        q: Candidate title, credit, or exact Spotify URI.
+        page: One-based candidate page.
+        limit: Maximum candidates returned in this request.
+
+    Returns:
+        Typed selection and candidate pagination.
+    """
+    return LibraryCandidateOptions(EntitySelection(kind, key), q, page, limit)
+
+
 @router.get("/library")
 def listening_library(
     request: Request,
@@ -235,6 +260,33 @@ def listening_library(
     catalog = runtime.acquire(library_snapshot)
     result = get_listening_library(index, catalog, query, options)
     return present_listening(index, query, result)
+
+
+@router.get("/library/candidates")
+def listening_library_candidates(
+    request: Request,
+    query: QueryDep,
+    index: IndexDep,
+    options: Annotated[LibraryCandidateOptions, Depends(library_candidate_options)],
+    library_snapshot: Annotated[str, Query(pattern=r"^l1-[0-9a-f]{64}$")],
+) -> ListeningEnvelope[LibraryCandidatePage]:
+    """Browse candidate names and credits in the pinned Spotify publication.
+
+    Args:
+        request: Configured collection generation owner.
+        query: Current history selection and analysis cutoff.
+        index: Pinned complete history generation.
+        options: Original identity and bounded candidate search.
+        library_snapshot: Pinned collection generation.
+
+    Returns:
+        Original history evidence, source, and published Spotify identities.
+    """
+    runtime = cast(LibraryRuntime, request.app.state.listening_library)
+    catalog = runtime.acquire(library_snapshot)
+    return present_listening(
+        index, query, get_library_candidates(index, catalog, query, options)
+    )
 
 
 @router.get("/status")

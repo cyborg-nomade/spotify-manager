@@ -2655,6 +2655,51 @@
         "title": "LastFmArtwork",
         "type": "object"
       },
+      "LibraryCandidatePage": {
+        "description": "Present candidate evidence tied to one immutable collection publication.\n\nArgs:\n    library_snapshot: Independently pinned mirror version.\n    history: History identity under review, with recorded title and credit.\n    source: Coverage and source date of the selected collection.\n    items: Bounded candidate page ordered by evidence and displayed names.\n    total: Complete count of matching distinct Spotify identities.\n    page: One-based page number.\n    limit: Applied page size.",
+        "properties": {
+          "history": {
+            "$ref": "#/components/schemas/EntityLifetime"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryReviewCandidate"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "library_snapshot": {
+            "title": "Library Snapshot",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MirrorSource"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "library_snapshot",
+          "history",
+          "source",
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "title": "LibraryCandidatePage",
+        "type": "object"
+      },
       "LibraryComparison": {
         "description": "Present a bounded comparison with both source identities intact.\n\nArgs:\n    library_snapshot: Pinned mirror generation separate from history.\n    revision: Pinned publication manifest revision.\n    source: Selected collection's provenance and availability.\n    coverage: Disjoint counts before status/search filtering.\n    items: One deterministic page of evidence rows.\n    total: Number of rows after search/status filtering.\n    page: One-based page.\n    limit: Requested page size.\n    options: Applied comparison options, independent of unsubmitted UI edits.",
         "properties": {
@@ -2867,6 +2912,24 @@
           }
         },
         "title": "LibraryOptions",
+        "type": "object"
+      },
+      "LibraryReviewCandidate": {
+        "description": "Present a published Spotify identity with its exact-name evidence.\n\nArgs:\n    entry: Complete published candidate title, credit, and validated URI.\n    exact_name: Whether its normalized identity matches the recorded name.",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/LibraryEntry"
+          },
+          "exact_name": {
+            "title": "Exact Name",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "exact_name"
+        ],
+        "title": "LibraryReviewCandidate",
         "type": "object"
       },
       "LibraryStatus": {
@@ -3254,6 +3317,27 @@
           "related"
         ],
         "title": "ListeningEntity",
+        "type": "object"
+      },
+      "ListeningEnvelope_LibraryCandidatePage_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LibraryCandidatePage"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[LibraryCandidatePage]",
         "type": "object"
       },
       "ListeningEnvelope_LibraryComparison_": {
@@ -14255,6 +14339,203 @@
           }
         },
         "summary": "Listening Library",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/library/candidates": {
+      "get": {
+        "description": "Browse candidate names and credits in the pinned Spotify publication.\n\nArgs:\n    request: Configured collection generation owner.\n    query: Current history selection and analysis cutoff.\n    index: Pinned complete history generation.\n    options: Original identity and bounded candidate search.\n    library_snapshot: Pinned collection generation.\n\nReturns:\n    Original history evidence, source, and published Spotify identities.",
+        "operationId": "listening_library_candidates_lastfm_analytics_library_candidates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "artist",
+                "album",
+                "track"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 180,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_LibraryCandidatePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Library Candidates",
         "tags": [
           "Listening Explorer"
         ]

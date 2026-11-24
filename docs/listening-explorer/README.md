@@ -315,14 +315,25 @@ The Library Bridge tab includes a coverage chart/table, evidence and search
 filters, selected-play thresholds, pagination, history detail navigation,
 Spotify candidate links, URL restoration, PNG and current-page CSV. CSV includes
 both publication identities, collection date, evidence settings and page scope.
-The two new protected read-only routes are `/lastfm/analytics/library/status`
-and `/lastfm/analytics/library`; comparison requests pin `library_snapshot`
-in addition to the existing history `snapshot`. Collection failures preserve
-historical views. The Check publications control retries independently.
+Library Bridge uses protected read-only status, comparison and candidate routes
+under `/lastfm/analytics/library`. The comparison and candidate requests pin
+`library_snapshot` alongside the history `snapshot`. Collection failures
+preserve historical views. **Check publications** retries independently.
+
+On an ambiguous or unmatched row, **Review match** opens exact-name candidates
+from the published collection. Search by title, artist credit or Spotify URI
+to find an alternate listing. Candidate rows keep the published title and
+edition wording, artist credit and a Spotify link.
+
+Confirmation rechecks the candidate in the pinned publications, then records
+the chosen URI, both publication versions and the review time in the current
+browser. A changed publication marks the review expired.
+The current-page CSV includes confirmed URIs and timestamps for the pinned
+versions. Reviews can be removed from the picker.
 
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
-immutable multi-artifact acquisition. Further enrichment and fuzzy resolution,
-playlists and routine launch controls remain separate follow-ups.
+immutable multi-artifact acquisition. Playlist preview, Spotify export and
+cockpit links are planned follow-ups.
 
 
 ## Tag Atlas release

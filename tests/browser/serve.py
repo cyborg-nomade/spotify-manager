@@ -143,6 +143,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "album": "Record 2",
                     "uri": "spotify:album:" + "c" * 22,
                 },
+                {
+                    "artist": "Gamma",
+                    "album": "Record 3 (Deluxe Edition)",
+                    "uri": "spotify:album:" + "e" * 22,
+                },
             ],
         )
         publish_collection(
