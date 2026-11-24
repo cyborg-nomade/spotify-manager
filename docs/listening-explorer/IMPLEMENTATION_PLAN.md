@@ -294,6 +294,10 @@ periods, daylight-saving folds, keyboard access, mobile rendering and export.
    Spotify publications, show the full credit and edition, and let the user
    confirm one Spotify identity. Retain the match evidence for later review.
    Verify that an unresolved or expired candidate stays unresolved.
+
+   The review candidate reads the pinned published mirrors and stores a
+   confirmation in the current browser. Each confirmation includes the
+   selected Spotify URI, timestamp and both publication versions.
 2. **Preview a playlist from a selection.** Reuse the active dates, filters and
    recorded play order to propose an ordered list of unique verified Spotify
    tracks. Show resolved tracks, duplicates and unresolved rows before export.

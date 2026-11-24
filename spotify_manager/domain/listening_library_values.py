@@ -5,6 +5,7 @@ from typing import Literal
 
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntityLifetime
+from spotify_manager.domain.listening_values import EntitySelection
 
 
 type LibraryMatch = Literal["name_match", "unmatched", "ambiguous", "unavailable"]
@@ -147,3 +148,56 @@ class LibraryComparison:
     page: int
     limit: int
     options: LibraryOptions
+
+
+@dataclass(frozen=True)
+class LibraryCandidateOptions:
+    """Bound a candidate review for one historical identity.
+
+    Args:
+        selection: Collection kind and selected historical entity key.
+        search: Optional title, credit, or exact Spotify URI.
+        page: One-based page of candidate evidence.
+        limit: Maximum candidates returned on the page.
+    """
+
+    selection: EntitySelection
+    search: str
+    page: int
+    limit: int
+
+
+@dataclass(frozen=True)
+class LibraryReviewCandidate:
+    """Present a published Spotify identity with its exact-name evidence.
+
+    Args:
+        entry: Complete published candidate title, credit, and validated URI.
+        exact_name: Whether its normalized identity matches the recorded name.
+    """
+
+    entry: LibraryEntry
+    exact_name: bool
+
+
+@dataclass(frozen=True)
+class LibraryCandidatePage:
+    """Present candidate evidence tied to one immutable collection publication.
+
+    Args:
+        library_snapshot: Independently pinned mirror version.
+        history: History identity under review, with recorded title and credit.
+        source: Coverage and source date of the selected collection.
+        items: Bounded candidate page ordered by evidence and displayed names.
+        total: Complete count of matching distinct Spotify identities.
+        page: One-based page number.
+        limit: Applied page size.
+    """
+
+    library_snapshot: str
+    history: EntityLifetime
+    source: MirrorSource
+    items: tuple[LibraryReviewCandidate, ...]
+    total: int
+    page: int
+    limit: int

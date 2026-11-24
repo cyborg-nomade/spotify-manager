@@ -203,6 +203,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | POST | `/flush-mode/check` | `check_flush_mode` | True |
 | [ ] | api | GET | `/lastfm/analytics/library/status` | `listening_library_status` | True |
 | [ ] | api | GET | `/lastfm/analytics/library` | `listening_library` | True |
+| [ ] | api | GET | `/lastfm/analytics/library/candidates` | `listening_library_candidates` | True |
 | [ ] | api | GET | `/lastfm/analytics/status` | `listening_status` | True |
 | [ ] | api | GET | `/lastfm/analytics/overview` | `listening_overview` | True |
 | [ ] | api | GET | `/lastfm/analytics/activity` | `listening_activity` | True |

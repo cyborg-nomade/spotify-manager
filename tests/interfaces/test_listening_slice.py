@@ -350,6 +350,77 @@ def test_missing_library_is_unknown_and_new_routes_remain_gated(
     result = client.get("/lastfm/analytics/library", params=params).json()["data"]
     assert result["source"]["state"] == "missing"
     assert all(item["status"] == "unavailable" for item in result["items"])
+    details = {**params, "key": listening_identity(("Alpha",)), "q": "Alpha"}
+    candidates = client.get("/lastfm/analytics/library/candidates", params=details)
+    assert candidates.status_code == 200 and candidates.json()["data"]["items"] == []
     client.headers.pop("X-App-Password")
     assert client.get("/lastfm/analytics/library/status").status_code == 401
     assert client.get("/lastfm/analytics/library", params=params).status_code == 401
+    assert (
+        client.get("/lastfm/analytics/library/candidates", params=details).status_code
+        == 401
+    )
+
+
+def test_library_candidates_keep_the_original_and_published_credits_pinned(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Search the verified mirror without treating a different edition as exact."""
+    client, fixture = listening_http
+    publish_collection(
+        fixture, "albums", [album(), album("Record (Deluxe Edition)", 2)]
+    )
+    base = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    params = {**base, "kind": "album", "key": listening_identity(("Alpha", "Record"))}
+    path = "/lastfm/analytics/library/candidates"
+    revision = fixture.service.snapshot().revision
+    response = client.get(path, params=params)
+    assert (
+        response.status_code == 200
+        and response.headers["Cache-Control"] == "private, no-store"
+    )
+    assert response.json()["snapshot"] == base["snapshot"]
+    result = response.json()["data"]
+    assert result["library_snapshot"] == base["library_snapshot"]
+    assert (
+        result["history"]["name"] == "Record" and result["history"]["artist"] == "Alpha"
+    )
+    assert result["total"] == 1 and result["items"][0]["exact_name"]
+    search = {"q": "Alpha Record", "limit": 1, "page": 2}
+    hits = client.get(path, params={**params, **search}).json()["data"]
+    assert hits["total"] == 2 and hits["page"] == 2
+    candidate = hits["items"][0]
+    assert candidate["entry"]["name"] == "Record (Deluxe Edition)"
+    assert candidate["entry"]["artist"] == "Alpha" and not candidate["exact_name"]
+    by_uri = client.get(path, params={**params, "q": candidate["entry"]["uri"]})
+    assert by_uri.json()["data"]["items"] == [candidate]
+    assert fixture.service.snapshot().revision == revision
+
+
+@pytest.mark.parametrize(
+    ("extra", "code"),
+    [
+        ({"library_snapshot": "l1-" + "0" * 64}, 409),
+        ({"snapshot": "v1-" + "0" * 64}, 409),
+        ({"key": "0" * 64}, 404),
+        ({"limit": 26}, 422),
+    ],
+)
+def test_library_candidates_reject_expired_or_invalid_selections(
+    listening_http: tuple[TestClient, ListeningFixture],
+    extra: dict[str, object],
+    code: int,
+) -> None:
+    """Reject unavailable versions and unknown original identities before reading."""
+    client, _fixture = listening_http
+    params = {
+        **ready_parameters(client),
+        "library_snapshot": ready_library(client),
+        "kind": "album",
+        "key": listening_identity(("Alpha", "Record")),
+        **extra,
+    }
+    assert (
+        client.get("/lastfm/analytics/library/candidates", params=params).status_code
+        == code
+    )

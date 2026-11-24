@@ -1,5 +1,5 @@
 import * as charts from "./charts-v1.js?v=12";
-import * as library from "./library-v1.js?v=12";
+import * as library from "./library-v1.js?v=13";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
@@ -78,6 +78,7 @@ const state = {
   libraryPage: 1,
   libraryForce: false,
   libraryTimer: null,
+  libraryReview: null,
   tagPage: 1,
   originPage: 1,
   originTimer: null,
@@ -132,6 +133,7 @@ function showLogin(message = "") {
   state.metadata = null;
   state.data = {};
   state.detailData = null;
+  closeLibraryReview();
   state.recordScope = null;
   state.controller?.abort();
   quilt.reset();
@@ -479,6 +481,180 @@ async function loadLibrary() {
         "Collection evidence could not be loaded. Your listening history is still available. Use Check publications to retry.",
     };
   }
+}
+
+function closeLibraryReview() {
+  const dialog = $("library-review");
+  if (!state.libraryReview && !dialog.open) return;
+  state.libraryReview?.controller?.abort();
+  state.libraryReview = null;
+  if (dialog.open) dialog.close();
+  for (const id of [
+    "library-review-history",
+    "library-review-source",
+    "library-review-table",
+    "library-review-status",
+    "library-review-saved",
+  ])
+    $(id).replaceChildren();
+  $("library-review-search").value = "";
+  $("library-review-remove").hidden = true;
+}
+
+function openLibraryReview(key) {
+  const data = state.data.library;
+  const item = data?.items?.find((row) => row.history.key === key);
+  if (!item || data.source.state !== "ready") return;
+  const kind = data.options.kind;
+  const scope = {
+    kind,
+    key,
+    historySnapshot: state.snapshot,
+    librarySnapshot: data.library_snapshot,
+    timezone: state.timezone,
+    search: "",
+    page: 1,
+    data: null,
+    controller: null,
+    confirming: false,
+  };
+  state.libraryReview = scope;
+  const recorded = item.history;
+  $("library-review-history").textContent =
+    `Recorded as ${recorded.name}${recorded.artist ? ` · ${recorded.artist}` : ""}`;
+  $("library-review-source").textContent = data.source.published_at
+    ? `Spotify collection published ${recordedTime(Date.parse(data.source.published_at), scope.timezone)}.`
+    : "Spotify publication time unavailable.";
+  const review = library.reviewFor(kind, key);
+  scope.search = review?.uri || "";
+  $("library-review-search").value = scope.search;
+  library.reviewStatus(scope, review);
+  $("library-review").showModal();
+  loadLibraryReview(1);
+}
+
+async function readLibraryReview(scope, search, page, signal) {
+  const data = await analytics(
+    "library/candidates",
+    {
+      snapshot: scope.historySnapshot,
+      library_snapshot: scope.librarySnapshot,
+      kind: scope.kind,
+      key: scope.key,
+      q: search,
+      page,
+    },
+    signal,
+  );
+  if (
+    data.library_snapshot !== scope.librarySnapshot ||
+    data.history.key !== scope.key
+  )
+    throw new Error(
+      "The review source changed. Check publications and try again.",
+    );
+  return data;
+}
+
+function libraryReviewError(error, fallback) {
+  $("library-review-status").textContent =
+    error.status === 409
+      ? "A publication version expired. Close this review and check publications."
+      : error.message || fallback;
+}
+
+async function loadLibraryReview(page) {
+  const scope = state.libraryReview;
+  if (!scope) return;
+  scope.controller?.abort();
+  scope.controller = new AbortController();
+  scope.data = null;
+  const signal = scope.controller.signal;
+  $("library-review-table").replaceChildren();
+  $("library-review-previous").disabled = true;
+  $("library-review-next").disabled = true;
+  $("library-review-status").textContent = "Reading this publication…";
+  try {
+    const data = await readLibraryReview(scope, scope.search, page, signal);
+    if (signal.aborted || scope !== state.libraryReview) return;
+    scope.page = data.page;
+    scope.data = data;
+    library.renderReviewResults(
+      data,
+      scope,
+      library.reviewFor(scope.kind, scope.key),
+    );
+  } catch (error) {
+    if (signal.aborted || scope !== state.libraryReview || error.status === 401)
+      return;
+    libraryReviewError(error, "Candidates could not be loaded.");
+  }
+}
+
+async function verifyLibraryCandidate(scope, uri) {
+  scope.confirming = true;
+  const signal = scope.controller.signal;
+  $("library-review-status").textContent = "Checking the selected candidate…";
+  try {
+    const result = await readLibraryReview(scope, uri, 1, signal);
+    if (signal.aborted || scope !== state.libraryReview) return false;
+    if (result.items.some((candidate) => candidate.entry.uri === uri))
+      return true;
+    throw new Error("This candidate is unavailable in the pinned publication.");
+  } catch (error) {
+    if (
+      !signal.aborted &&
+      scope === state.libraryReview &&
+      error.status !== 401
+    ) {
+      if (error.status === 409) {
+        scope.data = null;
+        $("library-review-table").replaceChildren();
+        $("library-review-previous").disabled = true;
+        $("library-review-next").disabled = true;
+      }
+      libraryReviewError(
+        error,
+        "The selected candidate could not be verified.",
+      );
+    }
+    return false;
+  } finally {
+    scope.confirming = false;
+  }
+}
+
+async function updateLibraryReview(uri) {
+  const scope = state.libraryReview;
+  if (
+    !scope ||
+    scope.confirming ||
+    scope.historySnapshot !== state.snapshot ||
+    scope.librarySnapshot !== state.data.library?.library_snapshot
+  )
+    return;
+  if (uri !== null) {
+    if (!scope.data?.items.some((item) => item.entry.uri === uri)) return;
+    if (
+      !(await verifyLibraryCandidate(scope, uri)) ||
+      scope !== state.libraryReview
+    )
+      return;
+  }
+  try {
+    library.storeReview(scope, uri);
+  } catch {
+    $("library-review-saved").textContent =
+      "This browser could not save the review.";
+    return;
+  }
+  const review = library.reviewFor(scope.kind, scope.key);
+  library.refreshReviewBadge(scope, review);
+  if (scope.data) library.renderReviewResults(scope.data, scope, review);
+  else library.reviewStatus(scope, review);
+  if (uri === null)
+    $("library-review-saved").textContent = "Saved review removed.";
+  $("library-review-saved").focus();
 }
 
 function tagQuery() {
@@ -938,6 +1114,7 @@ function clearResults() {
 
 async function loadSelection(recoverVersion = true) {
   if (!state.snapshot) return;
+  closeLibraryReview();
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
   clearTimeout(state.originTimer);
@@ -1828,8 +2005,10 @@ function exportData(name) {
       "Name evidence",
       "Distinct candidates",
       "Displayed Spotify candidate URIs",
+      "Reviewed Spotify URI",
+      "Reviewed at (UTC)",
     ];
-    rows = library.csv(data.library);
+    rows = library.csv(data.library, context());
   }
   if (name === "calendar" && data.activity) {
     headers = [
@@ -2271,6 +2450,31 @@ $("library-next").addEventListener("click", () => {
   state.libraryPage++;
   loadSelection();
 });
+$("library-review-search-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!state.libraryReview) return;
+  state.libraryReview.search = $("library-review-search").value.trim();
+  loadLibraryReview(1);
+});
+$("library-review-exact").addEventListener("click", () => {
+  if (!state.libraryReview) return;
+  $("library-review-search").value = "";
+  state.libraryReview.search = "";
+  loadLibraryReview(1);
+});
+$("library-review-previous").addEventListener("click", () => {
+  if (state.libraryReview) loadLibraryReview(state.libraryReview.page - 1);
+});
+$("library-review-next").addEventListener("click", () => {
+  if (state.libraryReview) loadLibraryReview(state.libraryReview.page + 1);
+});
+$("library-review-remove").addEventListener("click", () =>
+  updateLibraryReview(null),
+);
+$("library-review-close").addEventListener("click", closeLibraryReview);
+$("library-review").addEventListener("close", () => {
+  if (!$("library-review").open) closeLibraryReview();
+});
 document.addEventListener("listening-auth-required", () =>
   showLogin("Enter your app password to continue."),
 );
@@ -2419,6 +2623,10 @@ document.addEventListener("click", (event) => {
   }
   if (button?.dataset.entityKey)
     openEntity(button.dataset.entityKind, button.dataset.entityKey);
+  if (button?.dataset.libraryReviewKey)
+    openLibraryReview(button.dataset.libraryReviewKey);
+  if (button?.dataset.libraryConfirmUri)
+    updateLibraryReview(button.dataset.libraryConfirmUri);
   if (button?.dataset.day) selectDay(button.dataset.day);
   if (button?.dataset.periodStart)
     selectPeriod(button.dataset.periodStart, button.dataset.periodEnd);

@@ -1747,6 +1747,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_library_candidates",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_library_candidates",
+    "path": "/lastfm/analytics/library/candidates",
+    "response_model": "ListeningEnvelope[LibraryCandidatePage]",
+    "source_line": 265,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening.listening_status",
     "include_in_schema": true,
     "methods": [
