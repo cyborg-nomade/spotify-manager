@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=7" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=10" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=9"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=10"></script>
   </head>
   <body>
     <div class="shell">
@@ -1037,7 +1037,7 @@
                 Every album keeps its place when artwork is missing. Select a
                 tile to open its recorded history.
               </p>
-              <form id="quilt-filters" class="control-line">
+              <form id="quilt-filters" class="control-line quilt-controls">
                 <label
                   >Quilt size<select id="quilt-size">
                     <option value="9">3 × 3 · 9 albums</option>
@@ -1046,7 +1046,7 @@
                     <option value="49">7 × 7 · 49 albums</option>
                   </select></label
                 >
-                <label
+                <label class="quilt-search-field"
                   >Search albums or artists<input
                     type="search"
                     id="quilt-search"
@@ -1074,7 +1074,7 @@
                 aria-live="polite"
               ></p>
               <p id="quilt-source" class="chart-description"></p>
-              <button id="quilt-retry" class="quiet">
+              <button id="quilt-retry" type="button" class="small-button">
                 Reload cached artwork
               </button>
               <details>
@@ -1114,7 +1114,7 @@
                 account identifiers are sent. These are current representative
                 covers, rather than historical artwork.
               </p>
-              <div class="control-line">
+              <div class="control-line quilt-controls">
                 <label
                   >Albums per batch<select id="quilt-batch-size">
                     <option value="5">Up to 5</option>
@@ -1125,11 +1125,19 @@
                   ><input type="checkbox" id="quilt-force" /> Refresh recently
                   cached covers too</label
                 >
-                <button id="quilt-fetch" class="small-button">
-                  Fetch public album covers</button
-                ><button id="quilt-cancel" class="quiet" disabled>
-                  Cancel cover lookup
-                </button>
+                <div class="quilt-lookup-actions">
+                  <button id="quilt-fetch" type="button" class="small-button">
+                    Fetch public album covers
+                  </button>
+                  <button
+                    id="quilt-cancel"
+                    type="button"
+                    class="small-button"
+                    disabled
+                  >
+                    Cancel cover lookup
+                  </button>
+                </div>
               </div>
               <p
                 id="quilt-progress"

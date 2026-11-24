@@ -991,6 +991,24 @@ dialog::backdrop {
   max-width: 48rem;
 }
 
+.quilt-controls :is(select, input[type="search"], button, .tag-force-label) {
+  min-height: 38px;
+  margin: 0;
+}
+.quilt-search-field {
+  flex: 1 1 12rem;
+  max-width: 16rem;
+}
+.quilt-controls input[type="checkbox"] {
+  flex: none;
+  margin: 0;
+}
+.quilt-lookup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: inherit;
+}
+
 .quilt-grid {
   display: grid;
   grid-template-columns: repeat(var(--quilt-columns, 4), minmax(0, 1fr));

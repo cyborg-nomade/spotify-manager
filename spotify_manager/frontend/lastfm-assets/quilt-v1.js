@@ -18,17 +18,19 @@ export const outcomes = {
   missing: "Not looked up",
 };
 let revision = 0;
-let visible = 0;
-let images = new Map();
-let urls = [];
+let imageUpdate = 0;
+let tiles = [];
 let pending = Promise.resolve();
 
 export function reset() {
   revision++;
-  visible = 0;
-  for (const url of urls) URL.revokeObjectURL(url);
-  urls = [];
-  images = new Map();
+  imageUpdate++;
+  for (const node of tiles) {
+    node.request = null;
+    clearArtwork(node);
+  }
+  tiles = [];
+  pending = Promise.resolve();
   $("quilt-grid").replaceChildren();
 }
 
@@ -45,7 +47,7 @@ export function progress(status) {
     status.state === "error" || !status.cache_available,
   );
   $("quilt-fetch").disabled =
-    busy || !status.configured || !status.cache_available || !visible;
+    busy || !status.configured || !status.cache_available || !tiles.length;
   $("quilt-cancel").disabled = !busy || status.state === "cancelling";
 }
 
@@ -62,10 +64,6 @@ function tile(item, rank) {
   row.setAttribute("role", "listitem");
   const button = entityButton(item.album, "album");
   button.className = "quilt-open";
-  button.setAttribute(
-    "aria-label",
-    `${rank}. ${item.album.name} by ${item.album.artist} · ${number(item.album.plays)} recorded plays · ${outcomes[item.evidence]}`,
-  );
   button.replaceChildren();
   const art = element("span");
   art.className = "quilt-art";
@@ -79,21 +77,55 @@ function tile(item, rank) {
   art.append(placeholder, badge);
   const caption = element("span");
   caption.className = "quilt-caption";
-  for (const [name, text] of [
-    ["title", item.album.name],
-    ["artist", item.album.artist],
-    [
-      "count",
-      `${number(item.album.plays)} plays · ${item.artwork ? "Cover cached" : "Placeholder"}`,
-    ],
-  ]) {
-    const node = element("span", text);
-    node.className = `quilt-${name}`;
-    caption.append(node);
-  }
+  const count = element("span", "", "quilt-count");
+  caption.append(
+    element("span", item.album.name, "quilt-title"),
+    element("span", item.album.artist, "quilt-artist"),
+    count,
+  );
   button.append(art, caption);
   row.append(button);
-  return { row, art, placeholder };
+  return {
+    key: item.album.key,
+    row,
+    button,
+    art,
+    placeholder,
+    count,
+    artwork: null,
+    request: null,
+  };
+}
+
+function renderTiles(data) {
+  const grid = $("quilt-grid");
+  if (
+    tiles.length !== data.items.length ||
+    tiles.some((node, index) => node.key !== data.items[index].album.key)
+  ) {
+    reset();
+    tiles = data.items.map((item, index) => tile(item, index + 1));
+    grid.append(...tiles.map((node) => node.row));
+  }
+  grid.style.setProperty("--quilt-columns", Math.sqrt(data.options.size));
+  labels();
+  if (!tiles.length && !grid.firstChild) {
+    grid.append(
+      element(
+        "p",
+        "No named albums match this selection. Try another date range or clear the quilt search.",
+        "quilt-empty",
+      ),
+    );
+  }
+  data.items.forEach((item, index) => {
+    const node = tiles[index];
+    node.button.setAttribute(
+      "aria-label",
+      `${index + 1}. ${item.album.name} by ${item.album.artist} · ${number(item.album.plays)} recorded plays · ${outcomes[item.evidence]}`,
+    );
+    node.count.textContent = `${number(item.album.plays)} plays · ${item.artwork ? "Cover cached" : "Placeholder"}`;
+  });
 }
 
 function sourceCell(item) {
@@ -136,8 +168,8 @@ function sourceCell(item) {
 }
 
 export function render(data, context, password, signal) {
-  reset();
   if (data.unavailable) {
+    reset();
     $("quilt-coverage").textContent = data.unavailable;
     $("quilt-images").textContent =
       "Listening totals remain available. Retry this view to read cached covers.";
@@ -152,7 +184,6 @@ export function render(data, context, password, signal) {
     $("quilt-cancel").disabled = true;
     return;
   }
-  visible = data.items.length;
   const coverage = data.coverage;
   $("quilt-coverage").textContent =
     `${number(data.items.length)} of ${number(coverage.matching_albums)} matching albums · ${number(coverage.shown_plays)} recorded plays in this quilt. ${number(coverage.artwork_albums)} tiles have cached representative covers. The full selection contains ${number(coverage.plays)} plays: ${number(coverage.album_plays)} with album names and ${number(coverage.missing_album_plays)} without. ${number(coverage.album_plays - coverage.shown_plays)} named-album plays are outside this quilt.`;
@@ -169,19 +200,8 @@ export function render(data, context, password, signal) {
     credit.rel = "noopener noreferrer";
     $("quilt-source").append(" ", credit);
   }
-  const columns = Math.sqrt(data.options.size);
-  $("quilt-grid").style.setProperty("--quilt-columns", columns);
-  const nodes = data.items.map((item, index) => tile(item, index + 1));
-  $("quilt-grid").append(...nodes.map((node) => node.row));
-  labels();
-  if (!nodes.length) {
-    const empty = element(
-      "p",
-      "No named albums match this selection. Try another date range or clear the quilt search.",
-    );
-    empty.className = "quilt-empty";
-    $("quilt-grid").append(empty);
-  }
+  const firstRender = !tiles.length;
+  renderTiles(data);
   renderTable(
     "quilt-table",
     [
@@ -213,56 +233,100 @@ export function render(data, context, password, signal) {
     ]),
   );
   progress(data.lookup);
-  pending = loadImages(data, nodes, password, signal, revision);
+  if (firstRender && coverage.artwork_albums)
+    $("quilt-images").textContent = "Loading cached artwork…";
+  const current = ++imageUpdate;
+  pending = loadImages(data, tiles, password, signal, current).then(
+    (results) => {
+      if (current === imageUpdate && !signal.aborted) showImageResults(results);
+    },
+  );
 }
 
-async function loadOne(item, node, password, signal, current) {
-  if (!item.artwork || current !== revision) return "placeholder";
+function clearArtwork(node) {
+  if (node.artwork) {
+    node.artwork.image.remove();
+    URL.revokeObjectURL(node.artwork.url);
+    node.artwork = null;
+  }
+  node.placeholder.hidden = false;
+}
+
+async function loadOne(item, node, snapshot, password, signal, current) {
+  if (current !== imageUpdate || signal.aborted) return "cancelled";
+  const hash = item.artwork?.sha256;
+  if (!hash || node.artwork?.hash === hash) {
+    node.request = null;
+    if (!hash) clearArtwork(node);
+    return hash ? "loaded" : "placeholder";
+  }
+  if (node.request?.hash === hash) {
+    const request = node.request;
+    const result = await request.promise;
+    if (result !== "expired" || request.snapshot === snapshot || signal.aborted)
+      return result;
+    return loadOne(item, node, snapshot, password, signal, current);
+  }
+  const request = { hash, snapshot };
+  node.request = request;
+  request.promise = fetchArtwork(node, request, password, signal);
+  return request.promise;
+}
+
+async function fetchArtwork(node, request, password, signal) {
+  let url;
   try {
     const query = new URLSearchParams({
-      metadata_snapshot: item.metadata_snapshot,
+      metadata_snapshot: request.snapshot,
     });
     const response = await fetch(
-      `/lastfm/analytics/quilt/images/${item.album.key}?${query}`,
+      `/lastfm/analytics/quilt/images/${node.key}?${query}`,
       { headers: { "X-App-Password": password }, signal, cache: "no-store" },
     );
+    if (node.request !== request || signal.aborted) return "cancelled";
     if (response.status === 401) {
       document.dispatchEvent(new CustomEvent("listening-auth-required"));
       return "unavailable";
     }
-    if (!response.ok)
-      return response.status === 409 ? "expired" : "unavailable";
+    if (response.status === 409) return "expired";
+    if (!response.ok) {
+      clearArtwork(node);
+      return "unavailable";
+    }
     const blob = await response.blob();
-    if (current !== revision || signal.aborted) return "cancelled";
-    const url = URL.createObjectURL(blob);
-    urls.push(url);
+    if (node.request !== request || signal.aborted) return "cancelled";
+    url = URL.createObjectURL(blob);
     const image = new Image();
     image.alt = "";
     image.src = url;
     await image.decode();
-    if (current !== revision || signal.aborted) return "cancelled";
-    node.placeholder.remove();
+    if (node.request !== request || signal.aborted) return "cancelled";
+    clearArtwork(node);
+    node.placeholder.hidden = true;
     node.art.append(image);
-    images.set(item.album.key, image);
+    node.artwork = { hash: request.hash, image, url };
     return "loaded";
   } catch (error) {
-    return error.name === "AbortError" ? "cancelled" : "unavailable";
+    if (node.request !== request || signal.aborted) return "cancelled";
+    clearArtwork(node);
+    return "unavailable";
+  } finally {
+    if (url && node.artwork?.url !== url) URL.revokeObjectURL(url);
+    if (node.request === request) node.request = null;
   }
 }
 
 async function loadImages(data, nodes, password, signal, current) {
-  $("quilt-images").textContent = data.coverage.artwork_albums
-    ? "Loading cached artwork…"
-    : "All tiles use labelled placeholders. Fetch covers explicitly to expand artwork coverage.";
   const results = [];
   for (let index = 0; index < data.items.length; index += 4) {
-    if (current !== revision || signal.aborted) return;
+    if (signal.aborted || current !== imageUpdate) return results;
     const batch = data.items
       .slice(index, index + 4)
       .map((item, offset) =>
         loadOne(
-          { ...item, metadata_snapshot: data.metadata_snapshot },
+          item,
           nodes[index + offset],
+          data.metadata_snapshot,
           password,
           signal,
           current,
@@ -270,13 +334,16 @@ async function loadImages(data, nodes, password, signal, current) {
       );
     results.push(...(await Promise.all(batch)));
   }
-  if (current !== revision || signal.aborted) return;
-  const loaded = results.filter((item) => item === "loaded").length;
+  return results;
+}
+
+function showImageResults(results) {
+  const loaded = tiles.filter((node) => node.artwork).length;
   const failed = results.filter((item) =>
     ["unavailable", "expired"].includes(item),
   ).length;
   $("quilt-images").textContent =
-    `${loaded} covers displayed · ${data.items.length - loaded} placeholders. ${failed ? "Some cached images could not load; reload cached artwork to retry. " : ""}${results.includes("expired") ? "The cover version changed. " : ""}PNG always includes every tile; unavailable artwork is replaced with a labelled placeholder.`;
+    `${loaded} covers displayed · ${tiles.length - loaded} placeholders. ${failed ? "Some cached images could not load; reload cached artwork to retry. " : ""}${results.includes("expired") ? "The cover version changed. " : ""}PNG always includes every tile; unavailable artwork is replaced with a labelled placeholder.`;
 }
 
 export function notes(data) {
@@ -373,6 +440,12 @@ export async function png(data, context) {
     "Preparing the quilt export with available cached artwork…";
   await ready;
   if (current !== revision) return;
+  const images = new Map();
+  for (const [index, item] of data.items.entries()) {
+    const artwork = tiles[index]?.artwork;
+    if (artwork && artwork.hash === item.artwork?.sha256)
+      images.set(item.album.key, artwork.image);
+  }
   const canvas = document.createElement("canvas");
   const columns = Math.sqrt(data.options.size);
   const cell = 220;
@@ -414,7 +487,17 @@ export async function png(data, context) {
     4,
   );
   data.items.forEach((item, index) =>
-    drawTile(ctx, item, index, columns, cell, gap, caption, margin),
+    drawTile(
+      ctx,
+      item,
+      index,
+      columns,
+      cell,
+      gap,
+      caption,
+      margin,
+      images.get(item.album.key),
+    ),
   );
   let y = HEADER_HEIGHT + Math.max(1, rows) * (cell + caption + gap) + 20;
   ctx.fillStyle = "#b7c9c5";
@@ -438,18 +521,28 @@ export async function png(data, context) {
     link.download = `listening-album-quilt-${context.from}-${context.to}.png`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    $("quilt-images").textContent =
-      `Quilt PNG exported with ${images.size} cached covers and ${data.items.length - images.size} labelled placeholders.`;
+    if (ready === pending)
+      $("quilt-images").textContent =
+        `Quilt PNG exported with ${images.size} cached covers and ${data.items.length - images.size} labelled placeholders.`;
   }
 }
 
-function drawTile(ctx, item, index, columns, cell, gap, caption, margin) {
+function drawTile(
+  ctx,
+  item,
+  index,
+  columns,
+  cell,
+  gap,
+  caption,
+  margin,
+  image,
+) {
   const x = margin + (index % columns) * (cell + gap);
   const y =
     HEADER_HEIGHT + Math.floor(index / columns) * (cell + caption + gap);
   ctx.fillStyle = `hsl(${hue(item.album.key)} 24% 19%)`;
   ctx.fillRect(x, y, cell, cell);
-  const image = images.get(item.album.key);
   if (image) {
     const scale = Math.min(
       cell / image.naturalWidth,

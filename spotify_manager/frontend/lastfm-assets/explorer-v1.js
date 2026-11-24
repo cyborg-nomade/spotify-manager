@@ -2,7 +2,7 @@ import * as charts from "./charts-v1.js?v=7";
 import * as library from "./library-v1.js?v=7";
 import * as tags from "./tags-v1.js?v=7";
 import * as origins from "./origins-v1.js?v=9";
-import * as quilt from "./quilt-v1.js?v=9";
+import * as quilt from "./quilt-v1.js?v=10";
 import * as sessions from "./sessions-v1.js?v=7";
 import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
@@ -613,6 +613,22 @@ function scheduleQuiltPoll(delay = 2000) {
   state.quiltTimer = setTimeout(pollQuiltLookup, delay);
 }
 
+function appliedQuiltQuery() {
+  const { size, search } = state.data.quilt.options;
+  return { size, q: search };
+}
+
+async function updateQuiltArtwork(status, signal) {
+  const data = await analytics(
+    "quilt",
+    { ...appliedQuiltQuery(), metadata_snapshot: status.metadata_snapshot },
+    signal,
+  );
+  if (signal.aborted || state.tab !== "quilt") return;
+  state.data.quilt = { ...data, lookup: status };
+  quilt.render(state.data.quilt, context(), state.password, signal);
+}
+
 function isTemporaryLookupStatusError(error) {
   if (error.name === "AbortError") return false;
   return error.status == null || error.status === 429 || error.status >= 500;
@@ -621,26 +637,35 @@ function isTemporaryLookupStatusError(error) {
 async function pollQuiltLookup() {
   if (state.tab !== "quilt" || !state.authenticated) return;
   const epoch = state.epoch;
+  const signal = state.controller.signal;
   try {
     const status = await request(
       "/lastfm/analytics/quilt/status",
       null,
-      state.controller?.signal,
+      signal,
     );
-    if (epoch !== state.epoch || state.tab !== "quilt") return;
+    if (epoch !== state.epoch || signal.aborted || state.tab !== "quilt")
+      return;
     quilt.progress(status);
     if (
       !$("detail").open &&
+      state.data.quilt?.items &&
       status.metadata_snapshot !== state.data.quilt?.metadata_snapshot
     )
-      await loadSelection();
-    else if (
-      ["running", "cancelling"].includes(status.state) ||
-      $("detail").open
+      await updateQuiltArtwork(status, signal);
+    if (
+      !signal.aborted &&
+      state.tab === "quilt" &&
+      (["running", "cancelling"].includes(status.state) || $("detail").open)
     )
       scheduleQuiltPoll();
   } catch (error) {
-    if (epoch !== state.epoch || state.tab !== "quilt") return;
+    if (epoch !== state.epoch || signal.aborted || state.tab !== "quilt")
+      return;
+    if (error.status === 409 && error.conflict === "covers") {
+      scheduleQuiltPoll();
+      return;
+    }
     if (isTemporaryLookupStatusError(error)) {
       $("quilt-progress").textContent =
         "Cover lookup progress is temporarily unavailable. Checking again…";
@@ -657,7 +682,7 @@ async function quiltAction(cancel = false) {
     const parameters = cancel
       ? null
       : query({
-          ...quiltQuery(),
+          ...appliedQuiltQuery(),
           limit: $("quilt-batch-size").value,
           force: $("quilt-force").checked,
         });
