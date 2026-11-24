@@ -1,4 +1,4 @@
-import * as charts from "./charts-v1.js?v=7";
+import * as charts from "./charts-v1.js?v=12";
 import {
   download,
   element,

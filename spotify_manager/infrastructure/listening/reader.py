@@ -6,11 +6,13 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from threading import RLock
 
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningMetadata
+from spotify_manager.domain.listening_scrobble_map import HourPlayCount
 from spotify_manager.domain.listening_session_values import SessionWindow
 from spotify_manager.domain.listening_values import ArtistPlay
 from spotify_manager.domain.listening_values import EntityKind
@@ -127,6 +129,25 @@ class ListeningIndex:
                 "SELECT p.ts" + JOIN + where.sql, where.parameters
             )
             return tuple(row[0] for row in rows)
+
+    def hourly_counts(self, query: ListeningQuery) -> tuple[HourPlayCount, ...]:
+        """Aggregate selected rows in the generation's existing local calendar.
+
+        Args:
+            query: Shared dates, timezone, artist and rhythm filters.
+
+        Returns:
+            Populated local days and hours, counting repeated source rows.
+        """
+        where = listening_where(query)
+        sql = "SELECT b.day, b.hour, COUNT(*)" + JOIN + where.sql
+        sql += " GROUP BY b.day, b.hour ORDER BY b.day, b.hour"
+        result = []
+        with self.connection(query) as connection:
+            rows = connection.execute(sql, where.parameters)
+            for row in rows:
+                result.append(HourPlayCount(date.fromisoformat(row[0]), row[1], row[2]))
+        return tuple(result)
 
     def rankings(
         self,

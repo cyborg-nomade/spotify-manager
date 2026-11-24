@@ -1786,6 +1786,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_scrobble_map",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_scrobble_map",
+    "path": "/lastfm/analytics/scrobble-map",
+    "response_model": "ListeningEnvelope[ListeningScrobbleMap]",
+    "source_line": 292,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening.listening_rankings",
     "include_in_schema": true,
     "methods": [

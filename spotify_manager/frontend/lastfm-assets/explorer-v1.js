@@ -1,9 +1,9 @@
-import * as charts from "./charts-v1.js?v=7";
-import * as library from "./library-v1.js?v=7";
-import * as tags from "./tags-v1.js?v=7";
-import * as origins from "./origins-v1.js?v=9";
+import * as charts from "./charts-v1.js?v=12";
+import * as library from "./library-v1.js?v=12";
+import * as tags from "./tags-v1.js?v=12";
+import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
-import * as sessions from "./sessions-v1.js?v=7";
+import * as sessions from "./sessions-v1.js?v=12";
 import { eraHighlight, groupedEraOrder } from "./eras-v1.js?v=7";
 import {
   element,
@@ -31,6 +31,7 @@ const tabs = [
   "origins",
   "quilt",
   "sessions",
+  "scrobble-map",
 ];
 const weekdays = [
   "Monday",
@@ -84,6 +85,7 @@ const state = {
   quiltAutoPending: false,
   tagTimer: null,
   recordsPage: 1,
+  recordScope: null,
   selected: parameters.has("entity")
     ? { kind: parameters.get("kind"), key: parameters.get("entity") }
     : null,
@@ -130,6 +132,7 @@ function showLogin(message = "") {
   state.metadata = null;
   state.data = {};
   state.detailData = null;
+  state.recordScope = null;
   state.controller?.abort();
   quilt.reset();
   sessions.reset();
@@ -985,6 +988,7 @@ async function loadSelection(recoverVersion = true) {
     if (state.tab === "quilt") tasks.push(loadQuilt());
     if (state.tab === "sessions")
       tasks.push(analytics("sessions", sessionQuery()));
+    if (state.tab === "scrobble-map") tasks.push(analytics("scrobble-map"));
     const results = await Promise.all(tasks);
     if (revision !== state.revision) return;
     renderOverview(results[0]);
@@ -1036,8 +1040,87 @@ function renderOverview(data) {
     `${number(data.counts.missing_album)} plays lack an album`;
 }
 
+function formatMapPeriod(period) {
+  return period.start === period.end
+    ? period.start
+    : `${period.start} → ${period.end}`;
+}
+
+function renderScrobbleMap(data, ctx) {
+  const points = $("scrobble-map-points");
+  points.disabled = !data.points?.length;
+  if (points.disabled) points.checked = false;
+  $("scrobble-map-mode-note").textContent =
+    points.disabled && data.plays
+      ? "Choose up to 31 days and 5,000 plays to see individual scrobbles."
+      : "";
+  charts.scrobbleMap(data, ctx, points.checked);
+  const observed = data.observed_from
+    ? `Published history spans ${data.observed_from} → ${data.observed_through}.`
+    : "The published history has no recorded plays.";
+  $("scrobble-map-summary").textContent =
+    `${number(data.plays)} recorded plays · ${number(data.periods.length)} ${data.grain} columns · ${ctx.timezone}. ${observed}`;
+  const periods = $("scrobble-map-period");
+  periods.replaceChildren(
+    ...data.periods.map(
+      (period, index) => new Option(formatMapPeriod(period), index),
+    ),
+  );
+  periods.value = data.cells.at(-1)?.period ?? data.periods.length - 1;
+  renderScrobbleHours();
+}
+
+function renderScrobbleHours() {
+  const data = state.data.scrobbleMap;
+  if (!data) return;
+  const index = Number($("scrobble-map-period").value);
+  const period = data.periods[index];
+  if (!period) return;
+  const outside =
+    !data.observed_from ||
+    period.end < data.observed_from ||
+    period.start > data.observed_through;
+  $("scrobble-map-period-note").textContent = outside
+    ? "This period is outside the published history."
+    : "Hours without a linked count have no matching plays in this period.";
+  const byHour = new Map(
+    data.cells
+      .filter((cell) => cell.period === index)
+      .map((cell) => [cell.hour, cell.plays]),
+  );
+  const rows = Array.from({ length: 24 }, (_, hour) => {
+    const time = String(hour).padStart(2, "0") + ":00";
+    const count = byHour.get(hour);
+    if (!count) return [time, outside ? "—" : "0"];
+    const button = element("button", number(count), "small-button");
+    button.type = "button";
+    button.setAttribute(
+      "aria-label",
+      `View ${number(count)} recorded plays at ${time}`,
+    );
+    button.addEventListener("click", () => openScrobbleMapCell(index, hour));
+    return [time, button];
+  });
+  renderTable("scrobble-map-hours", ["Local hour", "Recorded plays"], rows);
+}
+
+function openScrobbleMapCell(index, hour) {
+  const period = state.data.scrobbleMap?.periods[index];
+  if (!period) return;
+  const select = $("scrobble-map-period");
+  if (Number(select.value) !== index) {
+    select.value = index;
+    renderScrobbleHours();
+  }
+  openRecords({ from: period.start, to: period.end, hour });
+}
+
 function renderView(results) {
   const ctx = context();
+  if (state.tab === "scrobble-map") {
+    state.data.scrobbleMap = results[0];
+    renderScrobbleMap(results[0], ctx);
+  }
   if (state.tab === "sessions") {
     state.data.sessions = results[0];
     sessions.render(results[0], ctx);
@@ -1534,6 +1617,7 @@ async function openEntity(kind, key) {
   )
     return;
   state.selected = { kind, key };
+  state.recordScope = null;
   state.recordsPage = 1;
   persist();
   state.detailController?.abort();
@@ -1608,16 +1692,19 @@ async function openEntity(kind, key) {
   }
 }
 
-async function openRecords() {
+async function openRecords(scope = null) {
   state.selected = null;
+  state.recordScope = scope;
   state.detailData = null;
   state.recordsPage = 1;
   persist();
   $("detail-title").textContent = "Recorded plays";
-  $("detail-kind").textContent = "YOUR SELECTION";
-  $("detail-description").textContent =
-    `${state.from} → ${state.to} · ${state.timezone}`;
+  $("detail-kind").textContent = scope ? "SCROBBLE MAP" : "YOUR SELECTION";
+  $("detail-description").textContent = scope
+    ? `${formatMapPeriod({ start: scope.from, end: scope.to })} · ${String(scope.hour).padStart(2, "0")}:00 local hour · ${state.timezone}`
+    : `${state.from} → ${state.to} · ${state.timezone}`;
   $("detail-facts").replaceChildren();
+  $("records-table").replaceChildren();
   $("detail-chart").hidden = true;
   $("detail-related").hidden = true;
   if (!$("detail").open) $("detail").showModal();
@@ -1632,7 +1719,11 @@ async function loadRecords() {
   document.querySelector('#detail [data-csv="records"]').disabled = true;
   $("detail-loading").textContent = "Loading recorded plays…";
   try {
-    const extra = { page: state.recordsPage, limit: state.selected ? 25 : 50 };
+    const extra = {
+      ...state.recordScope,
+      page: state.recordsPage,
+      limit: state.selected ? 25 : 50,
+    };
     if (state.selected) Object.assign(extra, state.selected);
     const data = await analytics("scrobbles", extra, controller.signal);
     if (controller.signal.aborted || controller !== state.detailController)
@@ -1666,6 +1757,28 @@ function exportData(name) {
   const data = state.data;
   let headers = [],
     rows = [];
+  if (name === "scrobble-map" && data.scrobbleMap) {
+    const map = data.scrobbleMap;
+    if ($("scrobble-map-points").checked) {
+      headers = ["Local date", "Local time", "Recorded timestamp UTC"];
+      rows = map.points.map((point) => [
+        map.periods[point.period].start,
+        new Date(point.local_ms).toISOString().slice(11, 23),
+        new Date(point.timestamp_ms).toISOString(),
+      ]);
+    } else {
+      headers = [
+        "Period from",
+        "Period through",
+        "Local hour",
+        "Recorded plays",
+      ];
+      rows = map.cells.map((cell) => {
+        const { start, end } = map.periods[cell.period];
+        return [start, end, cell.hour, cell.plays];
+      });
+    }
+  }
   if (name === "origins" && data.origins?.items) {
     headers = [
       "Reported code",
@@ -1902,7 +2015,18 @@ function exportData(name) {
     ]);
   }
   if (headers.length) {
-    const ctx = context();
+    const ctx =
+      name === "records" ? { ...context(), ...state.recordScope } : context();
+    if (name === "scrobble-map")
+      ctx.notes = [
+        ["Calendar grain", data.scrobbleMap.grain],
+        [
+          "Scope",
+          $("scrobble-map-points").checked
+            ? "One row per recorded play"
+            : "Every populated cell; blank cells have no matching recorded plays",
+        ],
+      ];
     if (["origins", "origin-artists"].includes(name)) {
       ctx.notes = origins.notes(data.origins);
       if (name === "origin-artists")
@@ -2253,6 +2377,7 @@ $("close-detail").addEventListener("click", () => $("detail").close());
 $("detail").addEventListener("close", () => {
   state.detailController?.abort();
   state.selected = null;
+  state.recordScope = null;
   state.detailData = null;
   persist();
 });
@@ -2264,7 +2389,16 @@ $("records-next").addEventListener("click", () => {
   state.recordsPage++;
   loadRecords();
 });
-$("all-records").addEventListener("click", openRecords);
+$("all-records").addEventListener("click", () => openRecords());
+$("scrobble-map-period").addEventListener("change", renderScrobbleHours);
+$("scrobble-map-points").addEventListener("change", (event) => {
+  if (state.data.scrobbleMap)
+    charts.scrobbleMap(
+      state.data.scrobbleMap,
+      context(),
+      event.currentTarget.checked,
+    );
+});
 
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
@@ -2306,6 +2440,8 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("listening:select", (event) => {
   const detail = event.detail;
+  if (detail.type === "scrobble-map" && state.tab === "scrobble-map")
+    openScrobbleMapCell(detail.period, detail.hour);
   if (detail.type === "era" && state.data.eras) {
     state.eraReference = state.data.eras.periods[detail.reference].label;
     renderEraTable(detail.comparison);

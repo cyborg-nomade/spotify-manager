@@ -1,4 +1,4 @@
-import { download, number, percent } from "./tables-v1.js?v=7";
+import { download, number, percent, recordedTime } from "./tables-v1.js?v=7";
 import { eraBands, eraCells } from "./eras-v1.js?v=7";
 
 const instances = new Map();
@@ -164,6 +164,150 @@ export function calendar(data, year, context) {
     (event) => {
       if (event.data.covered) select({ type: "day", day: event.data.value[0] });
     },
+  );
+}
+
+function densityBands(peak) {
+  const colors = ["#294651", "#3b677b", "#548eaa", "#6dbdd0", "#abdcca"];
+  const starts = [1];
+  for (let index = 1; index < colors.length; index++) {
+    const start = Math.round(peak ** (index / (colors.length - 1)));
+    if (start > starts.at(-1)) starts.push(start);
+  }
+  return starts.map((min, index) => {
+    const max = (starts[index + 1] ?? peak + 1) - 1;
+    return {
+      min,
+      max,
+      label: min === max ? number(min) : `${number(min)}–${number(max)}`,
+      color: colors[index],
+    };
+  });
+}
+
+function mapAxisLabel(day, grain) {
+  if (grain === "day") return day.slice(5);
+  if (grain === "week") return day;
+  if (grain === "month") return day.slice(0, 7);
+  if (grain === "quarter")
+    return `${day.slice(0, 4)} Q${Math.ceil(Number(day.slice(5, 7)) / 3)}`;
+  return day.slice(0, 4);
+}
+
+function mapDateAxis(data) {
+  return {
+    ...axes(),
+    type: "category",
+    axisLabel: {
+      ...axes().axisLabel,
+      hideOverlap: true,
+      formatter: (index) => mapAxisLabel(data.periods[index].start, data.grain),
+    },
+    data: data.periods.map((_, index) => String(index)),
+  };
+}
+
+function scrobblePoints(data, context) {
+  chart(
+    "scrobble-map",
+    "Individual recorded plays",
+    {
+      animation: false,
+      grid: { left: 44, right: 12, top: 61, bottom: 56 },
+      xAxis: mapDateAxis(data),
+      yAxis: {
+        ...axes(),
+        type: "value",
+        inverse: true,
+        min: 0,
+        max: 24,
+        interval: 4,
+        axisLabel: {
+          ...axes().axisLabel,
+          formatter: (hour) => `${String(hour).padStart(2, "0")}:00`,
+        },
+      },
+      tooltip: {
+        ...base("", context).tooltip,
+        formatter: ({ value }) => recordedTime(value[2], context.timezone),
+      },
+      series: [
+        {
+          type: "scatter",
+          symbolSize: 5,
+          itemStyle: { color: "#8cddc5", opacity: 0.62 },
+          data: data.points.map((point) => [
+            point.period,
+            point.local_ms / 3600000,
+            point.timestamp_ms,
+          ]),
+        },
+      ],
+    },
+    context,
+    ({ value: [period, hour] }) =>
+      select({ type: "scrobble-map", period, hour: Math.floor(hour) }),
+  );
+}
+
+export function scrobbleMap(data, context, showPoints) {
+  if (showPoints && data.points) {
+    scrobblePoints(data, context);
+    return;
+  }
+  const peak = Math.max(1, ...data.cells.map((item) => item.plays));
+  const hours = Array.from({ length: 24 }, (_, hour) => String(hour));
+  chart(
+    "scrobble-map",
+    `Plays per ${data.grain} and local hour`,
+    {
+      animation: false,
+      grid: { left: 44, right: 12, top: 61, bottom: 86 },
+      xAxis: mapDateAxis(data),
+      yAxis: {
+        ...axes(),
+        type: "category",
+        inverse: true,
+        data: hours,
+        axisLabel: {
+          ...axes().axisLabel,
+          interval: 3,
+          formatter: (hour) => `${hour.padStart(2, "0")}:00`,
+        },
+      },
+      visualMap: {
+        show: Boolean(data.cells.length),
+        type: "piecewise",
+        pieces: densityBands(peak),
+        dimension: 2,
+        selectedMode: false,
+        orient: "horizontal",
+        left: "center",
+        bottom: 18,
+        itemWidth: 10,
+        itemHeight: 8,
+        itemGap: 8,
+        textStyle: { color: "#a6b7bc", fontSize: 9 },
+      },
+      tooltip: {
+        ...base("", context).tooltip,
+        formatter: ({ value: [period, hour, plays] }) => {
+          const { start, end } = data.periods[period];
+          const dates = start === end ? start : `${start} → ${end}`;
+          return `${dates} · ${hours[hour].padStart(2, "0")}:00\n${number(plays)} recorded plays`;
+        },
+      },
+      series: [
+        {
+          type: "heatmap",
+          data: data.cells.map((item) => [item.period, item.hour, item.plays]),
+          emphasis: { itemStyle: { borderWidth: 1, borderColor: "#e8eeeb" } },
+        },
+      ],
+    },
+    context,
+    ({ value: [period, hour] }) =>
+      select({ type: "scrobble-map", period, hour }),
   );
 }
 

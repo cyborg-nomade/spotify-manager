@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=10" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=12" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=11"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=12"></script>
   </head>
   <body>
     <div class="shell">
@@ -178,6 +178,7 @@
             ><button data-tab="origins">Artist map</button
             ><button data-tab="quilt">Album quilt</button
             ><button data-tab="sessions">Sessions</button
+            ><button data-tab="scrobble-map">Scrobble map</button
             ><button id="all-records" class="records-link">
               View recorded plays ↗
             </button>
@@ -1307,6 +1308,57 @@
                 ><span id="session-record-page"></span
                 ><button id="session-record-next" class="quiet">Next →</button>
               </div>
+            </article>
+          </section>
+
+          <section
+            id="tab-scrobble-map"
+            class="tab-content"
+            aria-label="Scrobble map"
+            hidden
+          >
+            <article class="panel">
+              <header class="panel-heading">
+                <h2>Scrobble map</h2>
+                <div class="panel-actions">
+                  <button class="small-button" data-csv="scrobble-map">
+                    Export map CSV
+                  </button>
+                  <button
+                    class="icon-button"
+                    data-chart-export="scrobble-map"
+                    aria-label="Download scrobble map PNG"
+                  >
+                    ↓ PNG
+                  </button>
+                </div>
+              </header>
+              <p id="scrobble-map-summary" class="chart-description"></p>
+              <div class="control-line scrobble-map-controls">
+                <label class="tag-force-label">
+                  <input id="scrobble-map-points" type="checkbox" disabled />
+                  Individual plays
+                </label>
+                <p id="scrobble-map-mode-note" class="chart-description"></p>
+              </div>
+              <div
+                id="scrobble-map-chart"
+                class="chart scrobble-map-chart"
+              ></div>
+              <p class="chart-description">
+                Each cell counts plays in one local hour across its date period.
+                Select a cell or point to open the records for that hour.
+              </p>
+              <details>
+                <summary>Browse hours and recorded plays</summary>
+                <div class="control-line">
+                  <label
+                    >Date period<select id="scrobble-map-period"></select
+                  ></label>
+                </div>
+                <p id="scrobble-map-period-note" class="chart-description"></p>
+                <div id="scrobble-map-hours" class="table-scroll"></div>
+              </details>
             </article>
           </section>
 

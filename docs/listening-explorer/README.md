@@ -178,6 +178,7 @@ allowlisted. The pure API retains its original trusted-loopback boundary.
 | GET endpoint under `/lastfm/analytics` | Result |
 | --- | --- |
 | `/status` | Ready/building/stale/missing/error state and source/build metadata; optional `refresh=true`. |
+| `/scrobble-map` | Exact play counts by selected calendar period and local hour, plus original points for bounded selections. |
 | `/overview` | Exact selected counts and separate averages. |
 | `/activity` | Local calendar coverage and all weekday/hour cells. |
 | `/rankings` | Searchable/paginated artist, album, or track counts. |
@@ -273,17 +274,25 @@ See the [release record](SESSIONS_RELEASE.md) and
 [ADR 008](../adr/008-recorded-listening-sessions.md). The owner approved this release;
 the approved runtime was deployed and verified before merge.
 
-## Follow-up scope
+## Scrobble map
 
-The approved core and discovery/rediscovery views are deployed. Playlists and
-further optional dense/race views remain follow-ups. Listening Sessions is deployed.
-Album Quilt keeps representative artwork in an independent derived cache. Library Bridge adds published
-Spotify-library comparisons;
-Tag Atlas adds current community-tag enrichment; Artist Atlas adds reported
-country associations. The
-Time Capsule release adds Musical Eras and On This Day. The current export
-cannot establish listening minutes,
-skips, completion rates, mood, or historical location.
+Scrobble Map plots every selected play by date and local hour. The map uses the
+finest calendar scale that fits within 240 columns. Longer selections can use
+weeks, months, quarters, or years. Weeks start on Monday. First and last columns
+stop at the selected dates. Colours group exact play counts into labelled
+bands. Published-history bounds accompany the plot.
+
+Select a cell to open its records with the same timezone, artist and weekday
+filters. **Browse hours and recorded plays** offers the same action with the
+keyboard. A repeated local hour during a daylight-saving transition includes
+records from both occurrences.
+
+For selections of up to 31 days and 5,000 plays, **Individual plays** plots
+original timestamps on the local calendar. Points can overlap. CSV exports
+populated cells or one row per original timestamp, depending on the active
+view. PNG exports the visible chart. Both include the selection and source.
+
+## Follow-up scope
 
 See [the approved plan](IMPLEMENTATION_PLAN.md) and
 [first release verification](RELEASE_VERIFICATION.md) and
