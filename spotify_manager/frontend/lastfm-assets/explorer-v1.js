@@ -1,7 +1,8 @@
 import * as charts from "./charts-v1.js?v=12";
 import * as library from "./library-v1.js?v=15";
 import * as playlist from "./playlist-preview-v1.js?v=15";
-import * as rediscovery from "./rediscovery-v1.js?v=16";
+import * as rediscovery from "./rediscovery-v1.js?v=17";
+import * as spotifyExport from "./spotify-export-v1.js?v=17";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
@@ -142,6 +143,7 @@ function showLogin(message = "") {
   state.playlistScope = null;
   playlist.render({}, state.timezone);
   rediscovery.clear();
+  spotifyExport.lock();
   closeLibraryReview();
   state.recordScope = null;
   state.controller?.abort();
@@ -205,6 +207,7 @@ async function authenticate() {
     await request("/auth/check");
     if (epoch !== state.epoch) return;
     state.authenticated = true;
+    spotifyExport.unlock();
     if (state.password) localStorage.setItem("sm_pw", state.password);
     $("password").value = "";
     $("login").hidden = true;
@@ -1497,6 +1500,7 @@ function renderView(results) {
   if (state.tab === "playlist-preview") {
     state.data.playlistPreview = results[0];
     playlist.render(results[0], ctx.timezone);
+    $("history-spotify-export").disabled = !results[0].summary?.playlist_tracks;
     if (results[0].checking) scheduleLibraryRefresh();
   }
   if (state.tab === "capsule") renderCapsule(results[0], results[1]);
@@ -2626,6 +2630,26 @@ $("revisit-preview").addEventListener("click", () =>
   rediscovery.preview(request),
 );
 $("revisit-export").addEventListener("click", () => rediscovery.csv());
+$("revisit-spotify-export").addEventListener("click", () => {
+  const selection = rediscovery.spotifySelection();
+  if (selection) spotifyExport.open(selection, request);
+});
+$("history-spotify-export").addEventListener("click", () => {
+  const current = state.data.playlistPreview;
+  if (!current?.summary?.playlist_tracks) return;
+  const { params, body } = current.exportRequest;
+  spotifyExport.open(
+    {
+      name: `Listening history · ${params.from} to ${params.to}`,
+      params,
+      source: { kind: "history", reviews: body.reviews },
+    },
+    request,
+  );
+});
+$("spotify-export-resume").addEventListener("click", () =>
+  spotifyExport.reconnect(request),
+);
 $("playlist-revisit").addEventListener("click", () => {
   document.querySelector('[data-tab="rediscovery"]').click();
 });

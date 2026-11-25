@@ -46,6 +46,7 @@ from spotify_manager.bootstrap.listening_covers import listening_cover_enrichmen
 from spotify_manager.bootstrap.listening_explorer import listening_album_tracklists
 from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
 from spotify_manager.bootstrap.listening_explorer import listening_library_runtime
+from spotify_manager.bootstrap.listening_explorer import listening_playlist_gateway
 from spotify_manager.bootstrap.listening_origins import listening_origin_enrichment
 from spotify_manager.bootstrap.listening_tags import listening_tag_enrichment
 from spotify_manager.bootstrap.startup import (
@@ -303,6 +304,9 @@ from spotify_manager.interfaces.http.models.wine import (
     NewWineTrackResult as NewWineTrackResult,
 )
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.playlist_export_runtime import (
+    PlaylistExportRuntime,
+)
 from spotify_manager.interfaces.http.playlist_retry import (
     PlaylistRetry as PlaylistRetry,
 )
@@ -2086,6 +2090,9 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         async with ExecutionRuntime() as runtime:
             _app.state.execution = runtime
             _app.state.listening_album_tracklists = listening_album_tracklists(runtime)
+            _app.state.listening_exports = PlaylistExportRuntime(
+                listening_playlist_gateway(runtime), runtime.jobs
+            )
             yield
     finally:
         await _close_listening_resources(_app)

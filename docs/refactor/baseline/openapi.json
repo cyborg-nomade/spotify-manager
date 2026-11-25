@@ -129,6 +129,31 @@
         "title": "AlbumMatchOption",
         "type": "object"
       },
+      "AlbumSource": {
+        "description": "Use the ordered saved albums from rediscovery.",
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumURI"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Albums",
+            "type": "array"
+          },
+          "kind": {
+            "const": "albums",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albums",
+          "kind"
+        ],
+        "title": "AlbumSource",
+        "type": "object"
+      },
       "AlbumTrackLikedStatus": {
         "description": "Liked status of a single track on an album.",
         "properties": {
@@ -2542,6 +2567,158 @@
         "title": "EraPeriod",
         "type": "object"
       },
+      "ExistingPlaylist": {
+        "description": "Choose a Spotify playlist owned by the active account.",
+        "properties": {
+          "identity": {
+            "pattern": "^[A-Za-z0-9]{22}$",
+            "title": "Identity",
+            "type": "string"
+          },
+          "kind": {
+            "const": "existing",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "identity"
+        ],
+        "title": "ExistingPlaylist",
+        "type": "object"
+      },
+      "ExportPage": {
+        "description": "Carry one ordered review page and a consistent view of job progress.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportTrack"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          }
+        },
+        "required": [
+          "status",
+          "page",
+          "page_size",
+          "items"
+        ],
+        "title": "ExportPage",
+        "type": "object"
+      },
+      "ExportStage": {
+        "enum": [
+          "prepared",
+          "queued",
+          "running",
+          "paused",
+          "failed",
+          "complete"
+        ],
+        "type": "string"
+      },
+      "ExportStatus": {
+        "description": "Expose the operation's phase, destination and confirmed progress.",
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "append": {
+            "title": "Append",
+            "type": "boolean"
+          },
+          "identity": {
+            "title": "Identity",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "observed": {
+            "title": "Observed",
+            "type": "integer"
+          },
+          "playlist_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playlist Id"
+          },
+          "public": {
+            "title": "Public",
+            "type": "boolean"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ExportStage"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "identity",
+          "stage",
+          "message",
+          "added",
+          "observed",
+          "total",
+          "playlist_id",
+          "name",
+          "public",
+          "append"
+        ],
+        "title": "ExportStatus",
+        "type": "object"
+      },
+      "ExportTrack": {
+        "description": "Identify one addition and its display credit from the prepared source.",
+        "properties": {
+          "credit": {
+            "title": "Credit",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri",
+          "name",
+          "credit"
+        ],
+        "title": "ExportTrack",
+        "type": "object"
+      },
       "FlushControl": {
         "enum": [
           "automatic",
@@ -2753,6 +2930,30 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistorySource": {
+        "description": "Use the first-play proposal with the same current browser reviews.",
+        "properties": {
+          "kind": {
+            "const": "history",
+            "title": "Kind",
+            "type": "string"
+          },
+          "reviews": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PlaylistReviewChoice"
+            },
+            "maxItems": 1000,
+            "title": "Reviews",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "HistorySource",
         "type": "object"
       },
       "LastFmArtwork": {
@@ -5282,6 +5483,28 @@
         "title": "NewKidsTrackResult",
         "type": "object"
       },
+      "NewPlaylist": {
+        "description": "Choose a named new private playlist.",
+        "properties": {
+          "kind": {
+            "const": "new",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "NewPlaylist",
+        "type": "object"
+      },
       "NewWineCellarTrackResult": {
         "description": "One Wine Cellar entry moved or reconciled by a web flush.",
         "properties": {
@@ -6337,6 +6560,53 @@
           "unresolved"
         ],
         "type": "string"
+      },
+      "PreparePlaylistExport": {
+        "description": "Prepare an exact review from one pinned source and destination.",
+        "properties": {
+          "destination": {
+            "discriminator": {
+              "mapping": {
+                "existing": "#/components/schemas/ExistingPlaylist",
+                "new": "#/components/schemas/NewPlaylist"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NewPlaylist"
+              },
+              {
+                "$ref": "#/components/schemas/ExistingPlaylist"
+              }
+            ],
+            "title": "Destination"
+          },
+          "source": {
+            "discriminator": {
+              "mapping": {
+                "albums": "#/components/schemas/AlbumSource",
+                "history": "#/components/schemas/HistorySource"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HistorySource"
+              },
+              {
+                "$ref": "#/components/schemas/AlbumSource"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "destination",
+          "source"
+        ],
+        "title": "PreparePlaylistExport",
+        "type": "object"
       },
       "Queue3AnnualImportEntry": {
         "description": "One previous-year discovery considered during Queue 3 fill-up.",
@@ -8826,6 +9096,45 @@
           "source"
         ],
         "title": "SomethingOldTrackResult",
+        "type": "object"
+      },
+      "SpotifyDestination": {
+        "description": "Describe the exact account-owned playlist revision observed at Spotify.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "identity": {
+            "title": "Identity",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "public": {
+            "title": "Public",
+            "type": "boolean"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity",
+          "name",
+          "owner",
+          "public",
+          "snapshot",
+          "count"
+        ],
+        "title": "SpotifyDestination",
         "type": "object"
       },
       "TagArtist": {
@@ -15969,6 +16278,323 @@
           }
         },
         "summary": "Listening Overview",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-export/destinations": {
+      "get": {
+        "description": "List existing Spotify playlists available for this account's export.\n\nArgs:\n    runtime: Process-local preview and background resource owner.\n\nReturns:\n    Playlists owned by the authenticated Spotify account.",
+        "operationId": "playlist_export_destinations_lastfm_analytics_playlist_export_destinations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SpotifyDestination"
+                  },
+                  "title": "Response Playlist Export Destinations Lastfm Analytics Playlist Export Destinations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Playlist Export Destinations",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-export/plans": {
+      "post": {
+        "description": "Build the exact ordered additions and present them before any Spotify write.\n\nArgs:\n    request: Owner of the album-track reader.\n    prepared: Validated choices and pinned source evidence.\n    runtime: Process-local plan owner.\n\nReturns:\n    Expiring plan, destination and its first page of additions.",
+        "operationId": "prepare_playlist_export_lastfm_analytics_playlist_export_plans_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreparePlaylistExport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prepare Playlist Export",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-export/plans/{identity}": {
+      "get": {
+        "description": "Read one bounded page of the exact additions and latest job status.\n\nArgs:\n    identity: Previously prepared job ID.\n    runtime: Owner of the confirmed job.\n    page: One-based page of additions.\n\nReturns:\n    The job progress and this page of its immutable additions.",
+        "operationId": "playlist_export_page_lastfm_analytics_playlist_export_plans__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Playlist Export Page",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-export/plans/{identity}/confirm": {
+      "post": {
+        "description": "Confirm an exact Spotify export, or resume the same interrupted job.\n\nArgs:\n    request: Spotify source owners for the initial version check.\n    identity: Previously prepared job ID.\n    runtime: Owner of the plan and job reservations.\n\nReturns:\n    Current status for the job that will perform the addition.",
+        "operationId": "confirm_playlist_export_lastfm_analytics_playlist_export_plans__identity__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Identity",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Playlist Export",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-export/plans/{identity}/pause": {
+      "post": {
+        "description": "Stop the confirmed job after observing the current batch.\n\nArgs:\n    identity: Previously confirmed job ID.\n    runtime: Owner of the job and safe stop signal.\n\nReturns:\n    Current status, including verified additions already made.",
+        "operationId": "pause_playlist_export_lastfm_analytics_playlist_export_plans__identity__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Identity",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pause Playlist Export",
         "tags": [
           "Listening Explorer"
         ]

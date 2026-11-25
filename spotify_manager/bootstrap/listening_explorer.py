@@ -9,6 +9,9 @@ from spotify_manager.infrastructure.listening.album_tracklists import (
     SpotifyAlbumTracklists,
 )
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
+from spotify_manager.infrastructure.listening.playlist_gateway import (
+    SpotifyPlaylistGateway,
+)
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 
 
@@ -43,3 +46,15 @@ def listening_album_tracklists(runtime: ExecutionRuntime) -> SpotifyAlbumTrackli
         Reader that acquires the client only when album tracks are requested.
     """
     return SpotifyAlbumTracklists(runtime)
+
+
+def listening_playlist_gateway(runtime: ExecutionRuntime) -> SpotifyPlaylistGateway:
+    """Bind the playlist exporter to the lifespan's Spotify connection.
+
+    Args:
+        runtime: Owner of the shared client.
+
+    Returns:
+        Authenticated playlist read and write authority.
+    """
+    return SpotifyPlaylistGateway(runtime)

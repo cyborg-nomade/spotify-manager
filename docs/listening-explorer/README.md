@@ -357,8 +357,7 @@ The current-page CSV includes confirmed URIs and timestamps for the pinned
 versions. Reviews can be removed from the picker.
 
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
-immutable multi-artifact acquisition. Spotify export and cockpit links are
-planned follow-ups.
+immutable multi-artifact acquisition. Cockpit links are a planned follow-up.
 
 ## Playlist preview
 
@@ -382,7 +381,24 @@ versions, applied filters, matching evidence and repeat counts.
 The protected `POST /lastfm/analytics/playlist-preview` and
 `POST /lastfm/analytics/playlist-preview/csv` endpoints accept up to 1,000
 current browser track confirmations. Both endpoints read the pinned sources
-and return a proposal or a CSV. Spotify publishing is a separate release item.
+and return a proposal or a CSV.
+
+### Confirmed Spotify export
+
+From **Playlist preview** or a completed **Artists to revisit** preview, choose
+**Review Spotify export**. Choose a new private playlist or a Spotify playlist
+owned by the signed-in account. The review shows the exact ordered additions and
+whether an existing destination is public. A new review uses the same published
+history and collection versions. Rediscovery also reads the selected editions'
+complete tracklists from Spotify for the final review.
+
+**Confirm Spotify export** starts a background job. It appends tracks to the end
+of an existing playlist and keeps its existing tracks. The job reports the
+confirmed count, can pause between batches, and can reconnect after reloading the
+page while the app is running. After a response is lost, the job reads back the
+expected positions before continuing. If Spotify still cannot confirm a write,
+**Recheck and resume** checks its effects again. A changed destination requires
+a fresh review.
 
 
 ## Tag Atlas release

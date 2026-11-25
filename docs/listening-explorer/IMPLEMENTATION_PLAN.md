@@ -311,6 +311,10 @@ periods, daylight-saving folds, keyboard access, mobile rendering and export.
    user choose a new playlist or an existing playlist they can edit. Show the
    exact additions before they confirm. Reuse the existing job lifecycle and
    preserve progress through retries and partial Spotify responses.
+
+   Both preview modes can prepare an immutable ordered review for a new
+   private playlist or append to an owned playlist. The Spotify job records
+   the last verified position and rechecks uncertain writes before continuing.
 4. **Link supported selections to cockpit routines.** Start with a link that
    opens the relevant cockpit workflow with its dry-run options filled in.
    Keep preview and execution in the existing cockpit confirmation flow.

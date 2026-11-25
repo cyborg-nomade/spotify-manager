@@ -24,11 +24,13 @@ from spotify_manager.application.listening_origins import ListeningOriginEnrichm
 from spotify_manager.application.listening_tags import ListeningTagEnrichment
 from spotify_manager.domain.web_access import LISTENING_ASSETS
 from spotify_manager.domain.web_access import listening_asset_cache_control
+from spotify_manager.infrastructure.async_jobs import JobTasks
 from spotify_manager.infrastructure.listening.cover_cache import AlbumCoverCache
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.origin_cache import ArtistOriginCache
 from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
 from spotify_manager.interfaces.http.listening import router
+from spotify_manager.interfaces.http.listening_export import router as export_router
 from spotify_manager.interfaces.http.listening_origins import router as origin_router
 from spotify_manager.interfaces.http.listening_quilt import router as quilt_router
 from spotify_manager.interfaces.http.listening_rediscovery import (
@@ -36,10 +38,14 @@ from spotify_manager.interfaces.http.listening_rediscovery import (
 )
 from spotify_manager.interfaces.http.listening_sessions import router as session_router
 from spotify_manager.interfaces.http.listening_tags import router as tag_router
+from spotify_manager.interfaces.http.playlist_export_runtime import (
+    PlaylistExportRuntime,
+)
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
 from tests.support.listening_covers import FixtureCoverSource
 from tests.support.listening_covers import cover_result
+from tests.support.listening_export import FixturePlaylistGateway
 from tests.support.listening_library import publish_collection
 from tests.support.listening_origins import FixtureOriginArchive
 from tests.support.listening_origins import FixtureOriginSource
@@ -193,6 +199,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.listening = fixture.runtime
         app.state.listening_library = LibraryRuntime(fixture.service)
         app.state.listening_album_tracklists = fixture_tracklists()
+        export_tasks = JobTasks()
+        app.state.listening_exports = PlaylistExportRuntime(
+            FixturePlaylistGateway(), export_tasks
+        )
         cache = ArtistTagCache(Path(directory) / "tag-cache")
         cache.write(tag_metadata("Alpha"))
         cache.write(tag_metadata("Béta", ("Jazz",)))
@@ -223,6 +233,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             yield
         finally:
+            await export_tasks.close()
             await app.state.listening_covers.close()
             await app.state.listening_origins.close()
             await app.state.listening_tags.close()
@@ -237,6 +248,7 @@ app.include_router(tag_router)
 app.include_router(origin_router)
 app.include_router(quilt_router)
 app.include_router(revisit_router)
+app.include_router(export_router)
 app.include_router(session_router)
 
 

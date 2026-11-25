@@ -181,6 +181,7 @@ function updateButtons() {
   );
   $("revisit-preview").disabled = Boolean(activeRead) || !eligible || complete;
   $("revisit-export").disabled = Boolean(activeRead) || !eligible || !complete;
+  $("revisit-spotify-export").disabled = $("revisit-export").disabled;
 }
 
 export function changeChoice(target) {
@@ -341,4 +342,23 @@ export function csv() {
       ],
     },
   );
+}
+
+export function spotifySelection() {
+  if (!shortlist || $("revisit-spotify-export").disabled) return null;
+  const { historical } = shortlist.dates;
+  return {
+    name: `Rediscovery · ${historical.start} to ${historical.end}`,
+    params: {
+      snapshot: shortlist.snapshot,
+      library_snapshot: shortlist.library_snapshot,
+      from: historical.start,
+      to: historical.end,
+      tz: historical.timezone,
+    },
+    source: {
+      kind: "albums",
+      albums: selectedAlbums().map((album) => album.uri),
+    },
+  };
 }

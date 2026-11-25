@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=16" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=17" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=16"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=17"></script>
   </head>
   <body>
     <div class="shell">
@@ -68,6 +68,9 @@
           Connecting to your recorded history…
         </div>
         <div class="status-actions">
+          <button id="spotify-export-resume" class="quiet" type="button" hidden>
+            Spotify export status
+          </button>
           <button id="retry" class="quiet" hidden>
             Check publication again</button
           ><a id="sync-link" href="/#scrobbleHistoryCard" hidden
@@ -532,6 +535,14 @@
                   Download rediscovery CSV
                 </button>
                 <span id="revisit-selection" class="micro"></span>
+                <button
+                  id="revisit-spotify-export"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Review Spotify export
+                </button>
               </div>
               <p
                 id="revisit-message"
@@ -835,6 +846,14 @@
               </p>
               <button id="playlist-revisit" class="small-button" type="button">
                 Build a rediscovery playlist
+              </button>
+              <button
+                id="history-spotify-export"
+                class="small-button"
+                type="button"
+                disabled
+              >
+                Review Spotify export
               </button>
               <p id="playlist-source" class="chart-description"></p>
               <div id="playlist-metrics" class="session-metrics"></div>
@@ -1550,6 +1569,75 @@
         </div>
       </main>
     </div>
+
+    <dialog id="spotify-export-dialog" aria-labelledby="spotify-export-title">
+      <header class="panel-heading">
+        <h2 id="spotify-export-title">Export to Spotify</h2>
+        <button id="spotify-export-close" class="quiet" type="button">
+          Close
+        </button>
+      </header>
+      <form id="spotify-export-form" class="control-line">
+        <label
+          >Destination
+          <select id="spotify-export-kind">
+            <option value="new">New private playlist</option>
+            <option value="existing">Existing playlist</option>
+          </select>
+        </label>
+        <label id="spotify-export-name-field"
+          >Playlist name
+          <input
+            id="spotify-export-name"
+            type="text"
+            maxlength="100"
+            required
+          />
+        </label>
+        <label id="spotify-export-existing-field" hidden
+          >Your playlists
+          <select id="spotify-export-existing" required disabled></select>
+        </label>
+        <button id="spotify-export-prepare" class="small-button" type="submit">
+          Review exact additions
+        </button>
+      </form>
+      <p id="spotify-export-state" class="chart-description" role="status"></p>
+      <section
+        id="spotify-export-review"
+        hidden
+        aria-label="Ordered Spotify additions"
+      >
+        <p id="spotify-export-summary" class="chart-description"></p>
+        <div id="spotify-export-items" class="table-scroll"></div>
+        <div class="pagination">
+          <button id="spotify-export-previous" class="quiet" type="button">
+            ← Previous
+          </button>
+          <span id="spotify-export-page"></span>
+          <button id="spotify-export-next" class="quiet" type="button">
+            Next →
+          </button>
+        </div>
+        <div class="control-line">
+          <button id="spotify-export-edit" class="quiet" type="button">
+            Change destination
+          </button>
+          <button id="spotify-export-confirm" class="primary" type="button">
+            Confirm Spotify export
+          </button>
+          <button
+            id="spotify-export-pause"
+            class="small-button"
+            type="button"
+            hidden
+          >
+            Pause after this batch
+          </button>
+          <span id="spotify-export-link"></span>
+        </div>
+      </section>
+    </dialog>
 
     <dialog id="library-review" aria-labelledby="library-review-title">
       <header class="detail-top">

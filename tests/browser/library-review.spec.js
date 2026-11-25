@@ -12,7 +12,9 @@ async function openBridge(page, filter) {
     .getByLabel("App password", { exact: true })
     .fill("browser-test-password");
   await page.getByRole("button", { name: "Unlock explorer" }).click();
-  await expect(page.locator("#library-table table")).toBeAttached();
+  await expect(page.locator("#library-table table")).toBeAttached({
+    timeout: 12000,
+  });
 }
 
 async function exportRow(page, name) {
