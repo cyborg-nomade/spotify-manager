@@ -69,6 +69,11 @@ function isCurrentReview(review, scope) {
   );
 }
 
+export function currentReview(kind, key, scope) {
+  const review = reviewFor(kind, key);
+  return isCurrentReview(review, scope) ? review : null;
+}
+
 export function playlistReviews(scope) {
   const prefix = STORAGE_PREFIX + "track:";
   try {

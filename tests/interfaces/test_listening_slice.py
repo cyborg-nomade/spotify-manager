@@ -21,12 +21,16 @@ from spotify_manager.domain.listening_time import listening_identity
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 from spotify_manager.interfaces.http.listening import router
+from spotify_manager.interfaces.http.listening_rediscovery import (
+    router as revisit_router,
+)
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
 from tests.support.listening import scrobble
 from tests.support.listening_library import album
 from tests.support.listening_library import publish_collection
+from tests.support.listening_rediscovery import fixture_tracklists
 
 
 class DelayedListeningRuntime(ListeningRuntime):
@@ -57,7 +61,9 @@ def listening_http(tmp_path: Path) -> Iterator[tuple[TestClient, ListeningFixtur
     app = FastAPI(lifespan=http_lifespan)
     app.state.listening = fixture.runtime
     app.state.listening_library = LibraryRuntime(fixture.service)
+    app.state.listening_album_tracklists = fixture_tracklists()
     app.include_router(router)
+    app.include_router(revisit_router)
     app.add_middleware(PasswordMiddleware, password="listening-password")
     with TestClient(app) as client:
         client.headers["X-App-Password"] = "listening-password"
@@ -113,6 +119,10 @@ def test_authentication_precedes_any_index_acquisition(
     assert client.get("/lastfm/analytics/scrobble-map").status_code == 401
     assert client.post("/lastfm/analytics/playlist-preview").status_code == 401
     assert client.post("/lastfm/analytics/playlist-preview/csv").status_code == 401
+    assert client.get("/lastfm/analytics/rediscovery/artists").status_code == 401
+    assert (
+        client.post("/lastfm/analytics/rediscovery/album-tracklists").status_code == 401
+    )
     probe.assert_not_called()
 
 
@@ -513,3 +523,114 @@ def test_playlist_requires_current_versions_and_rejects_duplicate_review_keys(
         ).status_code
         == 422
     )
+
+
+def _rediscovery_history() -> list[dict[str, object]]:
+    return [
+        scrobble("2023-10-01T10:00:00", "Coverage", "Start"),
+        scrobble("2024-01-02T10:00:00", "Alpha", "One", "Repeated visits"),
+        scrobble("2024-01-09T10:00:00", "Alpha", "Two", "Repeated visits"),
+        scrobble("2024-02-01T10:00:00", "Alpha", "Different A", "One sitting"),
+        scrobble("2024-02-01T11:00:00", "Alpha", "Different B", "One sitting"),
+        scrobble("2024-02-01T12:00:00", "Alpha", "Different C", "One sitting"),
+        scrobble("2024-02-01T12:01:00", "One week", "Track A"),
+        scrobble("2024-02-02T12:02:00", "One week", "Track B"),
+        scrobble("2024-03-01T12:00:00", "Béta", "One"),
+        scrobble("2024-03-08T12:00:00", "Béta", "Two"),
+        scrobble("2024-12-25T12:00:00", "Béta", "One"),
+        scrobble("2024-12-25T12:01:00", "Béta", "One"),
+        scrobble("2024-12-25T12:02:00", "Béta", "Two"),
+        scrobble("2025-01-02T12:00:00", "Alpha", "Partial final day"),
+    ]
+
+
+def test_artist_rediscovery_compares_complete_windows_and_suggests_albums(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Rank across weeks and distinct recent tracks, then suggest by album days."""
+    client, fixture = listening_http
+    fixture.publish(_rediscovery_history())
+    publish_collection(fixture, "albums", [album("Repeated visits")])
+    params = {
+        **ready_parameters(client),
+        "library_snapshot": ready_library(client),
+        "history": "selection",
+        "horizon": "30",
+        "minimum_plays": "2",
+        "minimum_weeks": "2",
+    }
+    path = "/lastfm/analytics/rediscovery/artists"
+    response = client.get(path, params=params)
+    assert (
+        response.status_code == 200
+        and response.headers["Cache-Control"] == "private, no-store"
+    )
+    data = response.json()["data"]
+    assert data["dates"]["recent"]["end"] == "2025-01-01"
+    assert data["qualifying"] == 2
+    alpha, beta = data["artists"]
+    assert (
+        alpha["evidence"]["name"] == "Alpha" and alpha["evidence"]["recent_plays"] == 0
+    )
+    assert (
+        beta["evidence"]["recent_tracks"] == 2 and beta["evidence"]["recent_plays"] == 3
+    )
+    assert [row["album"]["name"] for row in alpha["albums"]] == [
+        "Repeated visits",
+        "One sitting",
+    ]
+    assert alpha["albums"][0]["spotify"]["uri"] == album()["uri"]
+    assert alpha["albums"][1]["spotify"] is None
+    params.pop("library_snapshot")
+    unpinned = client.get(path, params=params)
+    assert unpinned.status_code == 200 and not unpinned.json()["data"]["albums_ready"]
+    assert unpinned.json()["data"]["qualifying"] == 2
+    assert client.get(path, params={**params, "to": "2024-12-31"}).status_code == 422
+
+
+def test_rediscovery_tracklists_keep_album_and_disc_order_and_isolate_failures(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Read only saved editions and keep complete neighboring albums on failure."""
+    client, fixture = listening_http
+    uri = "spotify:album:" + "a" * 22
+    broken = "spotify:album:" + "x" * 22
+    records = [
+        {"artist": "Alpha", "album": "Example", "uri": uri},
+        {"artist": "Beta", "album": "Incomplete", "uri": broken},
+    ]
+    publish_collection(fixture, "albums", records)
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    revision = fixture.service.snapshot().revision
+    path = "/lastfm/analytics/rediscovery/album-tracklists"
+    response = client.post(path, params=params, json={"albums": [broken, uri]})
+    assert (
+        response.status_code == 200
+        and response.headers["Cache-Control"] == "private, no-store"
+    )
+    data = response.json()["data"]
+    assert data["library_snapshot"] == params["library_snapshot"]
+    first, second = data["albums"]
+    assert first["uri"] == broken and first["message"] and not first["tracks"]
+    assert second["uri"] == uri and second["message"] is None
+    assert [(row["disc"], row["track"]) for row in second["tracks"]] == [
+        (1, 1),
+        (1, 2),
+        (2, 1),
+    ]
+    assert (
+        client.post(path, params=params, json={"albums": [uri, uri]}).status_code == 422
+    )
+    unknown = "spotify:album:" + "z" * 22
+    assert (
+        client.post(path, params=params, json={"albums": [unknown]}).status_code == 422
+    )
+    assert (
+        client.post(
+            path,
+            params={**params, "library_snapshot": "l1-" + "0" * 64},
+            json={"albums": [uri]},
+        ).status_code
+        == 409
+    )
+    assert fixture.service.snapshot().revision == revision

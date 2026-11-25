@@ -2150,6 +2150,32 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_rediscovery.listening_rediscovery_artists",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_rediscovery_artists",
+    "path": "/lastfm/analytics/rediscovery/artists",
+    "response_model": "ListeningEnvelope[ArtistRediscovery]",
+    "source_line": 70,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_rediscovery.listening_rediscovery_album_tracks",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "listening_rediscovery_album_tracks",
+    "path": "/lastfm/analytics/rediscovery/album-tracklists",
+    "response_model": "ListeningEnvelope[RediscoveryTracklists]",
+    "source_line": 99,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening_sessions.listening_sessions",
     "include_in_schema": true,
     "methods": [

@@ -1,6 +1,7 @@
 import * as charts from "./charts-v1.js?v=12";
-import * as library from "./library-v1.js?v=14";
-import * as playlist from "./playlist-preview-v1.js?v=14";
+import * as library from "./library-v1.js?v=15";
+import * as playlist from "./playlist-preview-v1.js?v=15";
+import * as rediscovery from "./rediscovery-v1.js?v=15";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
@@ -140,6 +141,7 @@ function showLogin(message = "") {
   state.detailData = null;
   state.playlistScope = null;
   playlist.render({}, state.timezone);
+  rediscovery.clear();
   closeLibraryReview();
   state.recordScope = null;
   state.controller?.abort();
@@ -410,6 +412,14 @@ function persist() {
   }
   if (state.tab === "playlist-preview")
     values.playlist_view = $("playlist-view").value;
+  if (state.tab === "rediscovery") {
+    values.revisit_history = $("revisit-history").value;
+    values.revisit_horizon = $("revisit-horizon").value;
+    values.revisit_plays = $("revisit-plays").value;
+    values.revisit_weeks = $("revisit-weeks").value;
+    if ($("revisit-from").value) values.revisit_from = $("revisit-from").value;
+    if ($("revisit-to").value) values.revisit_to = $("revisit-to").value;
+  }
   if (state.tab === "sessions") {
     values.session_gap = $("session-gap").value;
     values.session_min = $("session-minimum").value;
@@ -580,11 +590,50 @@ async function exportPlaylistPreview() {
 function scheduleLibraryRefresh() {
   state.libraryTimer = setTimeout(() => {
     if (
-      ["library", "playlist-preview"].includes(state.tab) &&
+      ["library", "playlist-preview", "rediscovery"].includes(state.tab) &&
       state.authenticated
     )
       loadSelection();
   }, 2000);
+}
+
+async function loadArtistRediscovery() {
+  const signal = state.controller.signal;
+  try {
+    const status = await readLibraryStatus(signal).catch((error) => {
+      if (error.name === "AbortError" || [401, 409].includes(error.status))
+        throw error;
+      return {};
+    });
+    const history = $("revisit-history").value;
+    const params = {
+      snapshot: state.snapshot,
+      from: history === "selection" ? $("revisit-from").value : state.from,
+      to: history === "selection" ? $("revisit-to").value : state.to,
+      tz: state.timezone,
+      history,
+      horizon: $("revisit-horizon").value,
+      minimum_plays: $("revisit-plays").value,
+      minimum_weeks: $("revisit-weeks").value,
+    };
+    if (status.snapshot) params.library_snapshot = status.snapshot;
+    const result = await request(
+      "/lastfm/analytics/rediscovery/artists",
+      params,
+      signal,
+    );
+    return {
+      ...result,
+      checking: !status.snapshot && status.checking,
+      libraryMessage: status.state === "stale" ? status.message : null,
+    };
+  } catch (error) {
+    if (error.name === "AbortError" || [401, 409].includes(error.status))
+      throw error;
+    return {
+      message: error.message || "Artist rediscovery could not be loaded.",
+    };
+  }
 }
 
 function closeLibraryReview() {
@@ -1218,6 +1267,8 @@ function clearResults() {
 
 async function loadSelection(recoverVersion = true) {
   if (!state.snapshot) return;
+  if (state.tab === "rediscovery") rediscovery.cancelRead();
+  else rediscovery.clear();
   closeLibraryReview();
   clearTimeout(state.libraryTimer);
   clearTimeout(state.tagTimer);
@@ -1260,7 +1311,10 @@ async function loadSelection(recoverVersion = true) {
       );
     if (state.tab === "discovery") tasks.push(analytics("discovery"));
     if (state.tab === "rediscovery")
-      tasks.push(analytics("rediscovery", rediscoveryQuery()));
+      tasks.push(
+        analytics("rediscovery", rediscoveryQuery()),
+        loadArtistRediscovery(),
+      );
     if (state.tab === "capsule")
       tasks.push(analytics("on-this-day"), analytics("eras"));
     if (state.tab === "library") tasks.push(loadLibrary());
@@ -1295,6 +1349,7 @@ async function loadSelection(recoverVersion = true) {
       }
     }
     clearResults();
+    if (state.tab === "rediscovery") rediscovery.clear();
     $("view-error").textContent =
       error.message || "The selection could not be loaded. Retry shortly.";
     $("view-error").hidden = false;
@@ -1472,6 +1527,8 @@ function renderView(results) {
     state.data.rediscovery = results[0];
     charts.rediscovery(results[0], $("rediscovery-kind").value, ctx);
     renderRediscovery();
+    rediscovery.render(results[1]);
+    if (results[1].checking) scheduleLibraryRefresh();
   }
 }
 
@@ -1576,6 +1633,7 @@ function renderEraTable(comparison = null) {
   );
   if (reference < 0) return;
   $("era-reference").value = state.eraReference;
+  $("era-revisit").disabled = !data.periods[reference].plays;
   const summary =
     comparison === null ? null : data.similarities[reference][comparison];
   $("era-comparison").textContent =
@@ -2524,6 +2582,17 @@ $("era-reference").addEventListener("change", () => {
   renderEraTable();
   persist();
 });
+$("era-revisit").addEventListener("click", () => {
+  const era = state.data.eras?.periods.find(
+    (period) => period.label === state.eraReference,
+  );
+  if (!era?.plays) return;
+  $("revisit-history").value = "selection";
+  $("revisit-from").value = era.start;
+  $("revisit-to").value = era.end;
+  rediscovery.configureDates();
+  document.querySelector('[data-tab="rediscovery"]').click();
+});
 $("rhythm-mode").addEventListener("change", renderRhythm);
 $("grain").addEventListener("change", () => loadSelection());
 $("evolution-mode").addEventListener("change", () => {
@@ -2537,6 +2606,28 @@ $("evolution-mode").addEventListener("change", () => {
 $("rediscovery-filters").addEventListener("submit", (event) => {
   event.preventDefault();
   loadSelection();
+});
+$("revisit-history").addEventListener("change", () => {
+  const dates = rediscovery.historicalRange();
+  if (!$("revisit-from").value)
+    $("revisit-from").value = dates?.start || state.from;
+  if (!$("revisit-to").value) $("revisit-to").value = dates?.end || state.to;
+  rediscovery.configureDates();
+});
+$("revisit-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.libraryForce = true;
+  loadSelection();
+});
+$("revisit-table").addEventListener("change", (event) =>
+  rediscovery.changeChoice(event.target),
+);
+$("revisit-preview").addEventListener("click", () =>
+  rediscovery.preview(request),
+);
+$("revisit-export").addEventListener("click", () => rediscovery.csv());
+$("playlist-revisit").addEventListener("click", () => {
+  document.querySelector('[data-tab="rediscovery"]').click();
 });
 $("library-filters").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2832,6 +2923,22 @@ if (
   )
 )
   $("playlist-view").value = parameters.get("playlist_view");
+$("revisit-history").value =
+  parameters.get("revisit_history") === "selection" ? "selection" : "year";
+const revisitHorizon = parameters.get("revisit_horizon");
+if (["30", "90", "365"].includes(revisitHorizon))
+  $("revisit-horizon").value = revisitHorizon;
+$("revisit-plays").value = Math.max(
+  1,
+  Math.min(1000000, Number(parameters.get("revisit_plays")) || 50),
+);
+$("revisit-weeks").value = Math.max(
+  1,
+  Math.min(5200, Number(parameters.get("revisit_weeks")) || 3),
+);
+$("revisit-from").value = parameters.get("revisit_from") || "";
+$("revisit-to").value = parameters.get("revisit_to") || "";
+rediscovery.configureDates();
 $("tag-per-artist").value =
   parameters.get("tags_per_artist") === "1" ? "1" : "3";
 $("tag-display").value =

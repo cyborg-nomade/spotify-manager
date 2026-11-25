@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=14" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=15" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=14"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=15"></script>
   </head>
   <body>
     <div class="shell">
@@ -440,6 +440,108 @@
           >
             <article class="panel">
               <header class="panel-heading">
+                <h2>Artists to revisit</h2>
+              </header>
+              <p class="chart-description">
+                Find artists you returned to in the past and have barely played
+                lately. Pick an album for each artist to build a playlist in
+                album order.
+              </p>
+              <form id="revisit-filters" class="control-line">
+                <label
+                  >Then
+                  <select id="revisit-history">
+                    <option value="year">Year before the recent window</option>
+                    <option value="selection">Custom dates</option>
+                  </select>
+                </label>
+                <div id="revisit-custom-dates" class="revisit-dates" hidden>
+                  <label
+                    >Then from<input
+                      id="revisit-from"
+                      type="date"
+                      min="1900-01-01"
+                      max="2099-12-31"
+                      required
+                      disabled
+                  /></label>
+                  <label
+                    >Then through<input
+                      id="revisit-to"
+                      type="date"
+                      min="1900-01-01"
+                      max="2099-12-31"
+                      required
+                      disabled
+                  /></label>
+                </div>
+                <label
+                  >Now
+                  <select id="revisit-horizon">
+                    <option value="30">Last 30 days</option>
+                    <option value="90" selected>Last 90 days</option>
+                    <option value="365">Last 365 days</option>
+                  </select>
+                </label>
+                <label
+                  >Minimum plays then
+                  <input
+                    id="revisit-plays"
+                    type="number"
+                    min="1"
+                    max="1000000"
+                    value="50"
+                    required
+                  />
+                </label>
+                <label
+                  >Minimum weeks then
+                  <input
+                    id="revisit-weeks"
+                    type="number"
+                    min="1"
+                    max="5200"
+                    value="3"
+                    required
+                  />
+                </label>
+                <button class="small-button" type="submit">Find artists</button>
+              </form>
+              <p
+                id="revisit-coverage"
+                class="chart-description"
+                role="status"
+              ></p>
+              <p id="revisit-library" class="chart-description"></p>
+              <div id="revisit-table" class="table-scroll"></div>
+              <div id="revisit-actions" class="control-line" hidden>
+                <button
+                  id="revisit-preview"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Preview album tracks
+                </button>
+                <button
+                  id="revisit-export"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Download rediscovery CSV
+                </button>
+                <span id="revisit-selection" class="micro"></span>
+              </div>
+              <p
+                id="revisit-message"
+                class="chart-description"
+                role="status"
+              ></p>
+              <div id="revisit-tracks"></div>
+            </article>
+            <article class="panel">
+              <header class="panel-heading">
                 <div>
                   <p class="eyebrow">01 / WORTH ANOTHER SPIN</p>
                   <h2>Familiar, but far away</h2>
@@ -579,6 +681,14 @@
               <div class="control-line">
                 <label for="era-reference">Compare with period</label
                 ><select id="era-reference"></select>
+                <button
+                  id="era-revisit"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Rediscover artists from this period
+                </button>
               </div>
               <p
                 id="era-comparison"
@@ -723,6 +833,9 @@
                 in this selection. The preview uses published liked tracks and
                 current Library Bridge confirmations.
               </p>
+              <button id="playlist-revisit" class="small-button" type="button">
+                Build a rediscovery playlist
+              </button>
               <p id="playlist-source" class="chart-description"></p>
               <div id="playlist-metrics" class="session-metrics"></div>
               <div class="control-line">

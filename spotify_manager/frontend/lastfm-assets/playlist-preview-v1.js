@@ -1,4 +1,4 @@
-import { spotifyLink } from "./library-v1.js?v=14";
+import { spotifyLink } from "./library-v1.js?v=15";
 import {
   element,
   entityButton,

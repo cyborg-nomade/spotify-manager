@@ -59,6 +59,31 @@ The latest source day is conservatively partial; artists without a complete
 follow-up window are pending, not failed discoveries. Forgotten Favorites ignores
 the visible start date and excludes scrobbles after the selected analysis end.
 
+### Artists to revisit
+
+The **Rediscover** tab compares two non-overlapping local date windows. **Now**
+covers 30, 90, or 365 days ending on the last complete published history day.
+**Then** defaults to the preceding calendar year in duration. It also accepts
+custom dates, and Musical Eras can send its selected period directly.
+
+The default minimums are 50 plays across three distinct Monday-based weeks.
+Artists with zero recent plays appear first. A light revisit can qualify if it
+covers one day and at most two distinct tracks. Each group is ordered by
+historical listening weeks, with historical plays breaking ties. The panel shows
+the windows and evidence for each artist and reports incomplete recent coverage.
+
+Each artist's album options are ordered by distinct listening days in **Then**.
+One exact saved-album match or a current Library Bridge confirmation links an
+album to Spotify. Select up to ten artists with one album each and use
+**Preview album tracks** to read the selected editions from Spotify. The
+app requests only those Spotify album IDs. Each complete tracklist retains its
+disc and track order, including tracks absent from the liked-track mirror. A
+failed album can be retried or dropped from the selection.
+
+The rediscovery CSV uses the previewed track order and includes both date
+windows, the selection rules, and the two publication versions. The existing
+first-play playlist preview remains available in its own tab.
+
 ## Time capsule
 
 **On This Day** uses the selected **Through** date as its month/day anchor. It

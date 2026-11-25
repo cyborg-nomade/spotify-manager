@@ -13,6 +13,9 @@ from threading import RLock
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningMetadata
 from spotify_manager.domain.listening_playlist import RecordedTrack
+from spotify_manager.domain.listening_rediscovery import ArtistRevisitEvidence
+from spotify_manager.domain.listening_rediscovery import RediscoveryDates
+from spotify_manager.domain.listening_rediscovery import RevisitAlbum
 from spotify_manager.domain.listening_scrobble_map import HourPlayCount
 from spotify_manager.domain.listening_session_values import SessionWindow
 from spotify_manager.domain.listening_values import ArtistPlay
@@ -27,6 +30,8 @@ from spotify_manager.domain.listening_values import ListeningRecords
 from spotify_manager.domain.listening_values import RankedEntity
 from spotify_manager.domain.listening_values import RankingOptions
 from spotify_manager.domain.listening_values import RecordOptions
+from spotify_manager.infrastructure.listening.rediscovery import album_revisit_counts
+from spotify_manager.infrastructure.listening.rediscovery import artist_revisit_counts
 from spotify_manager.infrastructure.listening.sql import COLUMNS
 from spotify_manager.infrastructure.listening.sql import JOIN
 from spotify_manager.infrastructure.listening.sql import lifetime_query
@@ -240,6 +245,35 @@ class ListeningIndex:
                 sql + where.sql + " GROUP BY e.id ORDER BY e.key", where.parameters
             )
             return tuple(EntityLifetime(*row) for row in rows)
+
+    def rediscovery_artists(
+        self, dates: RediscoveryDates
+    ) -> tuple[ArtistRevisitEvidence, ...]:
+        """Read historical weeks and recent listening from the same local calendar.
+
+        Args:
+            dates: Historical and recent windows using one timezone.
+
+        Returns:
+            Observed listening for every artist present in the historical window.
+        """
+        with self.connection(dates.historical) as connection:
+            return artist_revisit_counts(connection, dates)
+
+    def rediscovery_albums(
+        self, query: ListeningQuery, artist_keys: tuple[str, ...]
+    ) -> dict[str, list[RevisitAlbum]]:
+        """Read the most revisited historical albums for a bounded shortlist.
+
+        Args:
+            query: Historical local date window.
+            artist_keys: Shortlisted recorded artist identities.
+
+        Returns:
+            Recorded albums ordered by distinct listening days for each artist.
+        """
+        with self.connection(query) as connection:
+            return album_revisit_counts(connection, query, artist_keys)
 
     def ordered_tracks(self, query: ListeningQuery) -> tuple[RecordedTrack, ...]:
         """Read selected track groups in the order of their first recorded play.

@@ -213,6 +213,7 @@
     },
     "album_tracks": {
       "references": [
+        "spotify_manager/infrastructure/listening/album_tracklists.py:123",
         "spotify_manager/processors/library_lookups.py:398",
         "spotify_manager/processors/total_albums_processor.py:122",
         "spotify_manager/routines/new_kids.py:800",
