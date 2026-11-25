@@ -51,13 +51,7 @@ function savedEdition(option) {
 }
 
 function coverage(data) {
-  const {
-    historical,
-    recent,
-    observed_from,
-    observed_through,
-    recent_complete,
-  } = data.dates;
+  const { historical, recent, observed_from, recent_complete } = data.dates;
   const dates = `Then ${historical.start} to ${historical.end} · Now ${recent.start} to ${recent.end} · ${recent.timezone}.`;
   if (!recent_complete) {
     return `${dates} The archive does not cover the full recent window. Try a shorter window.`;
@@ -65,12 +59,12 @@ function coverage(data) {
   const counts =
     data.artists.length < data.qualifying
       ? `Showing ${number(data.artists.length)} of ${number(data.qualifying)} artists.`
-      : `${number(data.qualifying)} matching artists.`;
+      : `${number(data.qualifying)} matching ${data.qualifying === 1 ? "artist" : "artists"}.`;
   const partial =
     historical.start <= observed_from
       ? ` Historical coverage starts on ${observed_from}.`
       : "";
-  return `${dates} ${counts}${partial} Recent history is measured through ${observed_through}, the last complete published day.`;
+  return `${dates} ${counts}${partial} Now ends on the last complete published day.`;
 }
 
 function albumStatus(option) {
@@ -222,7 +216,7 @@ function renderTracklists(choices) {
     block.append(
       element(
         "summary",
-        `${heading} · ${count ? `${number(count)} tracks` : "Tracklist unavailable"}`,
+        `${heading} · ${count ? `${number(count)} ${count === 1 ? "track" : "tracks"}` : "Tracklist unavailable"}`,
       ),
     );
     if (link) block.append(link);
@@ -233,6 +227,7 @@ function renderTracklists(choices) {
       );
     } else {
       const tracks = element("ol");
+      tracks.setAttribute("role", "list");
       for (const track of result.tracks) {
         const item = element("li");
         const label = `${track.disc}.${track.track} ${track.name}`;
@@ -250,7 +245,7 @@ function renderTracklists(choices) {
   ).length;
   $("revisit-message").textContent =
     complete === choices.length
-      ? `${number(complete)} albums ready in playlist order.`
+      ? `${number(complete)} ${complete === 1 ? "album" : "albums"} ready in playlist order.`
       : `${number(complete)} of ${number(choices.length)} albums loaded. Use Preview album tracks to retry the unavailable albums.`;
 }
 

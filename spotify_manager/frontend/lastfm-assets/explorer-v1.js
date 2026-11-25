@@ -1,7 +1,7 @@
 import * as charts from "./charts-v1.js?v=12";
 import * as library from "./library-v1.js?v=15";
 import * as playlist from "./playlist-preview-v1.js?v=15";
-import * as rediscovery from "./rediscovery-v1.js?v=15";
+import * as rediscovery from "./rediscovery-v1.js?v=16";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
