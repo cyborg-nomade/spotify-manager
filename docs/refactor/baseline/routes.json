@@ -1760,6 +1760,32 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.listening_playlist_preview",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "listening_playlist_preview",
+    "path": "/lastfm/analytics/playlist-preview",
+    "response_model": "ListeningEnvelope[PlaylistPage]",
+    "source_line": 355,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening.export_listening_playlist_preview",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "export_listening_playlist_preview",
+    "path": "/lastfm/analytics/playlist-preview/csv",
+    "response_model": null,
+    "source_line": 384,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening.listening_status",
     "include_in_schema": true,
     "methods": [
@@ -2120,6 +2146,32 @@
     "path": "/lastfm/analytics/quilt/cancel",
     "response_model": "CoverFetchStatus",
     "source_line": 219,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_rediscovery.listening_rediscovery_artists",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "listening_rediscovery_artists",
+    "path": "/lastfm/analytics/rediscovery/artists",
+    "response_model": "ListeningEnvelope[ArtistRediscovery]",
+    "source_line": 70,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_rediscovery.listening_rediscovery_album_tracks",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "listening_rediscovery_album_tracks",
+    "path": "/lastfm/analytics/rediscovery/album-tracklists",
+    "response_model": "ListeningEnvelope[RediscoveryTracklists]",
+    "source_line": 99,
     "surface": "api"
   },
   {

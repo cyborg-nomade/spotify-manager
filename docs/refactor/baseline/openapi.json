@@ -164,6 +164,29 @@
         "title": "AlbumTrackLikedStatus",
         "type": "object"
       },
+      "AlbumTracklistRequest": {
+        "description": "Bound a request to one selected album per artist in a short playlist.",
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumURI"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Albums",
+            "type": "array"
+          }
+        },
+        "required": [
+          "albums"
+        ],
+        "title": "AlbumTracklistRequest",
+        "type": "object"
+      },
+      "AlbumURI": {
+        "pattern": "^spotify:album:[A-Za-z0-9]{22}$",
+        "type": "string"
+      },
       "AnalysisJobLog": {
         "description": "One timestamped analysis event shown by the web interface.",
         "properties": {
@@ -434,6 +457,118 @@
           "source"
         ],
         "title": "ArtistLibraryStats",
+        "type": "object"
+      },
+      "ArtistRediscovery": {
+        "description": "Present a bounded shortlist and enough window evidence to explain it.",
+        "properties": {
+          "albums_ready": {
+            "title": "Albums Ready",
+            "type": "boolean"
+          },
+          "artists": {
+            "items": {
+              "$ref": "#/components/schemas/ArtistRevisit"
+            },
+            "title": "Artists",
+            "type": "array"
+          },
+          "dates": {
+            "$ref": "#/components/schemas/RediscoveryDates"
+          },
+          "library_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library Snapshot"
+          },
+          "qualifying": {
+            "title": "Qualifying",
+            "type": "integer"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RediscoveryRules"
+          }
+        },
+        "required": [
+          "dates",
+          "rules",
+          "library_snapshot",
+          "albums_ready",
+          "qualifying",
+          "artists"
+        ],
+        "title": "ArtistRediscovery",
+        "type": "object"
+      },
+      "ArtistRevisit": {
+        "description": "Pair each qualifying artist with their historical album choices.",
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/RevisitAlbumChoice"
+            },
+            "title": "Albums",
+            "type": "array"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ArtistRevisitEvidence"
+          }
+        },
+        "required": [
+          "evidence",
+          "albums"
+        ],
+        "title": "ArtistRevisit",
+        "type": "object"
+      },
+      "ArtistRevisitEvidence": {
+        "description": "Count historical plays and weeks, and recent days and distinct tracks.",
+        "properties": {
+          "historical_plays": {
+            "title": "Historical Plays",
+            "type": "integer"
+          },
+          "historical_weeks": {
+            "title": "Historical Weeks",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "recent_days": {
+            "title": "Recent Days",
+            "type": "integer"
+          },
+          "recent_plays": {
+            "title": "Recent Plays",
+            "type": "integer"
+          },
+          "recent_tracks": {
+            "title": "Recent Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "historical_plays",
+          "historical_weeks",
+          "recent_plays",
+          "recent_days",
+          "recent_tracks"
+        ],
+        "title": "ArtistRevisitEvidence",
         "type": "object"
       },
       "BlastJobResult": {
@@ -3319,6 +3454,27 @@
         "title": "ListeningEntity",
         "type": "object"
       },
+      "ListeningEnvelope_ArtistRediscovery_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArtistRediscovery"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[ArtistRediscovery]",
+        "type": "object"
+      },
       "ListeningEnvelope_LibraryCandidatePage_": {
         "properties": {
           "data": {
@@ -3716,6 +3872,48 @@
           "data"
         ],
         "title": "ListeningEnvelope[ListeningTags]",
+        "type": "object"
+      },
+      "ListeningEnvelope_PlaylistPage_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PlaylistPage"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[PlaylistPage]",
+        "type": "object"
+      },
+      "ListeningEnvelope_RediscoveryTracklists_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RediscoveryTracklists"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot",
+          "filters",
+          "data"
+        ],
+        "title": "ListeningEnvelope[RediscoveryTracklists]",
         "type": "object"
       },
       "ListeningEras": {
@@ -5932,6 +6130,214 @@
         "title": "PalaceAlbumSelectionResult",
         "type": "object"
       },
+      "PlaylistEvidence": {
+        "enum": [
+          "exact_name",
+          "reviewed"
+        ],
+        "type": "string"
+      },
+      "PlaylistOptions": {
+        "description": "Select a bounded page of the proposal or its supporting evidence.",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "view": {
+            "$ref": "#/components/schemas/PlaylistView"
+          }
+        },
+        "required": [
+          "view",
+          "page",
+          "limit"
+        ],
+        "title": "PlaylistOptions",
+        "type": "object"
+      },
+      "PlaylistPage": {
+        "description": "Present exact summary totals and a bounded evidence page.",
+        "properties": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PlaylistTrack"
+                },
+                {
+                  "$ref": "#/components/schemas/PlaylistUnresolved"
+                }
+              ]
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "library_snapshot": {
+            "title": "Library Snapshot",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/PlaylistOptions"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MirrorSource"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PlaylistSummary"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "library_snapshot",
+          "source",
+          "summary",
+          "items",
+          "total",
+          "options"
+        ],
+        "title": "PlaylistPage",
+        "type": "object"
+      },
+      "PlaylistReviewChoice": {
+        "description": "Accept an original identity and a syntactically valid Spotify track URI.",
+        "properties": {
+          "key": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "uri": {
+            "pattern": "^spotify:track:[A-Za-z0-9]{22}$",
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "uri"
+        ],
+        "title": "PlaylistReviewChoice",
+        "type": "object"
+      },
+      "PlaylistReviewRequest": {
+        "description": "Carry a bounded set of browser choices for this pinned proposal.",
+        "properties": {
+          "reviews": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PlaylistReviewChoice"
+            },
+            "maxItems": 1000,
+            "title": "Reviews",
+            "type": "array"
+          }
+        },
+        "title": "PlaylistReviewRequest",
+        "type": "object"
+      },
+      "PlaylistSummary": {
+        "description": "Reconcile selected plays across first matches, repeats, and unresolved plays.",
+        "properties": {
+          "duplicate_plays": {
+            "title": "Duplicate Plays",
+            "type": "integer"
+          },
+          "playlist_tracks": {
+            "title": "Playlist Tracks",
+            "type": "integer"
+          },
+          "selected_plays": {
+            "title": "Selected Plays",
+            "type": "integer"
+          },
+          "unresolved_plays": {
+            "title": "Unresolved Plays",
+            "type": "integer"
+          },
+          "unresolved_tracks": {
+            "title": "Unresolved Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selected_plays",
+          "playlist_tracks",
+          "duplicate_plays",
+          "unresolved_tracks",
+          "unresolved_plays"
+        ],
+        "title": "PlaylistSummary",
+        "type": "object"
+      },
+      "PlaylistTrack": {
+        "description": "Keep one proposed Spotify track and the evidence for its first appearance.",
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/PlaylistEvidence"
+          },
+          "history": {
+            "$ref": "#/components/schemas/RecordedTrack"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "track": {
+            "$ref": "#/components/schemas/LibraryEntry"
+          }
+        },
+        "required": [
+          "position",
+          "track",
+          "history",
+          "evidence",
+          "plays"
+        ],
+        "title": "PlaylistTrack",
+        "type": "object"
+      },
+      "PlaylistUnresolved": {
+        "description": "Retain a recorded track whose plays lack one usable Spotify candidate.",
+        "properties": {
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "history": {
+            "$ref": "#/components/schemas/RecordedTrack"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/UnresolvedReason"
+          }
+        },
+        "required": [
+          "history",
+          "reason",
+          "candidate_count"
+        ],
+        "title": "PlaylistUnresolved",
+        "type": "object"
+      },
+      "PlaylistView": {
+        "enum": [
+          "tracks",
+          "duplicates",
+          "unresolved"
+        ],
+        "type": "string"
+      },
       "Queue3AnnualImportEntry": {
         "description": "One previous-year discovery considered during Queue 3 fill-up.",
         "properties": {
@@ -6638,6 +7044,208 @@
         "title": "RankedEntity",
         "type": "object"
       },
+      "RecordedTrack": {
+        "description": "Keep one recorded track and its selected plays and earliest observation.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "first_ms": {
+            "title": "First Ms",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "artist",
+          "plays",
+          "first_ms"
+        ],
+        "title": "RecordedTrack",
+        "type": "object"
+      },
+      "RediscoveryDates": {
+        "description": "Keep the two inclusive calendar windows and the available source bounds.",
+        "properties": {
+          "historical": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "observed_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed From"
+          },
+          "observed_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Through"
+          },
+          "recent": {
+            "$ref": "#/components/schemas/ListeningQuery"
+          },
+          "recent_complete": {
+            "title": "Recent Complete",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "historical",
+          "recent",
+          "observed_from",
+          "observed_through",
+          "recent_complete"
+        ],
+        "title": "RediscoveryDates",
+        "type": "object"
+      },
+      "RediscoveryHorizon": {
+        "enum": [
+          30,
+          90,
+          365
+        ],
+        "type": "integer"
+      },
+      "RediscoveryRules": {
+        "description": "Set the recent horizon, historical window and minimum past listening.",
+        "properties": {
+          "minimum_plays": {
+            "title": "Minimum Plays",
+            "type": "integer"
+          },
+          "minimum_weeks": {
+            "title": "Minimum Weeks",
+            "type": "integer"
+          },
+          "previous_year": {
+            "title": "Previous Year",
+            "type": "boolean"
+          },
+          "recent_days": {
+            "$ref": "#/components/schemas/RediscoveryHorizon"
+          }
+        },
+        "required": [
+          "recent_days",
+          "previous_year",
+          "minimum_plays",
+          "minimum_weeks"
+        ],
+        "title": "RediscoveryRules",
+        "type": "object"
+      },
+      "RediscoveryTrack": {
+        "description": "Keep Spotify's track name, playlist identity and album position.",
+        "properties": {
+          "disc": {
+            "title": "Disc",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "track": {
+            "title": "Track",
+            "type": "integer"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri",
+          "name",
+          "disc",
+          "track"
+        ],
+        "title": "RediscoveryTrack",
+        "type": "object"
+      },
+      "RediscoveryTracklist": {
+        "description": "Keep one complete album or explain why it could not be loaded.",
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "tracks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RediscoveryTrack"
+            },
+            "title": "Tracks",
+            "type": "array"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri"
+        ],
+        "title": "RediscoveryTracklist",
+        "type": "object"
+      },
+      "RediscoveryTracklists": {
+        "description": "Report each selected edition in the same order as the request.",
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/RediscoveryTracklist"
+            },
+            "title": "Albums",
+            "type": "array"
+          },
+          "library_snapshot": {
+            "title": "Library Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "library_snapshot",
+          "albums"
+        ],
+        "title": "RediscoveryTracklists",
+        "type": "object"
+      },
       "ReleaseCheckArtistOption": {
         "description": "One Spotify artist offered for a Last.fm artist mapping.",
         "properties": {
@@ -7055,6 +7663,64 @@
           "total_tracks"
         ],
         "title": "RequeuePendingChoice",
+        "type": "object"
+      },
+      "RevisitAlbum": {
+        "description": "Describe a historical album and its number of recorded listening days.",
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plays": {
+            "title": "Plays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "days",
+          "plays"
+        ],
+        "title": "RevisitAlbum",
+        "type": "object"
+      },
+      "RevisitAlbumChoice": {
+        "description": "Pair a recorded album with published Spotify editions by exact name.",
+        "properties": {
+          "album": {
+            "$ref": "#/components/schemas/RevisitAlbum"
+          },
+          "exact_editions": {
+            "title": "Exact Editions",
+            "type": "integer"
+          },
+          "spotify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LibraryEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "album",
+          "exact_editions",
+          "spotify"
+        ],
+        "title": "RevisitAlbumChoice",
         "type": "object"
       },
       "SauvignonAlbumOption": {
@@ -8586,6 +9252,15 @@
         ],
         "title": "TrackScrobbleStatus",
         "type": "object"
+      },
+      "UnresolvedReason": {
+        "enum": [
+          "unmatched",
+          "ambiguous",
+          "publication_unavailable",
+          "review_unavailable"
+        ],
+        "type": "string"
       },
       "ValidationError": {
         "properties": {
@@ -15299,6 +15974,341 @@
         ]
       }
     },
+    "/lastfm/analytics/playlist-preview": {
+      "post": {
+        "description": "Preview a read-only playlist using the selected history and liked tracks.\n\nArgs:\n    request: Configured collection generation owner.\n    query: Applied listening selection.\n    index: Pinned listening history.\n    library_snapshot: Version of the complete Spotify publication.\n    reviews: Explicit browser choices to verify within the pinned mirror.\n    options: Bounded supporting evidence page.\n\nReturns:\n    Ordered results and reconciled counts without changing Spotify.",
+        "operationId": "listening_playlist_preview_lastfm_analytics_playlist_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "tracks",
+              "enum": [
+                "tracks",
+                "duplicates",
+                "unresolved"
+              ],
+              "title": "View",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_PlaylistPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Playlist Preview",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/playlist-preview/csv": {
+      "post": {
+        "description": "Export the complete preview for the exact same versioned inputs.\n\nArgs:\n    request: Configured collection generation owner.\n    query: Applied listening selection.\n    index: Pinned listening history.\n    library_snapshot: Version of the complete Spotify publication.\n    reviews: The same choices used in the proposal.\n\nReturns:\n    Private CSV of all proposed tracks in first-play order.",
+        "operationId": "export_listening_playlist_preview_lastfm_analytics_playlist_preview_csv_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Listening Playlist Preview",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
     "/lastfm/analytics/quilt": {
       "get": {
         "description": "Present a ranked quilt using only pinned historical counts and cached art.\n\nArgs:\n    request: Configured cover stage owner.\n    query: Validated shared listening selection.\n    index: Complete pinned history generation.\n    options: Bounded quilt size and search.\n    metadata_snapshot: Independent pinned cover generation.\n\nReturns:\n    Exact selected counts, visible albums and explicit artwork outcomes.",
@@ -16258,6 +17268,352 @@
           }
         },
         "summary": "Listening Rediscovery",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/rediscovery/album-tracklists": {
+      "post": {
+        "description": "Read the exact Spotify disc and track sequence for selected saved editions.\n\nArgs:\n    request: Owner of the saved-album catalog and Spotify tracklist reader.\n    index: The same pinned archive used for the shortlist.\n    query: Historical dates and timezone for the preview.\n    library_snapshot: The same pinned collection used for album selection.\n    choices: Selected Spotify album URIs in playlist order.\n\nReturns:\n    Complete or individually unavailable album tracklists in the requested order.",
+        "operationId": "listening_rediscovery_album_tracks_lastfm_analytics_rediscovery_album_tracklists_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^l1-[0-9a-f]{64}$",
+              "title": "Library Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumTracklistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_RediscoveryTracklists_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Rediscovery Album Tracks",
+        "tags": [
+          "Listening Explorer"
+        ]
+      }
+    },
+    "/lastfm/analytics/rediscovery/artists": {
+      "get": {
+        "description": "Find past favorites with little or no recent listening and suggest albums.\n\nArgs:\n    request: Owner of the independent saved-album publication.\n    index: Pinned listening archive.\n    query: Explicit historical dates and timezone.\n    rules: Historical thresholds and recent horizon.\n    library_snapshot: Optional pinned Spotify collection.\n\nReturns:\n    Historical and recent listening evidence, even when albums are unavailable.",
+        "operationId": "listening_rediscovery_artists_lastfm_analytics_rediscovery_artists_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "library_snapshot",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^l1-[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Library Snapshot"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {
+              "pattern": "^v1-[0-9a-f]{64}$",
+              "title": "Snapshot",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "Europe/Berlin",
+              "maxLength": 100,
+              "title": "Tz",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artist",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artist"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weekday",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weekday"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hour",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 23,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hour"
+            }
+          },
+          {
+            "in": "query",
+            "name": "horizon",
+            "required": false,
+            "schema": {
+              "default": "90",
+              "enum": [
+                "30",
+                "90",
+                "365"
+              ],
+              "title": "Horizon",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "history",
+            "required": false,
+            "schema": {
+              "default": "year",
+              "enum": [
+                "year",
+                "selection"
+              ],
+              "title": "History",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_plays",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 1000000,
+              "minimum": 1,
+              "title": "Minimum Plays",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum_weeks",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "maximum": 5200,
+              "minimum": 1,
+              "title": "Minimum Weeks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListeningEnvelope_ArtistRediscovery_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listening Rediscovery Artists",
         "tags": [
           "Listening Explorer"
         ]

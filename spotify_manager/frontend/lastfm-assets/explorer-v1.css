@@ -701,6 +701,10 @@ dialog::backdrop {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+.playlist-credit {
+  display: block;
+  color: var(--muted);
+}
 #library-review-status {
   margin-bottom: 8px;
 }
@@ -1183,4 +1187,27 @@ dialog::backdrop {
   .quilt-open:hover {
     transform: none;
   }
+}
+
+.revisit-dates:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+#revisit-filters .small-button {
+  margin: 0;
+  min-height: 35px;
+}
+#revisit-actions {
+  align-items: center;
+}
+.revisit-album select {
+  max-width: min(28rem, 70vw);
+}
+.revisit-tracklist {
+  margin-block: 0.75rem;
+}
+.revisit-tracklist ol {
+  list-style: none;
+  padding-inline-start: 0;
 }

@@ -3,7 +3,11 @@
 import os
 from tempfile import TemporaryDirectory
 
+from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.bootstrap.library_data import get_library_data_service
+from spotify_manager.infrastructure.listening.album_tracklists import (
+    SpotifyAlbumTracklists,
+)
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 
@@ -27,3 +31,15 @@ def listening_library_runtime() -> LibraryRuntime:
         Owner of immutable publication generations and its background worker.
     """
     return LibraryRuntime(get_library_data_service())
+
+
+def listening_album_tracklists(runtime: ExecutionRuntime) -> SpotifyAlbumTracklists:
+    """Bind read-only album tracks to the existing shared Spotify client.
+
+    Args:
+        runtime: Lifespan owner of the authenticated Spotify API client.
+
+    Returns:
+        Reader that acquires the client only when album tracks are requested.
+    """
+    return SpotifyAlbumTracklists(runtime)

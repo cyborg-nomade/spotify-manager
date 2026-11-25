@@ -298,11 +298,15 @@ periods, daylight-saving folds, keyboard access, mobile rendering and export.
    The review candidate reads the pinned published mirrors and stores a
    confirmation in the current browser. Each confirmation includes the
    selected Spotify URI, timestamp and both publication versions.
-2. **Preview a playlist from a selection.** Reuse the active dates, filters and
-   recorded play order to propose an ordered list of unique verified Spotify
-   tracks. Show resolved tracks, duplicates and unresolved rows before export.
-   Start with CSV and validate that the preview reproduces the same records
-   when opened against the same source versions.
+2. **Preview a playlist for artist rediscovery.** Compare historical listening
+   weeks and plays with the last 30, 90, or 365 complete published days. Accept
+   a custom historical window or the selected Musical Eras period. Rank
+   dormant and lightly revisited artists by historical listening weeks and
+   show the qualifying evidence. Suggest one album per artist based on
+   historical listening days and allow swaps among their recorded albums.
+   Preview complete Spotify tracklists for selected saved editions before
+   exporting the album-ordered CSV. The first-play preview remains available
+   for ordered selections based on published liked tracks.
 3. **Add a confirmed Spotify export.** After the preview is approved, let the
    user choose a new playlist or an existing playlist they can edit. Show the
    exact additions before they confirm. Reuse the existing job lifecycle and

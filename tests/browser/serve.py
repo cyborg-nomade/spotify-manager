@@ -31,6 +31,9 @@ from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
 from spotify_manager.interfaces.http.listening import router
 from spotify_manager.interfaces.http.listening_origins import router as origin_router
 from spotify_manager.interfaces.http.listening_quilt import router as quilt_router
+from spotify_manager.interfaces.http.listening_rediscovery import (
+    router as revisit_router,
+)
 from spotify_manager.interfaces.http.listening_sessions import router as session_router
 from spotify_manager.interfaces.http.listening_tags import router as tag_router
 from tests.support.listening import listening_fixture
@@ -41,6 +44,7 @@ from tests.support.listening_library import publish_collection
 from tests.support.listening_origins import FixtureOriginArchive
 from tests.support.listening_origins import FixtureOriginSource
 from tests.support.listening_origins import origin_metadata
+from tests.support.listening_rediscovery import fixture_tracklists
 from tests.support.listening_tags import FixtureTagSource
 from tests.support.listening_tags import tag_metadata
 
@@ -148,6 +152,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "album": "Record 3 (Deluxe Edition)",
                     "uri": "spotify:album:" + "e" * 22,
                 },
+                {
+                    "artist": "Old Favorite",
+                    "album": "Record 0",
+                    "uri": "spotify:album:" + "p" * 22,
+                },
+                {
+                    "artist": "Old Favorite",
+                    "album": "Record 1",
+                    "uri": "spotify:album:" + "q" * 22,
+                },
             ],
         )
         publish_collection(
@@ -159,10 +173,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "track": "=formula",
                     "uri": "spotify:track:" + "d" * 22,
                 },
+                {
+                    "artist": "Alpha",
+                    "track": "Song 0",
+                    "uri": "spotify:track:" + "f" * 22,
+                },
+                {
+                    "artist": "Béta",
+                    "track": "Song 1",
+                    "uri": "spotify:track:" + "g" * 22,
+                },
+                {
+                    "artist": "Béta",
+                    "track": "Song 1",
+                    "uri": "spotify:track:" + "h" * 22,
+                },
             ],
         )
         app.state.listening = fixture.runtime
         app.state.listening_library = LibraryRuntime(fixture.service)
+        app.state.listening_album_tracklists = fixture_tracklists()
         cache = ArtistTagCache(Path(directory) / "tag-cache")
         cache.write(tag_metadata("Alpha"))
         cache.write(tag_metadata("Béta", ("Jazz",)))
@@ -206,6 +236,7 @@ app.include_router(router)
 app.include_router(tag_router)
 app.include_router(origin_router)
 app.include_router(quilt_router)
+app.include_router(revisit_router)
 app.include_router(session_router)
 
 

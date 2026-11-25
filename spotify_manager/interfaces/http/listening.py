@@ -16,6 +16,8 @@ from fastapi import Path
 from fastapi import Query
 from fastapi import Request
 from fastapi import Response
+from pydantic import BaseModel
+from pydantic import Field
 
 from spotify_manager.application.listening import get_listening_activity
 from spotify_manager.application.listening import get_listening_anniversaries
@@ -30,6 +32,7 @@ from spotify_manager.application.listening import get_listening_records
 from spotify_manager.application.listening import get_listening_rediscovery
 from spotify_manager.application.listening_library import get_library_candidates
 from spotify_manager.application.listening_library import get_listening_library
+from spotify_manager.application.listening_playlist import get_playlist_preview
 from spotify_manager.application.listening_ports import ListeningEntityError
 from spotify_manager.application.listening_ports import ListeningNotReadyError
 from spotify_manager.application.listening_ports import ListeningStatus
@@ -42,6 +45,11 @@ from spotify_manager.domain.listening_library_values import LibraryCandidatePage
 from spotify_manager.domain.listening_library_values import LibraryComparison
 from spotify_manager.domain.listening_library_values import LibraryMatch
 from spotify_manager.domain.listening_library_values import LibraryOptions
+from spotify_manager.domain.listening_playlist import PlaylistOptions
+from spotify_manager.domain.listening_playlist import PlaylistPage
+from spotify_manager.domain.listening_playlist import PlaylistReview
+from spotify_manager.domain.listening_playlist import PlaylistView
+from spotify_manager.domain.listening_playlist import page_playlist
 from spotify_manager.domain.listening_scrobble_map import ListeningScrobbleMap
 from spotify_manager.domain.listening_values import EntityKind
 from spotify_manager.domain.listening_values import EntitySelection
@@ -64,11 +72,26 @@ from spotify_manager.infrastructure.listening.reader import ListeningIndex
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 from spotify_manager.interfaces.http.presenters.listening import ListeningEnvelope
 from spotify_manager.interfaces.http.presenters.listening import present_listening
+from spotify_manager.interfaces.http.presenters.listening_playlist import playlist_csv
 
 
 router = APIRouter(prefix="/lastfm/analytics", tags=["Listening Explorer"])
 _KEY = r"^[0-9a-f]{64}$"
 _SNAPSHOT = r"^v1-[0-9a-f]{64}$"
+type LibraryVersion = Annotated[str, Query(pattern=r"^l1-[0-9a-f]{64}$")]
+
+
+class PlaylistReviewChoice(BaseModel):
+    """Accept an original identity and a syntactically valid Spotify track URI."""
+
+    key: Annotated[str, Field(pattern=_KEY)]
+    uri: Annotated[str, Field(pattern=r"^spotify:track:[A-Za-z0-9]{22}$")]
+
+
+class PlaylistReviewRequest(BaseModel):
+    """Carry a bounded set of browser choices for this pinned proposal."""
+
+    reviews: Annotated[tuple[PlaylistReviewChoice, ...], Field(max_length=1000)] = ()
 
 
 @router.get("/library/status")
@@ -287,6 +310,106 @@ def listening_library_candidates(
     return present_listening(
         index, query, get_library_candidates(index, catalog, query, options)
     )
+
+
+def playlist_reviews(request: PlaylistReviewRequest) -> tuple[PlaylistReview, ...]:
+    """Validate one choice per history identity without accessing stored state.
+
+    Args:
+        request: Bounded candidate choices supplied by the reviewing browser.
+
+    Returns:
+        Typed review choices for the pinned proposal.
+
+    Raises:
+        HTTPException: More than one review was supplied for a history track.
+    """
+    if len({item.key for item in request.reviews}) != len(request.reviews):
+        raise HTTPException(422, "Send one review per recorded track.")
+    return tuple(PlaylistReview(item.key, item.uri) for item in request.reviews)
+
+
+type PlaylistReviewsDep = Annotated[
+    tuple[PlaylistReview, ...], Depends(playlist_reviews)
+]
+
+
+def playlist_options(
+    view: PlaylistView = "tracks",
+    page: Annotated[int, Query(ge=1, le=100000)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> PlaylistOptions:
+    """Validate pagination for the track, repeat, and unresolved views.
+
+    Args:
+        view: Evidence to display on this page.
+        page: One-based page of evidence.
+        limit: Maximum number of returned rows.
+
+    Returns:
+        Validated view and page bounds.
+    """
+    return PlaylistOptions(view, page, limit)
+
+
+@router.post("/playlist-preview")
+def listening_playlist_preview(
+    request: Request,
+    query: QueryDep,
+    index: IndexDep,
+    library_snapshot: LibraryVersion,
+    reviews: PlaylistReviewsDep,
+    options: Annotated[PlaylistOptions, Depends(playlist_options)],
+) -> ListeningEnvelope[PlaylistPage]:
+    """Preview a read-only playlist using the selected history and liked tracks.
+
+    Args:
+        request: Configured collection generation owner.
+        query: Applied listening selection.
+        index: Pinned listening history.
+        library_snapshot: Version of the complete Spotify publication.
+        reviews: Explicit browser choices to verify within the pinned mirror.
+        options: Bounded supporting evidence page.
+
+    Returns:
+        Ordered results and reconciled counts without changing Spotify.
+    """
+    runtime = cast(LibraryRuntime, request.app.state.listening_library)
+    preview = get_playlist_preview(
+        index, runtime.acquire(library_snapshot), query, reviews
+    )
+    return present_listening(index, query, page_playlist(preview, options))
+
+
+@router.post(
+    "/playlist-preview/csv",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string"}}}}},
+)
+def export_listening_playlist_preview(
+    request: Request,
+    query: QueryDep,
+    index: IndexDep,
+    library_snapshot: LibraryVersion,
+    reviews: PlaylistReviewsDep,
+) -> Response:
+    """Export the complete preview for the exact same versioned inputs.
+
+    Args:
+        request: Configured collection generation owner.
+        query: Applied listening selection.
+        index: Pinned listening history.
+        library_snapshot: Version of the complete Spotify publication.
+        reviews: The same choices used in the proposal.
+
+    Returns:
+        Private CSV of all proposed tracks in first-play order.
+    """
+    runtime = cast(LibraryRuntime, request.app.state.listening_library)
+    preview = get_playlist_preview(
+        index, runtime.acquire(library_snapshot), query, reviews
+    )
+    return playlist_csv(index.metadata.snapshot, query, preview)
 
 
 @router.get("/status")

@@ -90,7 +90,7 @@ def main() -> int:
     from spotify_manager import api
 
     assert (
-        len(api.app.routes) == 137
+        len(api.app.routes) == 138
     )  # Includes the explorer and enrichment lazy routers.
     assert "/lastfm/analytics/overview" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/tags/refresh" in api.app.openapi()["paths"]
@@ -100,10 +100,16 @@ def main() -> int:
     assert "/lastfm/analytics/quilt/prefetch" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/scrobble-map" in api.app.openapi()["paths"]
     assert "/lastfm/analytics/library/candidates" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/playlist-preview" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/playlist-preview/csv" in api.app.openapi()["paths"]
+    assert "/lastfm/analytics/rediscovery/artists" in api.app.openapi()["paths"]
+    assert (
+        "/lastfm/analytics/rediscovery/album-tracklists" in api.app.openapi()["paths"]
+    )
     assert "/lastfm/analytics/sessions/{first_ms}/records" in api.app.openapi()["paths"]
     from spotify_manager import web
 
-    assert len(api.app.routes) == 147  # Web adds ten shell, asset and Genre routes.
+    assert len(api.app.routes) == 148  # Web adds ten shell, asset and Genre routes.
     assert vars(web)["app"] is api.app
     _check_web_assets(site)
     _check_module_origins(site)
@@ -119,6 +125,8 @@ def _check_web_assets(site: Path) -> None:
     assert (frontend / "lastfm-assets/echarts-6.0.0.min.js").is_file()
     assert (frontend / "lastfm-assets/quilt-v1.js").is_file()
     assert (frontend / "lastfm-assets/sessions-v1.js").is_file()
+    assert (frontend / "lastfm-assets/playlist-preview-v1.js").is_file()
+    assert (frontend / "lastfm-assets/rediscovery-v1.js").is_file()
 
 
 if __name__ == "__main__":

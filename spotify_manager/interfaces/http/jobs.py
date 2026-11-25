@@ -43,6 +43,7 @@ from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.execution import ExecutionRuntime
 from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.listening_covers import listening_cover_enrichment
+from spotify_manager.bootstrap.listening_explorer import listening_album_tracklists
 from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
 from spotify_manager.bootstrap.listening_explorer import listening_library_runtime
 from spotify_manager.bootstrap.listening_origins import listening_origin_enrichment
@@ -2084,6 +2085,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await _app.state.listening_origins.restore()
         async with ExecutionRuntime() as runtime:
             _app.state.execution = runtime
+            _app.state.listening_album_tracklists = listening_album_tracklists(runtime)
             yield
     finally:
         await _close_listening_resources(_app)
