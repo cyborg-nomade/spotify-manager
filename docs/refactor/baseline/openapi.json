@@ -16285,8 +16285,23 @@
     },
     "/lastfm/analytics/playlist-export/destinations": {
       "get": {
-        "description": "List existing Spotify playlists available for this account's export.\n\nArgs:\n    runtime: Process-local preview and background resource owner.\n\nReturns:\n    Playlists owned by the authenticated Spotify account.",
+        "description": "List existing Spotify playlists available for this account's export.\n\nArgs:\n    runtime: Process-local preview and background resource owner.\n    source: Album or chronological track preview.\n\nReturns:\n    The configured destination for the selected preview, if available.",
         "operationId": "playlist_export_destinations_lastfm_analytics_playlist_export_destinations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "enum": [
+                "albums",
+                "history"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -16301,6 +16316,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Playlist Export Destinations",

@@ -25,6 +25,7 @@ from spotify_manager.application.listening_export_plan import selection_export_t
 from spotify_manager.application.listening_playlist import get_playlist_preview
 from spotify_manager.application.listening_ports import ListeningNotReadyError
 from spotify_manager.application.listening_ports import ListeningVersionError
+from spotify_manager.domain.listening_export import ExportSourceKind
 from spotify_manager.domain.listening_export import ExportSources
 from spotify_manager.domain.listening_export import ExportTrack
 from spotify_manager.domain.listening_export import PlaylistExportConflictError
@@ -140,18 +141,26 @@ def prepare_export_source(
 @router.get("/destinations")
 async def playlist_export_destinations(
     runtime: ExportsDep,
+    source: ExportSourceKind,
 ) -> tuple[SpotifyDestination, ...]:
     """List existing Spotify playlists available for this account's export.
 
     Args:
         runtime: Process-local preview and background resource owner.
+        source: Album or chronological track preview.
 
     Returns:
-        Playlists owned by the authenticated Spotify account.
+        The configured destination for the selected preview, if available.
     """
+    identity = runtime.playlists.destination(source)
+    if identity is None:
+        return ()
     try:
         account = await runtime.spotify.account()
-        return await runtime.spotify.destinations(account)
+        destination = await runtime.spotify.destination(identity)
+        return (destination,) if destination.owner == account else ()
+    except PlaylistExportConflictError as error:
+        raise HTTPException(409, str(error)) from error
     except PlaylistServiceUnavailableError as error:
         raise HTTPException(503, str(error)) from error
 
@@ -174,13 +183,18 @@ async def prepare_playlist_export(
     """
     body = prepared.body
     tracks = prepared.tracks
+    using_existing = isinstance(body.destination, ExistingPlaylist)
+    if isinstance(body.destination, ExistingPlaylist) and (
+        runtime.playlists.destination(body.source.kind) != body.destination.identity
+    ):
+        raise HTTPException(409, "Choose the configured playlist for this preview.")
     try:
         if isinstance(body.source, AlbumSource):
             albums = cast(
                 AlbumTracklistReads, request.app.state.listening_album_tracklists
             )
             tracks = await album_export_tracks(
-                prepared.catalog, body.source.albums, albums
+                prepared.catalog, body.source.albums, albums, first_only=using_existing
             )
         identity, name = _target_input(body.destination)
         plan = await make_export_plan(

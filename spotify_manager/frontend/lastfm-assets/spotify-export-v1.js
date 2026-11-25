@@ -11,6 +11,7 @@ let page;
 let timer;
 let busy = false;
 let unlocked = false;
+let configured = null;
 
 function remembered() {
   try {
@@ -52,6 +53,7 @@ function clear() {
   selection = null;
   page = null;
   busy = false;
+  configured = null;
   $("items").replaceChildren();
   $("existing").replaceChildren();
   $("link").replaceChildren();
@@ -72,6 +74,10 @@ export function open(source, fetcher) {
   begin(fetcher);
   selection = source;
   $("kind").value = "new";
+  $("kind").options[1].textContent =
+    source.source.kind === "albums"
+      ? "Palace of Memory · first track per album"
+      : "A Blast from the Past · selected tracks";
   $("name").value = source.name;
   $("form").hidden = false;
   $("review").hidden = true;
@@ -90,31 +96,31 @@ export function reconnect(fetcher) {
 
 function showDestination() {
   const existing = $("kind").value === "existing";
-  $("existing-field").hidden = !existing;
-  $("existing").disabled = !existing;
+  $("kind").disabled = busy;
+  $("existing").hidden = !existing || !configured;
   $("name-field").hidden = existing;
   $("name").disabled = existing;
-  $("prepare").disabled = busy || (existing && !$("existing").value);
+  $("prepare").disabled = busy || (existing && !configured);
 }
 
 function loadDestinations() {
   showDestination();
-  if ($("kind").value !== "existing" || $("existing").length > 1) return;
+  if ($("kind").value !== "existing" || configured) return;
   act(async (signal) => {
-    $("state").textContent = "Reading your owned playlists…";
-    const destinations = await request(base + "/destinations", null, signal);
+    $("state").textContent = "Checking the configured Spotify playlist…";
+    const destinations = await request(
+      base + "/destinations",
+      { source: selection.source.kind },
+      signal,
+    );
     if (signal.aborted) return;
-    $("existing").replaceChildren(new Option("Choose a playlist", ""));
-    for (const list of destinations)
-      $("existing").append(
-        new Option(
-          `${list.name} · ${list.public ? "public" : "private"}`,
-          list.identity,
-        ),
-      );
-    $("state").textContent = destinations.length
+    configured = destinations[0] || null;
+    if (configured)
+      $("existing").textContent =
+        `${configured.name} · ${configured.public ? "public" : "private"}`;
+    $("state").textContent = configured
       ? ""
-      : "No owned playlists found.";
+      : "The configured playlist is unavailable to the signed-in Spotify account.";
   });
 }
 
@@ -210,7 +216,7 @@ function prepare() {
     const destination =
       $("kind").value === "new"
         ? { kind: "new", name: $("name").value.trim() }
-        : { kind: "existing", identity: $("existing").value };
+        : { kind: "existing", identity: configured.identity };
     $("state").textContent = "Preparing the exact additions…";
     const result = await request(
       base + "/plans",
@@ -259,7 +265,6 @@ $("form").addEventListener("submit", (event) => {
   prepare();
 });
 $("kind").addEventListener("change", loadDestinations);
-$("existing").addEventListener("change", showDestination);
 $("close").addEventListener("click", () => $("dialog").close());
 $("dialog").addEventListener("close", () => {
   if ($("dialog").open) return;

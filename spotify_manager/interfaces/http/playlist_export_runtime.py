@@ -10,6 +10,7 @@ from spotify_manager.application.listening_export import PlaylistExportJob
 from spotify_manager.application.listening_export import PlaylistGateway
 from spotify_manager.application.listening_export import run_playlist_export
 from spotify_manager.domain.listening_export import ExportPlan
+from spotify_manager.domain.listening_export import ExportPlaylists
 from spotify_manager.infrastructure.async_jobs import JobTasks
 from spotify_manager.infrastructure.async_signal import AsyncSignal
 from spotify_manager.interfaces.http.job_registry import register_job
@@ -31,14 +32,18 @@ class _Reservation:
 class PlaylistExportRuntime:
     """Retain exact plans, confirmed job progress and duplicate-start protection."""
 
-    def __init__(self, spotify: PlaylistGateway, jobs: JobTasks) -> None:
+    def __init__(
+        self, spotify: PlaylistGateway, jobs: JobTasks, playlists: ExportPlaylists
+    ) -> None:
         """Bind shared Spotify access and background task ownership.
 
         Args:
             spotify: Named read and write authority for Spotify playlists.
             jobs: Lifespan task owner draining writes before shutdown.
+            playlists: Configured routine destinations for existing-playlist exports.
         """
         self.spotify = spotify
+        self.playlists = playlists
         self._jobs = jobs
         self._records: dict[str, _Reservation] = {}
 

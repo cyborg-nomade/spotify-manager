@@ -43,7 +43,11 @@ def selection_export_tracks(preview: PlaylistPreview) -> tuple[ExportTrack, ...]
 
 
 async def album_export_tracks(
-    catalog: LibraryCatalog, albums: tuple[str, ...], source: AlbumTracklistReads
+    catalog: LibraryCatalog,
+    albums: tuple[str, ...],
+    source: AlbumTracklistReads,
+    *,
+    first_only: bool = False,
 ) -> tuple[ExportTrack, ...]:
     """Verify each chosen saved album and flatten its complete tracklist in order.
 
@@ -51,6 +55,7 @@ async def album_export_tracks(
         catalog: Pinned saved album publication.
         albums: Selected Spotify album URIs in playlist order.
         source: Read-only Spotify tracklist reader.
+        first_only: Use the first track in album order for the Palace queue.
 
     Returns:
         Full ordered album tracklists, preserving intentional repeats.
@@ -69,7 +74,8 @@ async def album_export_tracks(
                 "Some album tracks could not be verified. Refresh the preview."
             )
         edition = editions[album.uri]
-        for track in album.tracks:
+        selected = album.tracks[:1] if first_only else album.tracks
+        for track in selected:
             tracks.append(
                 ExportTrack(track.uri, track.name, f"{edition.artist} — {edition.name}")
             )

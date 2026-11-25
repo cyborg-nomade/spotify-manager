@@ -3,11 +3,14 @@
 from dataclasses import replace
 
 from spotify_manager.application.listening_export import PlaylistServiceUnavailableError
+from spotify_manager.domain.listening_export import ExportPlaylists
 from spotify_manager.domain.listening_export import ExportTarget
 from spotify_manager.domain.listening_export import SpotifyDestination
 
 
 OWNED = "w" * 22
+PALACE = "t" * 22
+ROUTINE_PLAYLISTS = ExportPlaylists(palace=PALACE, blast=OWNED)
 PRIVATE = "v" * 22
 OTHER = "u" * 22
 
@@ -19,7 +22,10 @@ class FixturePlaylistGateway:
         """Start with one public owned destination and one foreign playlist."""
         self.lists = {
             OWNED: SpotifyDestination(
-                OWNED, "Existing mix", "owner", True, "original", 1
+                OWNED, "A Blast from the Past", "owner", True, "original", 1
+            ),
+            PALACE: SpotifyDestination(
+                PALACE, "Palace of Memory", "owner", False, "palace", 0
             ),
             OTHER: SpotifyDestination(
                 OTHER, "Followed mix", "other", False, "foreign", 0
@@ -28,6 +34,7 @@ class FixturePlaylistGateway:
         self.tracks: dict[str, list[str]] = {
             OWNED: ["spotify:track:" + "z" * 22],
             OTHER: [],
+            PALACE: [],
         }
         self.creates = 0
         self.writes: list[tuple[str, ...]] = []
@@ -40,10 +47,6 @@ class FixturePlaylistGateway:
     async def account(self) -> str:
         """Return the synthetic account."""
         return "owner"
-
-    async def destinations(self, account: str) -> tuple[SpotifyDestination, ...]:
-        """Return only the synthetic account's own playlists."""
-        return tuple(row for row in self.lists.values() if row.owner == account)
 
     async def destination(self, identity: str) -> SpotifyDestination:
         """Return the playlist and its most recent synthetic snapshot."""

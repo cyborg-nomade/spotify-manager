@@ -34,8 +34,9 @@ from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
 from tests.support.listening import scrobble
-from tests.support.listening_export import OTHER
 from tests.support.listening_export import OWNED
+from tests.support.listening_export import PALACE
+from tests.support.listening_export import ROUTINE_PLAYLISTS
 from tests.support.listening_export import FixturePlaylistGateway
 from tests.support.listening_library import album
 from tests.support.listening_library import publish_collection
@@ -75,7 +76,7 @@ def listening_http(tmp_path: Path) -> Iterator[tuple[TestClient, ListeningFixtur
     app.state.listening_album_tracklists = fixture_tracklists()
     app.state.export_tasks = JobTasks()
     app.state.listening_exports = PlaylistExportRuntime(
-        FixturePlaylistGateway(), app.state.export_tasks
+        FixturePlaylistGateway(), app.state.export_tasks, ROUTINE_PLAYLISTS
     )
     app.include_router(router)
     app.include_router(revisit_router)
@@ -678,9 +679,12 @@ def test_confirmed_export_appends_the_exact_preview_once(
         client.get(export + "/destinations", headers={"X-App-Password": ""}).status_code
         == 401
     )
-    assert [row["identity"] for row in client.get(export + "/destinations").json()] == [
-        OWNED
-    ]
+    assert [
+        row["identity"]
+        for row in client.get(
+            export + "/destinations", params={"source": "history"}
+        ).json()
+    ] == [OWNED]
     gateway = cast(
         FixturePlaylistGateway,
         cast(FastAPI, client.app).state.listening_exports.spotify,
@@ -696,7 +700,7 @@ def test_confirmed_export_appends_the_exact_preview_once(
     )
     prepared = response.json()
     assert (
-        prepared["status"]["name"] == "Existing mix"
+        prepared["status"]["name"] == "A Blast from the Past"
         and prepared["items"][0]["uri"] == uri
     )
     assert not gateway.writes and not gateway.creates
@@ -707,7 +711,7 @@ def test_confirmed_export_appends_the_exact_preview_once(
     result = _wait_for_export(client, path)
     assert result["added"] == 1 and result["stage"] == "complete" and result["public"]
     assert gateway.writes == [(uri,)]
-    payload["destination"]["identity"] = OTHER
+    payload["destination"]["identity"] = PALACE
     assert (
         client.post(export + "/plans", params=params, json=payload).status_code == 409
     )
@@ -768,3 +772,29 @@ def test_expired_publication_requires_a_fresh_review_before_export(
     assert client.post(f"{prefix}/{identity}/confirm").status_code == 409
     gateway = cast(FixturePlaylistGateway, state.listening_exports.spotify)
     assert gateway.creates == 0 and not gateway.writes
+
+
+def test_palace_targets_only_album_openers(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Review two configured album openers and keep both album positions."""
+    client, fixture = listening_http
+    editions = [album("One", 1), album("Two", 2)]
+    publish_collection(fixture, "albums", editions)
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    export = "/lastfm/analytics/playlist-export"
+    options = client.get(export + "/destinations", params={"source": "albums"})
+    assert [row["identity"] for row in options.json()] == [PALACE]
+    payload = {
+        "source": {"kind": "albums", "albums": [entry["uri"] for entry in editions]},
+        "destination": {"kind": "existing", "identity": PALACE},
+    }
+    response = client.post(export + "/plans", params=params, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["name"] for item in data["items"]] == ["=Album opener"] * 2
+    assert [item["credit"] for item in data["items"]] == ["Alpha — One", "Alpha — Two"]
+    path = export + "/plans/" + data["status"]["identity"]
+    assert client.post(path + "/confirm").status_code == 200
+    result = _wait_for_export(client, path)
+    assert result["added"] == 2 and result["playlist_id"] == PALACE

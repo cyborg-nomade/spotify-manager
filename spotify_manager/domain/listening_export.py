@@ -10,6 +10,19 @@ SPOTIFY_PLAYLIST_LIMIT = 10_000
 type ExportStage = Literal[
     "prepared", "queued", "running", "paused", "failed", "complete"
 ]
+type ExportSourceKind = Literal["albums", "history"]
+
+
+@dataclass(frozen=True)
+class ExportPlaylists:
+    """Keep the configured routine destination for each preview mode."""
+
+    palace: str | None = None
+    blast: str | None = None
+
+    def destination(self, source: ExportSourceKind) -> str | None:
+        """Return the configured playlist for the requested source."""
+        return self.palace if source == "albums" else self.blast
 
 
 @dataclass(frozen=True)

@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=17" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=18" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=17"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=18"></script>
   </head>
   <body>
     <div class="shell">
@@ -1594,10 +1594,7 @@
             required
           />
         </label>
-        <label id="spotify-export-existing-field" hidden
-          >Your playlists
-          <select id="spotify-export-existing" required disabled></select>
-        </label>
+        <p id="spotify-export-existing" class="chart-description" hidden></p>
         <button id="spotify-export-prepare" class="small-button" type="submit">
           Review exact additions
         </button>
@@ -1653,6 +1650,18 @@
       </header>
       <p id="library-review-history" class="chart-description"></p>
       <p id="library-review-source" class="chart-description"></p>
+      <p id="library-review-unsaved" class="chart-description" hidden>
+        If the album is missing here,
+        <a
+          id="library-review-spotify-search"
+          target="_blank"
+          rel="noopener noreferrer"
+          >find and save it in Spotify</a
+        >. Run <strong>Sync</strong> under Saved albums in the
+        <a href="/#libraryMirrorsCard" target="_blank" rel="noopener noreferrer"
+          >cockpit</a
+        >, then return to Rediscover and choose <strong>Find artists</strong>.
+      </p>
       <p class="chart-description">
         Check the published title and artist credit. Confirmation saves your
         choice in this browser for these publication versions.

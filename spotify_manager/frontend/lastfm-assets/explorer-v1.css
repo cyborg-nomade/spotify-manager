@@ -1201,6 +1201,14 @@ dialog::backdrop {
 #revisit-actions {
   align-items: center;
 }
+.revisit-album {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+.revisit-album .small-button {
+  margin: 0;
+}
 .revisit-album select {
   max-width: min(28rem, 70vw);
 }

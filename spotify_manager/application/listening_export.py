@@ -29,10 +29,6 @@ class PlaylistGateway(Protocol):
         """Return the signed-in Spotify account."""
         ...
 
-    async def destinations(self, account: str) -> tuple[SpotifyDestination, ...]:
-        """List playlists owned by the account."""
-        ...
-
     async def destination(self, identity: str) -> SpotifyDestination:
         """Read the playlist's owner, snapshot and total."""
         ...

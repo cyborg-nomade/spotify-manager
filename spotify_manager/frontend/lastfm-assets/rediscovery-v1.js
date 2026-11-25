@@ -74,23 +74,37 @@ function albumStatus(option) {
   return "No exact saved edition";
 }
 
-function renderArtist(artist, index) {
-  const evidence = artist.evidence;
+function albumLabel(option) {
+  const { album } = option;
+  return `${album.name} · ${number(album.days)} listening ${album.days === 1 ? "day" : "days"} · ${albumStatus(option)}`;
+}
+
+function albumPicker(artist, index) {
   const choices = element("div", undefined, "revisit-album");
+  if (!artist.albums.length) {
+    choices.append(element("span", "No album recorded in this period"));
+    return choices;
+  }
   const select = element("select");
   select.dataset.revisitAlbum = index;
-  select.setAttribute("aria-label", `Album for ${evidence.name}`);
+  select.setAttribute("aria-label", `Album for ${artist.evidence.name}`);
   artist.albums.forEach((option, position) => {
-    const { album } = option;
-    select.append(
-      new Option(
-        `${album.name} · ${number(album.days)} listening ${album.days === 1 ? "day" : "days"} · ${albumStatus(option)}`,
-        position,
-      ),
-    );
+    select.append(new Option(albumLabel(option), position));
   });
-  if (artist.albums.length) choices.append(select);
-  else choices.append(element("span", "No album recorded in this period"));
+  const match = element("button", "Match saved edition", "small-button");
+  match.type = "button";
+  match.dataset.revisitMatch = index;
+  match.hidden = !shortlist.albums_ready;
+  match.setAttribute(
+    "aria-label",
+    `Match saved edition for ${artist.evidence.name}`,
+  );
+  choices.append(select, match);
+  return choices;
+}
+
+function renderArtist(artist, index) {
+  const evidence = artist.evidence;
 
   const checkbox = element("input");
   checkbox.type = "checkbox";
@@ -105,7 +119,7 @@ function renderArtist(artist, index) {
     entityButton(evidence, "artist"),
     `${number(evidence.historical_weeks)} listening weeks · ${number(evidence.historical_plays)} plays`,
     recent,
-    choices,
+    albumPicker(artist, index),
   ];
 }
 
@@ -142,7 +156,7 @@ export function render(result) {
   $("revisit-library").textContent =
     result.libraryMessage ||
     (shortlist.albums_ready
-      ? "Playlist tracks come from the Spotify editions in your published saved albums."
+      ? "Playlist tracks come from your published saved albums. Use Match saved edition to choose an alternate title or release."
       : "Saved albums are unavailable. You can still browse the artist and album suggestions.");
   $("revisit-actions").hidden =
     !shortlist.artists.length || !shortlist.albums_ready;
@@ -205,6 +219,47 @@ export function changeChoice(target) {
   updateButtons();
 }
 
+export function matchContext(index) {
+  const artist = shortlist?.artists[index];
+  if (!shortlist?.albums_ready || !artist) return null;
+  const select = $("revisit-table").querySelector(
+    `[data-revisit-album="${index}"]`,
+  );
+  const option = artist.albums[Number(select.value)];
+  const { historical } = shortlist.dates;
+  return {
+    recorded: { name: option.album.name, artist: artist.evidence.name },
+    params: {
+      from: historical.start,
+      to: historical.end,
+      tz: historical.timezone,
+    },
+    historySnapshot: shortlist.snapshot,
+    librarySnapshot: shortlist.library_snapshot,
+    key: option.album.key,
+    search: option.exact_editions ? "" : option.album.name.slice(0, 180),
+    index,
+  };
+}
+
+export function refreshMatch(context, included) {
+  const current = matchContext(context.index);
+  if (!current || current.key !== context.key) return;
+  const index = context.index;
+  const select = $("revisit-table").querySelector(
+    `[data-revisit-album="${index}"]`,
+  );
+  const checkbox = $("revisit-table").querySelector(
+    `[data-revisit-include="${index}"]`,
+  );
+  const option = shortlist.artists[index].albums[Number(select.value)];
+  select.selectedOptions[0].textContent = albumLabel(option);
+  changeChoice(select);
+  if (included && !checkbox.disabled && selectedAlbums().length < maxAlbums) {
+    checkbox.checked = true;
+    updateButtons();
+  }
+}
 function renderTracklists(choices) {
   const panel = $("revisit-tracks");
   panel.replaceChildren();

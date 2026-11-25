@@ -45,6 +45,7 @@ from spotify_manager.bootstrap.execution import current_execution
 from spotify_manager.bootstrap.listening_covers import listening_cover_enrichment
 from spotify_manager.bootstrap.listening_explorer import listening_album_tracklists
 from spotify_manager.bootstrap.listening_explorer import listening_explorer_runtime
+from spotify_manager.bootstrap.listening_explorer import listening_export_playlists
 from spotify_manager.bootstrap.listening_explorer import listening_library_runtime
 from spotify_manager.bootstrap.listening_explorer import listening_playlist_gateway
 from spotify_manager.bootstrap.listening_origins import listening_origin_enrichment
@@ -2091,7 +2092,9 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
             _app.state.execution = runtime
             _app.state.listening_album_tracklists = listening_album_tracklists(runtime)
             _app.state.listening_exports = PlaylistExportRuntime(
-                listening_playlist_gateway(runtime), runtime.jobs
+                listening_playlist_gateway(runtime),
+                runtime.jobs,
+                listening_export_playlists(),
             )
             yield
     finally:

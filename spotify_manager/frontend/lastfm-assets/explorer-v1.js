@@ -1,8 +1,8 @@
 import * as charts from "./charts-v1.js?v=12";
 import * as library from "./library-v1.js?v=15";
 import * as playlist from "./playlist-preview-v1.js?v=15";
-import * as rediscovery from "./rediscovery-v1.js?v=17";
-import * as spotifyExport from "./spotify-export-v1.js?v=17";
+import * as rediscovery from "./rediscovery-v1.js?v=18";
+import * as spotifyExport from "./spotify-export-v1.js?v=18";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
@@ -595,8 +595,10 @@ function scheduleLibraryRefresh() {
     if (
       ["library", "playlist-preview", "rediscovery"].includes(state.tab) &&
       state.authenticated
-    )
-      loadSelection();
+    ) {
+      if (state.libraryReview) scheduleLibraryRefresh();
+      else loadSelection();
+    }
   }, 2000);
 }
 
@@ -627,7 +629,7 @@ async function loadArtistRediscovery() {
     );
     return {
       ...result,
-      checking: !status.snapshot && status.checking,
+      checking: status.checking,
       libraryMessage: status.state === "stale" ? status.message : null,
     };
   } catch (error) {
@@ -655,18 +657,28 @@ function closeLibraryReview() {
     $(id).replaceChildren();
   $("library-review-search").value = "";
   $("library-review-remove").hidden = true;
+  $("library-review-unsaved").hidden = true;
+  $("library-review-spotify-search").removeAttribute("href");
 }
 
 function openLibraryReview(key) {
   const data = state.data.library;
   const item = data?.items?.find((row) => row.history.key === key);
   if (!item || data.source.state !== "ready") return;
-  const kind = data.options.kind;
-  const scope = {
-    kind,
+  startLibraryReview({
+    kind: data.options.kind,
     key,
     historySnapshot: state.snapshot,
     librarySnapshot: data.library_snapshot,
+    recorded: item.history,
+    publishedAt: data.source.published_at,
+  });
+}
+
+function startLibraryReview(context) {
+  const { recorded, publishedAt } = context;
+  const scope = {
+    ...context,
     timezone: state.timezone,
     search: "",
     page: 1,
@@ -675,14 +687,19 @@ function openLibraryReview(key) {
     confirming: false,
   };
   state.libraryReview = scope;
-  const recorded = item.history;
   $("library-review-history").textContent =
     `Recorded as ${recorded.name}${recorded.artist ? ` · ${recorded.artist}` : ""}`;
-  $("library-review-source").textContent = data.source.published_at
-    ? `Spotify collection published ${recordedTime(Date.parse(data.source.published_at), scope.timezone)}.`
-    : "Spotify publication time unavailable.";
-  const review = library.reviewFor(kind, key);
-  scope.search = review?.uri || "";
+  $("library-review-source").textContent = publishedAt
+    ? `Spotify collection published ${recordedTime(Date.parse(publishedAt), scope.timezone)}.`
+    : "";
+  $("library-review-unsaved").hidden = !scope.revisit;
+  if (scope.revisit) {
+    const term = encodeURIComponent(`${recorded.artist} ${recorded.name}`);
+    $("library-review-spotify-search").href =
+      "https://open.spotify.com/search/" + term;
+  }
+  const review = library.reviewFor(scope.kind, scope.key);
+  scope.search = review?.uri || context.initialSearch || "";
   $("library-review-search").value = scope.search;
   library.reviewStatus(scope, review);
   $("library-review").showModal();
@@ -690,19 +707,22 @@ function openLibraryReview(key) {
 }
 
 async function readLibraryReview(scope, search, page, signal) {
-  const data = await analytics(
-    "library/candidates",
-    {
-      snapshot: scope.historySnapshot,
-      library_snapshot: scope.librarySnapshot,
-      kind: scope.kind,
-      key: scope.key,
-      q: search,
-      page,
-    },
+  const params = query({
+    ...scope.revisit?.params,
+    snapshot: scope.historySnapshot,
+    library_snapshot: scope.librarySnapshot,
+    kind: scope.kind,
+    key: scope.key,
+    q: search,
+    page,
+  });
+  const { data, snapshot } = await request(
+    "/lastfm/analytics/library/candidates",
+    params,
     signal,
   );
   if (
+    snapshot !== scope.historySnapshot ||
     data.library_snapshot !== scope.librarySnapshot ||
     data.history.key !== scope.key
   )
@@ -782,11 +802,14 @@ async function verifyLibraryCandidate(scope, uri) {
 
 async function updateLibraryReview(uri) {
   const scope = state.libraryReview;
+  const currentLibrary = scope?.revisit
+    ? rediscovery.matchContext(scope.revisit.index)?.librarySnapshot
+    : state.data.library?.library_snapshot;
   if (
     !scope ||
     scope.confirming ||
     scope.historySnapshot !== state.snapshot ||
-    scope.librarySnapshot !== state.data.library?.library_snapshot
+    scope.librarySnapshot !== currentLibrary
   )
     return;
   if (uri !== null) {
@@ -805,6 +828,7 @@ async function updateLibraryReview(uri) {
     return;
   }
   const review = library.reviewFor(scope.kind, scope.key);
+  if (scope.revisit) rediscovery.refreshMatch(scope.revisit, uri !== null);
   library.refreshReviewBadge(scope, review);
   if (scope.data) library.renderReviewResults(scope.data, scope, review);
   else library.reviewStatus(scope, review);
@@ -2864,6 +2888,16 @@ document.addEventListener("click", (event) => {
     openEntity(button.dataset.entityKind, button.dataset.entityKey);
   if (button?.dataset.libraryReviewKey)
     openLibraryReview(button.dataset.libraryReviewKey);
+  if (button?.dataset.revisitMatch !== undefined) {
+    const context = rediscovery.matchContext(button.dataset.revisitMatch);
+    if (context)
+      startLibraryReview({
+        ...context,
+        kind: "album",
+        initialSearch: context.search,
+        revisit: context,
+      });
+  }
   if (button?.dataset.libraryConfirmUri)
     updateLibraryReview(button.dataset.libraryConfirmUri);
   if (button?.dataset.day) selectDay(button.dataset.day);

@@ -49,14 +49,6 @@ class SpotifyPlaylistGateway:
         """Return the authenticated Spotify account ID."""
         return _required_text(await self._get("me"), "id")
 
-    async def destinations(self, account: str) -> tuple[SpotifyDestination, ...]:
-        """Return owned playlists in the account's Spotify list order."""
-        results = []
-        async for record in self._owned(account):
-            if "snapshot_id" in record:
-                results.append(_playlist(record))
-        return tuple(results)
-
     async def destination(self, identity: str) -> SpotifyDestination:
         """Read the current definitive playlist version and owner."""
         return _playlist(await self._get(f"playlists/{identity}", {"fields": _DETAIL}))

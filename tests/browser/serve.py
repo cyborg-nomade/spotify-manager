@@ -45,6 +45,7 @@ from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
 from tests.support.listening_covers import FixtureCoverSource
 from tests.support.listening_covers import cover_result
+from tests.support.listening_export import ROUTINE_PLAYLISTS
 from tests.support.listening_export import FixturePlaylistGateway
 from tests.support.listening_library import publish_collection
 from tests.support.listening_origins import FixtureOriginArchive
@@ -168,6 +169,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "album": "Record 1",
                     "uri": "spotify:album:" + "q" * 22,
                 },
+                {
+                    "artist": "Old Favorite",
+                    "album": "Record 2 (Remastered)",
+                    "uri": "spotify:album:" + "r" * 22,
+                },
             ],
         )
         publish_collection(
@@ -201,7 +207,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.listening_album_tracklists = fixture_tracklists()
         export_tasks = JobTasks()
         app.state.listening_exports = PlaylistExportRuntime(
-            FixturePlaylistGateway(), export_tasks
+            FixturePlaylistGateway(), export_tasks, ROUTINE_PLAYLISTS
         )
         cache = ArtistTagCache(Path(directory) / "tag-cache")
         cache.write(tag_metadata("Alpha"))
