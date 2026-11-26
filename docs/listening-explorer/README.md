@@ -391,12 +391,15 @@ and return a proposal or a CSV.
 
 From **Playlist preview** or a completed **Artists to revisit** preview, choose
 **Review Spotify export**. A new private playlist uses the complete preview.
-The existing destination for Rediscover is **Palace of Memory**, with the
-first track from each chosen album in Spotify disc and track order. The
-chronological track preview offers **A Blast from the Past**. Both use the
-cockpit's configured Spotify playlists and require ownership by the signed-in
-account. The review shows the exact ordered additions and whether the
-destination is public. A new review uses the same published
+**Palace of Memory** takes the first track from each chosen album in Spotify
+disc and track order. **Preview tracks for A Blast from the Past** opens
+Playlist preview for Rediscover's applied **Then** dates and preselects that
+destination for the next export review. The album export dialog also offers
+this shortcut. If the selection has more than 10,000 proposed tracks, shorten
+the date range in Playlist preview before exporting. Both existing destinations
+use the cockpit's configured Spotify playlists and require ownership by the
+signed-in account. The review shows the exact ordered additions and whether
+the destination is public. A new review uses the same published
 history and collection versions. Rediscovery also reads the selected editions'
 complete tracklists from Spotify for the final review.
 

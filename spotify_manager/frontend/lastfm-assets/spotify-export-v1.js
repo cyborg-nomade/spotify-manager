@@ -73,16 +73,26 @@ function begin(fetcher) {
 export function open(source, fetcher) {
   begin(fetcher);
   selection = source;
-  $("kind").value = "new";
-  $("kind").options[1].textContent =
-    source.source.kind === "albums"
-      ? "Palace of Memory · first track per album"
-      : "A Blast from the Past · selected tracks";
+  const albumPreview = source.source.kind === "albums";
+  $("kind").replaceChildren(
+    new Option("New private playlist", "new"),
+    new Option(
+      albumPreview
+        ? "Palace of Memory · first track per album"
+        : "A Blast from the Past · selected tracks",
+      "existing",
+    ),
+  );
+  if (albumPreview)
+    $("kind").append(
+      new Option("A Blast from the Past · review tracks", "tracks"),
+    );
+  $("kind").value = source.destination || "new";
   $("name").value = source.name;
   $("form").hidden = false;
   $("review").hidden = true;
-  showDestination();
-  $("name").focus();
+  loadDestinations();
+  ($("kind").value === "new" ? $("name") : $("kind")).focus();
 }
 
 export function reconnect(fetcher) {
@@ -95,17 +105,25 @@ export function reconnect(fetcher) {
 }
 
 function showDestination() {
-  const existing = $("kind").value === "existing";
+  const mode = $("kind").value;
+  const existing = mode === "existing";
   $("kind").disabled = busy;
   $("existing").hidden = !existing || !configured;
-  $("name-field").hidden = existing;
-  $("name").disabled = existing;
+  $("name-field").hidden = mode !== "new";
+  $("name").disabled = mode !== "new";
+  $("track-note").hidden = mode !== "tracks";
+  $("prepare").textContent =
+    mode === "tracks" ? "Open track preview" : "Review exact additions";
   $("prepare").disabled = busy || (existing && !configured);
 }
 
 function loadDestinations() {
   showDestination();
-  if ($("kind").value !== "existing" || configured) return;
+  if ($("kind").value !== "existing") {
+    $("state").textContent = "";
+    return;
+  }
+  if (configured) return;
   act(async (signal) => {
     $("state").textContent = "Checking the configured Spotify playlist…";
     const destinations = await request(
@@ -146,6 +164,7 @@ function render(result) {
   $("page").textContent =
     `Page ${number(result.page)} of ${number(Math.ceil(status.total / result.page_size))}`;
   renderStatus(status);
+  $("pagination").hidden = status.total <= result.page_size;
 }
 
 function renderStatus(status) {
@@ -212,6 +231,16 @@ async function act(action) {
 
 function prepare() {
   if (!selection) return;
+  if ($("kind").value === "tracks") {
+    const { from, to } = selection.params;
+    $("dialog").close();
+    document.dispatchEvent(
+      new CustomEvent("spotify-export:tracks", {
+        detail: { start: from, end: to },
+      }),
+    );
+    return;
+  }
   act(async (signal) => {
     const destination =
       $("kind").value === "new"

@@ -39,6 +39,7 @@ export function clear() {
   for (const id of ["coverage", "library", "table", "message", "tracks"])
     $("revisit-" + id).replaceChildren();
   $("revisit-actions").hidden = true;
+  $("revisit-blast-preview").disabled = true;
 }
 
 function savedEdition(option) {
@@ -74,9 +75,9 @@ function albumStatus(option) {
   return "No exact saved edition";
 }
 
-function albumLabel(option) {
-  const { album } = option;
-  return `${album.name} · ${number(album.days)} listening ${album.days === 1 ? "day" : "days"} · ${albumStatus(option)}`;
+function albumDetails(option) {
+  const { days } = option.album;
+  return `${number(days)} listening ${days === 1 ? "day" : "days"} · ${albumStatus(option)}`;
 }
 
 function albumPicker(artist, index) {
@@ -89,8 +90,13 @@ function albumPicker(artist, index) {
   select.dataset.revisitAlbum = index;
   select.setAttribute("aria-label", `Album for ${artist.evidence.name}`);
   artist.albums.forEach((option, position) => {
-    select.append(new Option(albumLabel(option), position));
+    select.append(new Option(option.album.name, position));
   });
+  const details = element(
+    "span",
+    albumDetails(artist.albums[0]),
+    "revisit-album-meta",
+  );
   const match = element("button", "Match saved edition", "small-button");
   match.type = "button";
   match.dataset.revisitMatch = index;
@@ -99,7 +105,7 @@ function albumPicker(artist, index) {
     "aria-label",
     `Match saved edition for ${artist.evidence.name}`,
   );
-  choices.append(select, match);
+  choices.append(select, details, match);
   return choices;
 }
 
@@ -160,6 +166,7 @@ export function render(result) {
       : "Saved albums are unavailable. You can still browse the artist and album suggestions.");
   $("revisit-actions").hidden =
     !shortlist.artists.length || !shortlist.albums_ready;
+  $("revisit-blast-preview").disabled = false;
   updateButtons();
 }
 
@@ -204,7 +211,10 @@ export function changeChoice(target) {
       `[data-revisit-include="${target.dataset.revisitAlbum}"]`,
     );
     const options = shortlist.artists[target.dataset.revisitAlbum].albums;
-    checkbox.disabled = !savedEdition(options[Number(target.value)]);
+    const option = options[Number(target.value)];
+    checkbox.disabled = !savedEdition(option);
+    target.parentElement.querySelector(".revisit-album-meta").textContent =
+      albumDetails(option);
     if (checkbox.disabled) checkbox.checked = false;
   }
   if (
@@ -252,8 +262,6 @@ export function refreshMatch(context, included) {
   const checkbox = $("revisit-table").querySelector(
     `[data-revisit-include="${index}"]`,
   );
-  const option = shortlist.artists[index].albums[Number(select.value)];
-  select.selectedOptions[0].textContent = albumLabel(option);
   changeChoice(select);
   if (included && !checkbox.disabled && selectedAlbums().length < maxAlbums) {
     checkbox.checked = true;

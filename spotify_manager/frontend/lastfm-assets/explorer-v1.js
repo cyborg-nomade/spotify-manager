@@ -1,8 +1,8 @@
 import * as charts from "./charts-v1.js?v=12";
 import * as library from "./library-v1.js?v=15";
-import * as playlist from "./playlist-preview-v1.js?v=15";
-import * as rediscovery from "./rediscovery-v1.js?v=18";
-import * as spotifyExport from "./spotify-export-v1.js?v=18";
+import * as playlist from "./playlist-preview-v1.js?v=20";
+import * as rediscovery from "./rediscovery-v1.js?v=19";
+import * as spotifyExport from "./spotify-export-v1.js?v=19";
 import * as tags from "./tags-v1.js?v=12";
 import * as origins from "./origins-v1.js?v=12";
 import * as quilt from "./quilt-v1.js?v=10";
@@ -85,6 +85,7 @@ const state = {
   libraryTimer: null,
   libraryReview: null,
   playlistPage: 1,
+  playlistDestination: "new",
   playlistScope: null,
   tagPage: 1,
   originPage: 1,
@@ -141,6 +142,7 @@ function showLogin(message = "") {
   state.data = {};
   state.detailData = null;
   state.playlistScope = null;
+  state.playlistDestination = "new";
   playlist.render({}, state.timezone);
   rediscovery.clear();
   spotifyExport.lock();
@@ -2658,6 +2660,29 @@ $("revisit-spotify-export").addEventListener("click", () => {
   const selection = rediscovery.spotifySelection();
   if (selection) spotifyExport.open(selection, request);
 });
+
+function openBlastTrackPreview(range) {
+  if (!range) return;
+  state.from = range.start;
+  state.to = range.end;
+  state.preset = null;
+  state.artist = null;
+  state.artistName = "";
+  state.selected = null;
+  state.playlistDestination = "existing";
+  state.playlistPage = 1;
+  $("playlist-view").value = "tracks";
+  const tab = document.querySelector('[data-tab="playlist-preview"]');
+  tab.click();
+  tab.focus();
+}
+
+$("revisit-blast-preview").addEventListener("click", () =>
+  openBlastTrackPreview(rediscovery.historicalRange()),
+);
+document.addEventListener("spotify-export:tracks", (event) =>
+  openBlastTrackPreview(event.detail),
+);
 $("history-spotify-export").addEventListener("click", () => {
   const current = state.data.playlistPreview;
   if (!current?.summary?.playlist_tracks) return;
@@ -2665,6 +2690,7 @@ $("history-spotify-export").addEventListener("click", () => {
   spotifyExport.open(
     {
       name: `Listening history · ${params.from} to ${params.to}`,
+      destination: state.playlistDestination,
       params,
       source: { kind: "history", reviews: body.reviews },
     },
@@ -2880,6 +2906,8 @@ document.addEventListener("click", (event) => {
     loadSessionRecords(true);
   }
   if (button?.dataset.tab) {
+    if (state.tab === "playlist-preview" && button.dataset.tab !== state.tab)
+      state.playlistDestination = "new";
     if (state.tab !== button.dataset.tab) charts.clearCharts();
     state.tab = button.dataset.tab;
     loadSelection();

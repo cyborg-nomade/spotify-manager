@@ -98,8 +98,9 @@ test("an unmatched shortlist album can use a saved alternate and queue only its 
     .filter({ hasText: "Old Favorite" });
   const choice = row.getByRole("combobox");
   const alternate = choice.locator("option").filter({ hasText: "Record 2" });
+  const albumDetails = row.locator(".revisit-album-meta");
   await choice.selectOption(await alternate.getAttribute("value"));
-  await expect(alternate).toHaveText(/No exact saved edition/);
+  await expect(albumDetails).toContainText("No exact saved edition");
   const included = row.getByRole("checkbox");
   await expect(included).toBeDisabled();
   await row
@@ -115,7 +116,7 @@ test("an unmatched shortlist album can use a saved alternate and queue only its 
   await expect(match).toContainText("Match confirmed in this browser");
   await match.getByRole("button", { name: "Close match review" }).click();
   await expect(included).toBeChecked();
-  await expect(alternate).toHaveText(/Spotify edition available/);
+  await expect(albumDetails).toContainText("Spotify edition available");
   await page.getByRole("button", { name: "Preview album tracks" }).click();
   await page
     .getByRole("button", { name: "Review Spotify export", exact: true })
@@ -130,4 +131,83 @@ test("an unmatched shortlist album can use a saved alternate and queue only its 
   await expect(dialog.locator("tbody tr")).toContainText("Album opener");
   await dialog.getByRole("button", { name: "Confirm Spotify export" }).click();
   await expect(dialog).toContainText("1 / 1 tracks confirmed");
+});
+
+test("Rediscover opens the applied dates and preselects A Blast from the Past", async ({
+  page,
+}) => {
+  await page.route("**/analytics/playlist-preview?*", async (route) => {
+    if (
+      new URL(route.request().url()).searchParams.get("to") !== "2024-10-31"
+    ) {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const json = await response.json();
+    json.data.summary.playlist_tracks = 10001;
+    await route.fulfill({ response, json });
+  });
+  await open(page, "rediscovery");
+  await page.locator("#revisit-history").selectOption("selection");
+  await page.locator("#revisit-from").fill("2024-01-01");
+  await page.locator("#revisit-to").fill("2024-10-31");
+  await page.getByRole("button", { name: "Find artists" }).click();
+  await expect(page.locator("#revisit-coverage")).toContainText(
+    "Then 2024-01-01 to 2024-10-31",
+  );
+  await page
+    .getByRole("button", { name: "Preview tracks for A Blast from the Past" })
+    .click();
+  await expect(page.locator("#from")).toHaveValue("2024-01-01");
+  await expect(page.locator("#to")).toHaveValue("2024-10-31");
+  await expect(page.locator("#playlist-view")).toHaveValue("tracks");
+  await expect(page.locator("#playlist-message")).toContainText(
+    "Shorten the date range before exporting to Spotify.",
+  );
+  await page.locator("#to").fill("2024-06-30");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page.locator("#playlist-message")).toBeEmpty();
+  await page.locator("#history-spotify-export").click();
+  const dialog = page.getByRole("dialog", { name: "Export to Spotify" });
+  await expect(
+    dialog.getByRole("combobox", { name: "Destination" }),
+  ).toHaveValue("existing");
+  await expect(dialog.locator("#spotify-export-existing")).toHaveText(
+    "A Blast from the Past · public",
+  );
+  await dialog.getByRole("button", { name: "Review exact additions" }).click();
+  await expect(dialog).toContainText(
+    "Append to public playlist “A Blast from the Past”",
+  );
+});
+
+test("the album export dialog offers a route to the individual track preview", async ({
+  page,
+}) => {
+  await open(page, "rediscovery");
+  const row = page
+    .locator("#revisit-table tbody tr")
+    .filter({ hasText: "Old Favorite" });
+  const choice = row.getByRole("combobox");
+  await choice.selectOption(
+    await choice
+      .locator("option")
+      .filter({ hasText: "Record 1" })
+      .getAttribute("value"),
+  );
+  await row.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Preview album tracks" }).click();
+  await page.locator("#revisit-spotify-export").click();
+  const dialog = page.getByRole("dialog", { name: "Export to Spotify" });
+  await dialog.getByRole("combobox", { name: "Destination" }).selectOption({
+    label: "A Blast from the Past · review tracks",
+  });
+  await dialog.getByRole("button", { name: "Open track preview" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator("#playlist-table tbody tr").first()).toBeVisible();
+  await page.locator("#history-spotify-export").click();
+  await expect(dialog.locator("#spotify-export-existing")).toHaveText(
+    "A Blast from the Past · public",
+  );
 });
