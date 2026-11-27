@@ -37,6 +37,8 @@ from spotify_manager.infrastructure.async_work import blocking_capacity
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
 from spotify_manager.infrastructure.spotify_async.blocking import finish_blocking
+from spotify_manager.interfaces.http.cockpit_pages import cockpit_asset
+from spotify_manager.interfaces.http.cockpit_pages import cockpit_shell
 
 # UFI
 from spotify_manager.interfaces.http.handlers import flush_mode as flush_mode_http
@@ -45,7 +47,6 @@ from spotify_manager.settings import Settings
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
-INDEX_HTML = FRONTEND_DIR / "index.html"
 GENRE_REVEAL_HTML = FRONTEND_DIR / "genre-reveal.html"
 LASTFM_HTML = FRONTEND_DIR / "lastfm.html"
 GENRE_REVEAL_STATE_PATH = managed_path(
@@ -72,8 +73,21 @@ app.add_middleware(
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    """Serve the single-page mobile frontend."""
-    return FileResponse(INDEX_HTML)
+    """Serve the revalidated cockpit shell."""
+    return cockpit_shell()
+
+
+@app.get("/cockpit/assets/{filename}", include_in_schema=False)
+def cockpit_static_asset(filename: str) -> FileResponse:
+    """Serve an exact packaged cockpit asset without accessing application data.
+
+    Args:
+        filename: A public cockpit asset basename.
+
+    Returns:
+        The packaged file with its revalidation policy.
+    """
+    return cockpit_asset(filename)
 
 
 @app.get("/genre-reveal", include_in_schema=False)

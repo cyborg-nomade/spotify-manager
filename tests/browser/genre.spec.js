@@ -81,6 +81,9 @@ test("Genre Reveal uses the cockpit tab password and restores route progress, fi
 test("Genre Reveal marks a genre complete only after a successful run and confirms reset", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
   await openGenreReveal(page);
   const run = page.getByRole("button", { name: "Run cathedral choir" });
   const checkbox = page.getByRole("checkbox", {
@@ -158,6 +161,9 @@ test("Flush Mode suppresses new discovery starts and refreshes the open Genre Re
     page.locator("#genreRevealCard").getByRole("button", { name: "Open" }),
   ).toBeDisabled();
   await expect(
+    page.getByRole("button", { name: "Genre Reveal" }),
+  ).toBeDisabled();
+  await expect(
     page
       .locator("#foundArtCard")
       .getByRole("button", { name: "Run", exact: true }),
@@ -168,6 +174,9 @@ test("Flush Mode suppresses new discovery starts and refreshes the open Genre Re
   await page.getByRole("button", { name: "Automatic", exact: true }).click();
   await expect(
     page.locator("#genreRevealCard").getByRole("button", { name: "Open" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Genre Reveal" }),
   ).toBeEnabled();
   await expect(wine).toBeEnabled();
   await expect(wine).not.toBeChecked();

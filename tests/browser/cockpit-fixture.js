@@ -10,7 +10,7 @@ export async function resetFixture(request) {
 }
 
 export async function submitPassword(page, password) {
-  await page.getByPlaceholder("Any text").fill(password);
+  await page.getByLabel("App password").fill(password);
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
 }
 

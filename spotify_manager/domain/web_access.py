@@ -4,6 +4,19 @@ import hmac
 from typing import Protocol
 
 
+COCKPIT_ASSETS = frozenset(
+    {
+        "cockpit-v1.css",
+        "shell-v1.css",
+        "requests-v1.js",
+        "session-v1.js",
+        "signal-board-v1.js",
+        "space-grotesk-latin-v1.woff2",
+        "ibm-plex-mono-latin-v1.woff2",
+        "SPACE-GROTESK-OFL.txt",
+        "IBM-PLEX-MONO-OFL.txt",
+    }
+)
 LISTENING_ASSETS = frozenset(
     {
         "explorer-v1.js",
@@ -37,6 +50,7 @@ OPEN_PATHS = frozenset(
         "/lastfm",
         "/lastfm/",
     }
+    | {"/cockpit/assets/" + name for name in COCKPIT_ASSETS}
     | {"/lastfm/assets/" + name for name in LISTENING_ASSETS}
 )
 
