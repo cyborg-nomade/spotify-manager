@@ -88,11 +88,24 @@ test("taste, discovery, and forgotten favorites have accessible tables", async (
     "complete calendar days",
   );
   await page.getByRole("button", { name: "Rediscover", exact: true }).click();
+  await expect(page.locator("#workspace")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await page.locator("#minimum-plays").fill("1");
   await page.locator("#minimum-gap").fill("30");
+  const favorites = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === "/lastfm/analytics/rediscovery" &&
+      url.searchParams.get("minimum_plays") === "1" &&
+      url.searchParams.get("minimum_gap") === "30"
+    );
+  });
   await page
     .getByRole("button", { name: "Find favorites", exact: true })
     .click();
+  expect((await favorites).ok()).toBe(true);
   await expect(page.locator("#rediscovery-table")).toContainText(
     "Old Favorite",
   );
