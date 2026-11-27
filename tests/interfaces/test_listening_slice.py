@@ -17,17 +17,27 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from spotify_manager._auth import PasswordMiddleware
+from spotify_manager.application.listening_ports import ListeningVersionError
 from spotify_manager.domain.listening_time import listening_identity
+from spotify_manager.infrastructure.async_jobs import JobTasks
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.runtime import ListeningRuntime
 from spotify_manager.interfaces.http.listening import router
+from spotify_manager.interfaces.http.listening_export import router as export_router
 from spotify_manager.interfaces.http.listening_rediscovery import (
     router as revisit_router,
+)
+from spotify_manager.interfaces.http.playlist_export_runtime import (
+    PlaylistExportRuntime,
 )
 from tests.support.listening import ListeningFixture
 from tests.support.listening import listening_fixture
 from tests.support.listening import sample_history
 from tests.support.listening import scrobble
+from tests.support.listening_export import OWNED
+from tests.support.listening_export import PALACE
+from tests.support.listening_export import ROUTINE_PLAYLISTS
+from tests.support.listening_export import FixturePlaylistGateway
 from tests.support.listening_library import album
 from tests.support.listening_library import publish_collection
 from tests.support.listening_rediscovery import fixture_tracklists
@@ -47,6 +57,8 @@ async def http_lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        if hasattr(app.state, "export_tasks"):
+            await app.state.export_tasks.close()
         if hasattr(app.state, "listening_library"):
             await app.state.listening_library.close()
         runtime = cast(ListeningRuntime, app.state.listening)
@@ -62,8 +74,13 @@ def listening_http(tmp_path: Path) -> Iterator[tuple[TestClient, ListeningFixtur
     app.state.listening = fixture.runtime
     app.state.listening_library = LibraryRuntime(fixture.service)
     app.state.listening_album_tracklists = fixture_tracklists()
+    app.state.export_tasks = JobTasks()
+    app.state.listening_exports = PlaylistExportRuntime(
+        FixturePlaylistGateway(), app.state.export_tasks, ROUTINE_PLAYLISTS
+    )
     app.include_router(router)
     app.include_router(revisit_router)
+    app.include_router(export_router)
     app.add_middleware(PasswordMiddleware, password="listening-password")
     with TestClient(app) as client:
         client.headers["X-App-Password"] = "listening-password"
@@ -634,3 +651,150 @@ def test_rediscovery_tracklists_keep_album_and_disc_order_and_isolate_failures(
         == 409
     )
     assert fixture.service.snapshot().revision == revision
+
+
+def _wait_for_export(client: TestClient, path: str) -> dict[str, object]:
+    until = monotonic() + 5
+    while monotonic() < until:
+        status = cast(dict[str, object], client.get(path).json()["status"])
+        if status["stage"] not in {"queued", "running"}:
+            return status
+        sleep(0.01)
+    raise AssertionError("Export did not finish in the local fixture.")
+
+
+def test_confirmed_export_appends_the_exact_preview_once(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Prepare a protected owned destination without writing and then append once."""
+    client, fixture = listening_http
+    fixture.publish([scrobble("2024-01-02T10:00:00", "Alpha", "One")])
+    uri = "spotify:track:" + "a" * 22
+    publish_collection(
+        fixture, "tracks", [{"artist": "Alpha", "track": "One", "uri": uri}]
+    )
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    export = "/lastfm/analytics/playlist-export"
+    assert (
+        client.get(export + "/destinations", headers={"X-App-Password": ""}).status_code
+        == 401
+    )
+    assert [
+        row["identity"]
+        for row in client.get(
+            export + "/destinations", params={"source": "history"}
+        ).json()
+    ] == [OWNED]
+    gateway = cast(
+        FixturePlaylistGateway,
+        cast(FastAPI, client.app).state.listening_exports.spotify,
+    )
+    payload = {
+        "source": {"kind": "history"},
+        "destination": {"kind": "existing", "identity": OWNED},
+    }
+    response = client.post(export + "/plans", params=params, json=payload)
+    assert (
+        response.status_code == 200
+        and response.headers["Cache-Control"] == "private, no-store"
+    )
+    prepared = response.json()
+    assert (
+        prepared["status"]["name"] == "A Blast from the Past"
+        and prepared["items"][0]["uri"] == uri
+    )
+    assert not gateway.writes and not gateway.creates
+    path = export + "/plans/" + prepared["status"]["identity"]
+    assert client.get(path).json() == prepared
+    assert client.post(path + "/confirm").status_code == 200
+    assert client.post(path + "/confirm").status_code == 200
+    result = _wait_for_export(client, path)
+    assert result["added"] == 1 and result["stage"] == "complete" and result["public"]
+    assert gateway.writes == [(uri,)]
+    payload["destination"]["identity"] = PALACE
+    assert (
+        client.post(export + "/plans", params=params, json=payload).status_code == 409
+    )
+
+
+def test_confirmed_rediscovery_export_creates_a_private_playlist_in_disc_order(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Prepare complete saved album tracks and create only after confirmation."""
+    client, _fixture = listening_http
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    payload = {
+        "source": {"kind": "albums", "albums": [album()["uri"]]},
+        "destination": {"kind": "new", "name": "Rediscovery shortlist"},
+    }
+    export = "/lastfm/analytics/playlist-export"
+    response = client.post(export + "/plans", params=params, json=payload)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert [item["name"] for item in data["items"]] == [
+        "=Album opener",
+        "Second song",
+        "Disc two",
+    ]
+    assert not data["status"]["public"] and data["status"]["playlist_id"] is None
+    path = export + "/plans/" + data["status"]["identity"]
+    assert client.post(path + "/confirm").status_code == 200
+    result = _wait_for_export(client, path)
+    assert (
+        result["stage"] == "complete" and result["added"] == 3 and not result["public"]
+    )
+
+
+def test_expired_publication_requires_a_fresh_review_before_export(
+    listening_http: tuple[TestClient, ListeningFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An obsolete review cannot create or append to a playlist."""
+    client, _fixture = listening_http
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    prefix = "/lastfm/analytics/playlist-export/plans"
+    response = client.post(
+        prefix,
+        params=params,
+        json={
+            "source": {"kind": "albums", "albums": [album()["uri"]]},
+            "destination": {"kind": "new", "name": "Expired review"},
+        },
+    )
+    assert response.status_code == 200
+    state = cast(FastAPI, client.app).state
+    monkeypatch.setattr(
+        state.listening_library,
+        "acquire",
+        Mock(side_effect=ListeningVersionError("Expired publication")),
+    )
+    identity = response.json()["status"]["identity"]
+    assert client.post(f"{prefix}/{identity}/confirm").status_code == 409
+    gateway = cast(FixturePlaylistGateway, state.listening_exports.spotify)
+    assert gateway.creates == 0 and not gateway.writes
+
+
+def test_palace_targets_only_album_openers(
+    listening_http: tuple[TestClient, ListeningFixture],
+) -> None:
+    """Review two configured album openers and keep both album positions."""
+    client, fixture = listening_http
+    editions = [album("One", 1), album("Two", 2)]
+    publish_collection(fixture, "albums", editions)
+    params = {**ready_parameters(client), "library_snapshot": ready_library(client)}
+    export = "/lastfm/analytics/playlist-export"
+    options = client.get(export + "/destinations", params={"source": "albums"})
+    assert [row["identity"] for row in options.json()] == [PALACE]
+    payload = {
+        "source": {"kind": "albums", "albums": [entry["uri"] for entry in editions]},
+        "destination": {"kind": "existing", "identity": PALACE},
+    }
+    response = client.post(export + "/plans", params=params, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["name"] for item in data["items"]] == ["=Album opener"] * 2
+    assert [item["credit"] for item in data["items"]] == ["Alpha — One", "Alpha — Two"]
+    path = export + "/plans/" + data["status"]["identity"]
+    assert client.post(path + "/confirm").status_code == 200
+    result = _wait_for_export(client, path)
+    assert result["added"] == 2 and result["playlist_id"] == PALACE

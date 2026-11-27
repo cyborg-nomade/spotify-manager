@@ -683,13 +683,6 @@ dialog::backdrop {
 .detail-top .eyebrow {
   margin: 0;
 }
-#library-review-search-form > label {
-  flex: 1 1 15rem;
-}
-#library-review-search-form > button {
-  margin: 0;
-  min-height: 36px;
-}
 .library-review-actions {
   display: flex;
   flex-wrap: wrap;
@@ -713,14 +706,20 @@ dialog::backdrop {
     table-layout: fixed;
   }
   #library-review-table :is(th, td) {
-    padding-inline: 5px;
+    padding-inline: 6px;
     overflow-wrap: anywhere;
   }
+  #library-review-table th {
+    white-space: normal;
+  }
+  #library-review-table th:nth-child(2) {
+    width: 18%;
+  }
   #library-review-table th:first-child {
-    width: 35%;
+    width: 32%;
   }
   #library-review-table th:last-child {
-    width: 27%;
+    width: 28%;
   }
   #library-review-table button {
     width: 100%;
@@ -1189,20 +1188,74 @@ dialog::backdrop {
   }
 }
 
-.revisit-dates:not([hidden]) {
+.preview-form {
+  display: grid;
+  align-items: end;
+  gap: 0.625rem;
+  margin-block: 0.875rem;
+}
+.preview-form > *,
+.preview-form label {
+  min-width: 0;
+}
+.preview-form label :is(input, select) {
+  width: 100%;
+}
+.preview-form :is(input, select, button),
+.preview-actions button,
+#revisit-blast-preview {
+  min-height: 2.375rem;
+  margin: 0;
+}
+.preview-actions:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-}
-#revisit-filters .small-button {
-  margin: 0;
-  min-height: 35px;
-}
-#revisit-actions {
   align-items: center;
+  gap: 0.625rem;
+  margin-block-start: 0.75rem;
+}
+#tab-rediscovery .panel-heading {
+  align-items: center;
+  flex-wrap: wrap;
+}
+#revisit-filters {
+  grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr)) auto;
+}
+#revisit-filters > button {
+  justify-self: start;
+}
+.revisit-dates:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: subgrid;
+  gap: 0.625rem;
+  grid-column: span 2;
+}
+#revisit-selection {
+  color: var(--muted);
+  font-size: 11px;
+}
+#revisit-table {
+  margin-block-start: 0.625rem;
+}
+#revisit-table td {
+  vertical-align: middle;
+}
+.revisit-album {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+.revisit-album .small-button {
+  margin: 0;
 }
 .revisit-album select {
-  max-width: min(28rem, 70vw);
+  width: 100%;
+  max-width: min(24rem, 70vw);
+}
+.revisit-album-meta {
+  color: var(--muted);
+  line-height: 1.4;
 }
 .revisit-tracklist {
   margin-block: 0.75rem;
@@ -1210,4 +1263,69 @@ dialog::backdrop {
 .revisit-tracklist ol {
   list-style: none;
   padding-inline-start: 0;
+}
+
+.preview-dialog .panel-heading {
+  align-items: center;
+}
+.preview-dialog .pagination {
+  flex-wrap: wrap;
+}
+.preview-dialog .table-scroll td {
+  overflow-wrap: anywhere;
+}
+.preview-dialog .chart-description:empty,
+#revisit-message:empty,
+#revisit-library:empty {
+  display: none;
+}
+#spotify-export-form {
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 1fr) auto;
+}
+#spotify-export-form > p:not([hidden]) {
+  display: flex;
+  align-items: center;
+  min-height: 2.375rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+#spotify-export-items {
+  margin-block-start: 0.625rem;
+}
+#library-review-search-form {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+@media (max-width: 760px) {
+  #revisit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  #spotify-export-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #spotify-export-form > p:not([hidden]) {
+    min-height: auto;
+  }
+  #library-review-search-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #library-review-search-form > label {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 440px) {
+  #revisit-table :is(th, td) {
+    padding-inline: 5px;
+  }
+  #revisit-table th:last-child {
+    width: 36%;
+  }
+  #spotify-export-review .preview-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #spotify-export-link:empty {
+    display: none;
+  }
 }

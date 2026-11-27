@@ -8,6 +8,7 @@ import {
 } from "./tables-v1.js?v=7";
 
 const $ = (id) => document.getElementById(id);
+const spotifyExportLimit = 10000;
 const reasons = {
   unmatched: "No exact name in liked tracks",
   ambiguous: "Multiple exact-name candidates",
@@ -59,17 +60,22 @@ function unresolvedRow(row, timezone) {
   ];
 }
 
+function previewMessage(data) {
+  if (data.unavailable) return data.unavailable;
+  if (!data.summary?.selected_plays)
+    return "No recorded plays match this selection.";
+  if (data.summary.playlist_tracks > spotifyExportLimit)
+    return `This selection has more than ${number(spotifyExportLimit)} proposed tracks. Shorten the date range before exporting to Spotify.`;
+  return "";
+}
+
 export function render(data, timezone) {
   metrics(data.summary);
   $("playlist-export").disabled = !data.summary?.playlist_tracks;
   $("playlist-source").textContent = data.source?.published_at
     ? `Liked tracks published ${recordedTime(Date.parse(data.source.published_at), timezone)}. ${data.source.message}`
     : data.source?.message || "";
-  $("playlist-message").textContent =
-    data.unavailable ||
-    (data.summary?.selected_plays
-      ? ""
-      : "No recorded plays match this selection.");
+  $("playlist-message").textContent = previewMessage(data);
   $("playlist-previous").disabled = !data.options || data.options.page <= 1;
   $("playlist-next").disabled =
     !data.options || data.options.page * data.options.limit >= data.total;

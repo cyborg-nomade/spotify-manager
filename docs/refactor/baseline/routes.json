@@ -1955,6 +1955,71 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_export.playlist_export_destinations",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "playlist_export_destinations",
+    "path": "/lastfm/analytics/playlist-export/destinations",
+    "response_model": "tuple",
+    "source_line": 140,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_export.prepare_playlist_export",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "prepare_playlist_export",
+    "path": "/lastfm/analytics/playlist-export/plans",
+    "response_model": "ExportPage",
+    "source_line": 159,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_export.playlist_export_page",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "playlist_export_page",
+    "path": "/lastfm/analytics/playlist-export/plans/{identity}",
+    "response_model": "ExportPage",
+    "source_line": 204,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_export.confirm_playlist_export",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "confirm_playlist_export",
+    "path": "/lastfm/analytics/playlist-export/plans/{identity}/confirm",
+    "response_model": "ExportStatus",
+    "source_line": 221,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.interfaces.http.listening_export.pause_playlist_export",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "pause_playlist_export",
+    "path": "/lastfm/analytics/playlist-export/plans/{identity}/pause",
+    "response_model": "ExportStatus",
+    "source_line": 253,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.interfaces.http.listening_tags.listening_tag_status",
     "include_in_schema": true,
     "methods": [

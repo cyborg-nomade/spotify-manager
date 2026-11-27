@@ -74,7 +74,11 @@ the windows and evidence for each artist and reports incomplete recent coverage.
 
 Each artist's album options are ordered by distinct listening days in **Then**.
 One exact saved-album match or a current Library Bridge confirmation links an
-album to Spotify. Select up to ten artists with one album each and use
+album to Spotify. Use **Match saved edition** beside the chosen album in the
+shortlist to confirm an alternate release. If it is missing from your saved
+albums, save it in Spotify, use **Sync** for Saved albums in the cockpit, then
+choose **Find artists** in Rediscover to reload the publication. Select up to
+ten artists with one album each and use
 **Preview album tracks** to read the selected editions from Spotify. The
 app requests only those Spotify album IDs. Each complete tracklist retains its
 disc and track order, including tracks absent from the liked-track mirror. A
@@ -357,8 +361,7 @@ The current-page CSV includes confirmed URIs and timestamps for the pinned
 versions. Reviews can be removed from the picker.
 
 See [ADR 004](../adr/004-published-library-evidence.md) for matching limits and
-immutable multi-artifact acquisition. Spotify export and cockpit links are
-planned follow-ups.
+immutable multi-artifact acquisition. Cockpit links are a planned follow-up.
 
 ## Playlist preview
 
@@ -382,7 +385,31 @@ versions, applied filters, matching evidence and repeat counts.
 The protected `POST /lastfm/analytics/playlist-preview` and
 `POST /lastfm/analytics/playlist-preview/csv` endpoints accept up to 1,000
 current browser track confirmations. Both endpoints read the pinned sources
-and return a proposal or a CSV. Spotify publishing is a separate release item.
+and return a proposal or a CSV.
+
+### Confirmed Spotify export
+
+From **Playlist preview** or a completed **Artists to revisit** preview, choose
+**Review Spotify export**. A new private playlist uses the complete preview.
+**Palace of Memory** takes the first track from each chosen album in Spotify
+disc and track order. **Preview tracks for A Blast from the Past** opens
+Playlist preview for Rediscover's applied **Then** dates and preselects that
+destination for the next export review. The album export dialog also offers
+this shortcut. If the selection has more than 10,000 proposed tracks, shorten
+the date range in Playlist preview before exporting. Both existing destinations
+use the cockpit's configured Spotify playlists and require ownership by the
+signed-in account. The review shows the exact ordered additions and whether
+the destination is public. A new review uses the same published
+history and collection versions. Rediscovery also reads the selected editions'
+complete tracklists from Spotify for the final review.
+
+**Confirm Spotify export** starts a background job. It appends tracks to the end
+of an existing playlist and keeps its existing tracks. The job reports the
+confirmed count, can pause between batches, and can reconnect after reloading the
+page while the app is running. After a response is lost, the job reads back the
+expected positions before continuing. If Spotify still cannot confirm a write,
+**Recheck and resume** checks its effects again. A changed destination requires
+a fresh review.
 
 
 ## Tag Atlas release

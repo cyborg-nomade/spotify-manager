@@ -1,6 +1,7 @@
 """Keep existing job shutdown ahead of potentially slow analytics-cache cleanup."""
 
 from dataclasses import dataclass
+from dataclasses import field
 from types import TracebackType
 from unittest.mock import AsyncMock
 from unittest.mock import Mock
@@ -8,12 +9,14 @@ from unittest.mock import Mock
 import pytest
 from fastapi import FastAPI
 
+from spotify_manager.infrastructure.async_jobs import JobTasks
 from spotify_manager.interfaces.http import jobs
 
 
 @dataclass
 class _ExecutionProbe:
     events: list[str]
+    jobs: JobTasks = field(default_factory=JobTasks, init=False)
 
     async def __aenter__(self) -> _ExecutionProbe:
         self.events.append("execution entered")
@@ -25,6 +28,7 @@ class _ExecutionProbe:
         error: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        await self.jobs.close()
         self.events.append("execution closed")
 
 

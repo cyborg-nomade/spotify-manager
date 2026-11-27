@@ -57,6 +57,9 @@ from spotify_manager.interfaces.http.jobs import (
     InteractiveClientDep as InteractiveClientDep,
 )
 from spotify_manager.interfaces.http.listening import router as listening_router
+from spotify_manager.interfaces.http.listening_export import (
+    router as listening_export_router,
+)
 from spotify_manager.interfaces.http.listening_origins import (
     router as listening_origins_router,
 )
@@ -2636,6 +2639,7 @@ async def check_flush_mode(client: ClientDep) -> FlushModeStatus:
 
 
 app.include_router(listening_router)
+app.include_router(listening_export_router)
 app.include_router(listening_tags_router)
 
 app.include_router(listening_origins_router)

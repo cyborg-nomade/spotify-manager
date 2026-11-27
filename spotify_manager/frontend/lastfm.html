@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="referrer" content="same-origin" />
     <title>Listening Explorer · Spotify Manager</title>
-    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=16" />
+    <link rel="stylesheet" href="/lastfm/assets/explorer-v1.css?v=21" />
     <script defer src="/lastfm/assets/echarts-6.0.0.min.js"></script>
-    <script type="module" src="/lastfm/assets/explorer-v1.js?v=16"></script>
+    <script type="module" src="/lastfm/assets/explorer-v1.js?v=20"></script>
   </head>
   <body>
     <div class="shell">
@@ -68,6 +68,9 @@
           Connecting to your recorded history…
         </div>
         <div class="status-actions">
+          <button id="spotify-export-resume" class="quiet" type="button" hidden>
+            Spotify export status
+          </button>
           <button id="retry" class="quiet" hidden>
             Check publication again</button
           ><a id="sync-link" href="/#scrobbleHistoryCard" hidden
@@ -441,40 +444,28 @@
             <article class="panel">
               <header class="panel-heading">
                 <h2>Artists to revisit</h2>
+                <button
+                  id="revisit-blast-preview"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Preview tracks for A Blast from the Past
+                </button>
               </header>
               <p class="chart-description">
                 Find artists you returned to in the past and have barely played
                 lately. Pick an album for each artist to build a playlist in
                 album order.
               </p>
-              <form id="revisit-filters" class="control-line">
+              <form id="revisit-filters" class="preview-form">
                 <label
                   >Then
                   <select id="revisit-history">
-                    <option value="year">Year before the recent window</option>
+                    <option value="year">Prior 12 months</option>
                     <option value="selection">Custom dates</option>
                   </select>
                 </label>
-                <div id="revisit-custom-dates" class="revisit-dates" hidden>
-                  <label
-                    >Then from<input
-                      id="revisit-from"
-                      type="date"
-                      min="1900-01-01"
-                      max="2099-12-31"
-                      required
-                      disabled
-                  /></label>
-                  <label
-                    >Then through<input
-                      id="revisit-to"
-                      type="date"
-                      min="1900-01-01"
-                      max="2099-12-31"
-                      required
-                      disabled
-                  /></label>
-                </div>
                 <label
                   >Now
                   <select id="revisit-horizon">
@@ -505,6 +496,26 @@
                     required
                   />
                 </label>
+                <div id="revisit-custom-dates" class="revisit-dates" hidden>
+                  <label
+                    >Then from<input
+                      id="revisit-from"
+                      type="date"
+                      min="1900-01-01"
+                      max="2099-12-31"
+                      required
+                      disabled
+                  /></label>
+                  <label
+                    >Then through<input
+                      id="revisit-to"
+                      type="date"
+                      min="1900-01-01"
+                      max="2099-12-31"
+                      required
+                      disabled
+                  /></label>
+                </div>
                 <button class="small-button" type="submit">Find artists</button>
               </form>
               <p
@@ -514,7 +525,7 @@
               ></p>
               <p id="revisit-library" class="chart-description"></p>
               <div id="revisit-table" class="table-scroll"></div>
-              <div id="revisit-actions" class="control-line" hidden>
+              <div id="revisit-actions" class="preview-actions" hidden>
                 <button
                   id="revisit-preview"
                   class="small-button"
@@ -531,7 +542,15 @@
                 >
                   Download rediscovery CSV
                 </button>
-                <span id="revisit-selection" class="micro"></span>
+                <button
+                  id="revisit-spotify-export"
+                  class="small-button"
+                  type="button"
+                  disabled
+                >
+                  Review Spotify export
+                </button>
+                <span id="revisit-selection"></span>
               </div>
               <p
                 id="revisit-message"
@@ -835,6 +854,14 @@
               </p>
               <button id="playlist-revisit" class="small-button" type="button">
                 Build a rediscovery playlist
+              </button>
+              <button
+                id="history-spotify-export"
+                class="small-button"
+                type="button"
+                disabled
+              >
+                Review Spotify export
               </button>
               <p id="playlist-source" class="chart-description"></p>
               <div id="playlist-metrics" class="session-metrics"></div>
@@ -1551,8 +1578,86 @@
       </main>
     </div>
 
-    <dialog id="library-review" aria-labelledby="library-review-title">
-      <header class="detail-top">
+    <dialog
+      id="spotify-export-dialog"
+      class="preview-dialog"
+      aria-labelledby="spotify-export-title"
+    >
+      <header class="panel-heading">
+        <h2 id="spotify-export-title">Export to Spotify</h2>
+        <button id="spotify-export-close" class="quiet" type="button">
+          Close
+        </button>
+      </header>
+      <form id="spotify-export-form" class="preview-form">
+        <label
+          >Destination
+          <select id="spotify-export-kind">
+            <option value="new">New private playlist</option>
+            <option value="existing">Existing playlist</option>
+          </select>
+        </label>
+        <label id="spotify-export-name-field"
+          >Playlist name
+          <input
+            id="spotify-export-name"
+            type="text"
+            maxlength="100"
+            required
+          />
+        </label>
+        <p id="spotify-export-existing" class="chart-description" hidden></p>
+        <p id="spotify-export-track-note" class="chart-description" hidden>
+          Open the Then date range in Playlist preview to review individual
+          tracks.
+        </p>
+        <button id="spotify-export-prepare" class="small-button" type="submit">
+          Review exact additions
+        </button>
+      </form>
+      <p id="spotify-export-state" class="chart-description" role="status"></p>
+      <section
+        id="spotify-export-review"
+        hidden
+        aria-label="Ordered Spotify additions"
+      >
+        <p id="spotify-export-summary" class="chart-description"></p>
+        <div id="spotify-export-items" class="table-scroll"></div>
+        <div id="spotify-export-pagination" class="pagination">
+          <button id="spotify-export-previous" class="quiet" type="button">
+            ← Previous
+          </button>
+          <span id="spotify-export-page"></span>
+          <button id="spotify-export-next" class="quiet" type="button">
+            Next →
+          </button>
+        </div>
+        <div class="preview-actions">
+          <button id="spotify-export-edit" class="quiet" type="button">
+            Change destination
+          </button>
+          <button id="spotify-export-confirm" class="primary" type="button">
+            Confirm Spotify export
+          </button>
+          <button
+            id="spotify-export-pause"
+            class="small-button"
+            type="button"
+            hidden
+          >
+            Pause after this batch
+          </button>
+          <span id="spotify-export-link"></span>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog
+      id="library-review"
+      class="preview-dialog"
+      aria-labelledby="library-review-title"
+    >
+      <header class="panel-heading">
         <h2 id="library-review-title">Review Spotify match</h2>
         <button
           id="library-review-close"
@@ -1560,16 +1665,28 @@
           type="button"
           aria-label="Close match review"
         >
-          Close ×
+          Close
         </button>
       </header>
       <p id="library-review-history" class="chart-description"></p>
       <p id="library-review-source" class="chart-description"></p>
+      <p id="library-review-unsaved" class="chart-description" hidden>
+        If the album is missing here,
+        <a
+          id="library-review-spotify-search"
+          target="_blank"
+          rel="noopener noreferrer"
+          >find and save it in Spotify</a
+        >. Run <strong>Sync</strong> under Saved albums in the
+        <a href="/#libraryMirrorsCard" target="_blank" rel="noopener noreferrer"
+          >cockpit</a
+        >, then return to Rediscover and choose <strong>Find artists</strong>.
+      </p>
       <p class="chart-description">
         Check the published title and artist credit. Confirmation saves your
         choice in this browser for these publication versions.
       </p>
-      <form id="library-review-search-form" class="control-line">
+      <form id="library-review-search-form" class="preview-form">
         <label
           >Candidate title, artist, or Spotify URI<input
             id="library-review-search"
