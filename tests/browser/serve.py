@@ -319,5 +319,11 @@ def shell(request: Request) -> Response:
     return FileResponse(FRONTEND / "lastfm.html", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/")
+def cockpit() -> Response:
+    """Serve the real cockpit shell without starting any Spotify routines."""
+    return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache"})
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8018)

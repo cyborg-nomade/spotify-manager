@@ -534,6 +534,8 @@
   #palaceOfMemoryCard.settings-open .palace-settings {
     display: flex;
   }
+  #palaceHandoff { font-size: .8rem; overflow-wrap: anywhere; }
+  #palaceHandoff p { margin: 0 0 6px; }
   .settings-trigger[aria-pressed="true"] {
     color: #f9ebe3; border-color: #762b2d;
     background: linear-gradient(180deg, #d15a58 0%, var(--key-red) 60%, #87282b 100%);
@@ -1090,6 +1092,10 @@
         <input id="palaceAlphabeticalCursor" type="number" min="1" step="1" inputmode="numeric" placeholder="1-based position" style="margin:0" />
         <button class="ghost" data-action="setPalaceOfMemoryCursor">Set</button>
       </div>
+      <div class="result" id="palaceHandoff">
+        <p id="palaceHandoffStatus" role="status"></p>
+        <a id="palaceHandoffReturn" href="/lastfm?tab=rediscovery" hidden>Return to Rediscover</a>
+      </div>
       <div class="analysis-progress" id="palaceOfMemoryProgress"></div>
     </section>
       </div>
@@ -1237,6 +1243,10 @@
   var discographyJob = null;
   var requeueForADreamJob = null;
   var palaceOfMemoryJob = null;
+  var palaceHandoff = null;
+  var palaceHandoffRequested =
+    new URLSearchParams(location.search).get("palace") === "rediscover" &&
+    location.hash === "#palaceOfMemoryCard";
   var scrobbleHistoryJob = null;
   var releaseCheckStateFingerprint = null;
   var releaseCheckStateSync = null;
@@ -4514,6 +4524,87 @@
     }
   }
 
+  function palaceSelectionExpired(selection) {
+    if (!Number.isFinite(selection?.created)) return true;
+    var age = Date.now() - selection.created;
+    return !(age >= 0 && age < 20 * 60 * 1000);
+  }
+
+  function readPalaceHandoff() {
+    try {
+      var selection = JSON.parse(sessionStorage.getItem("listening-palace-handoff-v1"));
+      if (palaceSelectionExpired(selection)) return null;
+      if (typeof selection.label !== "string" ||
+          !/^spotify:album:[A-Za-z0-9]{22}$/.test(selection.album) ||
+          !/^v1-[a-f0-9]{64}$/.test(selection.history) ||
+          !/^l1-[a-f0-9]{64}$/.test(selection.library)) return null;
+      return selection;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function palaceHandoffStatus(message, showReturn) {
+    document.getElementById("palaceHandoff").classList.add("show");
+    document.getElementById("palaceHandoffStatus").textContent = message;
+    document.getElementById("palaceHandoffReturn").hidden = !showReturn;
+  }
+
+  async function currentPalaceSelection(selection) {
+    var suffix = "?refresh=true";
+    var deadline = Date.now() + 25000;
+    do {
+      var [history, library] = await Promise.all([
+        api("/lastfm/analytics/status" + suffix),
+        api("/lastfm/analytics/library/status" + suffix),
+      ]);
+      if (!history.checking && !library.checking) {
+        if (history.state !== "ready" || library.state !== "ready") {
+          throw new Error("Publication check unavailable");
+        }
+        return history.metadata?.snapshot === selection.history &&
+          library.snapshot === selection.library;
+      }
+      suffix = "";
+      await new Promise(function (resolve) { setTimeout(resolve, 750); });
+    } while (Date.now() < deadline);
+    throw new Error("Publication check timed out");
+  }
+
+  async function checkPalaceHandoff(selection) {
+    if (!palaceSelectionExpired(selection)) {
+      try {
+        if (await currentPalaceSelection(selection) && !palaceSelectionExpired(selection)) return true;
+      } catch (e) {
+        palaceHandoffStatus("Could not check the selected album. Reload to try again.", true);
+        return false;
+      }
+    }
+    palaceHandoffStatus("This album selection has expired. Preview it again in Rediscover.", true);
+    return false;
+  }
+
+  async function preparePalaceHandoff() {
+    var card = document.getElementById("palaceOfMemoryCard");
+    card.scrollIntoView({ block: "nearest" });
+    if (palaceOfMemoryJob && isAnalysisActive(palaceOfMemoryJob.status)) {
+      palaceHandoffStatus("Finish the current Palace run, then reload to use the starting album.", true);
+      return;
+    }
+    palaceHandoffStatus("Checking the album selection from Rediscover…", false);
+    var selection = readPalaceHandoff();
+    if (!(await checkPalaceHandoff(selection)) || !pw) return;
+    palaceHandoff = selection;
+    document.getElementById("palaceAlphabeticalStart").value = selection.album;
+    document.getElementById("palaceOfMemoryDryRun").checked = true;
+    if (!card.classList.contains("settings-open")) card.querySelector(".settings-trigger").click();
+    palaceHandoffStatus(
+      selection.label + " is the alphabetical starting album. Choose Run to preview the usual Palace selection.",
+      false
+    );
+    card.scrollIntoView({ block: "nearest" });
+  }
+
   function renderScrobbleHistoryJob(job) {
     scrobbleHistoryJob = job;
     var out = document.getElementById("scrobbleHistoryProgress");
@@ -5894,11 +5985,26 @@
       var dryRun = document.getElementById("palaceOfMemoryDryRun").checked;
       var alphabeticalStart = document.getElementById("palaceAlphabeticalStart").value.trim();
       var out = document.getElementById("palaceOfMemoryProgress");
-      if (!dryRun && !confirm("Add the selected album first tracks to Palace of Memory?")) return;
+      if (palaceHandoffRequested) {
+        if (!palaceHandoff) return;
+        if (alphabeticalStart !== palaceHandoff.album) {
+          palaceHandoffStatus("Restore the selected Spotify album URI or preview the album again in Rediscover.", true);
+          return;
+        }
+        setBusy(btn, true, "Checking...");
+        if (!(await checkPalaceHandoff(palaceHandoff))) {
+          setBusy(btn, false);
+          return;
+        }
+      }
+      if (!dryRun && !confirm("Add the selected album first tracks to Palace of Memory?")) {
+        if (palaceHandoffRequested) setBusy(btn, false);
+        return;
+      }
       var q = new URLSearchParams();
       q.set("dry_run", dryRun ? "true" : "false");
       if (alphabeticalStart) q.set("alphabetical_start", alphabeticalStart);
-      setBusy(btn, true, "Starting...");
+      if (!palaceHandoffRequested) setBusy(btn, true, "Starting...");
       try {
         var job = await api(
           "/commands/fill-palace-of-memory?" + q.toString(),
@@ -6346,7 +6452,8 @@
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();
     restoreActiveRequeueForADreamJobs();
-    restoreActivePalaceOfMemoryJobs();
+    var palaceRestore = restoreActivePalaceOfMemoryJobs();
+    if (palaceHandoffRequested) palaceRestore.then(preparePalaceHandoff);
     restoreActiveScrobbleHistoryJobs();
     restoreActiveNewYearJobs();
     return true;
@@ -6366,6 +6473,8 @@
 
   document.getElementById("logout").addEventListener("click", function () {
     pw = null;
+    palaceHandoff = null;
+    try { sessionStorage.removeItem("listening-palace-handoff-v1"); } catch (e) {}
     try { window.name = ""; } catch (e) {}
     app.classList.add("hidden");
     gate.classList.remove("hidden");

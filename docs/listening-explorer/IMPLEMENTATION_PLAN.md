@@ -324,6 +324,11 @@ periods, daylight-saving folds, keyboard access, mobile rendering and export.
    Verify that opening a link leaves jobs idle and that expired selections
    require a fresh preview.
 
+   From a previewed Rediscover album, open Palace of Memory with the exact
+   saved Spotify edition as its alphabetical starting point. The browser
+   handoff expires after 20 minutes or when either publication changes. The
+   usual Palace selection starts only when the user chooses **Run**.
+
 Review and release each increment independently. Playback duration, skips and
 other listening measures require a source that records those values.
 

@@ -268,6 +268,36 @@ export function refreshMatch(context, included) {
     updateButtons();
   }
 }
+
+function palaceHandoff(album, heading) {
+  const button = element(
+    "button",
+    "Use as Palace starting album",
+    "small-button",
+  );
+  button.type = "button";
+  button.addEventListener("click", () => {
+    try {
+      sessionStorage.setItem(
+        "listening-palace-handoff-v1",
+        JSON.stringify({
+          album: album.uri,
+          label: heading,
+          history: shortlist.snapshot,
+          library: shortlist.library_snapshot,
+          created: Date.now(),
+        }),
+      );
+    } catch {
+      $("revisit-message").textContent =
+        "This browser could not save the Palace starting point. The album preview is still available.";
+      return;
+    }
+    window.location.assign("/?palace=rediscover#palaceOfMemoryCard");
+  });
+  return button;
+}
+
 function renderTracklists(choices) {
   const panel = $("revisit-tracks");
   panel.replaceChildren();
@@ -283,7 +313,10 @@ function renderTracklists(choices) {
         `${heading} · ${count ? `${number(count)} ${count === 1 ? "track" : "tracks"}` : "Tracklist unavailable"}`,
       ),
     );
-    if (link) block.append(link);
+    const actions = element("div", undefined, "revisit-tracklist-actions");
+    if (link) actions.append(link);
+    if (count) actions.append(palaceHandoff(album, heading));
+    block.append(actions);
     if (!count) {
       block.open = true;
       block.append(

@@ -411,6 +411,15 @@ expected positions before continuing. If Spotify still cannot confirm a write,
 **Recheck and resume** checks its effects again. A changed destination requires
 a fresh review.
 
+### Open a Palace of Memory dry run
+
+After previewing album tracks in Rediscover, expand an album and choose
+**Use as Palace starting album**. This opens the cockpit with **Dry run**
+checked and the saved Spotify edition filled in under **Alphabetical start**.
+Choose **Run** to preview the usual Palace batch beginning at that album.
+The handoff expires after 20 minutes or when the listening or Spotify
+publication changes. Preview the album again in Rediscover to renew it.
+
 
 ## Tag Atlas release
 
