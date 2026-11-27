@@ -1,5 +1,7 @@
-"""Serve real explorer routes/assets over synthetic, independently published data."""
+"""Serve all three frontend pages with isolated browser fixtures."""
 
+import argparse
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC
@@ -9,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import uvicorn
+from fastapi import APIRouter
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Request
@@ -29,7 +32,7 @@ from spotify_manager.infrastructure.listening.cover_cache import AlbumCoverCache
 from spotify_manager.infrastructure.listening.library_runtime import LibraryRuntime
 from spotify_manager.infrastructure.listening.origin_cache import ArtistOriginCache
 from spotify_manager.infrastructure.listening.tag_cache import ArtistTagCache
-from spotify_manager.interfaces.http.listening import router
+from spotify_manager.interfaces.http.listening import router as listening_router
 from spotify_manager.interfaces.http.listening_export import router as export_router
 from spotify_manager.interfaces.http.listening_origins import router as origin_router
 from spotify_manager.interfaces.http.listening_quilt import router as quilt_router
@@ -41,6 +44,13 @@ from spotify_manager.interfaces.http.listening_tags import router as tag_router
 from spotify_manager.interfaces.http.playlist_export_runtime import (
     PlaylistExportRuntime,
 )
+from tests.browser.cockpit import FRONTEND
+from tests.browser.cockpit import reset_cockpit
+from tests.browser.cockpit import router as cockpit_router
+from tests.browser.cockpit_jobs import reset_jobs
+from tests.browser.cockpit_jobs import router as jobs_router
+from tests.browser.genre import reset_genre
+from tests.browser.genre import router as genre_router
 from tests.support.listening import listening_fixture
 from tests.support.listening import scrobble
 from tests.support.listening_covers import FixtureCoverSource
@@ -56,7 +66,6 @@ from tests.support.listening_tags import FixtureTagSource
 from tests.support.listening_tags import tag_metadata
 
 
-FRONTEND = Path(__file__).resolve().parents[2] / "spotify_manager" / "frontend"
 LEGACY_ASSETS = {
     "explorer-v1.js": 'import "./charts-v1.js"; import "./tables-v1.js"; '
     "window.legacyExplorer = true;",
@@ -134,7 +143,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Own only synthetic storage and the real analytics runtime."""
     with TemporaryDirectory(prefix="listening-browser-") as directory:
         fixture = listening_fixture(Path(directory))
-        fixture.publish(browser_rows())
+        rows = browser_rows()
+        fixture.publish(rows)
+        app.state.history_source = fixture.source
+        app.state.history_count = len(rows)
         publish_collection(
             fixture,
             "albums",
@@ -247,18 +259,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await fixture.runtime.close()
 
 
-app = FastAPI(lifespan=lifespan)
-app.add_middleware(PasswordMiddleware, password="browser-test-password")
-app.include_router(router)
-app.include_router(tag_router)
-app.include_router(origin_router)
-app.include_router(quilt_router)
-app.include_router(revisit_router)
-app.include_router(export_router)
-app.include_router(session_router)
+router = APIRouter()
 
 
-@app.get("/lastfm/assets/{filename}")
+@router.get("/lastfm/assets/{filename}")
 def asset(filename: str, request: Request) -> Response:
     """Serve actual assets or explicitly seed a long-lived older browser cache.
 
@@ -288,19 +292,34 @@ def asset(filename: str, request: Request) -> Response:
     )
 
 
-@app.get("/health")
+@router.get("/health")
 def health() -> dict[str, str]:
     """Provide the same public startup probe as the real web wrapper."""
     return {"status": "ok"}
 
 
-@app.get("/auth/check")
+@router.get("/auth/check")
 def auth_check() -> dict[str, str]:
     """Let the real password middleware authenticate the browser fixture."""
     return {"status": "ok"}
 
 
-@app.get("/lastfm")
+@router.get("/scrobble-history/download")
+def download_history(request: Request) -> FileResponse:
+    """Return the same published synthetic history Explorer reads.
+
+    Args:
+        request: Provides the current process's fixture path.
+
+    Returns:
+        A downloadable copy of the synthetic Last.fm export.
+    """
+    source: Path = request.app.state.history_source
+    return FileResponse(source, media_type="application/json", filename=source.name)
+
+
+@router.get("/lastfm")
+@router.get("/lastfm/")
 def shell(request: Request) -> Response:
     """Serve the actual shell or a read-only cache-seeding fixture.
 
@@ -319,5 +338,57 @@ def shell(request: Request) -> Response:
     return FileResponse(FRONTEND / "lastfm.html", headers={"Cache-Control": "no-cache"})
 
 
+@router.post("/__browser_fixture/reset", status_code=204)
+async def reset_cockpit_fixtures() -> Response:
+    """Reset only the synthetic cockpit and Genre Reveal fixtures."""
+    reset_cockpit()
+    reset_jobs()
+    reset_genre()
+    return Response(status_code=204)
+
+
+def fixture_app(password: str) -> FastAPI:
+    """Build the gated synthetic app for tests or local review.
+
+    Args:
+        password: The process-local password accepted by the fixture.
+
+    Returns:
+        The fixture application with real frontend pages and offline services.
+    """
+    app = FastAPI(lifespan=lifespan)
+    app.add_middleware(PasswordMiddleware, password=password)
+    app.include_router(router)
+    app.include_router(cockpit_router)
+    app.include_router(jobs_router)
+    app.include_router(genre_router)
+    app.include_router(listening_router)
+    app.include_router(tag_router)
+    app.include_router(origin_router)
+    app.include_router(quilt_router)
+    app.include_router(revisit_router)
+    app.include_router(export_router)
+    app.include_router(session_router)
+    return app
+
+
+def main() -> None:
+    """Start an isolated test server or a manual review on loopback."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--preview", action="store_true", help="enable local review")
+    parser.add_argument("--port", type=int, help="override the default loopback port")
+    options = parser.parse_args()
+    port = options.port or (8019 if options.preview else 8018)
+    password = "browser-test-password"
+    if options.preview:
+        os.environ["APP_PASSWORD"] = "preview"
+        password = os.environ["APP_PASSWORD"]
+        print(
+            f"Frontend review http://127.0.0.1:{port}/ | password {password}",
+            flush=True,
+        )
+    uvicorn.run(fixture_app(password), host="127.0.0.1", port=port)
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8018)
+    main()
