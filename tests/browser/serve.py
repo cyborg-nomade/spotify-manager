@@ -49,6 +49,8 @@ from tests.browser.cockpit import reset_cockpit
 from tests.browser.cockpit import router as cockpit_router
 from tests.browser.cockpit_jobs import reset_jobs
 from tests.browser.cockpit_jobs import router as jobs_router
+from tests.browser.cockpit_jobs import start_mirror
+from tests.browser.cockpit_jobs import start_requeue
 from tests.browser.genre import reset_genre
 from tests.browser.genre import router as genre_router
 from tests.support.listening import listening_fixture
@@ -249,6 +251,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.listening_origins.restore()
         app.state.listening_covers = cover_stage(Path(directory), now)
         try:
+            if app.state.seed_review_jobs:
+                await start_mirror("albums")
+                await start_requeue(dry_run=True)
             yield
         finally:
             await export_tasks.close()
@@ -347,16 +352,18 @@ async def reset_cockpit_fixtures() -> Response:
     return Response(status_code=204)
 
 
-def fixture_app(password: str) -> FastAPI:
+def fixture_app(password: str, *, seed_review_jobs: bool = False) -> FastAPI:
     """Build the gated synthetic app for tests or local review.
 
     Args:
         password: The process-local password accepted by the fixture.
+        seed_review_jobs: Show a sample sync and pending album in manual reviews.
 
     Returns:
         The fixture application with real frontend pages and offline services.
     """
     app = FastAPI(lifespan=lifespan)
+    app.state.seed_review_jobs = seed_review_jobs
     app.add_middleware(PasswordMiddleware, password=password)
     app.include_router(router)
     app.include_router(cockpit_router)
@@ -387,7 +394,8 @@ def main() -> None:
             f"Frontend review http://127.0.0.1:{port}/ | password {password}",
             flush=True,
         )
-    uvicorn.run(fixture_app(password), host="127.0.0.1", port=port)
+    app = fixture_app(password, seed_review_jobs=options.preview)
+    uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

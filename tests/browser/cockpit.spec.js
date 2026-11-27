@@ -30,13 +30,17 @@ test("the password gate protects cockpit data and remembers only the selected ta
   await expect(page.getByText("Wrong password")).toBeVisible();
   await expect(page.locator("#gate")).toBeVisible();
 
-  const password = page.getByPlaceholder("Any text");
+  const password = page.getByLabel("App password");
   await password.fill(credentials.headers["X-App-Password"]);
   await password.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Cockpit", exact: true }),
+  ).toBeFocused();
   await expect(page.getByText("4 / 4 sources available")).toBeVisible();
   await page.reload();
   await expect(page.getByText("4 / 4 sources available")).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(password).toBeFocused();
   await expect(page.locator("#gate")).toBeVisible();
   await page.reload();
   await expect(page.locator("#gate")).toBeVisible();
@@ -45,6 +49,46 @@ test("the password gate protects cockpit data and remembers only the selected ta
   await submitPassword(page, credentials.headers["X-App-Password"]);
   await expect(page.getByText("4 / 4 sources available")).toBeVisible();
   await page.reload();
+  await expect(page.locator("#app")).toBeHidden();
+});
+
+test("Dead Air keeps the source controls visible and avoids page overflow", async ({
+  page,
+}) => {
+  await openCockpit(page);
+  const navigation = page.getByRole("navigation", { name: "Spotify Manager" });
+  await expect(
+    navigation.getByRole("link", { name: "Cockpit" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    navigation.getByRole("link", { name: "Listening Explorer" }),
+  ).toHaveAttribute("href", "/lastfm");
+  await expect(
+    navigation.getByRole("button", { name: "Genre Reveal" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("heading", { name: "Data signal board" }),
+  ).toBeVisible();
+  for (const width of [1440, 960, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(width);
+    await expect(
+      page.getByRole("button", { name: "Download", exact: true }),
+    ).toBeVisible();
+  }
+});
+
+test("the password gate stays locked when the server is unreachable", async ({
+  page,
+}) => {
+  await page.route("**/auth/check", (route) => route.abort());
+  await page.goto("/");
+  await submitPassword(page, credentials.headers["X-App-Password"]);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Network error" }),
+  ).toBeVisible();
   await expect(page.locator("#app")).toBeHidden();
 });
 

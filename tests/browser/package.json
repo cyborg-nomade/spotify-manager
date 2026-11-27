@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:unit && playwright test",
-    "format:check": "prettier --check ../../spotify_manager/frontend/lastfm.html ../../spotify_manager/frontend/lastfm-assets/*-v1.js ../../spotify_manager/frontend/lastfm-assets/*-v1.css *.js package.json",
+    "format:check": "prettier --check ../../spotify_manager/frontend/lastfm.html ../../spotify_manager/frontend/lastfm-assets/*-v1.js ../../spotify_manager/frontend/lastfm-assets/*-v1.css ../../spotify_manager/frontend/cockpit-assets/*-v1.js ../../spotify_manager/frontend/cockpit-assets/*-v1.css *.js package.json",
     "test:unit": "node --experimental-default-type=module --test eras.test.js"
   },
   "devDependencies": {

@@ -244,6 +244,7 @@ adds the password middleware to the same app. See `../CONTRACTS.md`.
 | [ ] | api | GET | `/lastfm/analytics/sessions` | `listening_sessions` | True |
 | [ ] | api | GET | `/lastfm/analytics/sessions/{first_ms}/records` | `listening_session_records` | True |
 | [ ] | web | GET | `/` | `index` | False |
+| [ ] | web | GET | `/cockpit/assets/{filename}` | `cockpit_static_asset` | False |
 | [ ] | web | GET | `/genre-reveal` | `genre_reveal_page` | False |
 | [ ] | web | GET | `/lastfm/` | `listening_explorer_page` | False |
 | [ ] | web | GET | `/lastfm` | `listening_explorer_page` | False |

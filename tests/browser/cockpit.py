@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from spotify_manager.core.library_data.models import ARTIFACT_FILENAMES
 from spotify_manager.core.state.editor import state_editor_schema
 from spotify_manager.domain.flush_mode import FlushControl
+from spotify_manager.interfaces.http.cockpit_pages import cockpit_asset
+from spotify_manager.interfaces.http.cockpit_pages import cockpit_shell
 from spotify_manager.interfaces.http.models.common import LibraryMirrorFilesStatus
 from spotify_manager.interfaces.http.models.common import ServerFileStatus
 from spotify_manager.interfaces.http.models.flush_mode import FlushControlRequest
@@ -62,10 +64,8 @@ def reset_cockpit() -> None:
     _cockpit = CockpitFixture()
 
 
-@router.get("/")
-def cockpit_shell() -> FileResponse:
-    """Serve the real cockpit HTML."""
-    return FileResponse(FRONTEND / "index.html")
+router.add_api_route("/", cockpit_shell, methods=["GET"])
+router.add_api_route("/cockpit/assets/{filename}", cockpit_asset, methods=["GET"])
 
 
 @router.get("/genre-reveal")

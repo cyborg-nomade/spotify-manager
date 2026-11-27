@@ -2280,6 +2280,19 @@
   },
   {
     "declared_status_code": null,
+    "handler": "spotify_manager.web.cockpit_static_asset",
+    "include_in_schema": false,
+    "methods": [
+      "GET"
+    ],
+    "name": "cockpit_static_asset",
+    "path": "/cockpit/assets/{filename}",
+    "response_model": null,
+    "source_line": 80,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
     "handler": "spotify_manager.web.genre_reveal_page",
     "include_in_schema": false,
     "methods": [

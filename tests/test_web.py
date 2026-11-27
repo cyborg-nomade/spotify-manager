@@ -14,6 +14,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager import api
 from spotify_manager import web
 from spotify_manager._auth import OPEN_PATHS
+from spotify_manager.domain.web_access import COCKPIT_ASSETS
 from spotify_manager.routines import genre_reveal
 
 
@@ -44,6 +45,24 @@ def test_genre_reveal_shell_is_open_but_state_api_is_protected() -> None:
     assert "/genre-reveal" in OPEN_PATHS
     assert "/genre-reveal/" in OPEN_PATHS
     assert "/genre-reveal/state" not in OPEN_PATHS
+
+
+def test_cockpit_only_allows_named_assets_and_revalidates_its_cache(
+    client: TestClient,
+) -> None:
+    shell = client.get("/")
+    assert shell.headers["cache-control"] == "no-cache"
+    assert 'href="/cockpit/assets/shell-v1.css"' in shell.text
+    for filename in COCKPIT_ASSETS:
+        path = f"/cockpit/assets/{filename}"
+        assert path in OPEN_PATHS
+        response = client.get(path, headers={"If-None-Match": '"obsolete-asset"'})
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["etag"] != '"obsolete-asset"'
+    assert "/cockpit/assets/index.html" not in OPEN_PATHS
+    assert "/state/summary" not in OPEN_PATHS
+    assert client.get("/cockpit/assets/index.html").status_code == 404
 
 
 def test_listening_shell_and_exact_assets_are_open_but_analytics_are_protected(
@@ -126,8 +145,8 @@ def test_new_year_panel_replaces_queue_3_previous_year_button(
     assert 'data-action="startQueue3AnnualImport"' not in response.text
     assert 'data-action="startNewYear"' in response.text
     assert 'id="newYearDryRun" checked' in response.text
-    assert response.text.index('id="newYearCard"') < response.text.index(
-        'id="serverFilesCard"'
+    assert response.text.index('id="serverFilesCard"') < response.text.index(
+        'id="newYearCard"'
     )
     assert '"/commands/import-queue-3-previous-year"' in response.text
     assert "job.queue_3_annual_only" in response.text
@@ -177,7 +196,6 @@ def test_cockpit_exposes_shared_state_controls(client: TestClient) -> None:
     assert 'id="stateGuidedEditor"' in response.text
     assert "switchSharedStateNamespace" in response.text
     assert "documentState.namespaces[namespace]" in response.text
-    assert 'api("/state/summary")' in response.text
     assert 'api("/state/schema")' in response.text
     assert '"/state/namespaces/" + encodeURIComponent(namespace)' in response.text
 
@@ -584,10 +602,6 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert '"flush-queue-2"' in response.text
     assert '"flush_queue_2"' in response.text
     assert "restoreActiveQueue2Jobs();" in response.text
-    assert ".discovery-grid #newKidsCard { order: 3; }" in response.text
-    assert ".discovery-grid #newWineCard { order: 4; }" in response.text
-    assert ".discovery-grid #queueCard { order: 5; }" in response.text
-    assert ".discovery-grid #queue2Card { order: 6; }" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
     assert 'id="refreshCache"' not in response.text
@@ -658,7 +672,6 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "setMirrorMode(mirrorResource, job.full_rebuild" in response.text
     assert 'endpoint += "?full_rebuild=true"' in response.text
     assert '"/commands/refresh-library-mirrors/" + resource' in response.text
-    assert 'api("/library-mirrors/status")' in response.text
     assert "loadServerFilesStatus();" in response.text
 
 
@@ -682,13 +695,13 @@ def test_main_page_hides_legacy_library_and_command_cards(
     assert "restoreActiveAnalysisJobs();" in response.text
 
 
-def test_main_page_uses_grouped_signal_rack_layout(
+def test_main_page_preserves_the_signal_board_and_routine_controls(
     client: TestClient,
 ) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert '<main class="cockpit-grid">' in response.text
+    assert '<main class="cockpit-grid" id="cockpitMain"' in response.text
     assert 'class="card system-card" id="serverFilesCard"' in response.text
     assert 'id="libraryMirrorsCard" aria-label="Live library mirrors"' in (
         response.text
@@ -699,7 +712,7 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert 'id="libraryMirrorFilesStatus"' in response.text
     assert 'id="scrobbleHistoryFileStatus"' in response.text
     assert 'id="serverFilesSummary"' in response.text
-    assert '<span class="deck-label">Signal rack</span>' in response.text
+    assert 'aria-current="page">Cockpit' in response.text
     assert "<h2>Data signal board</h2>" in response.text
     assert 'data-server-file-date="albums_total_new.json"' in response.text
     assert 'data-server-file-date="liked_tracks_total.json"' in response.text
@@ -712,28 +725,8 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert 'class="macro-module lookup-module"' in response.text
     assert 'class="card independent-module" id="releaseCheckCard"' in response.text
     assert 'class="card independent-module" id="discographyCard"' in response.text
-    assert "@media (min-width: 1120px)" in response.text
-    assert "@media (min-width: 760px) and (max-width: 1119px)" in response.text
-    assert "justify-content: flex-end; column-gap: 4px; row-gap: 5px" in (response.text)
-    assert "#blastCard .mode-switch { width: 112px; }" in response.text
-    assert ".cockpit-grid { grid-template-columns: repeat(12" in response.text
-    assert "background: linear-gradient(165deg" in response.text
-    assert "--control-unit: 64px" in response.text
-    assert "max-width: 100%; margin-left: auto" in response.text
-    assert "white-space: normal; overflow-wrap: anywhere" in response.text
-    assert "display: flex; flex-wrap: wrap; justify-content: flex-end" in response.text
-    assert "text-overflow: ellipsis" not in response.text
-    assert "html { font-size: 20px; }" in response.text
-    assert ".macro-grid { display: grid; align-content: start" in response.text
     assert "function enhanceControlPanels()" in response.text
     assert "function createTerminalTrigger(scope)" in response.text
-    assert 'class="card blank-console-card" aria-hidden="true"' in response.text
-    assert ".discovery-grid > .blank-console-card" in response.text
-    assert ".blank-console-card { display: none; order: 8; }" in response.text
-    assert "grid-template-rows: repeat(7, auto) minmax(24px, 1fr)" in response.text
-    assert "grid-column: 6 / -1;\n      grid-row: 4 / span 3" in response.text
-    assert "grid-column: 1 / span 5;\n      grid-row: 6" in response.text
-    assert "grid-column: 1 / span 5;\n      grid-row: 5" in response.text
     assert (
         "commandRow.appendChild(terminal);\n        commandRow.appendChild(command);"
     ) in response.text
@@ -744,13 +737,10 @@ def test_main_page_uses_grouped_signal_rack_layout(
     ) in response.text
     assert 'settings.id = "palaceSettings"' in response.text
     assert 'settingsTrigger.className = "settings-trigger"' in response.text
-    assert "#blastCard .panel-strip > h2 { flex-basis: 100%" in response.text
     assert ">Check</button>" in response.text
     assert "trigger.innerHTML = '<span aria-hidden=\"true\">&gt;_</span>';" in (
         response.text
     )
-    assert ".card:has(.terminal-trigger:hover) .analysis-log" in response.text
-    assert "display: none; max-height: 220px" in response.text
     assert 'id="artistStatsCard"' in response.text
     assert 'id="albumEvaluationCard"' in response.text
     assert 'id="trackScrobbleCard"' in response.text
@@ -765,7 +755,6 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert 'q.set("reference", reference)' in response.text
     assert 'api("/tracks/scrobbles?" + q.toString())' in response.text
     assert "actions.trackScrobble" in response.text
-    assert 'document.querySelectorAll("[data-server-file-date]")' in response.text
     assert "var starts = document.querySelectorAll" in response.text
     assert (
         'showToast("Scrobble history update finished", "ok");\n'

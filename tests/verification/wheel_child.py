@@ -110,17 +110,21 @@ def main() -> int:
     assert "/lastfm/analytics/sessions/{first_ms}/records" in api.app.openapi()["paths"]
     from spotify_manager import web
 
-    assert len(api.app.routes) == 149  # Web adds ten shell, asset and Genre routes.
+    assert len(api.app.routes) == 150  # Web adds eleven shell, asset and Genre routes.
     assert vars(web)["app"] is api.app
     _check_web_assets(site)
     _check_module_origins(site)
-    print("Wheel imports, 45 commands, explorer assets and both entry points pass.")
+    print("Wheel imports, 45 commands, frontend assets and both entry points pass.")
     return 0
 
 
 def _check_web_assets(site: Path) -> None:
+    from spotify_manager.domain.web_access import COCKPIT_ASSETS
+
     frontend = site / "spotify_manager/frontend"
     assert (frontend / "index.html").is_file()
+    for asset in COCKPIT_ASSETS:
+        assert (frontend / "cockpit-assets" / asset).is_file()
     assert (frontend / "genre-reveal.html").is_file()
     assert (frontend / "lastfm.html").is_file()
     assert (frontend / "lastfm-assets/echarts-6.0.0.min.js").is_file()
